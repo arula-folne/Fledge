@@ -2,7 +2,7 @@
   {
     "id": "welcome",
     "title": "Fledge へようこそ",
-    "body": "Ready to take flight. インスタンスを作成して、すぐに Minecraft を起動できます。",
+    "body": "Ready to take flight. 広告や利用解析はありません。インスタンスを作成して、すぐに Minecraft を起動できます。",
     "publishedAt": "2026-08-03T00:00:00.000Z"
   },
   {
@@ -10,5 +10,11 @@
     "title": "インスタンスについて",
     "body": "ワールドや MOD はインスタンスごとに分かれます。共通のライブラリとアセットは Data/Minecraft に保存されます。",
     "publishedAt": "2026-08-03T00:00:00.000Z"
+  },
+  {
+    "id": "privacy",
+    "title": "プライバシー",
+    "body": "アバター表示で mc-heads.net を使うことがあります。Discord Rich Presence は設定でオフにできます。詳細は設定 → プライバシー、および PRIVACY.md を参照してください。",
+    "publishedAt": "2026-08-05T00:00:00.000Z"
   }
 ]

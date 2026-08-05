@@ -11,6 +11,8 @@ type Props = {
   /** 副題（日付など） */
   subtitle?: string
   size?: 'md' | 'lg'
+  /** false のとき Esc / 背景 / × で閉じない（確認ダイアログ向け） */
+  dismissible?: boolean
 }
 
 /**
@@ -25,12 +27,13 @@ export function Dialog({
   scrollable = false,
   subtitle,
   size = 'md',
+  dismissible = true,
 }: Props) {
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!open) return
+    if (!open || !dismissible) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -39,7 +42,7 @@ export function Dialog({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [open, onClose])
+  }, [open, onClose, dismissible])
 
   useEffect(() => {
     if (!open) return
@@ -57,12 +60,16 @@ export function Dialog({
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       role="presentation"
     >
-      <button
-        type="button"
-        aria-label="close"
-        className="absolute inset-0 bg-black/45 backdrop-blur-md transition-opacity duration-200"
-        onClick={onClose}
-      />
+      {dismissible ? (
+        <button
+          type="button"
+          aria-label="close"
+          className="absolute inset-0 bg-black/45 backdrop-blur-md transition-opacity duration-200"
+          onClick={onClose}
+        />
+      ) : (
+        <div className="absolute inset-0 bg-black/45 backdrop-blur-md" aria-hidden />
+      )}
       <div
         ref={panelRef}
         role="dialog"
@@ -88,13 +95,15 @@ export function Dialog({
               <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{subtitle}</p>
             ) : null}
           </div>
-          <button
-            type="button"
-            className="shrink-0 rounded-[var(--radius-sm)] px-2 py-1 text-lg leading-none text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
-            onClick={onClose}
-          >
-            ×
-          </button>
+          {dismissible ? (
+            <button
+              type="button"
+              className="shrink-0 rounded-[var(--radius-sm)] px-2 py-1 text-lg leading-none text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
+              onClick={onClose}
+            >
+              ×
+            </button>
+          ) : null}
         </div>
         <div
           className={

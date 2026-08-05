@@ -48,7 +48,14 @@ export class SettingsStore {
 
   async set(partial: Partial<Settings>): Promise<Settings> {
     const current = await this.get()
-    const next = SettingsSchema.parse({ ...current, ...partial })
+    const patch: Partial<Settings> = { ...partial }
+    delete patch.curseforgeApiKeyConfigured
+    delete patch.curseforgeApiKeyFromEnv
+    // 空の API キーは未変更扱い（Renderer からは常に空文字で来るため）
+    if (patch.curseforgeApiKey !== undefined && !patch.curseforgeApiKey.trim()) {
+      delete patch.curseforgeApiKey
+    }
+    const next = SettingsSchema.parse({ ...current, ...patch })
     await this.save(next)
     this.cache = next
     return next
@@ -63,7 +70,14 @@ export class SettingsStore {
 
   private async save(settings: Settings): Promise<void> {
     await fs.mkdir(this.layout.settings, { recursive: true })
-    const { fullscreen: _f, windowWidth: _w, windowHeight: _h, ...persist } = settings
+    const {
+      fullscreen: _f,
+      windowWidth: _w,
+      windowHeight: _h,
+      curseforgeApiKeyConfigured: _configured,
+      curseforgeApiKeyFromEnv: _fromEnv,
+      ...persist
+    } = settings
     await fs.writeFile(this.filePath(), JSON.stringify(persist, null, 2), 'utf8')
   }
 }

@@ -116,8 +116,15 @@ export const SettingsSchema = z.object({
   defaultMemoryMaxMb: z.number().int().positive().default(4096),
   defaultJvmArgs: z.array(z.string()).default([]),
   msaClientId: z.string().optional(),
-  /** CurseForge API Key（未設定時は env FLEDGE_CURSEFORGE_API_KEY を参照） */
+  /** CurseForge API Key（ディスク保存用。Renderer には渡さない） */
   curseforgeApiKey: z.string().default(''),
+  /**
+   * Renderer 向けフラグ（永続化しない。IPC sanitize で付与）。
+   * true = キーが設定済み（中身は非表示）
+   */
+  curseforgeApiKeyConfigured: z.boolean().optional(),
+  /** true = 実行時は環境変数 FLEDGE_CURSEFORGE_API_KEY が優先（永続化しない） */
+  curseforgeApiKeyFromEnv: z.boolean().optional(),
   showSnapshots: z.boolean().default(false),
 
   // Minecraft 表示設定（ランチャー窓ではなくゲーム側）
@@ -145,6 +152,8 @@ export const SettingsSchema = z.object({
   useOsWindowChrome: z.boolean().default(true),
   minimizeOnLaunch: z.boolean().default(false),
   discordRichPresence: z.boolean().default(false),
+  /** 初回プライバシー注意の確認済み */
+  privacyNoticeAcknowledged: z.boolean().default(false),
 
   // Java（管理対象メジャーのメモ。実際の導入は Java 設定画面から）
   javaPreferredMajors: z

@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { AppShell } from './components/layout/AppShell'
+import { PrivacyNoticeDialog } from './components/PrivacyNoticeDialog'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { fledgeApi } from './api/fledgeApi'
 import { useLaunchStore, useLogStore, useUiStore } from './stores/appStores'
@@ -53,6 +54,7 @@ export default function App() {
   return (
     <>
       <EventBridge />
+      <PrivacyNoticeDialog />
       <Suspense
         fallback={
           <div className="flex h-full items-center justify-center text-[var(--color-text-muted)]">

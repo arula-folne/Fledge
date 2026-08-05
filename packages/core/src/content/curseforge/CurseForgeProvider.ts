@@ -5,10 +5,12 @@ import type {
   ContentSearchQuery,
   ContentSearchResult,
 } from '@fledge/shared'
-import type { ContentProvider, ResolvedContentFile } from './ContentProvider.js'
-
-const API = 'https://api.curseforge.com/v1'
-const MC_GAME_ID = 432
+import type { ContentProvider, ResolvedContentFile } from '../ContentProvider.js'
+import {
+  CurseForgeApiService,
+  type CfModSummary,
+} from './CurseForgeApiService.js'
+import { CurseForgeHttpClient } from './CurseForgeHttpClient.js'
 
 /** Minecraft class / section IDs */
 const CLASS_ID: Record<ContentCategory, number> = {
@@ -19,45 +21,11 @@ const CLASS_ID: Record<ContentCategory, number> = {
   plugin: 5,
 }
 
-/** CurseForge ModLoaderType */
 const LOADER_TYPE: Record<string, number> = {
   forge: 1,
   fabric: 4,
   quilt: 5,
   neoforge: 6,
-}
-
-type CfMod = {
-  id: number
-  name: string
-  slug: string
-  summary?: string
-  downloadCount?: number
-  classId?: number
-  logo?: { url?: string } | null
-  categories?: Array<{ name?: string }>
-  latestFilesIndexes?: Array<{
-    gameVersion?: string
-    modLoader?: number
-  }>
-}
-
-type CfFile = {
-  id: number
-  displayName: string
-  fileName: string
-  downloadUrl: string | null
-  fileStatus: number
-  fileDate: string
-  fileLength: number
-  gameVersions: string[]
-  hashes?: Array<{ value: string; algo: number }>
-  isAvailable?: boolean
-}
-
-type CfListResponse<T> = {
-  data: T
-  pagination?: { index: number; pageSize: number; resultCount: number; totalCount: number }
 }
 
 function mapLoaderName(modLoader?: number): string | null {
@@ -84,7 +52,7 @@ function primaryLoaderType(loaders?: ContentLoaderFilter[]): number | undefined 
   return undefined
 }
 
-function toProject(mod: CfMod, category: ContentCategory): ContentProject {
+function toProject(mod: CfModSummary, category: ContentCategory): ContentProject {
   const loaders = new Set<string>()
   const versions = new Set<string>()
   for (const idx of mod.latestFilesIndexes ?? []) {
@@ -109,30 +77,28 @@ function toProject(mod: CfMod, category: ContentCategory): ContentProject {
 
 export class CurseForgeProvider implements ContentProvider {
   readonly id = 'curseforge' as const
+  private readonly api: CurseForgeApiService
 
-  constructor(private readonly getApiKey: () => Promise<string | undefined>) {}
+  constructor(
+    private readonly getApiKey: () => Promise<string | undefined>,
+    httpClient?: CurseForgeHttpClient,
+  ) {
+    const http =
+      httpClient ??
+      new CurseForgeHttpClient({
+        resolveApiKey: this.getApiKey.bind(this),
+      })
+    this.api = new CurseForgeApiService(http)
+  }
+
+  /** ContentProvider 外からも詳細・カテゴリ等に使う */
+  get service(): CurseForgeApiService {
+    return this.api
+  }
 
   async hasApiKey(): Promise<boolean> {
     const key = await this.getApiKey()
     return Boolean(key?.trim())
-  }
-
-  private async cfFetch<T>(path: string, init?: RequestInit): Promise<T> {
-    const key = (await this.getApiKey())?.trim()
-    if (!key) throw new Error('CurseForge API key is not configured')
-    const res = await fetch(`${API}${path}`, {
-      ...init,
-      headers: {
-        Accept: 'application/json',
-        'x-api-key': key,
-        ...(init?.headers ?? {}),
-      },
-    })
-    if (!res.ok) {
-      const body = await res.text().catch(() => '')
-      throw new Error(`CurseForge API ${res.status}: ${body.slice(0, 200)}`)
-    }
-    return (await res.json()) as T
   }
 
   async search(query: ContentSearchQuery): Promise<ContentSearchResult> {
@@ -140,25 +106,19 @@ export class CurseForgeProvider implements ContentProvider {
       return { hits: [], total: 0, offset: query.offset, limit: query.limit }
     }
 
-    const params = new URLSearchParams({
-      gameId: String(MC_GAME_ID),
-      classId: String(CLASS_ID[query.category]),
-      pageSize: String(Math.min(50, query.limit)),
-      index: String(query.offset),
-      sortField: '2', // Popularity
-      sortOrder: 'desc',
+    const loaderType =
+      (query.category === 'mod' || query.category === 'plugin') && query.loaders.length
+        ? primaryLoaderType(query.loaders)
+        : undefined
+
+    const data = await this.api.searchMods({
+      classId: CLASS_ID[query.category],
+      searchFilter: query.query || undefined,
+      gameVersion: query.gameVersion,
+      modLoaderType: loaderType != null && query.gameVersion ? loaderType : undefined,
+      pageSize: Math.min(50, query.limit),
+      index: query.offset,
     })
-    if (query.query) params.set('searchFilter', query.query)
-    if (query.gameVersion) params.set('gameVersion', query.gameVersion)
-
-    if ((query.category === 'mod' || query.category === 'plugin') && query.loaders.length) {
-      const loaderType = primaryLoaderType(query.loaders)
-      if (loaderType != null && query.gameVersion) {
-        params.set('modLoaderType', String(loaderType))
-      }
-    }
-
-    const data = await this.cfFetch<CfListResponse<CfMod[]>>(`/mods/search?${params}`)
     const hits = (data.data ?? []).map((m) => toProject(m, query.category))
     return {
       hits,
@@ -175,30 +135,24 @@ export class CurseForgeProvider implements ContentProvider {
     gameVersion?: string
     loaders?: ContentLoaderFilter[]
   }): Promise<ResolvedContentFile> {
-    const modId = encodeURIComponent(input.projectId)
+    const loaderType = primaryLoaderType(input.loaders)
 
-    let file: CfFile | undefined
+    let file
     if (input.versionId) {
-      const res = await this.cfFetch<CfListResponse<CfFile>>(`/mods/${modId}/files/${encodeURIComponent(input.versionId)}`)
-      file = res.data
+      file = await this.api.getModFile(input.projectId, input.versionId)
     } else {
-      const params = new URLSearchParams({ pageSize: '50' })
-      if (input.gameVersion) params.set('gameVersion', input.gameVersion)
-      const loaderType = primaryLoaderType(input.loaders)
-      if (loaderType != null && input.gameVersion) {
-        params.set('modLoaderType', String(loaderType))
-      }
-      const res = await this.cfFetch<CfListResponse<CfFile[]>>(`/mods/${modId}/files?${params}`)
-      const files = (res.data ?? []).filter((f) => f.isAvailable !== false && f.downloadUrl)
-      file = files[0]
+      const files = await this.api.listModFiles(input.projectId, {
+        gameVersion: input.gameVersion,
+        modLoaderType: loaderType != null && input.gameVersion ? loaderType : undefined,
+      })
+      file = files.find((f) => f.isAvailable !== false && f.downloadUrl) ?? files[0]
     }
 
     if (!file?.downloadUrl) {
-      throw new Error('Compatible CurseForge file not found (or download URL missing)')
+      throw new Error('対応する CurseForge ファイルが見つかりません。')
     }
 
-    const modRes = await this.cfFetch<CfListResponse<CfMod>>(`/mods/${modId}`)
-    const mod = modRes.data
+    const mod = await this.api.getMod(input.projectId)
     const sha1 = file.hashes?.find((h) => h.algo === 1)?.value
 
     return {

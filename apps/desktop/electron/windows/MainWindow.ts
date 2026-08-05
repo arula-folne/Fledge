@@ -63,17 +63,24 @@ export function createMainWindow(opts?: {
   }
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
+    try {
+      const parsed = new URL(url)
+      if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+        void shell.openExternal(url)
+      }
+    } catch {
+      // ignore invalid URLs
+    }
     return { action: 'deny' }
   })
 
   const rendererUrl = process.env['ELECTRON_RENDERER_URL']
   if (rendererUrl) {
-    console.log('Loading renderer URL:', rendererUrl)
+    if (!app.isPackaged) console.log('Loading renderer URL:', rendererUrl)
     void win.loadURL(rendererUrl)
   } else {
     const file = path.join(__dirname, '../renderer/index.html')
-    console.log('Loading renderer file:', file)
+    if (!app.isPackaged) console.log('Loading renderer file:', file)
     void win.loadFile(file)
   }
 

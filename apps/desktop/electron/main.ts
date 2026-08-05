@@ -1,9 +1,11 @@
 import { app, BrowserWindow, Menu } from 'electron'
+import fs from 'node:fs'
 import path from 'node:path'
 import { createLauncherApp, Logger, type LauncherApp } from '@fledge/core'
 import { IPC_EVENTS, type LaunchStateEvent } from '@fledge/shared'
 import { MicrosoftAuthProvider } from './auth/MicrosoftAuthProvider'
 import { DiscordPresence } from './discord/DiscordPresence'
+import { defaultEnvCandidatePaths, loadFledgeEnvFiles } from './env/loadEnv'
 import { registerIpc } from './ipc/registerIpc'
 import { TokenVault } from './security/tokenVault'
 import { createMainWindow, resolveFledgeRoot } from './windows/MainWindow'
@@ -15,6 +17,18 @@ let cachedClientId: string | undefined
 
 function getWindow(): BrowserWindow | null {
   return mainWindow
+}
+
+/** settings.json を同期読み（app.ready 前の HA 切替用。失敗時は既定 ON） */
+function peekHardwareAcceleration(root: string): boolean {
+  try {
+    const file = path.join(root, 'Data', 'Settings', 'settings.json')
+    const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as { hardwareAcceleration?: unknown }
+    if (typeof raw.hardwareAcceleration === 'boolean') return raw.hardwareAcceleration
+  } catch {
+    // missing / invalid → default
+  }
+  return true
 }
 
 async function syncPresenceFromLaunchState(e: LaunchStateEvent): Promise<void> {
@@ -57,6 +71,9 @@ async function syncPresenceFromLaunchState(e: LaunchStateEvent): Promise<void> {
 
 async function bootstrap(): Promise<void> {
   const root = resolveFledgeRoot()
+  loadFledgeEnvFiles(
+    defaultEnvCandidatePaths(root, app.getAppPath(), path.dirname(process.execPath)),
+  )
   const logger = new Logger()
   const vault = new TokenVault(path.join(root, 'Data', 'Accounts'))
   const presence = new DiscordPresence(logger)
@@ -114,8 +131,15 @@ async function bootstrap(): Promise<void> {
   logger.info('system', `Fledge root: ${root}`)
 }
 
+// ready 前に適用（Electron 要件）
+{
+  const root = resolveFledgeRoot()
+  if (!peekHardwareAcceleration(root)) {
+    app.disableHardwareAcceleration()
+  }
+}
+
 app.whenReady().then(() => {
-  // File / Edit / Window などの既定メニューバーを非表示
   Menu.setApplicationMenu(null)
   void bootstrap().catch((err) => {
     console.error(err)

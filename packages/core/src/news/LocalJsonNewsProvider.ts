@@ -8,7 +8,7 @@ const FALLBACK_NEWS: NewsItem[] = [
   {
     id: 'welcome',
     title: 'Fledge へようこそ',
-    body: 'Ready to take flight. 軽量でシンプルな Minecraft ランチャーです。インスタンスを作成して起動してみましょう。',
+    body: 'Ready to take flight. 広告や利用解析のない、軽量でシンプルな Minecraft ランチャーです。',
     publishedAt: new Date().toISOString(),
   },
 ]

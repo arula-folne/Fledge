@@ -1,8 +1,14 @@
 # Fledge
 
-日本人向けの軽量・高速・シンプルな Minecraft ランチャーです。
+日本人向けの軽量・高速・シンプルな Minecraft ランチャーです。MIT ライセンスのオープンソースプロジェクトです。
 
 > Ready to take flight.
+
+## 方針
+
+- **広告・利用解析・クラッシュ報告は行いません**（詳細は [PRIVACY.md](./PRIVACY.md)）
+- Discord Rich Presence は**任意**（既定オフ）
+- 認証・ゲーム取得・Mod 検索は、機能利用時のみ各公式／配布サービスの API を使います
 
 ## 技術スタック
 
@@ -48,7 +54,7 @@ Fledge/
 前提: Node.js 20+、pnpm 11+
 
 ```powershell
-cd D:\Creative\cursorProject\Fledge
+cd Fledge
 pnpm install
 pnpm approve-builds --all
 node scripts/patch-xmcl.js
@@ -60,20 +66,30 @@ pnpm --filter @fledge/desktop exec electron-vite dev
 
 ルートの `pnpm dev` でも起動できます。
 
+### CurseForge API キー（任意）
+
+CurseForge コンテンツを使う場合のみ必要です。
+
+1. [.env.example](./.env.example) を `.env` にコピー
+2. `FLEDGE_CURSEFORGE_API_KEY=` にキーを記入（**コミットしない**）
+3. または設定 → リソース管理から入力（値は画面に再表示されません）
+
+キーは [CurseForge Console](https://console.curseforge.com/) で取得できます。
+
 ### 補足
 
 - `@xmcl/*` は npm 上の `main` がソースを指しているため、`postinstall` で `scripts/patch-xmcl.js` が dist を指すよう修正します。
 - Electron のダウンロードに失敗する場合は、GitHub Releases から `electron-v*-win32-x64.zip` を取得し `apps/desktop/node_modules/electron/dist` に展開してください。
 
-## MVP 範囲
+## 主な機能
 
-- Microsoft アカウントログイン（Client ID は設定で差し替え可）
-- Vanilla / Fabric 起動
-- Java 自動検出・不足時ダウンロード
-- インスタンス管理（作成・編集・複製・削除・フォルダを開く・右クリックメニュー）
+- Microsoft アカウントログイン
+- Vanilla / Fabric / Forge / NeoForge 起動
+- Java 自動検出・不足時ダウンロード（Temurin）
+- インスタンス管理
+- Modrinth / CurseForge コンテンツ検索・インストール
 - ニュース（ローカル JSON）
-- 起動ログ / 基本設定（Data / Minecraft / Java / Instances を開く）
-- 初回起動時のインスタンス作成ウィザード
+- 起動ログ / 基本設定
 
 ## ライセンス
 

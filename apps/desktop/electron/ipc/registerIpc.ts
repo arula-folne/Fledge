@@ -8,6 +8,7 @@ import {
   IPC_EVENTS,
   SettingsSchema,
   SkinModelSchema,
+  sanitizeSettingsForRenderer,
   type CreateInstanceInput,
   type Settings,
   type SkinModel,
@@ -26,28 +27,46 @@ function applyLauncherWindowSize(win: BrowserWindow | null, settings: Settings):
   win.setSize(width, height)
 }
 
+function envCurseforgeConfigured(): boolean {
+  return Boolean(process.env['FLEDGE_CURSEFORGE_API_KEY']?.trim())
+}
+
+function toRendererSettings(settings: Settings): Settings {
+  return sanitizeSettingsForRenderer(settings, {
+    envCurseforgeKeyConfigured: envCurseforgeConfigured(),
+  })
+}
+
 export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow | null): void {
   const win = () => getWindow()
 
   appCtx.logger.onLine((line) => send(win(), IPC_EVENTS.logLine, line))
   appCtx.auth.onStatusChange?.((status) => send(win(), IPC_EVENTS.authStatus, status))
 
-  ipcMain.handle(IPC.settingsGet, async () => appCtx.settings.get())
+  ipcMain.handle(IPC.settingsGet, async () => toRendererSettings(await appCtx.settings.get()))
   ipcMain.handle(IPC.settingsSet, async (_e, partial: Partial<Settings>) => {
     const parsed = SettingsSchema.partial().parse(partial)
-    const next = await appCtx.settings.set(parsed)
+    // Renderer からの空キー／表示用フラグは無視。非空のときだけ保存
+    const { curseforgeApiKeyConfigured: _c, curseforgeApiKeyFromEnv: _eEnv, ...rest } = parsed
+    const patch: Partial<Settings> = { ...rest }
+    if (typeof patch.curseforgeApiKey === 'string') {
+      const trimmed = patch.curseforgeApiKey.trim()
+      if (!trimmed) delete patch.curseforgeApiKey
+      else patch.curseforgeApiKey = trimmed
+    }
+    const next = await appCtx.settings.set(patch)
     if (
-      Object.prototype.hasOwnProperty.call(parsed, 'launcherWindowWidth') ||
-      Object.prototype.hasOwnProperty.call(parsed, 'launcherWindowHeight')
+      Object.prototype.hasOwnProperty.call(patch, 'launcherWindowWidth') ||
+      Object.prototype.hasOwnProperty.call(patch, 'launcherWindowHeight')
     ) {
       applyLauncherWindowSize(win(), next)
     }
-    return next
+    return toRendererSettings(next)
   })
   ipcMain.handle(IPC.settingsReset, async () => {
     const next = await appCtx.settings.reset()
     applyLauncherWindowSize(win(), next)
-    return next
+    return toRendererSettings(next)
   })
 
   ipcMain.handle(IPC.pathsGet, async () => appCtx.paths)
@@ -240,7 +259,7 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
     async (_e, input: { skinId: string; model?: SkinModel }) => {
       const patch: Partial<Settings> = { selectedSkinId: input.skinId }
       if (input.model) patch.skinModel = SkinModelSchema.parse(input.model)
-      return appCtx.settings.set(patch)
+      return toRendererSettings(await appCtx.settings.set(patch))
     },
   )
 

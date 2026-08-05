@@ -8,7 +8,7 @@ import type {
 import type { ContentProvider, ResolvedContentFile } from './ContentProvider.js'
 
 const API = 'https://api.modrinth.com/v2'
-const UA = 'Fledge/0.1.0 (github.com/fledge-launcher; content-manager)'
+const UA = 'Fledge/0.1.0 (https://github.com/arula-folne/Fledge; content-manager)'
 
 const TYPE_MAP: Record<ContentCategory, string> = {
   mod: 'mod',

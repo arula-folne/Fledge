@@ -18,7 +18,7 @@ import type { DownloadQueue } from '../download/DownloadQueue.js'
 import type { InstanceStore } from '../instances/InstanceStore.js'
 import type { Logger } from '../logging/Logger.js'
 import type { ContentProvider, ContentProviderInfo } from './ContentProvider.js'
-import { CurseForgeProvider } from './CurseForgeProvider.js'
+import { CurseForgeProvider } from './curseforge/CurseForgeProvider.js'
 import { mergePreferModrinth } from './mergeContentHits.js'
 import { ModrinthProvider } from './ModrinthProvider.js'
 
@@ -122,7 +122,9 @@ export class ContentService {
     const mrPromise = this.modrinth.search({ ...base, provider: 'modrinth' })
     const cfPromise = (await this.curseforge.hasApiKey())
       ? this.curseforge.search({ ...base, provider: 'curseforge' }).catch((err) => {
-          this.logger.warn('downloader', `CurseForge search failed: ${String(err)}`)
+          const msg = err instanceof Error ? err.message : 'unknown'
+          // APIキーがメッセージに含まれない前提で短く記録
+          this.logger.warn('downloader', `CurseForge search failed: ${msg.slice(0, 160)}`)
           return {
             hits: [] as ContentSearchResult['hits'],
             total: 0,
@@ -163,7 +165,7 @@ export class ContentService {
     const provider = this.providers.get(req.provider)
     if (!provider) throw new Error(`Content provider unavailable: ${req.provider}`)
     if (req.provider === 'curseforge' && !(await this.curseforge.hasApiKey())) {
-      throw new Error('CurseForge API key is not configured')
+      throw new Error('CurseForge APIキーが設定されていません。')
     }
 
     const loaders =

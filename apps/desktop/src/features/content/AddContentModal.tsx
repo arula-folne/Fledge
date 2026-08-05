@@ -252,9 +252,17 @@ export function AddContentModal({
           </p>
         ) : null}
 
+        {searchQuery.isError ? (
+          <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-3 py-2 text-sm text-[var(--color-danger)]">
+            {searchQuery.error instanceof Error
+              ? searchQuery.error.message
+              : String(searchQuery.error)}
+          </p>
+        ) : null}
+
         {searchQuery.isFetching ? (
           <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
-        ) : hits.length === 0 ? (
+        ) : searchQuery.isError ? null : hits.length === 0 ? (
           <p className="text-sm text-[var(--color-text-muted)]">{t('content.noResults')}</p>
         ) : (
           <ul className="space-y-2">

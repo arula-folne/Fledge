@@ -46,7 +46,15 @@ export default function SettingsPage() {
       await queryClient.cancelQueries({ queryKey: ['settings'] })
       const previous = queryClient.getQueryData<Settings>(['settings'])
       if (previous) {
-        const optimistic = { ...previous, ...partial }
+        const { curseforgeApiKey: incomingKey, ...rest } = partial
+        const optimistic: Settings = { ...previous, ...rest }
+        // APIキーは Renderer キャッシュへ平文で載せない
+        if (typeof incomingKey === 'string' && incomingKey.trim()) {
+          optimistic.curseforgeApiKey = ''
+          optimistic.curseforgeApiKeyConfigured = true
+        } else {
+          optimistic.curseforgeApiKey = ''
+        }
         queryClient.setQueryData(['settings'], optimistic)
         applyTheme(optimistic)
       }
@@ -405,6 +413,8 @@ export default function SettingsPage() {
             ) : null}
             <Toggle
               label={t('settings.hardwareAcceleration')}
+              hint={t('settings.hardwareAccelerationHint')}
+              warning={t('settings.restartRequired')}
               checked={settings.hardwareAcceleration}
               onChange={(hardwareAcceleration) => saveMutation.mutate({ hardwareAcceleration })}
             />
@@ -415,6 +425,13 @@ export default function SettingsPage() {
               checked={settings.useOsWindowChrome}
               onChange={(useOsWindowChrome) => saveMutation.mutate({ useOsWindowChrome })}
             />
+          </div>
+
+          <div className="space-y-2 pt-5 mt-1 border-t border-[var(--color-border)]">
+            <BlockHeading>{t('settings.block.privacy')}</BlockHeading>
+            <p className="whitespace-pre-line text-sm text-[var(--color-text-muted)]">
+              {t('settings.privacyNote')}
+            </p>
           </div>
 
           <div className="space-y-2 pt-5 mt-1 border-t border-[var(--color-border)]">
@@ -499,18 +516,33 @@ export default function SettingsPage() {
             <p className="text-xs text-[var(--color-text-muted)]">
               {t('settings.curseforgeApiKeyHint')}
             </p>
+            <p className="text-xs text-[var(--color-text-muted)]">
+              {settings.curseforgeApiKeyConfigured
+                ? t('settings.curseforgeApiKeyConfigured')
+                : t('settings.curseforgeApiKeyMissing')}
+            </p>
+            {settings.curseforgeApiKeyFromEnv ? (
+              <p className="text-xs text-[var(--color-text-muted)]">
+                {t('settings.curseforgeApiKeyEnvPriority')}
+              </p>
+            ) : null}
             <TextField
-              label={t('settings.curseforgeApiKey')}
+              label={t('settings.curseforgeApiKeyUpdate')}
               type="password"
-              defaultValue={settings.curseforgeApiKey ?? ''}
-              key={`cf-key-${settings.curseforgeApiKey ? 'set' : 'empty'}`}
+              defaultValue=""
+              key="cf-key-input"
+              placeholder={
+                settings.curseforgeApiKeyConfigured
+                  ? t('settings.curseforgeApiKeyPlaceholderSet')
+                  : t('settings.curseforgeApiKeyPlaceholderEmpty')
+              }
               autoComplete="off"
               onBlur={(e) => {
-                const next = e.target.value
-                if (next !== (settings.curseforgeApiKey ?? '')) {
-                  saveMutation.mutate({ curseforgeApiKey: next })
-                  void queryClient.invalidateQueries({ queryKey: ['content-providers'] })
-                }
+                const next = e.target.value.trim()
+                if (!next) return
+                e.target.value = ''
+                saveMutation.mutate({ curseforgeApiKey: next })
+                void queryClient.invalidateQueries({ queryKey: ['content-providers'] })
               }}
             />
           </div>

@@ -279,4 +279,3 @@ export function SkinPreview({
 }
 
 /** @deprecated SkinPreview を使用 */
-export const SkinBustPreview = SkinPreview
