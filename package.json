@@ -1,0 +1,32 @@
+{
+  "name": "fledge",
+  "private": true,
+  "version": "0.1.0",
+  "description": "軽量・高速な日本人向け Minecraft ランチャー",
+  "license": "MIT",
+  "author": "folne",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/arula-folne/Fledge.git"
+  },
+  "scripts": {
+    "postinstall": "node scripts/patch-xmcl.js",
+    "dev": "pnpm --filter @fledge/desktop dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "typecheck": "pnpm -r run typecheck",
+    "format": "prettier --write ."
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "packageManager": "pnpm@11.4.0",
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "eslint": "^9.22.0",
+    "eslint-config-prettier": "^10.1.1",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2",
+    "typescript-eslint": "^8.26.1"
+  }
+}

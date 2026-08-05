@@ -1,0 +1,70 @@
+@import 'tailwindcss';
+
+:root {
+  --color-bg: #f4f6fa;
+  --color-surface: #ffffff;
+  --color-input: #ffffff;
+  --color-border: #d8e0ea;
+  --color-text: #152033;
+  --color-text-muted: #5a6b7d;
+  --color-accent: #3d8fc9;
+  --color-accent-soft: #e4f1fb;
+  --color-hover: rgba(21, 32, 51, 0.06);
+  --color-on-accent: #ffffff;
+  --color-scrollbar: #b8c5d4;
+  --color-danger: #c94c4c;
+  --color-success: #3d9a6a;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  color: var(--color-text);
+  background: var(--color-bg);
+  color-scheme: light;
+  font-family:
+    'Segoe UI',
+    'Hiragino Sans',
+    'Hiragino Kaku Gothic ProN',
+    'Noto Sans JP',
+    Meiryo,
+    sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: linear-gradient(180deg, #f4f6fa 0%, #e8eef5 100%);
+  color: var(--color-text);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+select,
+textarea {
+  background-color: var(--color-input);
+  color: var(--color-text);
+  border-color: var(--color-border);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-scrollbar);
+  border-radius: 999px;
+}

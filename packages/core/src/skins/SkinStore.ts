@@ -1,0 +1,96 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import { randomUUID } from 'node:crypto'
+import type { SkinEntry, SkinModel } from '@fledge/shared'
+import type { PathLayout } from '../app/paths.js'
+
+/** Minecraft デフォルトスキン（テクスチャはアプリ同梱） */
+export const DEFAULT_SKINS: SkinEntry[] = [
+  { id: 'steve', name: 'Steve', source: 'default', model: 'wide', previewColor: '#8B6B4A' },
+  { id: 'alex', name: 'Alex', source: 'default', model: 'slim', previewColor: '#C48A5A' },
+  { id: 'ari', name: 'Ari', source: 'default', model: 'wide', previewColor: '#6B8E6B' },
+  { id: 'efe', name: 'Efe', source: 'default', model: 'wide', previewColor: '#4A4A4A' },
+  { id: 'kai', name: 'Kai', source: 'default', model: 'wide', previewColor: '#5A7A9A' },
+  { id: 'makena', name: 'Makena', source: 'default', model: 'slim', previewColor: '#9A6B5A' },
+  { id: 'noor', name: 'Noor', source: 'default', model: 'slim', previewColor: '#7A5A8A' },
+  { id: 'sunny', name: 'Sunny', source: 'default', model: 'wide', previewColor: '#D4A84A' },
+  { id: 'zuri', name: 'Zuri', source: 'default', model: 'wide', previewColor: '#5A8A7A' },
+]
+
+type UploadedMeta = {
+  id: string
+  name: string
+  model: SkinModel
+  fileName: string
+}
+
+export class SkinStore {
+  constructor(private readonly layout: PathLayout) {}
+
+  private metaPath(): string {
+    return path.join(this.layout.skins, 'uploaded.json')
+  }
+
+  async list(): Promise<SkinEntry[]> {
+    const uploaded = await this.readUploaded()
+    const uploads: SkinEntry[] = uploaded.map((u) => ({
+      id: u.id,
+      name: u.name,
+      source: 'upload',
+      model: u.model,
+      fileName: u.fileName,
+    }))
+    return [...DEFAULT_SKINS, ...uploads]
+  }
+
+  async upload(input: {
+    name: string
+    model: SkinModel
+    bytes: Uint8Array
+    originalName: string
+  }): Promise<SkinEntry> {
+    await fs.mkdir(this.layout.skins, { recursive: true })
+    const id = randomUUID()
+    const ext = path.extname(input.originalName).toLowerCase() || '.png'
+    const fileName = `${id}${ext}`
+    await fs.writeFile(path.join(this.layout.skins, fileName), Buffer.from(input.bytes))
+    const entry: UploadedMeta = {
+      id,
+      name: input.name || path.basename(input.originalName, ext),
+      model: input.model,
+      fileName,
+    }
+    const list = await this.readUploaded()
+    list.push(entry)
+    await fs.writeFile(this.metaPath(), JSON.stringify(list, null, 2), 'utf8')
+    return {
+      id: entry.id,
+      name: entry.name,
+      source: 'upload',
+      model: entry.model,
+      fileName: entry.fileName,
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    const list = await this.readUploaded()
+    const target = list.find((s) => s.id === id)
+    if (!target) return
+    const next = list.filter((s) => s.id !== id)
+    await fs.writeFile(this.metaPath(), JSON.stringify(next, null, 2), 'utf8')
+    await fs.rm(path.join(this.layout.skins, target.fileName), { force: true })
+  }
+
+  resolveFilePath(fileName: string): string {
+    return path.join(this.layout.skins, fileName)
+  }
+
+  private async readUploaded(): Promise<UploadedMeta[]> {
+    try {
+      const raw = await fs.readFile(this.metaPath(), 'utf8')
+      return JSON.parse(raw) as UploadedMeta[]
+    } catch {
+      return []
+    }
+  }
+}

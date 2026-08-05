@@ -1,0 +1,14 @@
+[
+  {
+    "id": "welcome",
+    "title": "Fledge へようこそ",
+    "body": "Ready to take flight. インスタンスを作成して、すぐに Minecraft を起動できます。",
+    "publishedAt": "2026-08-03T00:00:00.000Z"
+  },
+  {
+    "id": "tip-instances",
+    "title": "インスタンスについて",
+    "body": "ワールドや MOD はインスタンスごとに分かれます。共通のライブラリとアセットは Data/Minecraft に保存されます。",
+    "publishedAt": "2026-08-03T00:00:00.000Z"
+  }
+]

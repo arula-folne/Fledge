@@ -1,0 +1,11 @@
+---
+description: アプリ内アイコンは Tabler Icons を使う
+alwaysApply: true
+---
+
+# アイコン方針（Fledge）
+
+- UI アイコンは **[Tabler Icons](https://tabler.io/icons)**（`@tabler/icons-react`）を使う。
+- 絵文字や他アイコンセット（Lucide 等）で新規アイコンを置かない。既存の絵文字アイコンは触るときに Tabler へ置き換える。
+- React では `import { IconMoon, IconSun, ... } from '@tabler/icons-react'` を使い、通常は `size={16|18|20}`、`stroke={1.75}` 前後。
+- 色は親の `currentColor` / `text-[var(--color-text-muted)]` 等に任せ、必要なときだけ明示する。

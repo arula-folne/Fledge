@@ -1,0 +1,122 @@
+import { useEffect, useId, useRef } from 'react'
+
+type Props = {
+  open: boolean
+  title: string
+  onClose: () => void
+  children: React.ReactNode
+  footer?: React.ReactNode
+  /** お知らせなど長い本文向け */
+  scrollable?: boolean
+  /** 副題（日付など） */
+  subtitle?: string
+  size?: 'md' | 'lg'
+}
+
+/**
+ * 中央モーダル。Backdrop blur / Esc / 外側クリック対応。
+ */
+export function Dialog({
+  open,
+  title,
+  onClose,
+  children,
+  footer,
+  scrollable = false,
+  subtitle,
+  size = 'md',
+}: Props) {
+  const titleId = useId()
+  const panelRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [open])
+
+  if (!open) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="presentation"
+    >
+      <button
+        type="button"
+        aria-label="close"
+        className="absolute inset-0 bg-black/45 backdrop-blur-md transition-opacity duration-200"
+        onClick={onClose}
+      />
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className={[
+          'relative z-10 flex w-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] shadow-xl',
+          size === 'lg' ? 'max-w-2xl' : 'max-w-lg',
+          'animate-in fade-in zoom-in-95 duration-200',
+          scrollable ? 'max-h-[min(80vh,40rem)]' : '',
+        ].join(' ')}
+        style={{
+          animation: 'fledge-dialog-in 200ms ease-out',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--color-border)] px-5 py-4">
+          <div className="min-w-0">
+            <h2 id={titleId} className="text-base font-semibold">
+              {title}
+            </h2>
+            {subtitle ? (
+              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{subtitle}</p>
+            ) : null}
+          </div>
+          <button
+            type="button"
+            className="shrink-0 rounded-[var(--radius-sm)] px-2 py-1 text-lg leading-none text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
+        <div
+          className={
+            scrollable
+              ? 'min-h-0 flex-1 overflow-y-auto px-5 py-4'
+              : 'px-5 py-4'
+          }
+        >
+          {children}
+        </div>
+        {footer ? (
+          <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--color-border)] px-5 py-3">
+            {footer}
+          </div>
+        ) : null}
+      </div>
+      <style>{`
+        @keyframes fledge-dialog-in {
+          from { opacity: 0; transform: translateY(6px) scale(0.98); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
+    </div>
+  )
+}

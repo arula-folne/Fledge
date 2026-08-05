@@ -1,0 +1,21 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+allowBuilds:
+  electron: true
+  esbuild: true
+
+onlyBuiltDependencies:
+  - electron
+  - esbuild
+
+packageExtensions:
+  "@xmcl/installer":
+    main: "./dist/index.js"
+    module: "./dist/index.mjs"
+    types: "./dist/index.d.ts"
+  "@xmcl/core":
+    main: "./dist/index.js"
+    module: "./dist/index.mjs"
+    types: "./dist/index.d.ts"
