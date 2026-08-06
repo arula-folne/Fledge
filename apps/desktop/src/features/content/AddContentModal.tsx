@@ -196,16 +196,16 @@ export function AddContentModal({
               onChange={(e) => setProvider(e.target.value as ContentProviderId)}
               className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2"
             >
-              {(providersQuery.data ?? [{ id: 'aggregated', name: 'Aggregated', available: true }]).map(
-                (p) => (
+              {(providersQuery.data ?? [{ id: 'aggregated', name: 'Aggregated', available: true }])
+                .filter((p) => p.id !== 'curseforge' || p.available)
+                .map((p) => (
                   <option key={p.id} value={p.id} disabled={!p.available && p.id === 'curseforge'}>
                     {p.id === 'aggregated'
                       ? t('content.provider.aggregated')
                       : p.name}
                     {!p.available ? ` (${t('content.provider.unavailable')})` : ''}
                   </option>
-                ),
-              )}
+                ))}
             </select>
           </label>
         </div>

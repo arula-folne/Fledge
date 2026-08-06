@@ -22,6 +22,12 @@ import { CurseForgeProvider } from './curseforge/CurseForgeProvider.js'
 import { mergePreferModrinth } from './mergeContentHits.js'
 import { ModrinthProvider } from './ModrinthProvider.js'
 
+/**
+ * 一旦 CurseForge 連携は無効。コードは残し、再有効化時は true に戻す。
+ * true でもキー未設定なら従来どおり利用不可。
+ */
+const CURSEFORGE_FEATURE_ENABLED = false
+
 const INDEX_DIR = '.fledge'
 const INDEX_FILE = 'content-index.json'
 
@@ -77,7 +83,7 @@ export class ContentService {
   }
 
   async listProviders(): Promise<ContentProviderInfo[]> {
-    const cfOk = await this.curseforge.hasApiKey()
+    const cfEnabled = CURSEFORGE_FEATURE_ENABLED && (await this.curseforge.hasApiKey())
     return [
       {
         id: 'aggregated',
@@ -92,8 +98,12 @@ export class ContentService {
       {
         id: 'curseforge',
         name: 'CurseForge',
-        available: cfOk,
-        unavailableReasonKey: cfOk ? undefined : 'content.provider.curseforgeUnavailable',
+        available: cfEnabled,
+        unavailableReasonKey: CURSEFORGE_FEATURE_ENABLED
+          ? cfEnabled
+            ? undefined
+            : 'content.provider.curseforgeUnavailable'
+          : 'content.provider.curseforgeDisabled',
       },
     ]
   }
@@ -108,8 +118,10 @@ export class ContentService {
     const provider = this.providers.get(query.provider)
     if (!provider) throw new Error(`Unknown content provider: ${query.provider}`)
 
-    if (query.provider === 'curseforge' && !(await this.curseforge.hasApiKey())) {
-      return { hits: [], total: 0, offset: query.offset, limit: query.limit }
+    if (query.provider === 'curseforge') {
+      if (!CURSEFORGE_FEATURE_ENABLED || !(await this.curseforge.hasApiKey())) {
+        return { hits: [], total: 0, offset: query.offset, limit: query.limit }
+      }
     }
 
     return provider.search(query)
@@ -120,10 +132,10 @@ export class ContentService {
     const base = { ...query, offset: 0, limit: perSourceLimit }
 
     const mrPromise = this.modrinth.search({ ...base, provider: 'modrinth' })
-    const cfPromise = (await this.curseforge.hasApiKey())
+    const useCf = CURSEFORGE_FEATURE_ENABLED && (await this.curseforge.hasApiKey())
+    const cfPromise = useCf
       ? this.curseforge.search({ ...base, provider: 'curseforge' }).catch((err) => {
           const msg = err instanceof Error ? err.message : 'unknown'
-          // APIキーがメッセージに含まれない前提で短く記録
           this.logger.warn('downloader', `CurseForge search failed: ${msg.slice(0, 160)}`)
           return {
             hits: [] as ContentSearchResult['hits'],
@@ -140,7 +152,7 @@ export class ContentService {
         })
 
     const [mr, cf] = await Promise.all([mrPromise, cfPromise])
-    const merged = mergePreferModrinth(mr.hits, cf.hits)
+    const merged = useCf ? mergePreferModrinth(mr.hits, cf.hits) : mr.hits
     const sliced = merged.slice(query.offset, query.offset + query.limit)
     return {
       hits: sliced,
@@ -164,8 +176,13 @@ export class ContentService {
 
     const provider = this.providers.get(req.provider)
     if (!provider) throw new Error(`Content provider unavailable: ${req.provider}`)
-    if (req.provider === 'curseforge' && !(await this.curseforge.hasApiKey())) {
-      throw new Error('CurseForge APIキーが設定されていません。')
+    if (req.provider === 'curseforge') {
+      if (!CURSEFORGE_FEATURE_ENABLED) {
+        throw new Error('CurseForge 連携は現在無効です。')
+      }
+      if (!(await this.curseforge.hasApiKey())) {
+        throw new Error('CurseForge APIキーが設定されていません。')
+      }
     }
 
     const loaders =
@@ -294,7 +311,10 @@ export class ContentService {
         entry.updateAvailable = false
         continue
       }
-      if (entry.provider === 'curseforge' && !(await this.curseforge.hasApiKey())) {
+      if (
+        entry.provider === 'curseforge' &&
+        (!CURSEFORGE_FEATURE_ENABLED || !(await this.curseforge.hasApiKey()))
+      ) {
         entry.updateAvailable = false
         continue
       }

@@ -5,6 +5,10 @@ alwaysApply: true
 
 # CurseForge API キー（セキュリティ）
 
+## 現状
+
+**CurseForge 連携は `CURSEFORGE_FEATURE_ENABLED = false` で無効**（Modrinth のみ）。再有効化時のみ下記を適用。
+
 ## 絶対にやらないこと
 
 - APIキーを**ソースコードへハードコーディング**しない
@@ -13,7 +17,7 @@ alwaysApply: true
 - 設定画面に API キー入力・表示を置かない（環境変数のみ）
 - チャットに貼られたキーを**コミット可能なファイルへ複製しない**（ローカル `.env` のみ可）
 
-## 読み込み（Main プロセス）
+## 読み込み（Main プロセス・再有効化時）
 
 1. 環境変数 `FLEDGE_CURSEFORGE_API_KEY` のみ（`.env` 可。`loadFledgeEnvFiles` が `FLEDGE_` プレフィックスのみ注入）
 
@@ -23,16 +27,9 @@ alwaysApply: true
 
 ## 実装の置き場
 
-- HTTP: `packages/core/src/content/curseforge/CurseForgeHttpClient.ts`
-- サービス層: `CurseForgeApiService.ts`
-- Content 連携: `CurseForgeProvider.ts` → `ContentService`
-- 取得: `createLauncherApp` の `getCurseForgeApiKey`（env のみ）
+- 機能フラグ: `packages/core/src/content/ContentService.ts` の `CURSEFORGE_FEATURE_ENABLED`
+- HTTP / サービス / Provider: `packages/core/src/content/curseforge/`
 
 ## エージェントへの指示
 
-ユーザーがキーを渡して実装を依頼した場合:
-
-1. プロジェクトルートの **`.env`** に `FLEDGE_CURSEFORGE_API_KEY=` を書く（gitignore 済み）
-2. ソース・設定 UI・README・コミットには値を書かない
-3. `git add` / commit / push の前に `.env` が含まれていないことを確認する
-4. Electron は起動時に `.env` を読むため、変更後は再起動が必要
+ユーザーがキーを渡しつつ「実装しない / 無効のまま」と言った場合はキーをソースに書かず、フラグを false のままにする。`.env` に残っている実キーは削除してよい。

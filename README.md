@@ -66,15 +66,10 @@ pnpm --filter @fledge/desktop exec electron-vite dev
 
 ルートの `pnpm dev` でも起動できます。
 
-### CurseForge API キー（任意）
+### CurseForge（現在無効）
 
-CurseForge コンテンツを使う場合のみ必要です。**設定画面には入力欄はありません。**
-
-1. [.env.example](./.env.example) を `.env` にコピー
-2. `FLEDGE_CURSEFORGE_API_KEY=` に自分のキーを記入（**コミット・push 禁止**）
-3. アプリを再起動
-
-キーは [CurseForge Console](https://console.curseforge.com/) で取得できます。実キーを GitHub に載せると利用規約違反になるため、決して公開リポジトリへ含めないでください。
+CurseForge 連携は**一旦無効**にしています。コンテンツ追加は **Modrinth** のみです。  
+再有効化するときは `ContentService` の `CURSEFORGE_FEATURE_ENABLED` と、ローカル `.env` の `FLEDGE_CURSEFORGE_API_KEY`（コミット禁止）が必要です。
 
 ### 補足
 
@@ -87,7 +82,7 @@ CurseForge コンテンツを使う場合のみ必要です。**設定画面に�
 - Vanilla / Fabric / Forge / NeoForge 起動
 - Java 自動検出・不足時ダウンロード（Temurin）
 - インスタンス管理
-- Modrinth / CurseForge コンテンツ検索・インストール
+- Modrinth コンテンツ検索・インストール（CurseForge は現在無効）
 - ニュース（ローカル JSON）
 - 起動ログ / 基本設定
 
