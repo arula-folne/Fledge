@@ -14,7 +14,7 @@ export function resolvePathLayout(root: string): PathLayout {
     accounts: path.join(data, 'Accounts'),
     cache: path.join(data, 'Cache'),
     minecraft: path.join(data, 'Minecraft'),
-    java: path.join(data, 'Java'),
+    java: path.join(data, 'java-version'),
     logs: path.join(data, 'Logs'),
     news: path.join(data, 'News'),
     temp: path.join(data, 'Temp'),

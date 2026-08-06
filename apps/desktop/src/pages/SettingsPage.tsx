@@ -510,43 +510,6 @@ export default function SettingsPage() {
             />
           </label>
           <div className="space-y-2">
-            <h3 className="text-sm font-medium text-[var(--color-text)]">
-              {t('settings.curseforgeApiKey')}
-            </h3>
-            <p className="text-xs text-[var(--color-text-muted)]">
-              {t('settings.curseforgeApiKeyHint')}
-            </p>
-            <p className="text-xs text-[var(--color-text-muted)]">
-              {settings.curseforgeApiKeyConfigured
-                ? t('settings.curseforgeApiKeyConfigured')
-                : t('settings.curseforgeApiKeyMissing')}
-            </p>
-            {settings.curseforgeApiKeyFromEnv ? (
-              <p className="text-xs text-[var(--color-text-muted)]">
-                {t('settings.curseforgeApiKeyEnvPriority')}
-              </p>
-            ) : null}
-            <TextField
-              label={t('settings.curseforgeApiKeyUpdate')}
-              type="password"
-              defaultValue=""
-              key="cf-key-input"
-              placeholder={
-                settings.curseforgeApiKeyConfigured
-                  ? t('settings.curseforgeApiKeyPlaceholderSet')
-                  : t('settings.curseforgeApiKeyPlaceholderEmpty')
-              }
-              autoComplete="off"
-              onBlur={(e) => {
-                const next = e.target.value.trim()
-                if (!next) return
-                e.target.value = ''
-                saveMutation.mutate({ curseforgeApiKey: next })
-                void queryClient.invalidateQueries({ queryKey: ['content-providers'] })
-              }}
-            />
-          </div>
-          <div className="space-y-2">
             <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.backupFolder')}</h3>
             <p className="break-all text-xs text-[var(--color-text-muted)]">
               {settings.backupFolder ?? '—'}

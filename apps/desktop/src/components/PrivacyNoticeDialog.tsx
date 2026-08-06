@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { useState } from 'react'
 import { fledgeApi } from '../api/fledgeApi'
 import { Button } from './ui/Button'
 import { Dialog } from './ui/Dialog'
@@ -8,6 +9,7 @@ import { Dialog } from './ui/Dialog'
 export function PrivacyNoticeDialog() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const [error, setError] = useState<string | null>(null)
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
@@ -16,14 +18,24 @@ export function PrivacyNoticeDialog() {
 
   const ackMutation = useMutation({
     mutationFn: () => fledgeApi.settings.set({ privacyNoticeAcknowledged: true }),
+    onMutate: () => {
+      setError(null)
+    },
     onSuccess: (next) => {
+      if (next.privacyNoticeAcknowledged !== true) {
+        setError(t('privacy.noticeSaveError'))
+        return
+      }
       queryClient.setQueryData(['settings'], next)
+    },
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : String(err))
     },
   })
 
   const acknowledged = settingsQuery.data?.privacyNoticeAcknowledged === true
-  // 設定取得中もブロックして、了解前に背面 UI を使わせない
-  const open = !acknowledged && (settingsQuery.isLoading || settingsQuery.isSuccess || settingsQuery.isError)
+  const open =
+    !acknowledged && (settingsQuery.isLoading || settingsQuery.isSuccess || settingsQuery.isError)
 
   return (
     <Dialog
@@ -36,10 +48,11 @@ export function PrivacyNoticeDialog() {
       footer={
         <Button
           variant="primary"
+          type="button"
           disabled={!settingsQuery.isSuccess || ackMutation.isPending}
           onClick={() => ackMutation.mutate()}
         >
-          {t('privacy.noticeAcknowledge')}
+          {ackMutation.isPending ? t('common.loading') : t('privacy.noticeAcknowledge')}
         </Button>
       }
     >
@@ -48,6 +61,7 @@ export function PrivacyNoticeDialog() {
         {settingsQuery.isError ? (
           <p className="text-[var(--color-danger)]">{t('privacy.noticeLoadError')}</p>
         ) : null}
+        {error ? <p className="text-[var(--color-danger)]">{error}</p> : null}
       </div>
     </Dialog>
   )

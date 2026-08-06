@@ -2,6 +2,7 @@ import { memo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { InstanceProfile } from '@fledge/shared'
+import { useLaunchStore } from '../../stores/appStores'
 import { InstanceIcon } from './InstanceIcon'
 import { InstanceLaunchButton } from './InstanceLaunchButton'
 import { formatLastPlayed, formatLoaderLabel } from './instanceMeta'
@@ -87,8 +88,43 @@ export const InstanceCard = memo(function InstanceCard({
         <div className="mt-0.5 text-xs text-[var(--color-text-muted)]">
           {formatLastPlayed(instance.lastPlayedAt, t)}
         </div>
+        <InstancePrepareProgress instanceId={instance.id} />
       </div>
       <InstanceLaunchButton instanceId={instance.id} />
     </article>
   )
 })
+
+/** リストカード向け：準備中のプログレスを本文側にも出す */
+function InstancePrepareProgress({ instanceId }: { instanceId: string }) {
+  const { t } = useTranslation()
+  const state = useLaunchStore((s) => s.stateFor(instanceId))
+  const byProfileId = useLaunchStore((s) => s.byProfileId)
+  const focusSessionId = useLaunchStore((s) => s.focusSessionId)
+  const phaseMessageKey = useLaunchStore((s) => s.phaseMessageKey)
+  const progress = useLaunchStore((s) => s.progress)
+
+  const session = byProfileId[instanceId]
+  const focused =
+    session?.sessionId != null &&
+    (focusSessionId === session.sessionId || !focusSessionId)
+  if (!focused || (state !== 'preparing' && state !== 'launching')) return null
+
+  const percent =
+    progress?.percent ??
+    (progress && progress.total > 0 ? (progress.current / progress.total) * 100 : 0)
+
+  return (
+    <div className="mt-2 max-w-sm space-y-1">
+      <div className="text-[11px] text-[var(--color-text-muted)]">
+        {phaseMessageKey ? t(phaseMessageKey) : t('library.preparing')}
+      </div>
+      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-accent-soft)]">
+        <div
+          className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-150"
+          style={{ width: `${Math.min(100, Math.max(4, percent))}%` }}
+        />
+      </div>
+    </div>
+  )
+}

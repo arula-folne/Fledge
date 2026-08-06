@@ -36,6 +36,7 @@ export const IPC = {
   versionsRefresh: 'versions:refresh',
   newsList: 'news:list',
   launchStart: 'launch:start',
+  launchPrepare: 'launch:prepare',
   launchCancel: 'launch:cancel',
   launchKill: 'launch:kill',
   launchSessions: 'launch:sessions',

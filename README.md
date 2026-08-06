@@ -38,7 +38,7 @@ Fledge/
   Data/
     Accounts/
     Cache/
-    Java/
+    java-version/  # java8 / java17 / java21 / java25
     Logs/
     Minecraft/     # 共有 libraries / assets / versions
     News/
@@ -68,13 +68,13 @@ pnpm --filter @fledge/desktop exec electron-vite dev
 
 ### CurseForge API キー（任意）
 
-CurseForge コンテンツを使う場合のみ必要です。
+CurseForge コンテンツを使う場合のみ必要です。**設定画面には入力欄はありません。**
 
 1. [.env.example](./.env.example) を `.env` にコピー
-2. `FLEDGE_CURSEFORGE_API_KEY=` にキーを記入（**コミットしない**）
-3. または設定 → リソース管理から入力（値は画面に再表示されません）
+2. `FLEDGE_CURSEFORGE_API_KEY=` に自分のキーを記入（**コミット・push 禁止**）
+3. アプリを再起動
 
-キーは [CurseForge Console](https://console.curseforge.com/) で取得できます。
+キーは [CurseForge Console](https://console.curseforge.com/) で取得できます。実キーを GitHub に載せると利用規約違反になるため、決して公開リポジトリへ含めないでください。
 
 ### 補足
 

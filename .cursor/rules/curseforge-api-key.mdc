@@ -8,15 +8,14 @@ alwaysApply: true
 ## 絶対にやらないこと
 
 - APIキーを**ソースコードへハードコーディング**しない
-- APIキーを**Git 管理対象**に含めない（`.env` は gitignore済。実キーはコミット禁止）
+- APIキーを**Git 管理対象**に含めない（`.env` は gitignore。実キーはコミット・push 禁止。CurseForge 利用規約違反になる）
 - APIキーを**ログ・例外メッセージ・UI・IPC レスポンス**に出さない
-- 設定画面に**保存済みキーの値を表示／プリフィル**しない（設定済みフラグのみ）
-- Renderer の React Query 楽観更新でもキー平文をキャッシュしない
+- 設定画面に API キー入力・表示を置かない（環境変数のみ）
+- チャットに貼られたキーを**コミット可能なファイルへ複製しない**（ローカル `.env` のみ可）
 
-## 読み込み優先順位（Main プロセス）
+## 読み込み（Main プロセス）
 
-1. 環境変数 `FLEDGE_CURSEFORGE_API_KEY`（`.env` 可。モノレポルートや `apps/desktop` 隣を探索。`FLEDGE_` プレフィックスのみ注入）
-2. `Data/Settings/settings.json` の `curseforgeApiKey`（SettingsStore）
+1. 環境変数 `FLEDGE_CURSEFORGE_API_KEY` のみ（`.env` 可。`loadFledgeEnvFiles` が `FLEDGE_` プレフィックスのみ注入）
 
 キー未設定時のユーザー向け文言は必ず:
 
@@ -24,20 +23,16 @@ alwaysApply: true
 
 ## 実装の置き場
 
-- HTTP: `packages/core/src/content/curseforge/CurseForgeHttpClient.ts`  
-  - GET / POST に `x-api-key` を自動付与
-  - 401 / 403 はユーザー向けメッセージ（キー本文は含めない）
-- サービス層: `CurseForgeApiService.ts`（検索・詳細・MCバージョン・カテゴリ・DL URL）  
-  - UI / Provider はサービス経由。将来プロキシは `baseUrl` / `resolveApiKey` 差し替えで対応
+- HTTP: `packages/core/src/content/curseforge/CurseForgeHttpClient.ts`
+- サービス層: `CurseForgeApiService.ts`
 - Content 連携: `CurseForgeProvider.ts` → `ContentService`
-- Renderer 秘匿: `sanitizeSettingsForRenderer`（IPC `settings:get` / `set` 応答）
-
-## ユーザーがキーを入れるとき
-
-1. プロジェクトルートに `.env.example` をコピーして `.env` を作成
-2. `FLEDGE_CURSEFORGE_API_KEY=<キー>` を記入（チャットや PR に貼らない）
-3. または設定 → リソース管理の「新しいキーを入力」に貼り、フォーカスを外して保存（値は画面に残さない）
+- 取得: `createLauncherApp` の `getCurseForgeApiKey`（env のみ）
 
 ## エージェントへの指示
 
-ユーザーがキーをチャットに貼った場合は**コードやコミットに書き込まず**、`.env` への手入力を案内する。会話ログに残るキーをリポジトリへ複製しない。
+ユーザーがキーを渡して実装を依頼した場合:
+
+1. プロジェクトルートの **`.env`** に `FLEDGE_CURSEFORGE_API_KEY=` を書く（gitignore 済み）
+2. ソース・設定 UI・README・コミットには値を書かない
+3. `git add` / commit / push の前に `.env` が含まれていないことを確認する
+4. Electron は起動時に `.env` を読むため、変更後は再起動が必要

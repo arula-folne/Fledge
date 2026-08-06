@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { IconRefresh } from '@tabler/icons-react'
 import type { CreateInstanceInput, Loader } from '@fledge/shared'
@@ -17,6 +18,7 @@ type Props = {
 
 export function InstanceWizard({ open, onClose, title }: Props) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [step, setStep] = useState(0)
   const [name, setName] = useState('My Instance')
@@ -126,8 +128,12 @@ export function InstanceWizard({ open, onClose, title }: Props) {
       await fledgeApi.settings.set({ selectedInstanceId: profile.id })
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
-      await queryClient.invalidateQueries({ queryKey: ['java-runtimes'] })
       onClose()
+      navigate('/library')
+      // ライブラリカード上の進捗へ Java / クライアント準備を流す（起動はしない）
+      void fledgeApi.launch.prepare(profile.id).catch(() => {
+        // 状態イベントでエラー表示
+      })
     },
   })
 

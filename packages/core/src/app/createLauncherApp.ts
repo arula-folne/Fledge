@@ -62,11 +62,9 @@ export async function createLauncherApp(options: CreateLauncherAppOptions): Prom
   const minecraft = new MinecraftService(paths, queue, logger)
   const versions = new VersionService(paths, logger)
   const getCurseForgeApiKey = async () => {
+    // アプリ配布・Git 公開用にソースへ埋め込まない。ローカル .env のみ。
     const fromEnv = process.env['FLEDGE_CURSEFORGE_API_KEY']?.trim()
-    if (fromEnv) return fromEnv
-    const s = await settings.get()
-    const fromSettings = s.curseforgeApiKey?.trim()
-    return fromSettings || undefined
+    return fromEnv || undefined
   }
   const content = new ContentService(instances, queue, logger, getCurseForgeApiKey)
   const launch = new LaunchOrchestrator({

@@ -64,6 +64,92 @@ export class LaunchOrchestrator {
     }))
   }
 
+  /**
+   * ゲーム起動なしで Java・クライアント／ライブラリ／アセットを準備する。
+   * インスタンス作成直後にライブラリ画面の進捗へ出す用。
+   */
+  async prepare(profileId: string): Promise<{ sessionId: string }> {
+    for (const s of this.sessions.values()) {
+      if (
+        s.profileId === profileId &&
+        ['preparing', 'launching', 'running'].includes(s.state)
+      ) {
+        throw Object.assign(new Error('instance already busy'), {
+          messageKey: 'launch.error.alreadyRunning',
+        })
+      }
+    }
+
+    const profile = await this.deps.instances.get(profileId)
+    if (!profile) {
+      throw Object.assign(new Error('no instance'), { messageKey: 'launch.error.noInstance' })
+    }
+
+    const sessionId = randomUUID()
+    const abort = new AbortController()
+    const session: Session = {
+      id: sessionId,
+      profileId,
+      accountId: '',
+      abort,
+      state: 'preparing',
+    }
+    this.sessions.set(sessionId, session)
+    this.emitState(session, 'preparing')
+
+    try {
+      this.emitPhase(sessionId, 'java', 'launch.phase.java')
+      this.deps.events.emitProgress({
+        scope: 'launch',
+        sessionId,
+        current: 1,
+        total: 2,
+        percent: 10,
+        messageKey: 'launch.phase.java',
+      })
+      await this.deps.java.ensureJava(profile.minecraftVersion, sessionId)
+      if (abort.signal.aborted) {
+        throw Object.assign(new Error('cancelled'), { messageKey: 'download.cancelled' })
+      }
+
+      this.emitPhase(sessionId, 'install', 'launch.phase.install')
+      this.deps.events.emitProgress({
+        scope: 'launch',
+        sessionId,
+        current: 2,
+        total: 2,
+        percent: 40,
+        messageKey: 'launch.phase.install',
+      })
+      const instanceDir = this.deps.instances.instanceDir(profile.id)
+      await this.deps.minecraft.ensureInstalled(profile, instanceDir, sessionId)
+      if (abort.signal.aborted) {
+        throw Object.assign(new Error('cancelled'), { messageKey: 'download.cancelled' })
+      }
+
+      this.deps.events.emitProgress({
+        scope: 'launch',
+        sessionId,
+        current: 2,
+        total: 2,
+        percent: 100,
+        messageKey: 'library.prepareDone',
+      })
+      this.emitState(session, 'idle')
+      this.sessions.delete(sessionId)
+      return { sessionId }
+    } catch (err) {
+      const messageKey =
+        err && typeof err === 'object' && 'messageKey' in err
+          ? String((err as { messageKey: string }).messageKey)
+          : 'launch.error.generic'
+      this.deps.logger.error('launcher', `Prepare failed: ${messageKey}`)
+      this.emitState(session, 'error', messageKey)
+      this.sessions.delete(sessionId)
+      throw Object.assign(err instanceof Error ? err : new Error(String(err)), { messageKey })
+    }
+  }
+
   async start(
     profileId: string,
     opts?: { accountId?: string },

@@ -171,7 +171,7 @@ export function JavaRuntimePanel({ onMessage }: { onMessage: (msg: string | null
               ) : null}
             </div>
             <p className="mb-3 break-all font-mono text-xs text-[var(--color-text-muted)]">
-              {runtime?.displayPath ?? `…/Java/temurin-${major}/bin`}
+              {runtime?.displayPath ?? `…/java-version/java${major}/bin`}
             </p>
             <div className="flex flex-wrap gap-2">
               <IconAction

@@ -112,6 +112,7 @@ export type FledgeApi = {
   }
   launch: {
     start: (profileId: string, opts?: { accountId?: string }) => Promise<{ sessionId: string }>
+    prepare: (profileId: string) => Promise<{ sessionId: string }>
     cancel: (sessionId?: string) => Promise<void>
     kill: (sessionId?: string) => Promise<void>
     sessions: () => Promise<

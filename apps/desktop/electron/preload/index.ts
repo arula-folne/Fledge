@@ -115,6 +115,7 @@ export type FledgeApi = {
   }
   launch: {
     start: (profileId: string, opts?: { accountId?: string }) => Promise<{ sessionId: string }>
+    prepare: (profileId: string) => Promise<{ sessionId: string }>
     cancel: (sessionId?: string) => Promise<void>
     kill: (sessionId?: string) => Promise<void>
     sessions: () => Promise<
@@ -223,6 +224,7 @@ const api: FledgeApi = {
   },
   launch: {
     start: (profileId, opts) => ipcRenderer.invoke(IPC.launchStart, profileId, opts),
+    prepare: (profileId) => ipcRenderer.invoke(IPC.launchPrepare, profileId),
     cancel: (sessionId) => ipcRenderer.invoke(IPC.launchCancel, sessionId),
     kill: (sessionId) => ipcRenderer.invoke(IPC.launchKill, sessionId),
     sessions: () => ipcRenderer.invoke(IPC.launchSessions),

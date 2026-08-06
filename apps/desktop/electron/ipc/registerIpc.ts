@@ -47,13 +47,11 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
   ipcMain.handle(IPC.settingsSet, async (_e, partial: Partial<Settings>) => {
     const parsed = SettingsSchema.partial().parse(partial)
     // Renderer からの空キー／表示用フラグは無視。非空のときだけ保存
-    const { curseforgeApiKeyConfigured: _c, curseforgeApiKeyFromEnv: _eEnv, ...rest } = parsed
+    const { curseforgeApiKeyConfigured: _c, curseforgeApiKeyFromEnv: _eEnv, curseforgeApiKey: _key, ...rest } =
+      parsed
     const patch: Partial<Settings> = { ...rest }
-    if (typeof patch.curseforgeApiKey === 'string') {
-      const trimmed = patch.curseforgeApiKey.trim()
-      if (!trimmed) delete patch.curseforgeApiKey
-      else patch.curseforgeApiKey = trimmed
-    }
+    // 設定画面からの API キー保存は廃止（.env のみ）
+    delete patch.curseforgeApiKey
     const next = await appCtx.settings.set(patch)
     if (
       Object.prototype.hasOwnProperty.call(patch, 'launcherWindowWidth') ||
@@ -98,8 +96,6 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
     if (!settings.selectedInstanceId) {
       await appCtx.settings.set({ selectedInstanceId: profile.id })
     }
-    // 必要 Java が無ければデフォルトパスへインストール（Fledge 管理下のみ）
-    await appCtx.java.ensureJava(profile.minecraftVersion, `java-create-${profile.id}`)
     return profile
   })
   ipcMain.handle(IPC.instancesUpdate, async (_e, id: string, partial: unknown) =>
@@ -290,6 +286,9 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
       win()?.minimize()
     }
     return result
+  })
+  ipcMain.handle(IPC.launchPrepare, async (_e, profileId: string) => {
+    return appCtx.launch.prepare(profileId)
   })
   ipcMain.handle(IPC.launchCancel, async (_e, sessionId?: string) => {
     appCtx.launch.cancel(sessionId)

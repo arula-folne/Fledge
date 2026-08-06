@@ -3,6 +3,9 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+/** ランタイムデータ（JDK 等）を Vite のファイル監視から除外して EBUSY を防ぐ */
+const watchIgnored = ['**/.fledge-root/**', '**/.fledge-root']
+
 export default defineConfig({
   main: {
     plugins: [
@@ -24,6 +27,9 @@ export default defineConfig({
         '@fledge/shared': resolve('../../packages/shared/src/index.ts'),
       },
     },
+    server: {
+      watch: { ignored: watchIgnored },
+    },
   },
   preload: {
     // shared を preload に同梱し、実行時 require 解決失敗を防ぐ
@@ -44,6 +50,9 @@ export default defineConfig({
         '@fledge/shared': resolve('../../packages/shared/src/index.ts'),
       },
     },
+    server: {
+      watch: { ignored: watchIgnored },
+    },
   },
   renderer: {
     root: '.',
@@ -62,5 +71,8 @@ export default defineConfig({
       },
     },
     plugins: [react(), tailwindcss()],
+    server: {
+      watch: { ignored: watchIgnored },
+    },
   },
 })

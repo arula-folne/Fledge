@@ -17,7 +17,7 @@ export type JavaRuntimeView = {
   installed: boolean
   /** java.exe のフルパス（未インストール時 null） */
   javaPath: string | null
-  /** UI 表示用（…/temurin-{n}/…/bin など） */
+  /** UI 表示用（…/java-version/java25/…/bin など） */
   displayPath: string
   /** 展開ディレクトリ */
   installDir: string
@@ -53,7 +53,20 @@ export class JavaManager {
   ) {}
 
   installDir(major: number): string {
-    return path.join(this.layout.java, `temurin-${major}`)
+    // Data/java-version/java25 のようにメジャー名で並ぶ
+    return path.join(this.layout.java, `java${major}`)
+  }
+
+  private markerPath(major: number): string {
+    return path.join(this.installDir(major), '.fledge-java')
+  }
+
+  private legacyInstallDir(major: number): string {
+    return path.join(this.layout.data, 'Java', `temurin-${major}`)
+  }
+
+  private legacyMarkerPath(major: number): string {
+    return path.join(this.layout.data, 'Java', `java-${major}.path`)
   }
 
   async listRuntimes(): Promise<JavaRuntimeView[]> {
@@ -171,33 +184,38 @@ export class JavaManager {
         ctx.report({ current: 0, total: 1, unit: 'count' })
         if (force) {
           await fs.rm(this.installDir(major), { recursive: true, force: true })
-          await fs.rm(path.join(this.layout.java, `java-${major}.path`), { force: true })
         }
         const javaHome = await this.downloadTemurin(major, ctx.signal)
-        await fs.mkdir(this.layout.java, { recursive: true })
-        await fs.writeFile(path.join(this.layout.java, `java-${major}.path`), javaHome, 'utf8')
+        await fs.mkdir(this.installDir(major), { recursive: true })
+        await fs.writeFile(this.markerPath(major), javaHome, 'utf8')
         ctx.report({ current: 1, total: 1, unit: 'count' })
       },
     })
     await done
   }
 
-  /** Fledge 管理下の Temurin のみ */
+  /** Fledge 管理下の Temurin のみ（新パス優先、旧 Data/Java/temurin-* も読取可） */
   private async detectManagedJava(major: number): Promise<string | null> {
-    const marker = path.join(this.layout.java, `java-${major}.path`)
-    try {
-      const stored = (await fs.readFile(marker, 'utf8')).trim()
-      if (stored && (await this.isExactMajor(stored, major))) return stored
-    } catch {
-      /* continue */
+    const candidates: string[] = [
+      this.markerPath(major),
+      this.legacyMarkerPath(major),
+    ]
+    for (const marker of candidates) {
+      try {
+        const stored = (await fs.readFile(marker, 'utf8')).trim()
+        if (stored && (await this.isExactMajor(stored, major))) return stored
+      } catch {
+        /* continue */
+      }
     }
 
-    const installDir = this.installDir(major)
-    try {
-      const exe = await this.findJavaExe(installDir)
-      if (exe && (await this.isExactMajor(exe, major))) return exe
-    } catch {
-      /* continue */
+    for (const dir of [this.installDir(major), this.legacyInstallDir(major)]) {
+      try {
+        const exe = await this.findJavaExe(dir)
+        if (exe && (await this.isExactMajor(exe, major))) return exe
+      } catch {
+        /* continue */
+      }
     }
     return null
   }
