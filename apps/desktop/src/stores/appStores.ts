@@ -88,10 +88,17 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
     })),
 
   applyProgress: (progress) =>
-    set((s) => ({
-      progress,
-      focusSessionId: progress.sessionId ?? s.focusSessionId,
-    })),
+    set((s) => {
+      const sid = progress.sessionId
+      const isLaunch =
+        progress.scope === 'launch' ||
+        (sid != null && Object.values(s.byProfileId).some((x) => x.sessionId === sid))
+      if (!isLaunch) return s
+      return {
+        progress,
+        focusSessionId: sid ?? s.focusSessionId,
+      }
+    }),
 
   reset: () =>
     set({
@@ -115,6 +122,21 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
     ),
 }))
 
+export type SettingsSection =
+  | 'basic'
+  | 'display'
+  | 'account'
+  | 'java'
+  | 'resources'
+  | 'privacyCredits'
+
+export type LibraryDetailTab = 'overview' | 'content' | 'screenshots' | 'logs' | 'settings'
+
+export type LibraryFocus = {
+  instanceId: string
+  tab: LibraryDetailTab
+}
+
 type UiStore = {
   authStatus: AuthStatus
   setAuthStatus: (status: AuthStatus) => void
@@ -124,6 +146,10 @@ type UiStore = {
   setInstanceWizardOpen: (open: boolean) => void
   editingInstanceId: string | null
   setEditingInstanceId: (id: string | null) => void
+  settingsSection: SettingsSection
+  setSettingsSection: (section: SettingsSection) => void
+  libraryFocus: LibraryFocus | null
+  setLibraryFocus: (focus: LibraryFocus | null) => void
 }
 
 export const useUiStore = create<UiStore>((set) => ({
@@ -135,6 +161,66 @@ export const useUiStore = create<UiStore>((set) => ({
   setInstanceWizardOpen: (instanceWizardOpen) => set({ instanceWizardOpen }),
   editingInstanceId: null,
   setEditingInstanceId: (editingInstanceId) => set({ editingInstanceId }),
+  settingsSection: 'display',
+  setSettingsSection: (settingsSection) => set({ settingsSection }),
+  libraryFocus: null,
+  setLibraryFocus: (libraryFocus) => set({ libraryFocus }),
+}))
+
+export type TransferJob = {
+  jobId: string
+  kind: string
+  sessionId?: string
+  messageKey?: string
+  current: number
+  total: number
+  percent?: number
+  bytesPerSecond?: number
+  status: 'queued' | 'active' | 'completed' | 'failed' | 'cancelled'
+  meta: Record<string, string | number | boolean>
+}
+
+type TransferStore = {
+  jobs: Record<string, TransferJob>
+  applyProgress: (e: ProgressEvent) => void
+}
+
+function isTerminalStatus(status: TransferJob['status'] | undefined): boolean {
+  return status === 'completed' || status === 'failed' || status === 'cancelled'
+}
+
+export const useTransferStore = create<TransferStore>((set) => ({
+  jobs: {},
+  applyProgress: (e) => {
+    const jobId = e.jobId
+    if (!jobId) return
+    const status = e.status ?? (typeof e.meta?.status === 'string' ? (e.meta.status as TransferJob['status']) : 'active')
+    set((s) => {
+      if (isTerminalStatus(status)) {
+        if (!(jobId in s.jobs)) return s
+        const next = { ...s.jobs }
+        delete next[jobId]
+        return { jobs: next }
+      }
+      return {
+        jobs: {
+          ...s.jobs,
+          [jobId]: {
+            jobId,
+            kind: e.kind ?? 'download',
+            sessionId: e.sessionId,
+            messageKey: e.messageKey,
+            current: e.current,
+            total: e.total,
+            percent: e.percent,
+            bytesPerSecond: e.bytesPerSecond,
+            status,
+            meta: e.meta ?? s.jobs[jobId]?.meta ?? {},
+          },
+        },
+      }
+    })
+  },
 }))
 
 type LogStore = {

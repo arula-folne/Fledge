@@ -1,6 +1,7 @@
 import type {
   AccountView,
   AuthStatus,
+  BackupEntry,
   ContentCategory,
   ContentInstallRequest,
   ContentMediaItem,
@@ -50,11 +51,12 @@ export type FledgeApi = {
       id: string,
       subfolder: 'mods' | 'resourcepacks' | 'shaderpacks' | 'saves' | 'logs' | 'screenshots' | 'plugins',
     ) => Promise<void>
+    getIcon: (id: string) => Promise<string | null>
   }
   content: {
     providers: () => Promise<
       Array<{
-        id: 'modrinth' | 'curseforge' | 'aggregated'
+        id: 'modrinth'
         name: string
         available: boolean
         unavailableReasonKey?: string
@@ -79,6 +81,7 @@ export type FledgeApi = {
       bytes: number[]
       originalName: string
     }) => Promise<SkinEntry>
+    update: (input: { id: string; name?: string; model?: SkinModel }) => Promise<SkinEntry>
     remove: (id: string) => Promise<void>
     select: (input: { skinId: string; model?: SkinModel }) => Promise<Settings>
     getDataUrl: (id: string) => Promise<string | null>
@@ -130,6 +133,9 @@ export type FledgeApi = {
   }
   backup: {
     run: () => Promise<string>
+    list: () => Promise<BackupEntry[]>
+    restore: (backupPath: string) => Promise<void>
+    syncNow: () => Promise<void>
   }
   window: {
     minimize: () => Promise<void>
@@ -141,6 +147,7 @@ export type FledgeApi = {
     list: () => Promise<JavaRuntimeView[]>
     install: (major: 8 | 17 | 21 | 25) => Promise<JavaRuntimeView>
     reinstall: (major: 8 | 17 | 21 | 25) => Promise<JavaRuntimeView>
+    uninstall: (major: 8 | 17 | 21 | 25) => Promise<JavaRuntimeView>
     verify: (major: 8 | 17 | 21 | 25) => Promise<JavaVerifyResult>
     openFolder: (major: 8 | 17 | 21 | 25) => Promise<void>
   }

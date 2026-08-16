@@ -32,6 +32,20 @@ declare module '@xmcl/installer' {
     side?: 'client' | 'server'
   }): Promise<string>
 
+  export function getQuiltLoaderVersionsByMinecraft(options: {
+    minecraftVersion: string
+  }): Promise<
+    Array<{
+      loader: { version: string; stable: boolean; maven: string }
+    }>
+  >
+  export function installQuiltVersion(options: {
+    minecraftVersion: string
+    version: string
+    minecraft: string
+    side?: 'client' | 'server'
+  }): Promise<string>
+
   export function getForgeVersionList(options?: {
     minecraft?: string
   }): Promise<{

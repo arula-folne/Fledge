@@ -12,7 +12,7 @@ export class ForgeProvider implements LoaderVersionProvider {
       id: v.version,
       version: v.version,
       recommended: v.type === 'recommended',
-      stable: v.type === 'recommended' || v.type === 'latest',
+      stable: v.type === 'recommended',
       type: v.type,
     }))
   }

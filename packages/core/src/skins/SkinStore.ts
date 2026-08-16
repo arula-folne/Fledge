@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { SkinEntry, SkinModel } from '@fledge/shared'
+import { MAX_UPLOADED_SKINS, type SkinEntry, type SkinModel } from '@fledge/shared'
 import type { PathLayout } from '../app/paths.js'
 
 /** Minecraft デフォルトスキン（テクスチャはアプリ同梱） */
@@ -25,7 +25,10 @@ type UploadedMeta = {
 }
 
 export class SkinStore {
-  constructor(private readonly layout: PathLayout) {}
+  constructor(
+    private readonly layout: PathLayout,
+    private readonly defaultSkinsDir?: string,
+  ) {}
 
   private metaPath(): string {
     return path.join(this.layout.skins, 'uploaded.json')
@@ -50,26 +53,40 @@ export class SkinStore {
     originalName: string
   }): Promise<SkinEntry> {
     await fs.mkdir(this.layout.skins, { recursive: true })
+    const list = await this.readUploaded()
+    if (list.length >= MAX_UPLOADED_SKINS) {
+      throw new Error(`Maximum of ${MAX_UPLOADED_SKINS} uploaded skins`)
+    }
     const id = randomUUID()
     const ext = path.extname(input.originalName).toLowerCase() || '.png'
     const fileName = `${id}${ext}`
     await fs.writeFile(path.join(this.layout.skins, fileName), Buffer.from(input.bytes))
     const entry: UploadedMeta = {
       id,
-      name: input.name || path.basename(input.originalName, ext),
+      name: sanitizeSkinName(input.name, path.basename(input.originalName, ext)),
       model: input.model,
       fileName,
     }
-    const list = await this.readUploaded()
     list.push(entry)
     await fs.writeFile(this.metaPath(), JSON.stringify(list, null, 2), 'utf8')
-    return {
-      id: entry.id,
-      name: entry.name,
-      source: 'upload',
-      model: entry.model,
-      fileName: entry.fileName,
+    return toUploadEntry(entry)
+  }
+
+  async update(
+    id: string,
+    patch: { name?: string; model?: SkinModel },
+  ): Promise<SkinEntry> {
+    const list = await this.readUploaded()
+    const target = list.find((s) => s.id === id)
+    if (!target) throw new Error(`Skin not found: ${id}`)
+    if (patch.name !== undefined) {
+      target.name = sanitizeSkinName(patch.name, target.name)
     }
+    if (patch.model !== undefined) {
+      target.model = patch.model
+    }
+    await fs.writeFile(this.metaPath(), JSON.stringify(list, null, 2), 'utf8')
+    return toUploadEntry(target)
   }
 
   async remove(id: string): Promise<void> {
@@ -85,6 +102,23 @@ export class SkinStore {
     return path.join(this.layout.skins, fileName)
   }
 
+  async readPngBytes(id: string): Promise<Uint8Array | null> {
+    const skins = await this.list()
+    const skin = skins.find((s) => s.id === id)
+    if (!skin) return null
+    if (skin.source === 'upload' && skin.fileName) {
+      return fs.readFile(this.resolveFilePath(skin.fileName))
+    }
+    if (skin.source === 'default' && this.defaultSkinsDir) {
+      try {
+        return await fs.readFile(path.join(this.defaultSkinsDir, `${skin.id}.png`))
+      } catch {
+        return null
+      }
+    }
+    return null
+  }
+
   private async readUploaded(): Promise<UploadedMeta[]> {
     try {
       const raw = await fs.readFile(this.metaPath(), 'utf8')
@@ -93,4 +127,21 @@ export class SkinStore {
       return []
     }
   }
+}
+
+function toUploadEntry(entry: UploadedMeta): SkinEntry {
+  return {
+    id: entry.id,
+    name: entry.name,
+    source: 'upload',
+    model: entry.model,
+    fileName: entry.fileName,
+  }
+}
+
+function sanitizeSkinName(name: string, fallback: string): string {
+  const trimmed = name.trim().slice(0, 32)
+  if (trimmed) return trimmed
+  const fallbackTrimmed = fallback.trim().slice(0, 32)
+  return fallbackTrimmed || 'Skin'
 }

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
-import { SkinViewer } from 'skinview3d'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { IdleAnimation, SkinViewer } from 'skinview3d'
 import type { SkinModel } from '@fledge/shared'
 
 export type SkinPreviewPose = 'bust' | 'full'
@@ -15,7 +15,6 @@ type Props = {
   height?: number
 }
 
-/** WebGL を1つずつ使うための直列キュー（スナップショット用） */
 let renderChain: Promise<unknown> = Promise.resolve()
 function enqueueRender<T>(task: () => Promise<T>): Promise<T> {
   const run = () => task()
@@ -31,60 +30,105 @@ function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/** 斜め上を見上げるポーズ */
-function applyLookingUpPose(viewer: SkinViewer, pose: SkinPreviewPose): void {
-  const isFull = pose === 'full'
-  // 胴体は左斜め前
-  viewer.playerObject.rotation.y = -Math.PI / 5.5
-  viewer.playerWrapper.position.y = isFull ? -2 : -14
-
-  // 頭を大きく上・やや左へ（見上げ）
-  viewer.playerObject.skin.head.rotation.x = -0.55
-  viewer.playerObject.skin.head.rotation.y = -0.22
-
-  if (!isFull) {
-    viewer.playerObject.skin.leftLeg.visible = false
-    viewer.playerObject.skin.rightLeg.visible = false
-  } else {
-    viewer.playerObject.skin.leftLeg.visible = true
-    viewer.playerObject.skin.rightLeg.visible = true
-  }
-
-  viewer.adjustCameraDistance()
-  // カメラはやや低め・右前 → 見上げ構図が強調される
-  const cam = viewer.camera.position
-  cam.set(isFull ? 14 : 16, isFull ? 6 : 10, isFull ? 52 : 42)
-  viewer.controls.target.set(0, isFull ? 14 : 10, 0)
-  viewer.camera.lookAt(viewer.controls.target)
+function toModel(model: SkinModel): 'slim' | 'default' {
+  return model === 'slim' ? 'slim' : 'default'
 }
 
-async function renderSkinSnapshot(
+/** Minecraft Launcher のスキン画面に近い立ち位置 */
+function applyLauncherPose(viewer: SkinViewer): void {
+  viewer.playerObject.rotation.set(0, -Math.PI / 7, 0)
+  viewer.playerObject.skin.head.rotation.set(0, 0, 0)
+  viewer.playerWrapper.rotation.set(0, 0, 0)
+  viewer.playerWrapper.position.set(0, 0, 0)
+  viewer.playerObject.skin.leftLeg.visible = true
+  viewer.playerObject.skin.rightLeg.visible = true
+  viewer.adjustCameraDistance()
+}
+
+function applyLauncherLights(viewer: SkinViewer): void {
+  viewer.globalLight.intensity = 2.6
+  viewer.cameraLight.intensity = 0.55
+}
+
+const INTERACTIVE_ZOOM = 0.88
+
+function resetInteractiveView(viewer: SkinViewer): void {
+  viewer.zoom = INTERACTIVE_ZOOM
+  viewer.controls.target.set(0, 0, 0)
+  applyLauncherPose(viewer)
+  viewer.resetCameraPose()
+  viewer.controls.update()
+}
+
+function SkinStage({
+  children,
+  className,
+  width,
+  height,
+}: {
+  children?: ReactNode
+  className?: string
+  width: number
+  height: number
+}) {
+  return (
+    <div
+      className={['relative overflow-hidden', className].filter(Boolean).join(' ')}
+      style={{
+        width,
+        height,
+        background:
+          'radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--color-accent-soft) 75%, transparent), transparent 58%), linear-gradient(180deg, color-mix(in srgb, var(--color-border) 22%, var(--color-surface)), var(--color-bg))',
+      }}
+    >
+      {children}
+    </div>
+  )
+}
+
+function snapshotBackdropColor(): string {
+  const value = getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim()
+  return value || '#111111'
+}
+
+async function renderSkinSnapshotToCanvas(
+  target: HTMLCanvasElement,
   skinUrl: string,
   model: SkinModel,
-  width: number,
-  height: number,
-  pose: SkinPreviewPose,
-): Promise<string> {
-  const canvas = document.createElement('canvas')
-  const isFull = pose === 'full'
+  cssWidth: number,
+  cssHeight: number,
+): Promise<void> {
+  const pixelRatio = Math.min(window.devicePixelRatio || 1, 3)
+  const glCanvas = document.createElement('canvas')
+  const backdrop = snapshotBackdropColor()
   const viewer = new SkinViewer({
-    canvas,
-    width,
-    height,
-    model: model === 'slim' ? 'slim' : 'default',
+    canvas: glCanvas,
+    width: Math.max(1, cssWidth),
+    height: Math.max(1, cssHeight),
+    model: toModel(model),
     enableControls: false,
-    zoom: isFull ? 0.68 : 0.78,
-    fov: isFull ? 48 : 40,
-    pixelRatio: Math.min(window.devicePixelRatio || 1, 1.5),
+    zoom: 0.92,
+    fov: 42,
+    pixelRatio,
     renderPaused: true,
+    preserveDrawingBuffer: true,
+    background: backdrop,
   })
 
   try {
     viewer.controls.enabled = false
-    await viewer.loadSkin(skinUrl, { model: model === 'slim' ? 'slim' : 'default' })
-    applyLookingUpPose(viewer, pose)
+    applyLauncherLights(viewer)
+    await viewer.loadSkin(skinUrl, { model: toModel(model) })
+    applyLauncherPose(viewer)
     viewer.render()
-    return canvas.toDataURL('image/png')
+    target.width = glCanvas.width
+    target.height = glCanvas.height
+    const ctx = target.getContext('2d')
+    if (!ctx) return
+    ctx.imageSmoothingEnabled = false
+    ctx.fillStyle = backdrop
+    ctx.fillRect(0, 0, target.width, target.height)
+    ctx.drawImage(glCanvas, 0, 0)
   } finally {
     viewer.dispose()
     await delay(30)
@@ -94,33 +138,55 @@ async function renderSkinSnapshot(
 function SnapshotPreview({
   skinUrl,
   model,
-  pose,
   className,
   width,
   height,
-}: Required<Pick<Props, 'skinUrl' | 'model' | 'pose' | 'width' | 'height'>> & {
+}: Required<Pick<Props, 'skinUrl' | 'model' | 'width' | 'height'>> & {
   className?: string
 }) {
-  const [snapshot, setSnapshot] = useState<string | null>(null)
-  const [failed, setFailed] = useState(false)
+  const boxRef = useRef<HTMLDivElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const requestId = useRef(0)
+  const [viewSize, setViewSize] = useState({ width, height })
+  const [ready, setReady] = useState(false)
+  const [failed, setFailed] = useState(false)
+
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el) return
+    const update = () => {
+      const nextW = Math.max(1, Math.round(el.clientWidth))
+      const nextH = Math.max(1, Math.round(el.clientHeight))
+      setViewSize((prev) =>
+        Math.abs(prev.width - nextW) < 2 && Math.abs(prev.height - nextH) < 2
+          ? prev
+          : { width: nextW, height: nextH },
+      )
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
 
   useEffect(() => {
     if (!skinUrl) {
-      setSnapshot(null)
+      setReady(false)
       setFailed(false)
       return
     }
 
     const id = ++requestId.current
-    setSnapshot(null)
+    setReady(false)
     setFailed(false)
 
     void enqueueRender(async () => {
       if (requestId.current !== id) return
+      const dest = canvasRef.current
+      if (!dest) return
       try {
-        const dataUrl = await renderSkinSnapshot(skinUrl, model, width, height, pose)
-        if (requestId.current === id) setSnapshot(dataUrl)
+        await renderSkinSnapshotToCanvas(dest, skinUrl, model, viewSize.width, viewSize.height)
+        if (requestId.current === id) setReady(true)
       } catch (err) {
         console.error('Skin preview failed:', err)
         if (requestId.current === id) setFailed(true)
@@ -130,49 +196,35 @@ function SnapshotPreview({
     return () => {
       requestId.current += 1
     }
-  }, [skinUrl, model, width, height, pose])
-
-  if (!skinUrl || failed) {
-    return (
-      <div
-        className={['flex items-center justify-center bg-[var(--color-border)]/30', className]
-          .filter(Boolean)
-          .join(' ')}
-        style={{ width, height }}
-      />
-    )
-  }
-
-  if (!snapshot) {
-    return (
-      <div
-        className={['animate-pulse bg-[var(--color-border)]/40', className].filter(Boolean).join(' ')}
-        style={{ width, height }}
-      />
-    )
-  }
+  }, [skinUrl, model, viewSize.width, viewSize.height])
 
   return (
-    <img
-      src={snapshot}
-      alt=""
-      width={width}
-      height={height}
-      className={['block object-contain', className].filter(Boolean).join(' ')}
-      draggable={false}
-    />
+    <div
+      ref={boxRef}
+      className={['relative h-full w-full overflow-hidden', className].filter(Boolean).join(' ')}
+      style={{
+        background: 'var(--color-bg)',
+      }}
+    >
+      {!skinUrl || failed || !ready ? (
+        <div className="absolute inset-0 animate-pulse bg-[var(--color-border)]/25" />
+      ) : null}
+      <canvas
+        ref={canvasRef}
+        className="block h-full w-full"
+        style={{ visibility: ready ? 'visible' : 'hidden' }}
+      />
+    </div>
   )
 }
 
-/** ドラッグで回転できるライブ全身プレビュー */
 function InteractivePreview({
   skinUrl,
   model,
-  pose,
   className,
   width,
   height,
-}: Required<Pick<Props, 'skinUrl' | 'model' | 'pose' | 'width' | 'height'>> & {
+}: Required<Pick<Props, 'skinUrl' | 'model' | 'width' | 'height'>> & {
   className?: string
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -183,32 +235,49 @@ function InteractivePreview({
     if (!canvas || !skinUrl) return
 
     let disposed = false
-    const isFull = pose === 'full'
     const viewer = new SkinViewer({
       canvas,
       width,
       height,
-      model: model === 'slim' ? 'slim' : 'default',
+      model: toModel(model),
       enableControls: true,
-      zoom: isFull ? 0.62 : 0.78,
-      fov: isFull ? 50 : 40,
+      zoom: INTERACTIVE_ZOOM,
+      fov: 42,
       pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
     })
     viewerRef.current = viewer
+    applyLauncherLights(viewer)
 
     viewer.controls.enablePan = false
     viewer.controls.enableZoom = true
     viewer.controls.enableRotate = true
-    viewer.controls.minDistance = 28
-    viewer.controls.maxDistance = 120
+    viewer.controls.minDistance = 32
+    viewer.controls.maxDistance = 110
+    // ホイールクリックは OrbitControls のズームではなく、向き・ズームのリセットに使う
+    viewer.controls.mouseButtons.MIDDLE = -1 as never
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 1) return
+      event.preventDefault()
+      event.stopPropagation()
+      resetInteractiveView(viewer)
+    }
+    const onAuxClick = (event: MouseEvent) => {
+      if (event.button !== 1) return
+      event.preventDefault()
+    }
+    canvas.addEventListener('pointerdown', onPointerDown, true)
+    canvas.addEventListener('auxclick', onAuxClick)
 
     void (async () => {
       try {
-        await viewer.loadSkin(skinUrl, { model: model === 'slim' ? 'slim' : 'default' })
+        await viewer.loadSkin(skinUrl, { model: toModel(model) })
         if (disposed) return
-        applyLookingUpPose(viewer, pose)
-        // ドラッグ後も頭の見上げを維持するため、アニメで頭角を毎フレーム固定しない代わりに
-        // 初期ポーズを設定。回転は playerObject 全体ではなく controls でカメラを回す。
+        const idle = new IdleAnimation()
+        idle.speed = 0.8
+        // animation 代入は player の回転を 0 に戻すので、そのあとで斜め立ちを適用する
+        viewer.animation = idle
+        resetInteractiveView(viewer)
       } catch (err) {
         console.error('Interactive skin preview failed:', err)
       }
@@ -216,49 +285,40 @@ function InteractivePreview({
 
     return () => {
       disposed = true
+      canvas.removeEventListener('pointerdown', onPointerDown, true)
+      canvas.removeEventListener('auxclick', onAuxClick)
       viewer.dispose()
       viewerRef.current = null
     }
-  }, [skinUrl, model, width, height, pose])
+  }, [skinUrl, model, width, height])
 
   if (!skinUrl) {
-    return (
-      <div
-        className={['flex items-center justify-center bg-[var(--color-border)]/30', className]
-          .filter(Boolean)
-          .join(' ')}
-        style={{ width, height }}
-      />
-    )
+    return <SkinStage className={className} width={width} height={height} />
   }
 
   return (
-    <canvas
-      ref={canvasRef}
-      className={['block cursor-grab touch-none active:cursor-grabbing', className]
-        .filter(Boolean)
-        .join(' ')}
-      style={{ width, height }}
-    />
+    <SkinStage className={className} width={width} height={height}>
+      <canvas
+        ref={canvasRef}
+        className="block h-full w-full cursor-grab touch-none active:cursor-grabbing"
+      />
+    </SkinStage>
   )
 }
 
-/** スキンの 3D プレビュー */
 export function SkinPreview({
   skinUrl,
   model,
-  pose = 'bust',
   interactive = false,
   className,
   width = 120,
-  height = 140,
+  height = 160,
 }: Props) {
   if (interactive) {
     return (
       <InteractivePreview
         skinUrl={skinUrl ?? null}
         model={model}
-        pose={pose}
         className={className}
         width={width}
         height={height}
@@ -270,12 +330,9 @@ export function SkinPreview({
     <SnapshotPreview
       skinUrl={skinUrl ?? null}
       model={model}
-      pose={pose}
       className={className}
       width={width}
       height={height}
     />
   )
 }
-
-/** @deprecated SkinPreview を使用 */

@@ -1,6 +1,10 @@
 export const BRAND = {
   name: 'Fledge',
   tagline: 'Ready to take flight.',
+  versionFull: 'Fledge Ver.0.1.0 - Beta',
+  versionShort: '0.1.0',
+  author: 'folne',
+  developedBy: 'Developed by folne',
 } as const
 
 /**
@@ -8,7 +12,10 @@ export const BRAND = {
  * Developer Portal でアプリ名を「Fledge」にすると「Fledgeをプレイ中」と表示される。
  * 上書きはデスクトップ側の FLEDGE_DISCORD_CLIENT_ID を使う。
  */
-export const DISCORD_APPLICATION_ID = '1357924680135792468'
+export const DISCORD_APPLICATION_ID = '1538229017608454205'
+
+/** ユーザーがアップロードして保存できるスキンの上限 */
+export const MAX_UPLOADED_SKINS = 5
 
 export const IPC = {
   settingsGet: 'settings:get',
@@ -22,6 +29,7 @@ export const IPC = {
   instancesRemove: 'instances:remove',
   instancesOpenFolder: 'instances:open-folder',
   instancesOpenSubfolder: 'instances:open-subfolder',
+  instancesGetIcon: 'instances:get-icon',
   shellOpenPath: 'shell:open-path',
   pathsGet: 'paths:get',
   authLogin: 'auth:login',
@@ -44,11 +52,15 @@ export const IPC = {
   updaterCheck: 'updater:check',
   skinsList: 'skins:list',
   skinsUpload: 'skins:upload',
+  skinsUpdate: 'skins:update',
   skinsRemove: 'skins:remove',
   skinsSelect: 'skins:select',
   skinsGetData: 'skins:get-data',
   cacheClear: 'cache:clear',
   backupRun: 'backup:run',
+  backupList: 'backup:list',
+  backupRestore: 'backup:restore',
+  backupSyncNow: 'backup:sync-now',
   dialogSelectFolder: 'dialog:select-folder',
   windowMinimize: 'window:minimize',
   windowMaximizeToggle: 'window:maximize-toggle',
@@ -57,6 +69,7 @@ export const IPC = {
   javaList: 'java:list',
   javaInstall: 'java:install',
   javaReinstall: 'java:reinstall',
+  javaUninstall: 'java:uninstall',
   javaVerify: 'java:verify',
   javaOpenFolder: 'java:open-folder',
   contentSearch: 'content:search',

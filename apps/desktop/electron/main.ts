@@ -31,6 +31,11 @@ function peekHardwareAcceleration(root: string): boolean {
   return true
 }
 
+function resolveBundledSkinsDir(): string {
+  if (app.isPackaged) return path.join(process.resourcesPath, 'skins')
+  return path.join(__dirname, '../../resources/skins')
+}
+
 async function syncPresenceFromLaunchState(e: LaunchStateEvent): Promise<void> {
   if (!discordPresence || !launcherApp) return
 
@@ -95,6 +100,9 @@ async function bootstrap(): Promise<void> {
         mainWindow.webContents.send(IPC_EVENTS.launchState, e)
       }
       void syncPresenceFromLaunchState(e as LaunchStateEvent)
+      if ((e as LaunchStateEvent).state === 'exited') {
+        launcherApp?.backup.scheduleSync()
+      }
     },
   }
 
@@ -106,6 +114,7 @@ async function bootstrap(): Promise<void> {
     logger,
     events: events as never,
     newsBundledPath: path.join(app.getAppPath(), 'resources', 'news.ja.json'),
+    defaultSkinsDir: resolveBundledSkinsDir(),
   })
 
   const settings = await launcherApp.settings.get()
@@ -127,8 +136,10 @@ async function bootstrap(): Promise<void> {
     width: settings.launcherWindowWidth,
     height: settings.launcherWindowHeight,
     frame: settings.useOsWindowChrome,
+    uiScale: settings.uiScale,
   })
   logger.info('system', `Fledge root: ${root}`)
+  if (settings.backupSyncEnabled) launcherApp.backup.scheduleSync()
 }
 
 // ready 前に適用（Electron 要件）
@@ -151,8 +162,29 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => {
-  void discordPresence?.destroy()
+let allowQuit = false
+
+app.on('before-quit', (e) => {
+  if (allowQuit) {
+    void discordPresence?.destroy()
+    return
+  }
+  e.preventDefault()
+  void (async () => {
+    try {
+      await launcherApp?.backup.flushSync()
+    } catch {
+      /* ignore */
+    }
+    try {
+      await launcherApp?.sessionProxy.stop()
+    } catch {
+      /* ignore */
+    }
+    await discordPresence?.destroy()
+    allowQuit = true
+    app.quit()
+  })()
 })
 
 app.on('activate', () => {
@@ -163,6 +195,7 @@ app.on('activate', () => {
         width: s?.launcherWindowWidth,
         height: s?.launcherWindowHeight,
         frame: s?.useOsWindowChrome ?? true,
+        uiScale: s?.uiScale ?? 'normal',
       })
     })()
   }

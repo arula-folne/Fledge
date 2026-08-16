@@ -26,9 +26,9 @@ export type ResolvedContentFile = {
 }
 
 export type ContentProviderInfo = {
-  id: ContentSourceId | 'aggregated'
+  id: ContentSourceId
   name: string
-  /** false なら検索 UI で選択可だがキー未設定等で使えない */
+  /** false なら検索 UI で選択可だが使えない */
   available: boolean
   unavailableReasonKey?: string
 }

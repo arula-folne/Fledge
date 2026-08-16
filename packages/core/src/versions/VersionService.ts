@@ -12,6 +12,7 @@ import { FabricProvider } from './FabricProvider.js'
 import { ForgeProvider } from './ForgeProvider.js'
 import { MojangProvider } from './MojangProvider.js'
 import { NeoForgeProvider } from './NeoForgeProvider.js'
+import { QuiltProvider } from './QuiltProvider.js'
 import { VersionCache } from './VersionCache.js'
 import type { LoaderVersionProvider, MinecraftVersionProvider } from './VersionProvider.js'
 
@@ -37,6 +38,7 @@ export class VersionService {
       ['fabric', new FabricProvider()],
       ['forge', new ForgeProvider()],
       ['neoforge', new NeoForgeProvider()],
+      ['quilt', new QuiltProvider()],
     ])
   }
 

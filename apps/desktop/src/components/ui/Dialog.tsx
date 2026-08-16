@@ -10,9 +10,13 @@ type Props = {
   scrollable?: boolean
   /** 副題（日付など） */
   subtitle?: string
-  size?: 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg'
+  /** 背景のぼかし強度（カラーピッカー等は soft） */
+  backdrop?: 'default' | 'soft'
   /** false のとき Esc / 背景 / × で閉じない（確認ダイアログ向け） */
   dismissible?: boolean
+  /** 重ね表示用（確認ダイアログはより手前） */
+  overlayClassName?: string
 }
 
 /**
@@ -27,8 +31,16 @@ export function Dialog({
   scrollable = false,
   subtitle,
   size = 'md',
+  backdrop = 'default',
   dismissible = true,
+  overlayClassName = '',
 }: Props) {
+  const backdropClass =
+    backdrop === 'soft'
+      ? 'bg-black/25 backdrop-blur-sm'
+      : 'bg-black/45 backdrop-blur-md'
+  const sizeClass =
+    size === 'sm' ? 'max-w-sm' : size === 'lg' ? 'max-w-2xl' : 'max-w-lg'
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -57,18 +69,20 @@ export function Dialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className={['fixed inset-0 z-50 flex items-center justify-center p-4', overlayClassName]
+        .filter(Boolean)
+        .join(' ')}
       role="presentation"
     >
       {dismissible ? (
         <button
           type="button"
           aria-label="close"
-          className="absolute inset-0 bg-black/45 backdrop-blur-md transition-opacity duration-200"
+          className={`absolute inset-0 transition-opacity duration-200 ${backdropClass}`}
           onClick={onClose}
         />
       ) : (
-        <div className="absolute inset-0 bg-black/45 backdrop-blur-md" aria-hidden />
+        <div className={`absolute inset-0 ${backdropClass}`} aria-hidden />
       )}
       <div
         ref={panelRef}
@@ -77,7 +91,7 @@ export function Dialog({
         aria-labelledby={titleId}
         className={[
           'relative z-10 flex w-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] shadow-xl',
-          size === 'lg' ? 'max-w-2xl' : 'max-w-lg',
+          sizeClass,
           'animate-in fade-in zoom-in-95 duration-200',
           scrollable ? 'max-h-[min(80vh,40rem)]' : '',
         ].join(' ')}
@@ -86,9 +100,17 @@ export function Dialog({
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-[var(--color-border)] px-5 py-4">
+        <div
+          className={[
+            'flex shrink-0 items-start justify-between gap-3 border-b border-[var(--color-border)]',
+            size === 'sm' ? 'px-3.5 py-2.5' : 'px-5 py-4',
+          ].join(' ')}
+        >
           <div className="min-w-0">
-            <h2 id={titleId} className="text-base font-semibold">
+            <h2
+              id={titleId}
+              className={size === 'sm' ? 'text-sm font-semibold' : 'text-base font-semibold'}
+            >
               {title}
             </h2>
             {subtitle ? (
@@ -108,8 +130,10 @@ export function Dialog({
         <div
           className={
             scrollable
-              ? 'min-h-0 flex-1 overflow-y-auto px-5 py-4'
-              : 'px-5 py-4'
+              ? `min-h-0 flex-1 overflow-y-auto ${size === 'sm' ? 'px-3.5 py-3' : 'px-5 py-4'}`
+              : size === 'sm'
+                ? 'px-3.5 py-3'
+                : 'px-5 py-4'
           }
         >
           {children}

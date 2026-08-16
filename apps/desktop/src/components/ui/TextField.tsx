@@ -1,10 +1,13 @@
 import type { InputHTMLAttributes } from 'react'
 
-export function TextField(props: InputHTMLAttributes<HTMLInputElement> & { label?: string }) {
-  const { label, className = '', id, ...rest } = props
+export function TextField(
+  props: InputHTMLAttributes<HTMLInputElement> & { label?: string; hint?: string },
+) {
+  const { label, hint, className = '', id, ...rest } = props
   return (
     <label className="flex flex-col gap-1 text-sm text-[var(--color-text)]">
-      {label ? <span className="text-[var(--color-text-muted)]">{label}</span> : null}
+      {label ? <span className="font-medium">{label}</span> : null}
+      {hint ? <span className="text-xs text-[var(--color-text-muted)]">{hint}</span> : null}
       <input
         id={id}
         className={[

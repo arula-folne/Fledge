@@ -5,7 +5,6 @@ import { IconDownload, IconSearch } from '@tabler/icons-react'
 import type {
   ContentCategory,
   ContentLoaderFilter,
-  ContentProviderId,
   ContentSearchQuery,
   InstanceProfile,
   Loader,
@@ -14,6 +13,7 @@ import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
 import { Dialog } from '../../components/ui/Dialog'
 import { TextField } from '../../components/ui/TextField'
+import { useTransferStore } from '../../stores/appStores'
 
 const CATEGORIES: ContentCategory[] = [
   'mod',
@@ -29,6 +29,7 @@ function loadersFromInstance(loader: Loader): ContentLoaderFilter[] {
   if (loader === 'fabric') return ['fabric']
   if (loader === 'forge') return ['forge']
   if (loader === 'neoforge') return ['neoforge']
+  if (loader === 'quilt') return ['quilt']
   return []
 }
 
@@ -60,10 +61,22 @@ export function AddContentModal({
   const [loaders, setLoaders] = useState<ContentLoaderFilter[]>(() =>
     loadersFromInstance(instance.loader),
   )
-  const [provider, setProvider] = useState<ContentProviderId>('aggregated')
   const [debouncedQuery, setDebouncedQuery] = useState('')
-  const [installingId, setInstallingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const installingIds = useTransferStore((s) => {
+    const ids = new Set<string>()
+    for (const job of Object.values(s.jobs)) {
+      if (
+        job.kind === 'content' &&
+        job.meta.instanceId === instance.id &&
+        (job.status === 'queued' || job.status === 'active') &&
+        typeof job.meta.projectId === 'string'
+      ) {
+        ids.add(job.meta.projectId)
+      }
+    }
+    return ids
+  })
 
   useEffect(() => {
     if (!open) return
@@ -73,7 +86,6 @@ export function AddContentModal({
     setQuery('')
     setDebouncedQuery('')
     setError(null)
-    setProvider('aggregated')
   }, [open, initialCategory, instance.id, instance.minecraftVersion, instance.loader])
 
   useEffect(() => {
@@ -81,55 +93,42 @@ export function AddContentModal({
     return () => window.clearTimeout(id)
   }, [query])
 
-  const providersQuery = useQuery({
-    queryKey: ['content-providers'],
-    queryFn: () => fledgeApi.content.providers(),
-    enabled: open,
-  })
-
   const searchInput: ContentSearchQuery = useMemo(
     () => ({
       query: debouncedQuery,
       category,
       gameVersion: gameVersion.trim() || undefined,
       loaders: category === 'mod' || category === 'plugin' ? loaders : [],
-      provider,
+      provider: 'modrinth',
       offset: 0,
       limit: 24,
     }),
-    [debouncedQuery, category, gameVersion, loaders, provider],
+    [debouncedQuery, category, gameVersion, loaders],
   )
 
   const searchQuery = useQuery({
     queryKey: ['content-search', searchInput],
     queryFn: () => fledgeApi.content.search(searchInput),
-    enabled:
-      open &&
-      (provider === 'aggregated' ||
-        provider === 'modrinth' ||
-        providersQuery.data?.find((p) => p.id === provider)?.available !== false),
+    enabled: open,
   })
 
   const installMutation = useMutation({
-    mutationFn: (hit: { id: string; provider: 'modrinth' | 'curseforge' }) =>
+    mutationFn: (hit: { id: string }) =>
       fledgeApi.content.install({
         instanceId: instance.id,
-        provider: hit.provider,
+        provider: 'modrinth',
         projectId: hit.id,
         category,
         gameVersion: gameVersion.trim() || undefined,
         loaders: category === 'mod' || category === 'plugin' ? loaders : [],
       }),
-    onMutate: (hit) => {
-      setInstallingId(`${hit.provider}:${hit.id}`)
+    onMutate: () => {
       setError(null)
     },
     onSuccess: () => {
-      setInstallingId(null)
       onInstalled()
     },
     onError: (err) => {
-      setInstallingId(null)
       setError(err instanceof Error ? err.message : String(err))
     },
   })
@@ -139,7 +138,6 @@ export function AddContentModal({
   }
 
   const hits = searchQuery.data?.hits ?? []
-  const providerMeta = providersQuery.data?.find((p) => p.id === provider)
 
   return (
     <Dialog
@@ -183,32 +181,11 @@ export function AddContentModal({
           ))}
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <TextField
-            label={t('content.filter.gameVersion')}
-            value={gameVersion}
-            onChange={(e) => setGameVersion(e.target.value)}
-          />
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-muted)]">{t('content.filter.provider')}</span>
-            <select
-              value={provider}
-              onChange={(e) => setProvider(e.target.value as ContentProviderId)}
-              className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2"
-            >
-              {(providersQuery.data ?? [{ id: 'aggregated', name: 'Aggregated', available: true }])
-                .filter((p) => p.id !== 'curseforge' || p.available)
-                .map((p) => (
-                  <option key={p.id} value={p.id} disabled={!p.available && p.id === 'curseforge'}>
-                    {p.id === 'aggregated'
-                      ? t('content.provider.aggregated')
-                      : p.name}
-                    {!p.available ? ` (${t('content.provider.unavailable')})` : ''}
-                  </option>
-                ))}
-            </select>
-          </label>
-        </div>
+        <TextField
+          label={t('content.filter.gameVersion')}
+          value={gameVersion}
+          onChange={(e) => setGameVersion(e.target.value)}
+        />
 
         {(category === 'mod' || category === 'plugin') && (
           <div>
@@ -237,14 +214,6 @@ export function AddContentModal({
             </div>
           </div>
         )}
-
-        {providerMeta && !providerMeta.available ? (
-          <p className="text-sm text-[var(--color-text-muted)]">
-            {providerMeta.unavailableReasonKey
-              ? t(providerMeta.unavailableReasonKey)
-              : t('content.provider.unavailable')}
-          </p>
-        ) : null}
 
         {error ? (
           <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-3 py-2 text-sm text-[var(--color-danger)]">
@@ -284,7 +253,7 @@ export function AddContentModal({
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{hit.name}</span>
                     <span className="rounded bg-[var(--color-hover)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">
-                      {hit.provider === 'modrinth' ? 'Modrinth' : 'CurseForge'}
+                      Modrinth
                     </span>
                   </div>
                   <p className="mt-0.5 line-clamp-2 text-xs text-[var(--color-text-muted)]">
@@ -299,13 +268,11 @@ export function AddContentModal({
                 <Button
                   variant="primary"
                   className="shrink-0 self-center"
-                  disabled={installingId === `${hit.provider}:${hit.id}`}
-                  onClick={() =>
-                    installMutation.mutate({ id: hit.id, provider: hit.provider })
-                  }
+                  disabled={installingIds.has(hit.id)}
+                  onClick={() => installMutation.mutate({ id: hit.id })}
                 >
                   <IconDownload size={16} stroke={1.75} />
-                  {installingId === `${hit.provider}:${hit.id}`
+                  {installingIds.has(hit.id)
                     ? t('content.installing')
                     : t('content.install')}
                 </Button>

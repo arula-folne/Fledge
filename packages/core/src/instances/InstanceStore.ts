@@ -2,7 +2,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   CreateInstanceInputSchema,
+  INSTANCE_ICON_EXTS,
+  MAX_INSTANCE_ICON_BYTES,
   InstanceProfileSchema,
+  type CreateInstanceIcon,
   type CreateInstanceInput,
   type InstanceProfile,
 } from '@fledge/shared'
@@ -23,6 +26,27 @@ async function pathExists(p: string): Promise<boolean> {
     return true
   } catch {
     return false
+  }
+}
+
+function iconExt(originalName: string): string | null {
+  const ext = path.extname(originalName).toLowerCase()
+  return (INSTANCE_ICON_EXTS as readonly string[]).includes(ext) ? ext : null
+}
+
+function mimeForExt(ext: string): string {
+  switch (ext) {
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg'
+    case '.gif':
+      return 'image/gif'
+    case '.webp':
+      return 'image/webp'
+    case '.bmp':
+      return 'image/bmp'
+    default:
+      return 'image/png'
   }
 }
 
@@ -62,25 +86,47 @@ export class InstanceStore {
     }
   }
 
-  async create(input: CreateInstanceInput, defaults?: { memoryMaxMb?: number; jvmArgs?: string[] }): Promise<InstanceProfile> {
+  async create(
+    input: CreateInstanceInput,
+    defaults?: {
+      memoryMaxMb?: number
+      jvmArgs?: string[]
+      pendingMinecraftOptions?: Record<string, string>
+      seedMinecraftInitialSettings?: boolean
+    },
+  ): Promise<InstanceProfile> {
     const parsed = CreateInstanceInputSchema.parse(input)
-    const id = await this.allocateId(slugify(parsed.name))
+    const { icon, ...fields } = parsed
+    const id = await this.allocateId(slugify(fields.name))
     const now = new Date().toISOString()
+    const seed = defaults?.seedMinecraftInitialSettings === true
     const profile: InstanceProfile = {
       id,
-      name: parsed.name,
+      name: fields.name,
       createdAt: now,
       updatedAt: now,
-      minecraftVersion: parsed.minecraftVersion,
-      loader: parsed.loader,
-      loaderVersion: parsed.loaderVersion,
+      minecraftVersion: fields.minecraftVersion,
+      loader: fields.loader,
+      loaderVersion: fields.loaderVersion,
       java: { strategy: 'auto' },
       memory: {
-        maxMb: parsed.memoryMaxMb || defaults?.memoryMaxMb || 4096,
+        maxMb: fields.memoryMaxMb || defaults?.memoryMaxMb || 4096,
       },
-      jvmArgs: parsed.jvmArgs.length ? parsed.jvmArgs : (defaults?.jvmArgs ?? []),
+      jvmArgs: fields.jvmArgs.length ? fields.jvmArgs : (defaults?.jvmArgs ?? []),
+      ...(seed
+        ? {
+            minecraftInitialSettingsSeeded: true,
+            minecraftInitialSettingsApplied: false,
+            pendingMinecraftOptions: defaults?.pendingMinecraftOptions ?? {},
+          }
+        : {}),
     }
     await this.writeInstance(profile)
+    if (icon) {
+      const iconFile = await this.writeIconFile(id, icon)
+      profile.iconFile = iconFile
+      await fs.writeFile(this.profilePath(id), JSON.stringify(profile, null, 2), 'utf8')
+    }
     return profile
   }
 
@@ -121,6 +167,33 @@ export class InstanceStore {
   async remove(id: string): Promise<void> {
     const dir = this.instanceDir(id)
     await fs.rm(dir, { recursive: true, force: true })
+  }
+
+  async getIconDataUrl(id: string): Promise<string | null> {
+    const profile = await this.get(id)
+    if (!profile?.iconFile) return null
+    const file = path.basename(profile.iconFile)
+    if (file !== profile.iconFile) return null
+    const ext = path.extname(file).toLowerCase()
+    if (!(INSTANCE_ICON_EXTS as readonly string[]).includes(ext)) return null
+    const full = path.join(this.instanceDir(id), file)
+    try {
+      const buf = await fs.readFile(full)
+      return `data:${mimeForExt(ext)};base64,${buf.toString('base64')}`
+    } catch {
+      return null
+    }
+  }
+
+  private async writeIconFile(id: string, icon: CreateInstanceIcon): Promise<string> {
+    if (icon.bytes.length > MAX_INSTANCE_ICON_BYTES) {
+      throw new Error('Instance icon is too large')
+    }
+    const ext = iconExt(icon.originalName)
+    if (!ext) throw new Error('Unsupported instance icon format')
+    const fileName = `icon${ext}`
+    await fs.writeFile(path.join(this.instanceDir(id), fileName), Buffer.from(icon.bytes))
+    return fileName
   }
 
   private async allocateId(base: string): Promise<string> {

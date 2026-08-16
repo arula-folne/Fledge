@@ -8,12 +8,12 @@ import {
   IPC_EVENTS,
   SettingsSchema,
   SkinModelSchema,
-  sanitizeSettingsForRenderer,
   type CreateInstanceInput,
   type Settings,
   type SkinModel,
 } from '@fledge/shared'
-import type { LauncherApp } from '@fledge/core'
+import { snapshotMinecraftInitialOptions, type LauncherApp } from '@fledge/core'
+import { applyWindowUiScale } from '../windows/MainWindow'
 
 function send(win: BrowserWindow | null, channel: string, payload: unknown): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
@@ -27,18 +27,13 @@ function applyLauncherWindowSize(win: BrowserWindow | null, settings: Settings):
   win.setSize(width, height)
 }
 
-function envCurseforgeConfigured(): boolean {
-  return Boolean(process.env['FLEDGE_CURSEFORGE_API_KEY']?.trim())
-}
-
 function toRendererSettings(settings: Settings): Settings {
-  return sanitizeSettingsForRenderer(settings, {
-    envCurseforgeKeyConfigured: envCurseforgeConfigured(),
-  })
+  return settings
 }
 
 export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow | null): void {
   const win = () => getWindow()
+  const touchBackup = () => appCtx.backup.scheduleSync()
 
   appCtx.logger.onLine((line) => send(win(), IPC_EVENTS.logLine, line))
   appCtx.auth.onStatusChange?.((status) => send(win(), IPC_EVENTS.authStatus, status))
@@ -46,24 +41,37 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
   ipcMain.handle(IPC.settingsGet, async () => toRendererSettings(await appCtx.settings.get()))
   ipcMain.handle(IPC.settingsSet, async (_e, partial: Partial<Settings>) => {
     const parsed = SettingsSchema.partial().parse(partial)
-    // Renderer からの空キー／表示用フラグは無視。非空のときだけ保存
-    const { curseforgeApiKeyConfigured: _c, curseforgeApiKeyFromEnv: _eEnv, curseforgeApiKey: _key, ...rest } =
-      parsed
-    const patch: Partial<Settings> = { ...rest }
-    // 設定画面からの API キー保存は廃止（.env のみ）
-    delete patch.curseforgeApiKey
-    const next = await appCtx.settings.set(patch)
+    if (typeof parsed.backupFolder === 'string' && parsed.backupFolder) {
+      appCtx.backup.assertFolder(parsed.backupFolder)
+    }
+    const next = await appCtx.settings.set(parsed)
     if (
-      Object.prototype.hasOwnProperty.call(patch, 'launcherWindowWidth') ||
-      Object.prototype.hasOwnProperty.call(patch, 'launcherWindowHeight')
+      Object.prototype.hasOwnProperty.call(parsed, 'launcherWindowWidth') ||
+      Object.prototype.hasOwnProperty.call(parsed, 'launcherWindowHeight')
     ) {
       applyLauncherWindowSize(win(), next)
+    }
+    if (Object.prototype.hasOwnProperty.call(parsed, 'uiScale')) {
+      const w = win()
+      if (w) applyWindowUiScale(w, next.uiScale)
+    }
+    touchBackup()
+    if (parsed.backupSyncEnabled === true) {
+      void appCtx.backup.flushSync().catch((err) => {
+        appCtx.logger.warn(
+          'system',
+          `Backup sync failed: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      })
     }
     return toRendererSettings(next)
   })
   ipcMain.handle(IPC.settingsReset, async () => {
     const next = await appCtx.settings.reset()
     applyLauncherWindowSize(win(), next)
+    const w = win()
+    if (w) applyWindowUiScale(w, next.uiScale)
+    touchBackup()
     return toRendererSettings(next)
   })
 
@@ -87,21 +95,37 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
 
   ipcMain.handle(IPC.instancesList, async () => appCtx.instances.list())
   ipcMain.handle(IPC.instancesGet, async (_e, id: string) => appCtx.instances.get(id))
+  ipcMain.handle(IPC.instancesGetIcon, async (_e, id: string) => {
+    if (typeof id !== 'string' || !id) return null
+    return appCtx.instances.getIconDataUrl(id)
+  })
   ipcMain.handle(IPC.instancesCreate, async (_e, input: CreateInstanceInput) => {
     const settings = await appCtx.settings.get()
     const profile = await appCtx.instances.create(CreateInstanceInputSchema.parse(input), {
       memoryMaxMb: settings.defaultMemoryMaxMb,
       jvmArgs: settings.defaultJvmArgs,
+      seedMinecraftInitialSettings: true,
+      pendingMinecraftOptions: snapshotMinecraftInitialOptions(
+        settings.minecraftInitialSettings,
+        input.minecraftVersion,
+      ),
     })
     if (!settings.selectedInstanceId) {
       await appCtx.settings.set({ selectedInstanceId: profile.id })
     }
+    touchBackup()
     return profile
   })
-  ipcMain.handle(IPC.instancesUpdate, async (_e, id: string, partial: unknown) =>
-    appCtx.instances.update(id, partial as never),
-  )
-  ipcMain.handle(IPC.instancesDuplicate, async (_e, id: string) => appCtx.instances.duplicate(id))
+  ipcMain.handle(IPC.instancesUpdate, async (_e, id: string, partial: unknown) => {
+    const updated = await appCtx.instances.update(id, partial as never)
+    touchBackup()
+    return updated
+  })
+  ipcMain.handle(IPC.instancesDuplicate, async (_e, id: string) => {
+    const copied = await appCtx.instances.duplicate(id)
+    touchBackup()
+    return copied
+  })
   ipcMain.handle(IPC.instancesRemove, async (_e, id: string) => {
     await appCtx.instances.remove(id)
     const settings = await appCtx.settings.get()
@@ -114,6 +138,7 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
           settings.lastPlayedInstanceId === id ? null : settings.lastPlayedInstanceId,
       })
     }
+    touchBackup()
   })
   ipcMain.handle(IPC.instancesOpenFolder, async (_e, id: string) => {
     await shell.openPath(appCtx.instances.instanceDir(id))
@@ -136,18 +161,27 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
 
   ipcMain.handle(IPC.contentProviders, async () => appCtx.content.listProviders())
   ipcMain.handle(IPC.contentSearch, async (_e, query: unknown) => appCtx.content.search(query))
-  ipcMain.handle(IPC.contentInstall, async (_e, req: unknown) => appCtx.content.install(req))
+  ipcMain.handle(IPC.contentInstall, async (_e, req: unknown) => {
+    const result = await appCtx.content.install(req)
+    touchBackup()
+    return result
+  })
   ipcMain.handle(IPC.contentListInstalled, async (_e, instanceId: string, category?: string) =>
     appCtx.content.listInstalled(instanceId, category as never),
   )
   ipcMain.handle(
     IPC.contentSetEnabled,
-    async (_e, instanceId: string, entryId: string, enabled: boolean) =>
-      appCtx.content.setEnabled(instanceId, entryId, enabled),
+    async (_e, instanceId: string, entryId: string, enabled: boolean) => {
+      const result = await appCtx.content.setEnabled(instanceId, entryId, enabled)
+      touchBackup()
+      return result
+    },
   )
-  ipcMain.handle(IPC.contentRemove, async (_e, instanceId: string, entryId: string) =>
-    appCtx.content.remove(instanceId, entryId),
-  )
+  ipcMain.handle(IPC.contentRemove, async (_e, instanceId: string, entryId: string) => {
+    const result = await appCtx.content.remove(instanceId, entryId)
+    touchBackup()
+    return result
+  })
   ipcMain.handle(IPC.contentCheckUpdates, async (_e, instanceId: string) =>
     appCtx.content.checkUpdates(instanceId),
   )
@@ -233,15 +267,39 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
       input: { name: string; model: SkinModel; bytes: number[]; originalName: string },
     ) => {
       const model = SkinModelSchema.parse(input.model)
-      return appCtx.skins.upload({
+      const skin = await appCtx.skins.upload({
         name: input.name,
         model,
         bytes: Uint8Array.from(input.bytes),
         originalName: input.originalName,
       })
+      touchBackup()
+      return skin
     },
   )
-  ipcMain.handle(IPC.skinsRemove, async (_e, id: string) => appCtx.skins.remove(id))
+  ipcMain.handle(
+    IPC.skinsUpdate,
+    async (_e, input: { id: string; name?: string; model?: SkinModel }) => {
+      const model = input.model ? SkinModelSchema.parse(input.model) : undefined
+      const skin = await appCtx.skins.update(input.id, { name: input.name, model })
+      const settings = await appCtx.settings.get()
+      if (settings.selectedSkinId === skin.id && model) {
+        await appCtx.settings.set({ skinModel: model })
+        await applySkinToPlayableAccounts(appCtx, skin.id, model)
+      }
+      touchBackup()
+      return skin
+    },
+  )
+  ipcMain.handle(IPC.skinsRemove, async (_e, id: string) => {
+    await appCtx.skins.remove(id)
+    const settings = await appCtx.settings.get()
+    if (settings.selectedSkinId === id) {
+      await appCtx.settings.set({ selectedSkinId: 'steve', skinModel: 'wide' })
+      await applySkinToPlayableAccounts(appCtx, 'steve', 'wide')
+    }
+    touchBackup()
+  })
   ipcMain.handle(IPC.skinsGetData, async (_e, id: string) => {
     const skins = await appCtx.skins.list()
     const skin = skins.find((s) => s.id === id)
@@ -255,7 +313,10 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
     async (_e, input: { skinId: string; model?: SkinModel }) => {
       const patch: Partial<Settings> = { selectedSkinId: input.skinId }
       if (input.model) patch.skinModel = SkinModelSchema.parse(input.model)
-      return toRendererSettings(await appCtx.settings.set(patch))
+      const next = await appCtx.settings.set(patch)
+      await applySkinToPlayableAccounts(appCtx, next.selectedSkinId, next.skinModel)
+      touchBackup()
+      return toRendererSettings(next)
     },
   )
 
@@ -268,15 +329,19 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
   })
 
   ipcMain.handle(IPC.backupRun, async () => {
-    const settings = await appCtx.settings.get()
-    if (!settings.backupFolder) throw new Error('Backup folder not set')
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const dest = path.join(settings.backupFolder, `fledge-backup-${stamp}`)
-    await fs.mkdir(dest, { recursive: true })
-    await fs.cp(appCtx.paths.data, path.join(dest, 'Data'), { recursive: true })
-    await fs.cp(appCtx.paths.instances, path.join(dest, 'Instances'), { recursive: true })
-    appCtx.logger.info('system', `Backup created at ${dest}`)
-    return dest
+    const entry = await appCtx.backup.snapshot()
+    return entry.path
+  })
+  ipcMain.handle(IPC.backupList, async () => appCtx.backup.list())
+  ipcMain.handle(IPC.backupRestore, async (_e, backupPath: string) => {
+    await appCtx.backup.restore(String(backupPath))
+    const next = await appCtx.settings.get()
+    applyLauncherWindowSize(win(), next)
+    const w = win()
+    if (w) applyWindowUiScale(w, next.uiScale)
+  })
+  ipcMain.handle(IPC.backupSyncNow, async () => {
+    await appCtx.backup.syncNow()
   })
 
   ipcMain.handle(IPC.launchStart, async (_e, profileId: string, opts?: { accountId?: string }) => {
@@ -323,6 +388,11 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
     if (!m) throw new Error('Unsupported Java major')
     return appCtx.java.reinstall(m)
   })
+  ipcMain.handle(IPC.javaUninstall, async (_e, major: number) => {
+    const m = [8, 17, 21, 25].includes(major) ? (major as 8 | 17 | 21 | 25) : null
+    if (!m) throw new Error('Unsupported Java major')
+    return appCtx.java.uninstall(m)
+  })
   ipcMain.handle(IPC.javaVerify, async (_e, major: number) => {
     const m = [8, 17, 21, 25].includes(major) ? (major as 8 | 17 | 21 | 25) : null
     if (!m) throw new Error('Unsupported Java major')
@@ -336,6 +406,25 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
     const target = view.installed && view.javaPath ? path.dirname(view.javaPath) : view.installDir
     await shell.openPath(target)
   })
+}
+
+async function applySkinToPlayableAccounts(
+  appCtx: LauncherApp,
+  skinId: string,
+  model: SkinModel,
+): Promise<void> {
+  const running = appCtx.launch
+    .listActiveSessions()
+    .filter((s) => ['preparing', 'launching', 'running'].includes(s.state))
+    .map((s) => s.accountId)
+  const ids = [...new Set(running)]
+  if (ids.length === 0) {
+    const active = await appCtx.auth.getSession()
+    if (active) ids.push(active.id)
+  }
+  for (const accountId of ids) {
+    await appCtx.skinApplier.apply(skinId, model, accountId)
+  }
 }
 
 function enrichAccount<T extends { uuid: string; displayName: string; skinUrl?: string; avatarUrl?: string }>(

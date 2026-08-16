@@ -6,6 +6,7 @@ import {
   installFabric,
   installForge,
   installNeoForge,
+  installQuiltVersion,
 } from '@xmcl/installer'
 import { Version, launch } from '@xmcl/core'
 import type { ChildProcess } from 'node:child_process'
@@ -14,6 +15,7 @@ import type { PathLayout } from '../app/paths.js'
 import type { DownloadQueue } from '../download/DownloadQueue.js'
 import type { Logger } from '../logging/Logger.js'
 import type { LaunchCredentials } from '../auth/authTypes.js'
+import { sessionHostJvmArgs } from '../auth/SessionJoinProxy.js'
 
 /**
  * Minecraft のインストール・起動。
@@ -167,6 +169,39 @@ export class MinecraftService {
       return installedId
     }
 
+    if (profile.loader === 'quilt') {
+      let installedId = ''
+      const quiltVersion = profile.loaderVersion
+      if (!quiltVersion) {
+        throw Object.assign(new Error('Quilt loader version is required'), {
+          messageKey: 'launch.error.generic',
+        })
+      }
+      const { done } = this.queue.enqueue({
+        kind: 'quilt-loader',
+        labelKey: 'launch.phase.install',
+        sessionId,
+        execute: async (ctx) => {
+          ctx.report({ current: 0, total: 2, unit: 'count' })
+          this.logger.info(
+            'minecraft',
+            `Installing Quilt ${quiltVersion} for ${profile.minecraftVersion}`,
+          )
+          installedId = await installQuiltVersion({
+            minecraftVersion: profile.minecraftVersion,
+            version: quiltVersion,
+            minecraft: this.layout.minecraft,
+          })
+          ctx.report({ current: 1, total: 2, unit: 'count' })
+          const resolved = await Version.parse(this.layout.minecraft, installedId)
+          await completeInstallation(resolved)
+          ctx.report({ current: 2, total: 2, unit: 'count' })
+        },
+      })
+      await done
+      return installedId
+    }
+
     throw Object.assign(new Error(`Loader not supported: ${profile.loader}`), {
       messageKey: 'launch.error.generic',
     })
@@ -183,6 +218,10 @@ export class MinecraftService {
       width: number
       height: number
     }
+    /** true のとき Fledge の RPC を優先し、Minecraft 本体の Discord 表示は出さない */
+    fledgeDiscordRpc?: boolean
+    /** 1.20.2+ の session host 差し替え（無効セッション時の再接続用） */
+    sessionHost?: string
   }): Promise<ChildProcess> {
     const { profile, instanceDir, versionId, javaPath, credentials, display } = options
     const maxMb = profile.memory.maxMb
@@ -206,7 +245,11 @@ export class MinecraftService {
       userType: 'msa' as 'mojang',
       minMemory: minMb,
       maxMemory: maxMb,
-      extraJVMArgs: [...profile.jvmArgs],
+      extraJVMArgs: withLaunchJvmArgs(
+        profile.jvmArgs,
+        Boolean(options.fledgeDiscordRpc),
+        options.sessionHost,
+      ),
       resolution: {
         width: display.width,
         height: display.height,
@@ -219,4 +262,39 @@ export class MinecraftService {
 
     return proc
   }
+}
+
+/** Discord がサードパーティ起動を Minecraft として検出するための目印 */
+const VANILLA_DISCORD_DETECT = '-DAllowMcDiscordDetection=net.minecraft.client.main.Main'
+/** Fledge RPC 使用時に Minecraft 本体の Discord 連携を抑止する */
+const DISABLE_VANILLA_DISCORD = '-Dminecraft.client.discord.disable=true'
+
+function withDiscordJvmArgs(base: string[], fledgeRpc: boolean): string[] {
+  const next = base.filter(
+    (arg) =>
+      arg !== VANILLA_DISCORD_DETECT &&
+      arg !== DISABLE_VANILLA_DISCORD &&
+      !arg.startsWith('-DAllowMcDiscordDetection='),
+  )
+  if (fledgeRpc) next.push(DISABLE_VANILLA_DISCORD)
+  else next.push(VANILLA_DISCORD_DETECT)
+  return next
+}
+
+function withLaunchJvmArgs(
+  base: string[],
+  fledgeRpc: boolean,
+  sessionHost?: string,
+): string[] {
+  const next = withDiscordJvmArgs(base, fledgeRpc).filter(
+    (arg) =>
+      !arg.startsWith('-Dminecraft.api.env=') &&
+      !arg.startsWith('-Dminecraft.api.auth.host=') &&
+      !arg.startsWith('-Dminecraft.api.account.host=') &&
+      !arg.startsWith('-Dminecraft.api.session.host=') &&
+      !arg.startsWith('-Dminecraft.api.services.host=') &&
+      !arg.startsWith('-Dminecraft.api.profiles.host='),
+  )
+  if (sessionHost) next.push(...sessionHostJvmArgs(sessionHost))
+  return next
 }

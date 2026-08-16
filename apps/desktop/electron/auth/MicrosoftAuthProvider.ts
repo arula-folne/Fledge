@@ -145,22 +145,27 @@ export class MicrosoftAuthProvider implements AuthProvider {
   }
 
   async getLaunchCredentials(accountId?: string): Promise<LaunchCredentials> {
+    return this.ensureCredentials(accountId, { announce: true })
+  }
+
+  async ensureCredentials(
+    accountId?: string,
+    opts?: { force?: boolean; announce?: boolean },
+  ): Promise<LaunchCredentials> {
     const id = accountId ?? this.activeId ?? (await this.vault.getActiveId())
     if (!id) {
       throw new AuthError('not_logged_in', 'auth.error.notLoggedIn')
     }
-    this.setStatus('refreshing')
+    if (opts?.announce) this.setStatus('refreshing')
     try {
-      const mc = await this.refreshIfNeeded(id)
+      const mc = await this.refreshIfNeeded(id, opts?.force === true)
       const profile = mc.profile
       if (!profile?.id || !profile.name) {
         throw new AuthError('failed', 'auth.error.failed')
       }
-      // 起動専用に指定された場合でも UI のアクティブは変えない（呼び出し側で switch する）
       if (!accountId || accountId === this.activeId) {
         this.setStatus('logged_in')
       } else {
-        // 別アカウントで起動中もアクティブ側の status を維持
         const active = await this.vault.readAccount()
         this.setStatus(active ? 'logged_in' : 'logged_out')
       }
@@ -194,15 +199,17 @@ export class MicrosoftAuthProvider implements AuthProvider {
     return new Auth(prompt)
   }
 
-  private async refreshIfNeeded(accountId: string): Promise<Minecraft> {
+  private async refreshIfNeeded(accountId: string, force = false): Promise<Minecraft> {
     const cached = this.cache.get(accountId)
-    if (cached?.minecraft.validate()) {
+    if (!force && cached?.minecraft.validate()) {
       return cached.minecraft
     }
     if (cached?.minecraft) {
       try {
         const refreshed = await cached.minecraft.refresh(true)
         this.cache.set(accountId, { minecraft: refreshed, xbox: cached.xbox })
+        const account = this.toAccountView(refreshed)
+        await this.persist(accountId, cached.xbox, refreshed, account)
         return refreshed
       } catch {
         /* fall through */

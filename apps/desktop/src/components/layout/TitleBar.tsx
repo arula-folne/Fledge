@@ -2,6 +2,7 @@ import { IconCopy, IconMinus, IconSquare, IconX } from '@tabler/icons-react'
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { useTranslation } from 'react-i18next'
 import { fledgeApi } from '../../api/fledgeApi'
+import { TextLogo } from '../brand/TextLogo'
 
 /**
  * OS 枠なし時の独自タイトルバー（Tabler Icons）
@@ -22,13 +23,11 @@ export function TitleBar() {
 
   return (
     <header
-      className="flex h-9 shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] select-none"
+      className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] select-none"
       style={{ WebkitAppRegion: 'drag' } as CSSProperties}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-2 px-3">
-        <span className="truncate text-xs font-semibold tracking-wide text-[var(--color-text)]">
-          {t('app.name')}
-        </span>
+      <div className="flex min-w-0 flex-1 items-center gap-2 px-2.5">
+        <TextLogo compact />
       </div>
       <div
         className="flex h-full items-stretch"
@@ -38,7 +37,7 @@ export function TitleBar() {
           label={t('window.minimize')}
           onClick={() => void fledgeApi.window.minimize()}
         >
-          <IconMinus size={15} stroke={1.75} />
+          <IconMinus size={14} stroke={1.75} />
         </TitleBtn>
         <TitleBtn
           label={maximized ? t('window.restore') : t('window.maximize')}
@@ -47,9 +46,9 @@ export function TitleBar() {
           }}
         >
           {maximized ? (
-            <IconCopy size={14} stroke={1.75} />
+            <IconCopy size={13} stroke={1.75} />
           ) : (
-            <IconSquare size={14} stroke={1.75} />
+            <IconSquare size={13} stroke={1.75} />
           )}
         </TitleBtn>
         <TitleBtn
@@ -57,7 +56,7 @@ export function TitleBar() {
           danger
           onClick={() => void fledgeApi.window.close()}
         >
-          <IconX size={15} stroke={1.75} />
+          <IconX size={14} stroke={1.75} />
         </TitleBtn>
       </div>
     </header>
@@ -82,7 +81,7 @@ function TitleBtn({
       title={label}
       onClick={onClick}
       className={[
-        'grid h-full w-11 place-items-center text-[var(--color-text-muted)] transition',
+        'grid h-full w-10 place-items-center text-[var(--color-text-muted)] transition',
         danger
           ? 'hover:bg-[var(--color-danger)] hover:text-white'
           : 'hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',

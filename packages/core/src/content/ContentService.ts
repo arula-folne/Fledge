@@ -10,23 +10,15 @@ import {
   type ContentMediaItem,
   type ContentSearchQuery,
   type ContentSearchResult,
-  type ContentSourceId,
   type InstalledContent,
   type Loader,
 } from '@fledge/shared'
 import type { DownloadQueue } from '../download/DownloadQueue.js'
+import { fetchBody } from '../download/fetchBody.js'
 import type { InstanceStore } from '../instances/InstanceStore.js'
 import type { Logger } from '../logging/Logger.js'
 import type { ContentProvider, ContentProviderInfo } from './ContentProvider.js'
-import { CurseForgeProvider } from './curseforge/CurseForgeProvider.js'
-import { mergePreferModrinth } from './mergeContentHits.js'
 import { ModrinthProvider } from './ModrinthProvider.js'
-
-/**
- * 一旦 CurseForge 連携は無効。コードは残し、再有効化時は true に戻す。
- * true でもキー未設定なら従来どおり利用不可。
- */
-const CURSEFORGE_FEATURE_ENABLED = false
 
 const INDEX_DIR = '.fledge'
 const INDEX_FILE = 'content-index.json'
@@ -56,6 +48,8 @@ function loaderToFilters(loader: Loader): ContentLoaderFilter[] {
       return ['forge']
     case 'neoforge':
       return ['neoforge']
+    case 'quilt':
+      return ['quilt']
     case 'vanilla':
       return []
     default:
@@ -65,106 +59,36 @@ function loaderToFilters(loader: Loader): ContentLoaderFilter[] {
 
 export class ContentService {
   private readonly modrinth: ModrinthProvider
-  private readonly curseforge: CurseForgeProvider
-  private readonly providers: Map<ContentSourceId, ContentProvider>
+  private readonly providers: Map<string, ContentProvider>
+  private readonly indexTail = new Map<string, Promise<unknown>>()
 
   constructor(
     private readonly instances: InstanceStore,
     private readonly queue: DownloadQueue,
     private readonly logger: Logger,
-    getCurseForgeApiKey: () => Promise<string | undefined>,
   ) {
     this.modrinth = new ModrinthProvider()
-    this.curseforge = new CurseForgeProvider(getCurseForgeApiKey)
-    this.providers = new Map<ContentSourceId, ContentProvider>([
-      ['modrinth', this.modrinth],
-      ['curseforge', this.curseforge],
-    ])
+    this.providers = new Map([['modrinth', this.modrinth]])
   }
 
   async listProviders(): Promise<ContentProviderInfo[]> {
-    const cfEnabled = CURSEFORGE_FEATURE_ENABLED && (await this.curseforge.hasApiKey())
     return [
-      {
-        id: 'aggregated',
-        name: 'Aggregated',
-        available: true,
-      },
       {
         id: 'modrinth',
         name: 'Modrinth',
         available: true,
-      },
-      {
-        id: 'curseforge',
-        name: 'CurseForge',
-        available: cfEnabled,
-        unavailableReasonKey: CURSEFORGE_FEATURE_ENABLED
-          ? cfEnabled
-            ? undefined
-            : 'content.provider.curseforgeUnavailable'
-          : 'content.provider.curseforgeDisabled',
       },
     ]
   }
 
   async search(raw: unknown): Promise<ContentSearchResult> {
     const query = ContentSearchQuerySchema.parse(raw)
-
-    if (query.provider === 'aggregated') {
-      return this.searchAggregated(query)
-    }
-
-    const provider = this.providers.get(query.provider)
-    if (!provider) throw new Error(`Unknown content provider: ${query.provider}`)
-
-    if (query.provider === 'curseforge') {
-      if (!CURSEFORGE_FEATURE_ENABLED || !(await this.curseforge.hasApiKey())) {
-        return { hits: [], total: 0, offset: query.offset, limit: query.limit }
-      }
-    }
-
-    return provider.search(query)
-  }
-
-  private async searchAggregated(query: ContentSearchQuery): Promise<ContentSearchResult> {
-    const perSourceLimit = Math.min(50, Math.max(query.limit, 20))
-    const base = { ...query, offset: 0, limit: perSourceLimit }
-
-    const mrPromise = this.modrinth.search({ ...base, provider: 'modrinth' })
-    const useCf = CURSEFORGE_FEATURE_ENABLED && (await this.curseforge.hasApiKey())
-    const cfPromise = useCf
-      ? this.curseforge.search({ ...base, provider: 'curseforge' }).catch((err) => {
-          const msg = err instanceof Error ? err.message : 'unknown'
-          this.logger.warn('downloader', `CurseForge search failed: ${msg.slice(0, 160)}`)
-          return {
-            hits: [] as ContentSearchResult['hits'],
-            total: 0,
-            offset: 0,
-            limit: perSourceLimit,
-          }
-        })
-      : Promise.resolve({
-          hits: [] as ContentSearchResult['hits'],
-          total: 0,
-          offset: 0,
-          limit: perSourceLimit,
-        })
-
-    const [mr, cf] = await Promise.all([mrPromise, cfPromise])
-    const merged = useCf ? mergePreferModrinth(mr.hits, cf.hits) : mr.hits
-    const sliced = merged.slice(query.offset, query.offset + query.limit)
-    return {
-      hits: sliced,
-      total: merged.length,
-      offset: query.offset,
-      limit: query.limit,
-    }
+    return this.modrinth.search({ ...query, provider: 'modrinth' })
   }
 
   async listInstalled(instanceId: string, category?: ContentCategory): Promise<InstalledContent[]> {
     const index = await this.readIndex(instanceId)
-    const items = index.items.map((i) => InstalledContentSchema.parse(i))
+    const items = index.items
     if (!category) return items
     return items.filter((i) => i.category === category)
   }
@@ -176,14 +100,6 @@ export class ContentService {
 
     const provider = this.providers.get(req.provider)
     if (!provider) throw new Error(`Content provider unavailable: ${req.provider}`)
-    if (req.provider === 'curseforge') {
-      if (!CURSEFORGE_FEATURE_ENABLED) {
-        throw new Error('CurseForge 連携は現在無効です。')
-      }
-      if (!(await this.curseforge.hasApiKey())) {
-        throw new Error('CurseForge APIキーが設定されていません。')
-      }
-    }
 
     const loaders =
       req.loaders ??
@@ -209,59 +125,66 @@ export class ContentService {
       kind: 'content',
       labelKey: 'content.installing',
       priority: 5,
-      meta: { instanceId: req.instanceId, projectId: resolved.projectId },
+      sessionId: `content-${req.instanceId}-${resolved.projectId}`,
+      meta: {
+        instanceId: req.instanceId,
+        projectId: resolved.projectId,
+        projectName: resolved.name,
+        category: resolved.category,
+      },
       execute: async (ctx) => {
-        const res = await fetch(resolved.downloadUrl, {
+        const buf = await fetchBody(resolved.downloadUrl, {
           signal: ctx.signal,
           headers: { 'User-Agent': 'Fledge/0.1.0 (content-download)' },
-          redirect: 'follow',
+          onProgress: (current, total) => {
+            ctx.report({ current, total, unit: 'bytes' })
+          },
         })
-        if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`)
-        const total = Number(res.headers.get('content-length') ?? resolved.size ?? 0)
-        const buf = Buffer.from(await res.arrayBuffer())
         if (resolved.sha1) {
           const hash = createHash('sha1').update(buf).digest('hex')
           if (hash !== resolved.sha1) throw new Error('Checksum mismatch')
         }
         await fs.writeFile(destPath, buf)
-        ctx.report({ current: buf.length, total: total || buf.length, unit: 'bytes' })
+        ctx.report({ current: buf.length, total: buf.length, unit: 'bytes' })
       },
     }).done
 
-    const index = await this.readIndex(req.instanceId)
-    const previous = index.items.filter(
-      (i) => i.provider === resolved.provider && i.projectId === resolved.projectId,
-    )
-    for (const old of previous) {
-      await this.deleteFileQuiet(
-        path.join(instanceDir, categoryDir(old.category), old.fileName),
-        old.enabled,
+    return this.withIndexLock(req.instanceId, async () => {
+      const index = await this.readIndex(req.instanceId)
+      const previous = index.items.filter(
+        (i) => i.provider === resolved.provider && i.projectId === resolved.projectId,
       )
-      index.items = index.items.filter((i) => i.id !== old.id)
-    }
+      for (const old of previous) {
+        await this.deleteFileQuiet(
+          path.join(instanceDir, categoryDir(old.category), old.fileName),
+          old.enabled,
+        )
+        index.items = index.items.filter((i) => i.id !== old.id)
+      }
 
-    const entry: InstalledContent = {
-      id: randomUUID(),
-      provider: resolved.provider,
-      projectId: resolved.projectId,
-      versionId: resolved.versionId,
-      slug: resolved.slug,
-      name: resolved.name,
-      versionNumber: resolved.versionNumber,
-      category: resolved.category,
-      fileName: resolved.fileName,
-      iconUrl: resolved.iconUrl,
-      enabled: true,
-      installedAt: new Date().toISOString(),
-      updateAvailable: false,
-    }
-    index.items.push(entry)
-    await this.writeIndex(req.instanceId, index)
-    this.logger.info(
-      'downloader',
-      `Installed ${entry.name}@${entry.versionNumber} → ${req.instanceId}`,
-    )
-    return entry
+      const entry: InstalledContent = {
+        id: randomUUID(),
+        provider: resolved.provider,
+        projectId: resolved.projectId,
+        versionId: resolved.versionId,
+        slug: resolved.slug,
+        name: resolved.name,
+        versionNumber: resolved.versionNumber,
+        category: resolved.category,
+        fileName: resolved.fileName,
+        iconUrl: resolved.iconUrl,
+        enabled: true,
+        installedAt: new Date().toISOString(),
+        updateAvailable: false,
+      }
+      index.items.push(entry)
+      await this.writeIndex(req.instanceId, index)
+      this.logger.info(
+        'downloader',
+        `Installed ${entry.name}@${entry.versionNumber} → ${req.instanceId}`,
+      )
+      return entry
+    })
   }
 
   async setEnabled(instanceId: string, entryId: string, enabled: boolean): Promise<InstalledContent> {
@@ -308,13 +231,6 @@ export class ContentService {
     for (const entry of index.items) {
       const provider = this.providers.get(entry.provider)
       if (!provider?.findUpdate) {
-        entry.updateAvailable = false
-        continue
-      }
-      if (
-        entry.provider === 'curseforge' &&
-        (!CURSEFORGE_FEATURE_ENABLED || !(await this.curseforge.hasApiKey()))
-      ) {
         entry.updateAvailable = false
         continue
       }
@@ -372,7 +288,7 @@ export class ContentService {
       category,
       gameVersion: profile.minecraftVersion,
       loaders: category === 'mod' || category === 'plugin' ? loaderToFilters(profile.loader) : [],
-      provider: 'aggregated',
+      provider: 'modrinth',
       offset: 0,
       limit: 20,
     })
@@ -382,11 +298,30 @@ export class ContentService {
     return path.join(this.instances.instanceDir(instanceId), INDEX_DIR, INDEX_FILE)
   }
 
+  private async withIndexLock<T>(instanceId: string, fn: () => Promise<T>): Promise<T> {
+    const prev = this.indexTail.get(instanceId) ?? Promise.resolve()
+    const next = prev.then(fn, fn)
+    this.indexTail.set(
+      instanceId,
+      next.then(
+        () => undefined,
+        () => undefined,
+      ),
+    )
+    return next
+  }
+
   private async readIndex(instanceId: string): Promise<IndexFile> {
     try {
       const raw = await fs.readFile(this.indexPath(instanceId), 'utf8')
       const parsed = JSON.parse(raw) as IndexFile
-      return { items: Array.isArray(parsed.items) ? parsed.items : [] }
+      const items = Array.isArray(parsed.items) ? parsed.items : []
+      return {
+        items: items.flatMap((item) => {
+          const result = InstalledContentSchema.safeParse(item)
+          return result.success ? [result.data] : []
+        }),
+      }
     } catch {
       return { items: [] }
     }

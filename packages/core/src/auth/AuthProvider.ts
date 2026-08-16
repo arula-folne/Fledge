@@ -17,5 +17,13 @@ export interface AuthProvider {
   getStatus(): AuthStatus
   /** 起動用クレデンシャル。accountId 省略時はアクティブ */
   getLaunchCredentials(accountId?: string): Promise<LaunchCredentials>
+  /**
+   * トークンを必要なら更新して返す。
+   * スキン適用や session join 代理など、起動以外からも使う。
+   */
+  ensureCredentials(
+    accountId?: string,
+    opts?: { force?: boolean; announce?: boolean },
+  ): Promise<LaunchCredentials>
   onStatusChange?(listener: (status: AuthStatus) => void): () => void
 }

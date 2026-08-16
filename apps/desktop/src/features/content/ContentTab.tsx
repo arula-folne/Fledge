@@ -12,7 +12,9 @@ import {
 import type { ContentCategory, InstalledContent, InstanceProfile } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { AddContentModal } from './AddContentModal'
+import { useTransferStore } from '../../stores/appStores'
 
 const CATEGORIES: ContentCategory[] = [
   'mod',
@@ -31,6 +33,7 @@ export function ContentTab({ instance }: Props) {
   const queryClient = useQueryClient()
   const [category, setCategory] = useState<ContentCategory>('mod')
   const [addOpen, setAddOpen] = useState(false)
+  const [removeTarget, setRemoveTarget] = useState<InstalledContent | null>(null)
 
   const installedQuery = useQuery({
     queryKey: ['content-installed', instance.id, category],
@@ -71,6 +74,19 @@ export function ContentTab({ instance }: Props) {
   })
 
   const items = installedQuery.data ?? []
+  const installingProjectIds = useTransferStore((s) => {
+    const ids = new Set<string>()
+    for (const job of Object.values(s.jobs)) {
+      if (
+        job.kind === 'content' &&
+        job.meta.instanceId === instance.id &&
+        typeof job.meta.projectId === 'string'
+      ) {
+        ids.add(job.meta.projectId)
+      }
+    }
+    return ids
+  })
 
   return (
     <div className="space-y-4">
@@ -149,7 +165,7 @@ export function ContentTab({ instance }: Props) {
               {item.updateAvailable ? (
                 <Button
                   variant="secondary"
-                  disabled={updateMutation.isPending}
+                  disabled={installingProjectIds.has(item.projectId)}
                   onClick={() => updateMutation.mutate(item)}
                 >
                   {t('content.update')}
@@ -172,11 +188,7 @@ export function ContentTab({ instance }: Props) {
               <Button
                 variant="ghost"
                 className="px-2 text-[var(--color-danger)]"
-                onClick={() => {
-                  if (window.confirm(t('content.removeConfirm'))) {
-                    removeMutation.mutate(item.id)
-                  }
-                }}
+                onClick={() => setRemoveTarget(item)}
               >
                 <IconTrash size={16} stroke={1.75} />
               </Button>
@@ -192,7 +204,20 @@ export function ContentTab({ instance }: Props) {
         initialCategory={category}
         onInstalled={() => {
           void invalidate()
-          setAddOpen(false)
+        }}
+      />
+      <ConfirmDialog
+        open={removeTarget != null}
+        title={t('content.remove')}
+        body={t('content.removeConfirm')}
+        confirmLabel={t('content.remove')}
+        pending={removeMutation.isPending}
+        onCancel={() => setRemoveTarget(null)}
+        onConfirm={() => {
+          if (!removeTarget) return
+          removeMutation.mutate(removeTarget.id, {
+            onSettled: () => setRemoveTarget(null),
+          })
         }}
       />
     </div>

@@ -44,7 +44,7 @@ export const InstanceCard = memo(function InstanceCard({
         ].join(' ')}
       >
         <div className="flex flex-wrap items-start gap-4">
-          <InstanceIcon loader={instance.loader} size="lg" />
+          <InstanceIcon instance={instance} size="lg" />
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-xl font-semibold text-[var(--color-text)]">
               {instance.name}
@@ -79,7 +79,7 @@ export const InstanceCard = memo(function InstanceCard({
         className,
       ].join(' ')}
     >
-      <InstanceIcon loader={instance.loader} />
+      <InstanceIcon instance={instance} />
       <div className="min-w-0 flex-1">
         <div className="truncate font-medium text-[var(--color-text)]">{instance.name}</div>
         <div className="truncate text-sm text-[var(--color-text-muted)]">

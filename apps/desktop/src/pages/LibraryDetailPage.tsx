@@ -16,14 +16,16 @@ import {
 import type { InstanceSubfolder } from '@fledge/shared'
 import { fledgeApi } from '../api/fledgeApi'
 import { Button } from '../components/ui/Button'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { TextField } from '../components/ui/TextField'
 import { MemorySnapSlider } from '../components/ui/MemorySnapSlider'
 import { InstanceIcon } from '../features/instances/InstanceIcon'
 import { InstanceLaunchButton } from '../features/instances/InstanceLaunchButton'
 import { formatLastPlayed, formatLoaderLabel } from '../features/instances/instanceMeta'
 import { ContentTab } from '../features/content/ContentTab'
+import { useUiStore, type LibraryDetailTab } from '../stores/appStores'
 
-type TabId = 'overview' | 'content' | 'screenshots' | 'logs' | 'settings'
+type TabId = LibraryDetailTab
 
 type Draft = {
   name: string
@@ -82,9 +84,14 @@ export default function LibraryDetailPage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState<TabId>('overview')
+  const libraryFocus = useUiStore((s) => s.libraryFocus)
+  const setLibraryFocus = useUiStore((s) => s.setLibraryFocus)
+  const [tab, setTab] = useState<TabId>(() =>
+    libraryFocus?.instanceId === instanceId ? libraryFocus.tab : 'overview',
+  )
   const [draft, setDraft] = useState<Draft | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   const instanceQuery = useQuery({
     queryKey: ['instances', instanceId],
@@ -105,6 +112,24 @@ export default function LibraryDetailPage() {
   })
 
   const instance = instanceQuery.data ?? null
+
+  useEffect(() => {
+    if (libraryFocus?.instanceId === instanceId && libraryFocus.tab !== tab) {
+      setTab(libraryFocus.tab)
+    }
+  }, [libraryFocus?.instanceId, libraryFocus?.tab, instanceId, tab])
+
+  useEffect(() => {
+    if (!instanceId) return
+    setLibraryFocus({ instanceId, tab })
+  }, [instanceId, tab, setLibraryFocus])
+
+  useEffect(() => {
+    return () => {
+      const current = useUiStore.getState().libraryFocus
+      if (current?.instanceId === instanceId) useUiStore.getState().setLibraryFocus(null)
+    }
+  }, [instanceId])
 
   useEffect(() => {
     if (!instance) return
@@ -196,7 +221,7 @@ export default function LibraryDetailPage() {
       </div>
 
       <header className="flex flex-wrap items-start gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-        <InstanceIcon loader={instance.loader} size="lg" />
+        <InstanceIcon instance={instance} size="lg" />
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-semibold">{instance.name}</h1>
           <p className="mt-1 text-sm text-[var(--color-text-muted)]">
@@ -292,11 +317,7 @@ export default function LibraryDetailPage() {
               <Button
                 variant="danger"
                 disabled={removeMutation.isPending}
-                onClick={() => {
-                  if (window.confirm(t('instances.deleteConfirm'))) {
-                    removeMutation.mutate(instance.id)
-                  }
-                }}
+                onClick={() => setDeleteOpen(true)}
               >
                 <IconTrash size={16} stroke={1.75} />
                 {t('instances.delete')}
@@ -405,6 +426,19 @@ export default function LibraryDetailPage() {
           </div>
         </div>
       ) : null}
+      <ConfirmDialog
+        open={deleteOpen}
+        title={t('instances.delete')}
+        body={t('instances.deleteConfirm')}
+        confirmLabel={t('instances.delete')}
+        pending={removeMutation.isPending}
+        onCancel={() => setDeleteOpen(false)}
+        onConfirm={() => {
+          removeMutation.mutate(instance.id, {
+            onSettled: () => setDeleteOpen(false),
+          })
+        }}
+      />
     </div>
   )
 }

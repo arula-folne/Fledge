@@ -5,11 +5,12 @@ import { promisify } from 'node:util'
 import type { PathLayout } from '../app/paths.js'
 import type { Logger } from '../logging/Logger.js'
 import type { DownloadQueue } from '../download/DownloadQueue.js'
+import { fetchBody } from '../download/fetchBody.js'
 
 const execFileAsync = promisify(execFile)
 
 /** 管理対象の Java メジャー */
-export const JAVA_MANAGED_MAJORS = [8, 17, 21, 25] as const
+export const JAVA_MANAGED_MAJORS = [25, 21, 17, 8] as const
 export type JavaManagedMajor = (typeof JAVA_MANAGED_MAJORS)[number]
 
 export type JavaRuntimeView = {
@@ -46,6 +47,8 @@ export function requiredJavaMajor(minecraftVersion: string): number {
 }
 
 export class JavaManager {
+  private readonly inflight = new Map<JavaManagedMajor, Promise<JavaRuntimeView>>()
+
   constructor(
     private readonly layout: PathLayout,
     private readonly queue: DownloadQueue,
@@ -95,14 +98,47 @@ export class JavaManager {
 
   async install(major: JavaManagedMajor, sessionId = `java-install-${major}`): Promise<JavaRuntimeView> {
     this.logger.info('java', `Installing Java ${major}…`)
-    await this.downloadAndLink(major, sessionId, false)
-    return this.getRuntimeView(major)
+    return this.runExclusive(major, () => this.downloadAndLink(major, sessionId, false))
   }
 
   async reinstall(major: JavaManagedMajor, sessionId = `java-reinstall-${major}`): Promise<JavaRuntimeView> {
     this.logger.info('java', `Reinstalling Java ${major}…`)
-    await this.downloadAndLink(major, sessionId, true)
-    return this.getRuntimeView(major)
+    return this.runExclusive(major, () => this.downloadAndLink(major, sessionId, true))
+  }
+
+  async uninstall(major: JavaManagedMajor): Promise<JavaRuntimeView> {
+    if (this.inflight.has(major)) {
+      throw Object.assign(new Error('Java is busy'), { messageKey: 'settings.java.busy' })
+    }
+    this.logger.info('java', `Uninstalling Java ${major}…`)
+    return this.runExclusive(major, () => this.removeManaged(major))
+  }
+
+  private async removeManaged(major: JavaManagedMajor): Promise<void> {
+    const targets = [
+      this.installDir(major),
+      this.legacyInstallDir(major),
+      this.legacyMarkerPath(major),
+      path.join(this.layout.temp, `temurin-${major}.zip`),
+    ]
+    for (const target of targets) {
+      await fs.rm(target, { recursive: true, force: true })
+    }
+  }
+
+  private runExclusive(
+    major: JavaManagedMajor,
+    work: () => Promise<void>,
+  ): Promise<JavaRuntimeView> {
+    const existing = this.inflight.get(major)
+    if (existing) return existing
+    const next = work()
+      .then(() => this.getRuntimeView(major))
+      .finally(() => {
+        this.inflight.delete(major)
+      })
+    this.inflight.set(major, next)
+    return next
   }
 
   async verify(major: JavaManagedMajor): Promise<JavaVerifyResult> {
@@ -149,7 +185,7 @@ export class JavaManager {
     }
 
     this.logger.info('java', `Fledge Java ${major} not found. Installing to default path…`)
-    await this.downloadAndLink(major, sessionId, false)
+    await this.runExclusive(major, () => this.downloadAndLink(major, sessionId, false))
     const installed = await this.detectManagedJava(major)
     if (!installed) {
       throw Object.assign(new Error('Java install failed'), { messageKey: 'launch.error.generic' })
@@ -162,8 +198,9 @@ export class JavaManager {
     if ((JAVA_MANAGED_MAJORS as readonly number[]).includes(major)) {
       return major as JavaManagedMajor
     }
-    const higher = JAVA_MANAGED_MAJORS.find((m) => m >= major)
-    return higher ?? JAVA_MANAGED_MAJORS[JAVA_MANAGED_MAJORS.length - 1]!
+    const ascending = [...JAVA_MANAGED_MAJORS].sort((a, b) => a - b)
+    const higher = ascending.find((m) => m >= major)
+    return higher ?? ascending[ascending.length - 1]!
   }
 
   private async downloadAndLink(
@@ -178,17 +215,42 @@ export class JavaManager {
 
     const { done } = this.queue.enqueue({
       kind: 'java',
-      labelKey: 'launch.phase.java',
+      labelKey: force ? 'settings.java.reinstall' : 'settings.java.install',
       sessionId,
+      meta: { major, action: force ? 'reinstall' : 'install' },
       execute: async (ctx) => {
-        ctx.report({ current: 0, total: 1, unit: 'count' })
+        ctx.report({
+          current: 0,
+          total: 1,
+          unit: 'bytes',
+          messageKey: 'settings.java.downloading',
+        })
         if (force) {
           await fs.rm(this.installDir(major), { recursive: true, force: true })
         }
-        const javaHome = await this.downloadTemurin(major, ctx.signal)
+        const javaHome = await this.downloadTemurin(
+          major,
+          ctx.signal,
+          (current, total) => {
+            ctx.report({
+              current,
+              total,
+              unit: 'bytes',
+              messageKey: 'settings.java.downloading',
+            })
+          },
+          () => {
+            ctx.report({
+              current: 1,
+              total: 1,
+              unit: 'count',
+              messageKey: 'settings.java.extracting',
+            })
+          },
+        )
         await fs.mkdir(this.installDir(major), { recursive: true })
         await fs.writeFile(this.markerPath(major), javaHome, 'utf8')
-        ctx.report({ current: 1, total: 1, unit: 'count' })
+        ctx.report({ current: 1, total: 1, unit: 'count', messageKey: 'settings.java.install' })
       },
     })
     await done
@@ -236,19 +298,21 @@ export class JavaManager {
     return Number(m[1])
   }
 
-  private async downloadTemurin(major: number, signal: AbortSignal): Promise<string> {
+  private async downloadTemurin(
+    major: number,
+    signal: AbortSignal,
+    onProgress?: (current: number, total: number) => void,
+    onExtracting?: () => void,
+  ): Promise<string> {
     const api = `https://api.adoptium.net/v3/binary/latest/${major}/ga/windows/x64/jdk/hotspot/normal/eclipse?project=jdk`
     const destZip = path.join(this.layout.temp, `temurin-${major}.zip`)
     const destDir = this.installDir(major)
 
-    const res = await fetch(api, { signal, redirect: 'follow' })
-    if (!res.ok || !res.body) {
-      throw Object.assign(new Error('Failed to download Java'), { messageKey: 'download.error.network' })
-    }
-    const buffer = Buffer.from(await res.arrayBuffer())
+    const buffer = await fetchBody(api, { signal, onProgress })
     await fs.mkdir(this.layout.temp, { recursive: true })
     await fs.writeFile(destZip, buffer)
 
+    onExtracting?.()
     await fs.rm(destDir, { recursive: true, force: true })
     await fs.mkdir(destDir, { recursive: true })
 

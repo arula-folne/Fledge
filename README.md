@@ -66,11 +66,6 @@ pnpm --filter @fledge/desktop exec electron-vite dev
 
 ルートの `pnpm dev` でも起動できます。
 
-### CurseForge（現在無効）
-
-CurseForge 連携は**一旦無効**にしています。コンテンツ追加は **Modrinth** のみです。  
-再有効化するときは `ContentService` の `CURSEFORGE_FEATURE_ENABLED` と、ローカル `.env` の `FLEDGE_CURSEFORGE_API_KEY`（コミット禁止）が必要です。
-
 ### 補足
 
 - `@xmcl/*` は npm 上の `main` がソースを指しているため、`postinstall` で `scripts/patch-xmcl.js` が dist を指すよう修正します。
@@ -82,7 +77,7 @@ CurseForge 連携は**一旦無効**にしています。コンテンツ追加�
 - Vanilla / Fabric / Forge / NeoForge 起動
 - Java 自動検出・不足時ダウンロード（Temurin）
 - インスタンス管理
-- Modrinth コンテンツ検索・インストール（CurseForge は現在無効）
+- Modrinth コンテンツ検索・インストール
 - ニュース（ローカル JSON）
 - 起動ログ / 基本設定
 

@@ -1,17 +1,46 @@
 import path from 'node:path'
 import { app, BrowserWindow, shell } from 'electron'
+import type { UiScale } from '@fledge/shared'
+import { resolveAppIconPath } from './appIcon'
+
+/** 720p 時の見た目をノーマルとする。ウィンドウ解像度では拡縮しない。 */
+export const UI_SCALE_FACTORS: Record<UiScale, number> = {
+  minimal: 0.85,
+  normal: 1,
+  wide: 1.2,
+}
+
+let activeUiScale: UiScale = 'normal'
+
+export function applyWindowUiScale(win: BrowserWindow, scale: UiScale = activeUiScale): void {
+  if (win.isDestroyed() || win.webContents.isDestroyed()) return
+  activeUiScale = scale
+  const factor = Math.round(UI_SCALE_FACTORS[scale] * 1000) / 1000
+  if (Math.abs(win.webContents.getZoomFactor() - factor) < 0.005) return
+  win.webContents.setZoomFactor(factor)
+}
+
+function attachWindowUiScale(win: BrowserWindow): void {
+  void win.webContents.setVisualZoomLevelLimits(1, 1)
+  const apply = () => applyWindowUiScale(win, activeUiScale)
+  win.webContents.on('did-finish-load', apply)
+  win.webContents.on('did-navigate', apply)
+}
 
 export function createMainWindow(opts?: {
   width?: number
   height?: number
   x?: number
   y?: number
+  uiScale?: UiScale
   /** true = OS タイトルバー、false = 枠なし（独自タイトルバー用） */
   frame?: boolean
 }): BrowserWindow {
   const width = Math.min(7680, Math.max(900, opts?.width ?? 1280))
   const height = Math.min(4320, Math.max(600, opts?.height ?? 720))
   const frame = opts?.frame ?? true
+  activeUiScale = opts?.uiScale ?? 'normal'
+  const icon = resolveAppIconPath()
   const win = new BrowserWindow({
     width,
     height,
@@ -20,6 +49,7 @@ export function createMainWindow(opts?: {
     minWidth: 900,
     minHeight: 600,
     title: 'Fledge',
+    icon,
     backgroundColor: '#F7F9FC',
     show: false,
     frame,
@@ -34,6 +64,14 @@ export function createMainWindow(opts?: {
     },
   })
   win.setMenuBarVisibility(false)
+  attachWindowUiScale(win)
+  if (icon) {
+    try {
+      win.setIcon(icon)
+    } catch {
+      // icon missing in some unpackaged layouts
+    }
+  }
 
   win.webContents.on('did-fail-load', (_e, code, desc, url) => {
     console.error('Renderer failed to load', { code, desc, url })
@@ -46,6 +84,7 @@ export function createMainWindow(opts?: {
   })
 
   win.once('ready-to-show', () => {
+    applyWindowUiScale(win)
     win.show()
   })
 

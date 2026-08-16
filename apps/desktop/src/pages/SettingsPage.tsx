@@ -1,15 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Settings } from '@fledge/shared'
+import type { Settings, StartupPage, UiScale } from '@fledge/shared'
+import { DEFAULT_CONCURRENT_DOWNLOADS, DEFAULT_MAX_WRITE_CONCURRENCY } from '@fledge/shared'
 import { fledgeApi } from '../api/fledgeApi'
 import { Button } from '../components/ui/Button'
+import { Dialog } from '../components/ui/Dialog'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { Select } from '../components/ui/Select'
 import { TextField } from '../components/ui/TextField'
 import { MemorySnapSlider } from '../components/ui/MemorySnapSlider'
 import { Switch } from '../components/ui/Switch'
-import { ThemeModePicker } from '../components/ui/ThemeModePicker'
 import { ThemeColorPicker } from '../components/ui/ThemeColorPicker'
+import { ThemeModePicker } from '../components/ui/ThemeModePicker'
+import { BackupPanel } from '../components/settings/BackupPanel'
 import { JavaRuntimePanel } from '../components/settings/JavaRuntimePanel'
+import { MinecraftInitialSettingsPanel } from '../components/settings/MinecraftInitialSettingsPanel'
+import { AppCredits } from '../components/brand/AppCredits'
 import { useUiStore } from '../stores/appStores'
 import { applyTheme, defaultThemeColorForMode } from '../styles/theme'
 
@@ -17,10 +24,11 @@ export default function SettingsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const setAuthStatus = useUiStore((s) => s.setAuthStatus)
-  const [section, setSection] = useState<'basic' | 'display' | 'account' | 'java' | 'resources'>(
-    'display',
-  )
+  const section = useUiStore((s) => s.settingsSection)
+  const setSection = useUiStore((s) => s.setSettingsSection)
   const [message, setMessage] = useState<string | null>(null)
+  const [restartNoticeOpen, setRestartNoticeOpen] = useState(false)
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
@@ -46,15 +54,7 @@ export default function SettingsPage() {
       await queryClient.cancelQueries({ queryKey: ['settings'] })
       const previous = queryClient.getQueryData<Settings>(['settings'])
       if (previous) {
-        const { curseforgeApiKey: incomingKey, ...rest } = partial
-        const optimistic: Settings = { ...previous, ...rest }
-        // APIキーは Renderer キャッシュへ平文で載せない
-        if (typeof incomingKey === 'string' && incomingKey.trim()) {
-          optimistic.curseforgeApiKey = ''
-          optimistic.curseforgeApiKeyConfigured = true
-        } else {
-          optimistic.curseforgeApiKey = ''
-        }
+        const optimistic: Settings = { ...previous, ...partial }
         queryClient.setQueryData(['settings'], optimistic)
         applyTheme(optimistic)
       }
@@ -125,6 +125,12 @@ export default function SettingsPage() {
     },
   })
 
+  const saveRestartRequiredSetting = (partial: Partial<Settings>) => {
+    saveMutation.mutate(partial, {
+      onSuccess: () => setRestartNoticeOpen(true),
+    })
+  }
+
   const settings = settingsQuery.data
   const paths = pathsQuery.data
 
@@ -134,43 +140,59 @@ export default function SettingsPage() {
     { id: 'account', label: t('settings.section.account') },
     { id: 'java', label: t('settings.section.java') },
     { id: 'resources', label: t('settings.section.resources') },
+    { id: 'privacyCredits', label: t('settings.section.privacyCredits') },
   ]
 
   if (!settings) {
     return <p className="text-[var(--color-text-muted)]">{t('common.loading')}</p>
   }
 
+  const currentTab = tabs.find((tab) => tab.id === section)
+
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6 text-[var(--color-text)]">
-      <h1 className="text-xl font-semibold text-[var(--color-text)]">{t('settings.title')}</h1>
+    <div className="mx-auto flex h-full min-h-0 max-w-6xl flex-col text-[var(--color-text)]">
+      <h1 className="mb-4 shrink-0 text-xl font-semibold text-[var(--color-text)]">
+        {t('settings.title')}
+      </h1>
 
-      <div className="flex flex-wrap gap-2">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            className={[
-              'rounded-[var(--radius-sm)] px-3 py-2 text-sm',
-              section === tab.id
-                ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] font-medium'
-                : 'text-[var(--color-text-muted)] hover:bg-[var(--color-surface)]',
-            ].join(' ')}
-            onClick={() => setSection(tab.id)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-[13.5rem_minmax(0,1fr)] gap-8">
+        <nav
+          className="flex min-h-0 flex-col gap-0.5 self-stretch py-1"
+          aria-label={t('settings.title')}
+        >
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              className={[
+                'w-full rounded-[var(--radius-sm)] px-3 py-2 text-left text-sm',
+                section === tab.id
+                  ? 'bg-[var(--color-accent-soft)] font-medium text-[var(--color-accent)]'
+                  : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
+              ].join(' ')}
+              onClick={() => setSection(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
 
-      {message ? (
-        <div className="rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)] px-3 py-2 text-sm">
-          {message}
-        </div>
-      ) : null}
+        <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto overflow-x-visible pr-1">
+          {currentTab ? (
+            <h2 className="text-lg font-semibold tracking-tight text-[var(--color-text)]">
+              {currentTab.label}
+            </h2>
+          ) : null}
+
+          {message ? (
+            <div className="rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)] px-3 py-2 text-sm">
+              {message}
+            </div>
+          ) : null}
 
       {section === 'basic' ? (
         <>
-          <Section title={t('settings.block.minecraft')}>
+          <Section title={t('settings.block.minecraftLaunch')}>
             <Toggle
               label={t('settings.fullscreen')}
               hint={t('settings.fullscreenHint')}
@@ -189,14 +211,19 @@ export default function SettingsPage() {
               disabled={settings.gameFullscreen}
               onCommitWidth={(gameWindowWidth) => saveMutation.mutate({ gameWindowWidth })}
               onCommitHeight={(gameWindowHeight) => saveMutation.mutate({ gameWindowHeight })}
+              onCommitSize={(gameWindowWidth, gameWindowHeight) =>
+                saveMutation.mutate({ gameWindowWidth, gameWindowHeight })
+              }
             />
             <MemorySnapSlider
               label={t('settings.memory')}
+              hint={t('settings.memoryHint')}
               value={settings.defaultMemoryMaxMb}
               onChange={(defaultMemoryMaxMb) => saveMutation.mutate({ defaultMemoryMaxMb })}
             />
             <TextField
               label={t('settings.defaultJvmArgs')}
+              hint={t('settings.defaultJvmArgsHint')}
               value={settings.defaultJvmArgs.join(' ')}
               onChange={(e) =>
                 saveMutation.mutate({
@@ -206,6 +233,45 @@ export default function SettingsPage() {
                     .filter(Boolean),
                 })
               }
+            />
+          </Section>
+          <Section title={t('settings.block.minecraftInitial')}>
+            <MinecraftInitialSettingsPanel
+              value={settings.minecraftInitialSettings}
+              onChange={(minecraftInitialSettings) => saveMutation.mutate({ minecraftInitialSettings })}
+              labels={{
+                hint: t('settings.minecraftInitial.hint'),
+                reset: t('settings.minecraftInitial.reset'),
+                mcDefault: t('settings.minecraftInitial.mcDefault'),
+                game: t('settings.minecraftInitial.group.game'),
+                audio: t('settings.minecraftInitial.group.audio'),
+                video: t('settings.minecraftInitial.group.video'),
+                controls: t('settings.minecraftInitial.group.controls'),
+                lang: t('settings.minecraftInitial.lang'),
+                langSearch: t('settings.minecraftInitial.langSearch'),
+                langEmpty: t('settings.minecraftInitial.langEmpty'),
+                subtitles: t('settings.minecraftInitial.subtitles'),
+                autoJump: t('settings.minecraftInitial.autoJump'),
+                fov: t('settings.minecraftInitial.fov'),
+                masterVolume: t('settings.minecraftInitial.masterVolume'),
+                music: t('settings.minecraftInitial.music'),
+                maxFps: t('settings.minecraftInitial.maxFps'),
+                vsync: t('settings.minecraftInitial.vsync'),
+                fpsCondition: t('settings.minecraftInitial.fpsCondition'),
+                fpsConditionAfk: t('settings.minecraftInitial.fpsConditionAfk'),
+                fpsConditionMinimized: t('settings.minecraftInitial.fpsConditionMinimized'),
+                guiScale: t('settings.minecraftInitial.guiScale'),
+                guiScaleAuto: t('settings.minecraftInitial.guiScaleAuto'),
+                brightness: t('settings.minecraftInitial.brightness'),
+                renderDistance: t('settings.minecraftInitial.renderDistance'),
+                simulationDistance: t('settings.minecraftInitial.simulationDistance'),
+                mouseSensitivity: t('settings.minecraftInitial.mouseSensitivity'),
+                on: t('common.on'),
+                off: t('common.off'),
+                unlimited: t('settings.minecraftInitial.unlimited'),
+                chunks: t('settings.minecraftInitial.chunks'),
+                degrees: t('settings.minecraftInitial.degrees'),
+              }}
             />
           </Section>
         </>
@@ -356,7 +422,11 @@ export default function SettingsPage() {
       ) : null}
 
       {section === 'display' ? (
-        <Section title={t('settings.block.fledge')}>
+        <Section>
+          <StartupPagePicker
+            value={settings.startupPage}
+            onChange={(startupPage) => saveMutation.mutate({ startupPage })}
+          />
           <WindowSizeFields
             title={t('settings.launcherWindowSize')}
             hint={t('settings.launcherWindowSizeHint')}
@@ -368,6 +438,13 @@ export default function SettingsPage() {
             maxHeight={4320}
             onCommitWidth={(launcherWindowWidth) => saveMutation.mutate({ launcherWindowWidth })}
             onCommitHeight={(launcherWindowHeight) => saveMutation.mutate({ launcherWindowHeight })}
+            onCommitSize={(launcherWindowWidth, launcherWindowHeight) =>
+              saveMutation.mutate({ launcherWindowWidth, launcherWindowHeight })
+            }
+          />
+          <UiScalePicker
+            value={settings.uiScale}
+            onChange={(uiScale) => saveMutation.mutate({ uiScale })}
           />
           <Toggle
             label={t('settings.minimizeOnLaunch')}
@@ -383,7 +460,10 @@ export default function SettingsPage() {
           />
 
           <div className="space-y-4 pt-5 mt-1 border-t border-[var(--color-border)]">
-            <BlockHeading>{t('settings.block.appearance')}</BlockHeading>
+            <div>
+              <BlockHeading>{t('settings.block.appearance')}</BlockHeading>
+              <p className="mt-1 text-xs text-[var(--color-text-muted)]">{t('settings.themeModeHint')}</p>
+            </div>
             <ThemeModePicker
               value={settings.themeMode}
               labels={{
@@ -414,31 +494,17 @@ export default function SettingsPage() {
             <Toggle
               label={t('settings.hardwareAcceleration')}
               hint={t('settings.hardwareAccelerationHint')}
-              warning={t('settings.restartRequired')}
               checked={settings.hardwareAcceleration}
-              onChange={(hardwareAcceleration) => saveMutation.mutate({ hardwareAcceleration })}
+              onChange={(hardwareAcceleration) =>
+                saveRestartRequiredSetting({ hardwareAcceleration })
+              }
             />
             <Toggle
               label={t('settings.useOsWindowChrome')}
               hint={t('settings.useOsWindowChromeHint')}
-              warning={t('settings.restartRequired')}
               checked={settings.useOsWindowChrome}
-              onChange={(useOsWindowChrome) => saveMutation.mutate({ useOsWindowChrome })}
+              onChange={(useOsWindowChrome) => saveRestartRequiredSetting({ useOsWindowChrome })}
             />
-          </div>
-
-          <div className="space-y-2 pt-5 mt-1 border-t border-[var(--color-border)]">
-            <BlockHeading>{t('settings.block.privacy')}</BlockHeading>
-            <p className="whitespace-pre-line text-sm text-[var(--color-text-muted)]">
-              {t('settings.privacyNote')}
-            </p>
-          </div>
-
-          <div className="space-y-2 pt-5 mt-1 border-t border-[var(--color-border)]">
-            <BlockHeading>{t('settings.block.about')}</BlockHeading>
-            <p className="whitespace-pre-line text-sm text-[var(--color-text-muted)]">
-              {t('settings.aboutNote')}
-            </p>
           </div>
 
           <div className="space-y-3 pt-5 mt-1 border-t border-[var(--color-border)]">
@@ -447,13 +513,31 @@ export default function SettingsPage() {
             <Button
               variant="danger"
               disabled={resetMutation.isPending}
-              onClick={() => {
-                if (!window.confirm(t('settings.resetAllConfirm'))) return
-                resetMutation.mutate()
-              }}
+              onClick={() => setResetConfirmOpen(true)}
             >
               {t('settings.resetAll')}
             </Button>
+          </div>
+        </Section>
+      ) : null}
+
+      {section === 'privacyCredits' ? (
+        <Section title={t('settings.section.privacyCredits')}>
+          <div className="space-y-2">
+            <BlockHeading>{t('settings.block.privacy')}</BlockHeading>
+            <p className="whitespace-pre-line text-sm text-[var(--color-text-muted)]">
+              {t('settings.privacyNote')}
+            </p>
+          </div>
+          <div className="space-y-2 border-t border-[var(--color-border)] pt-5">
+            <BlockHeading>{t('settings.block.credits')}</BlockHeading>
+            <AppCredits />
+          </div>
+          <div className="space-y-2 border-t border-[var(--color-border)] pt-5">
+            <BlockHeading>{t('settings.block.about')}</BlockHeading>
+            <p className="whitespace-pre-line text-sm text-[var(--color-text-muted)]">
+              {t('settings.aboutNote')}
+            </p>
           </div>
         </Section>
       ) : null}
@@ -467,76 +551,102 @@ export default function SettingsPage() {
       {section === 'resources' ? (
         <Section>
           <div>
-            <h3 className="mb-2 text-sm font-medium">{t('settings.appDirectory')}</h3>
-            <p className="mb-2 break-all text-xs text-[var(--color-text-muted)]">
+            <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.appDirectory')}</h3>
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">{t('settings.appDirectoryHint')}</p>
+            <p className="mt-2 mb-2 break-all text-xs text-[var(--color-text-muted)]">
               {paths?.root}
             </p>
             <Button disabled={!paths} onClick={() => paths && void fledgeApi.paths.open(paths.root)}>
               {t('settings.openAppDirectory')}
             </Button>
           </div>
-          <Button
-            onClick={async () => {
-              await fledgeApi.cache.clear()
-              setMessage(t('settings.cacheCleared'))
-            }}
-          >
-            {t('settings.clearCache')}
-          </Button>
+          <div>
+            <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.clearCache')}</h3>
+            <p className="mt-1 mb-2 text-xs text-[var(--color-text-muted)]">{t('settings.clearCacheHint')}</p>
+            <Button
+              onClick={async () => {
+                await fledgeApi.cache.clear()
+                setMessage(t('settings.cacheCleared'))
+              }}
+            >
+              {t('settings.clearCache')}
+            </Button>
+          </div>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-muted)]">{t('settings.concurrentDownloads')}</span>
+            <span className="font-medium text-[var(--color-text)]">{t('settings.concurrentDownloads')}</span>
+            <span className="text-xs text-[var(--color-text-muted)]">
+              {t('settings.concurrentDownloadsHint')}
+            </span>
             <input
               type="number"
               min={1}
               max={32}
               value={settings.concurrentDownloads}
               onChange={(e) =>
-                saveMutation.mutate({ concurrentDownloads: Number(e.target.value) || 10 })
+                saveMutation.mutate({
+                  concurrentDownloads: Number(e.target.value) || DEFAULT_CONCURRENT_DOWNLOADS,
+                })
               }
               className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-[var(--color-text)]"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            <span className="text-[var(--color-text-muted)]">{t('settings.maxWriteConcurrency')}</span>
+            <span className="font-medium text-[var(--color-text)]">{t('settings.maxWriteConcurrency')}</span>
+            <span className="text-xs text-[var(--color-text-muted)]">
+              {t('settings.maxWriteConcurrencyHint')}
+            </span>
             <input
               type="number"
               min={1}
               max={32}
               value={settings.maxWriteConcurrency}
               onChange={(e) =>
-                saveMutation.mutate({ maxWriteConcurrency: Number(e.target.value) || 10 })
+                saveMutation.mutate({
+                  maxWriteConcurrency: Number(e.target.value) || DEFAULT_MAX_WRITE_CONCURRENCY,
+                })
               }
               className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-[var(--color-text)]"
             />
           </label>
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.backupFolder')}</h3>
-            <p className="break-all text-xs text-[var(--color-text-muted)]">
-              {settings.backupFolder ?? '—'}
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={async () => {
-                  const folder = await fledgeApi.paths.selectFolder()
-                  if (folder) saveMutation.mutate({ backupFolder: folder })
-                }}
-              >
-                {t('settings.selectBackupFolder')}
-              </Button>
-              <Button
-                variant="primary"
-                disabled={!settings.backupFolder}
-                onClick={async () => {
-                  const dest = await fledgeApi.backup.run()
-                  setMessage(`${t('settings.backupDone')}: ${dest}`)
-                }}
-              >
-                {t('settings.runBackup')}
-              </Button>
-            </div>
+          <div className="border-t border-[var(--color-border)] pt-5">
+            <BackupPanel
+              settings={settings}
+              onSave={(partial) => saveMutation.mutate(partial)}
+              onMessage={setMessage}
+            />
           </div>
         </Section>
       ) : null}
+        </div>
+      </div>
+
+      <Dialog
+        open={restartNoticeOpen}
+        title={t('settings.restartNoticeTitle')}
+        onClose={() => setRestartNoticeOpen(false)}
+        footer={
+          <Button variant="primary" type="button" onClick={() => setRestartNoticeOpen(false)}>
+            {t('settings.restartNoticeOk')}
+          </Button>
+        }
+      >
+        <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--color-text)]">
+          {t('settings.restartNoticeBody')}
+        </p>
+      </Dialog>
+      <ConfirmDialog
+        open={resetConfirmOpen}
+        title={t('settings.resetAll')}
+        body={t('settings.resetAllConfirm')}
+        confirmLabel={t('settings.resetAll')}
+        pending={resetMutation.isPending}
+        onCancel={() => setResetConfirmOpen(false)}
+        onConfirm={() => {
+          resetMutation.mutate(undefined, {
+            onSettled: () => setResetConfirmOpen(false),
+          })
+        }}
+      />
     </div>
   )
 }
@@ -554,6 +664,84 @@ function BlockHeading({ children }: { children: React.ReactNode }) {
   return <h2 className="text-lg font-semibold tracking-tight text-[var(--color-text)]">{children}</h2>
 }
 
+const STARTUP_PAGE_OPTIONS: StartupPage[] = ['home', 'library']
+
+function StartupPagePicker({
+  value,
+  onChange,
+}: {
+  value: StartupPage
+  onChange: (value: StartupPage) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex items-center justify-between gap-4 text-sm">
+      <span className="min-w-0">
+        <span className="font-medium text-[var(--color-text)]">{t('settings.startupPage')}</span>
+        <span className="mt-1 block text-xs text-[var(--color-text-muted)]">
+          {t('settings.startupPageHint')}
+        </span>
+      </span>
+      <Select
+        className="w-36 shrink-0"
+        value={value}
+        options={STARTUP_PAGE_OPTIONS.map((option) => ({
+          value: option,
+          label: t(`settings.startupPage.${option}`),
+        }))}
+        onChange={(e) => {
+          const next = e.currentTarget.value
+          if (next === 'home' || next === 'library') onChange(next)
+        }}
+      />
+    </div>
+  )
+}
+
+const UI_SCALE_OPTIONS: UiScale[] = ['minimal', 'normal', 'wide']
+
+function UiScalePicker({
+  value,
+  onChange,
+}: {
+  value: UiScale
+  onChange: (value: UiScale) => void
+}) {
+  const { t } = useTranslation()
+  return (
+    <div className="flex items-center justify-between gap-4 text-sm">
+      <span className="min-w-0">
+        <span className="font-medium text-[var(--color-text)]">{t('settings.uiScale')}</span>
+        <span className="mt-1 block text-xs text-[var(--color-text-muted)]">{t('settings.uiScaleHint')}</span>
+      </span>
+      <Select
+        className="w-36 shrink-0"
+        value={value}
+        options={UI_SCALE_OPTIONS.map((option) => ({
+          value: option,
+          label: t(`settings.uiScale.${option}`),
+        }))}
+        onChange={(e) => {
+          const next = e.currentTarget.value
+          if (next === 'minimal' || next === 'normal' || next === 'wide') onChange(next)
+        }}
+      />
+    </div>
+  )
+}
+
+const WINDOW_SIZE_PRESETS = [
+  { id: '720p', width: 1280, height: 720 },
+  { id: '900p', width: 1600, height: 900 },
+  { id: '1080p', width: 1920, height: 1080 },
+  { id: '1440p', width: 2560, height: 1440 },
+  { id: '2160p', width: 3840, height: 2160 },
+] as const
+
+function matchWindowPreset(width: number, height: number) {
+  return WINDOW_SIZE_PRESETS.find((p) => p.width === width && p.height === height) ?? null
+}
+
 function WindowSizeFields({
   title,
   hint,
@@ -566,6 +754,7 @@ function WindowSizeFields({
   disabled,
   onCommitWidth,
   onCommitHeight,
+  onCommitSize,
 }: {
   title: string
   hint: string
@@ -578,10 +767,12 @@ function WindowSizeFields({
   disabled?: boolean
   onCommitWidth: (width: number) => void
   onCommitHeight: (height: number) => void
+  onCommitSize: (width: number, height: number) => void
 }) {
   const { t } = useTranslation()
   const [widthText, setWidthText] = useState(String(width))
   const [heightText, setHeightText] = useState(String(height))
+  const matched = matchWindowPreset(width, height)
 
   useEffect(() => {
     setWidthText(String(width))
@@ -612,11 +803,26 @@ function WindowSizeFields({
     if (next !== height) onCommitHeight(next)
   }
 
+  const applyPreset = (id: string) => {
+    const preset = WINDOW_SIZE_PRESETS.find((p) => p.id === id)
+    if (!preset) return
+    const nextW = Math.min(maxWidth, Math.max(minWidth, preset.width))
+    const nextH = Math.min(maxHeight, Math.max(minHeight, preset.height))
+    setWidthText(String(nextW))
+    setHeightText(String(nextH))
+    if (nextW !== width || nextH !== height) onCommitSize(nextW, nextH)
+  }
+
+  const presetOptions = [
+    ...WINDOW_SIZE_PRESETS.map((p) => ({ value: p.id, label: p.id })),
+    { value: 'custom', label: t('settings.windowPresetCustom') },
+  ]
+
   return (
     <div>
       <h3 className="mb-1 text-sm font-medium text-[var(--color-text)]">{title}</h3>
       <p className="mb-3 text-xs text-[var(--color-text-muted)]">{hint}</p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_minmax(8rem,10rem)]">
         <TextField
           label={t('settings.windowWidth')}
           type="text"
@@ -641,6 +847,17 @@ function WindowSizeFields({
           onBlur={commitHeight}
           onKeyDown={(e) => {
             if (e.key === 'Enter') e.currentTarget.blur()
+          }}
+        />
+        <Select
+          label={t('settings.windowPreset')}
+          value={matched?.id ?? 'custom'}
+          disabled={disabled}
+          options={presetOptions}
+          onChange={(e) => {
+            const id = e.currentTarget.value
+            if (id === 'custom') return
+            applyPreset(id)
           }}
         />
       </div>

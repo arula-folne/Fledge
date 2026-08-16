@@ -32,12 +32,7 @@ export default function LibraryPage() {
 
   return (
     <div className="mx-auto max-w-4xl">
-      <div className="mb-6 flex items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">{t('library.title')}</h1>
-        <Button variant="primary" onClick={() => setWizardOpen(true)}>
-          {t('library.create')}
-        </Button>
-      </div>
+      <h1 className="mb-6 text-xl font-semibold">{t('library.title')}</h1>
 
       {empty ? (
         <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]/60 px-6 py-16 text-center">

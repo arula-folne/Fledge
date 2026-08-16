@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
-import type { DownloadKind, ProgressEvent } from '@fledge/shared'
+import type { DownloadKind, ProgressEvent, TransferJobStatus } from '@fledge/shared'
 
-export type DownloadJobStatus = 'queued' | 'active' | 'completed' | 'failed' | 'cancelled'
+export type DownloadJobStatus = TransferJobStatus
 
 export type DownloadProgress = {
   current: number
@@ -49,20 +49,26 @@ type InternalJob = DownloadJob & {
   abort: AbortController
   resolve: () => void
   reject: (err: unknown) => void
+  lastEmitAt: number
 }
 
-export class DownloadQueue {
-  readonly concurrency = 1
-  private queue: InternalJob[] = []
-  private active: InternalJob | null = null
-  private lastEmitAt = 0
+const DEFAULT_CONCURRENCY = 8
 
-  constructor(private readonly emitProgress: ProgressEmitter) {}
+export class DownloadQueue {
+  readonly concurrency: number
+  private queued: InternalJob[] = []
+  private active = new Map<string, InternalJob>()
+
+  constructor(
+    private readonly emitProgress: ProgressEmitter,
+    concurrency = DEFAULT_CONCURRENCY,
+  ) {
+    this.concurrency = Math.max(1, concurrency)
+  }
 
   getSnapshot(): DownloadJob[] {
-    const jobs = [...this.queue]
-    if (this.active) jobs.unshift(this.active)
-    return jobs.map(({ execute: _e, abort: _a, resolve: _r, reject: _j, ...job }) => job)
+    const jobs = [...this.active.values(), ...this.queued]
+    return jobs.map(({ execute: _e, abort: _a, resolve: _r, reject: _j, lastEmitAt: _l, ...job }) => job)
   }
 
   enqueue(input: EnqueueInput): { jobId: string; done: Promise<void> } {
@@ -88,42 +94,54 @@ export class DownloadQueue {
       abort: new AbortController(),
       resolve,
       reject,
+      lastEmitAt: 0,
     }
-    this.queue.push(job)
-    this.queue.sort((a, b) => b.priority - a.priority || a.createdAt - b.createdAt)
-    void this.pump()
+    this.queued.push(job)
+    this.queued.sort((a, b) => b.priority - a.priority || a.createdAt - b.createdAt)
+    this.emitJobProgress(job, job.labelKey, true)
+    this.pump()
     return { jobId: id, done }
   }
 
   cancel(jobId: string): void {
-    if (this.active?.id === jobId) {
-      this.active.abort.abort()
-      this.active.status = 'cancelled'
+    const running = this.active.get(jobId)
+    if (running) {
+      running.abort.abort()
+      running.status = 'cancelled'
       return
     }
-    const idx = this.queue.findIndex((j) => j.id === jobId)
+    const idx = this.queued.findIndex((j) => j.id === jobId)
     if (idx >= 0) {
-      const [job] = this.queue.splice(idx, 1)
+      const [job] = this.queued.splice(idx, 1)
       if (!job) return
       job.status = 'cancelled'
+      this.emitJobProgress(job, 'download.cancelled', true)
       job.reject(Object.assign(new Error('cancelled'), { messageKey: 'download.cancelled' }))
     }
   }
 
   cancelBySession(sessionId: string): void {
-    for (const job of [...this.queue]) {
+    for (const job of [...this.queued]) {
       if (job.sessionId === sessionId) this.cancel(job.id)
     }
-    if (this.active?.sessionId === sessionId) this.cancel(this.active.id)
+    for (const job of this.active.values()) {
+      if (job.sessionId === sessionId) this.cancel(job.id)
+    }
   }
 
-  private async pump(): Promise<void> {
-    if (this.active || this.queue.length === 0) return
-    const job = this.queue.shift()
-    if (!job) return
-    this.active = job
+  private pump(): void {
+    while (this.active.size < this.concurrency && this.queued.length > 0) {
+      const job = this.queued.shift()
+      if (!job) return
+      this.active.set(job.id, job)
+      void this.run(job)
+    }
+  }
+
+  private async run(job: InternalJob): Promise<void> {
     job.status = 'active'
     job.startedAt = Date.now()
+    this.emitJobProgress(job, job.labelKey, true)
 
     const ctx: DownloadContext = {
       jobId: job.id,
@@ -156,21 +174,18 @@ export class DownloadQueue {
           : 'download.error.unknown'
       job.reject(err)
     } finally {
-      this.active = null
-      void this.pump()
+      this.active.delete(job.id)
+      this.emitJobProgress(job, job.labelKey, true)
+      this.pump()
     }
   }
 
-  private emitJobProgress(job: InternalJob, messageKey?: string): void {
+  private emitJobProgress(job: InternalJob, messageKey?: string, force = false): void {
     const now = Date.now()
-    if (now - this.lastEmitAt < 100 && job.progress.total > 0) {
-      const percent = (job.progress.current / job.progress.total) * 100
-      if (percent % 1 > 0.05) {
-        // 間引き（最低100ms）
-        return
-      }
+    if (!force && now - job.lastEmitAt < 100 && job.progress.total > 0) {
+      return
     }
-    this.lastEmitAt = now
+    job.lastEmitAt = now
     const percent =
       job.progress.total > 0 ? (job.progress.current / job.progress.total) * 100 : undefined
     this.emitProgress({
@@ -183,6 +198,7 @@ export class DownloadQueue {
       percent,
       bytesPerSecond: job.progress.bytesPerSecond,
       messageKey: messageKey ?? job.labelKey,
+      status: job.status,
       meta: { unit: job.progress.unit, status: job.status, ...(job.meta ?? {}) },
     })
   }

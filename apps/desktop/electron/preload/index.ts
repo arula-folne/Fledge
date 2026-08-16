@@ -3,6 +3,7 @@ import {
   IPC,
   IPC_EVENTS,
   type AccountView,
+  type BackupEntry,
   type AuthStatus,
   type ContentCategory,
   type ContentInstallRequest,
@@ -53,11 +54,12 @@ export type FledgeApi = {
       id: string,
       subfolder: 'mods' | 'resourcepacks' | 'shaderpacks' | 'saves' | 'logs' | 'screenshots' | 'plugins',
     ) => Promise<void>
+    getIcon: (id: string) => Promise<string | null>
   }
   content: {
     providers: () => Promise<
       Array<{
-        id: 'modrinth' | 'curseforge' | 'aggregated'
+        id: 'modrinth'
         name: string
         available: boolean
         unavailableReasonKey?: string
@@ -82,6 +84,7 @@ export type FledgeApi = {
       bytes: number[]
       originalName: string
     }) => Promise<SkinEntry>
+    update: (input: { id: string; name?: string; model?: SkinModel }) => Promise<SkinEntry>
     remove: (id: string) => Promise<void>
     select: (input: { skinId: string; model?: SkinModel }) => Promise<Settings>
     getDataUrl: (id: string) => Promise<string | null>
@@ -133,6 +136,9 @@ export type FledgeApi = {
   }
   backup: {
     run: () => Promise<string>
+    list: () => Promise<BackupEntry[]>
+    restore: (backupPath: string) => Promise<void>
+    syncNow: () => Promise<void>
   }
   window: {
     minimize: () => Promise<void>
@@ -144,6 +150,7 @@ export type FledgeApi = {
     list: () => Promise<JavaRuntimeView[]>
     install: (major: 8 | 17 | 21 | 25) => Promise<JavaRuntimeView>
     reinstall: (major: 8 | 17 | 21 | 25) => Promise<JavaRuntimeView>
+    uninstall: (major: 8 | 17 | 21 | 25) => Promise<JavaRuntimeView>
     verify: (major: 8 | 17 | 21 | 25) => Promise<JavaVerifyResult>
     openFolder: (major: 8 | 17 | 21 | 25) => Promise<void>
   }
@@ -183,6 +190,7 @@ const api: FledgeApi = {
     openFolder: (id) => ipcRenderer.invoke(IPC.instancesOpenFolder, id),
     openSubfolder: (id, subfolder) =>
       ipcRenderer.invoke(IPC.instancesOpenSubfolder, id, subfolder),
+    getIcon: (id) => ipcRenderer.invoke(IPC.instancesGetIcon, id),
   },
   content: {
     providers: () => ipcRenderer.invoke(IPC.contentProviders),
@@ -201,6 +209,7 @@ const api: FledgeApi = {
   skins: {
     list: () => ipcRenderer.invoke(IPC.skinsList),
     upload: (input) => ipcRenderer.invoke(IPC.skinsUpload, input),
+    update: (input) => ipcRenderer.invoke(IPC.skinsUpdate, input),
     remove: (id) => ipcRenderer.invoke(IPC.skinsRemove, id),
     select: (input) => ipcRenderer.invoke(IPC.skinsSelect, input),
     getDataUrl: (id) => ipcRenderer.invoke(IPC.skinsGetData, id),
@@ -240,6 +249,9 @@ const api: FledgeApi = {
   },
   backup: {
     run: () => ipcRenderer.invoke(IPC.backupRun),
+    list: () => ipcRenderer.invoke(IPC.backupList),
+    restore: (backupPath) => ipcRenderer.invoke(IPC.backupRestore, backupPath),
+    syncNow: () => ipcRenderer.invoke(IPC.backupSyncNow),
   },
   window: {
     minimize: () => ipcRenderer.invoke(IPC.windowMinimize),
@@ -251,6 +263,7 @@ const api: FledgeApi = {
     list: () => ipcRenderer.invoke(IPC.javaList),
     install: (major) => ipcRenderer.invoke(IPC.javaInstall, major),
     reinstall: (major) => ipcRenderer.invoke(IPC.javaReinstall, major),
+    uninstall: (major) => ipcRenderer.invoke(IPC.javaUninstall, major),
     verify: (major) => ipcRenderer.invoke(IPC.javaVerify, major),
     openFolder: (major) => ipcRenderer.invoke(IPC.javaOpenFolder, major),
   },

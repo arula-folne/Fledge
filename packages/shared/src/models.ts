@@ -21,7 +21,7 @@ export const AccountViewSchema = z.object({
 })
 export type AccountView = z.infer<typeof AccountViewSchema>
 
-export const LoaderSchema = z.enum(['vanilla', 'fabric', 'forge', 'neoforge'])
+export const LoaderSchema = z.enum(['vanilla', 'fabric', 'forge', 'neoforge', 'quilt'])
 export type Loader = z.infer<typeof LoaderSchema>
 
 export const InstanceProfileSchema = z.object({
@@ -43,7 +43,18 @@ export const InstanceProfileSchema = z.object({
     maxMb: z.number().int().positive(),
   }),
   jvmArgs: z.array(z.string()),
+  /** インスタンスフォルダ内のアイコンファイル名（例: icon.png） */
+  iconFile: z.string().optional(),
   notes: z.string().optional(),
+  /**
+   * 新規作成時にだけ立つ。既存インスタンスには無い。
+   * true のときだけ pendingMinecraftOptions を初回起動で適用する。
+   */
+  minecraftInitialSettingsSeeded: z.boolean().optional(),
+  /** 初回起動で options.txt へ反映済み */
+  minecraftInitialSettingsApplied: z.boolean().optional(),
+  /** 作成時点の「Minecraftデフォルトから変更した項目」だけ（options.txt の key:value） */
+  pendingMinecraftOptions: z.record(z.string()).optional(),
 })
 export type InstanceProfile = z.infer<typeof InstanceProfileSchema>
 
@@ -59,6 +70,15 @@ export const INSTANCE_SUBFOLDERS = [
 ] as const
 export type InstanceSubfolder = (typeof INSTANCE_SUBFOLDERS)[number]
 
+export const INSTANCE_ICON_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'] as const
+export const MAX_INSTANCE_ICON_BYTES = 8 * 1024 * 1024
+
+export const CreateInstanceIconSchema = z.object({
+  bytes: z.array(z.number().int().min(0).max(255)).max(MAX_INSTANCE_ICON_BYTES),
+  originalName: z.string().min(1).max(256),
+})
+export type CreateInstanceIcon = z.infer<typeof CreateInstanceIconSchema>
+
 export const CreateInstanceInputSchema = z.object({
   name: z.string().min(1).max(64),
   minecraftVersion: z.string().min(1),
@@ -66,6 +86,7 @@ export const CreateInstanceInputSchema = z.object({
   loaderVersion: z.string().optional(),
   memoryMaxMb: z.number().int().positive().default(4096),
   jvmArgs: z.array(z.string()).default([]),
+  icon: CreateInstanceIconSchema.optional(),
 })
 export type CreateInstanceInput = z.infer<typeof CreateInstanceInputSchema>
 
@@ -95,6 +116,14 @@ export const MEMORY_GC_WARN_ABOVE_MB = 24576
 export const ThemeModeSchema = z.enum(['light', 'dark', 'color', 'oled', 'system'])
 export type ThemeMode = z.infer<typeof ThemeModeSchema>
 
+/** ランチャー UI の大きさ。normal は 720p 時と同じ */
+export const UiScaleSchema = z.enum(['minimal', 'normal', 'wide'])
+export type UiScale = z.infer<typeof UiScaleSchema>
+
+/** アプリ起動直後に開く画面 */
+export const StartupPageSchema = z.enum(['home', 'library'])
+export type StartupPage = z.infer<typeof StartupPageSchema>
+
 export const SkinModelSchema = z.enum(['wide', 'slim'])
 export type SkinModel = z.infer<typeof SkinModelSchema>
 
@@ -109,22 +138,45 @@ export const SkinEntrySchema = z.object({
 })
 export type SkinEntry = z.infer<typeof SkinEntrySchema>
 
+export const MinecraftFpsLimitConditionSchema = z.enum(['afk', 'minimized'])
+export type MinecraftFpsLimitCondition = z.infer<typeof MinecraftFpsLimitConditionSchema>
+
+/**
+ * 新規インスタンスの初回起動専用。null = Minecraft 側のデフォルトを使う（書き込まない）。
+ * 値はゲーム内表示に近い単位（FOV は度、音量・明るさは 0–1、感度は 0–1）。
+ */
+export const MinecraftInitialSettingsSchema = z.object({
+  lang: z.string().min(1).nullable().default(null),
+  showSubtitles: z.boolean().nullable().default(null),
+  autoJump: z.boolean().nullable().default(null),
+  fovDegrees: z.number().min(30).max(110).nullable().default(null),
+  masterVolume: z.number().min(0).max(1).nullable().default(null),
+  musicVolume: z.number().min(0).max(1).nullable().default(null),
+  maxFps: z.number().int().min(10).max(260).nullable().default(null),
+  enableVsync: z.boolean().nullable().default(null),
+  inactivityFpsLimit: MinecraftFpsLimitConditionSchema.nullable().default(null),
+  guiScale: z.number().int().min(0).max(4).nullable().default(null),
+  gamma: z.number().min(0).max(1).nullable().default(null),
+  renderDistance: z.number().int().min(2).max(32).nullable().default(null),
+  simulationDistance: z.number().int().min(5).max(32).nullable().default(null),
+  mouseSensitivity: z.number().min(0).max(1).nullable().default(null),
+})
+export type MinecraftInitialSettings = z.infer<typeof MinecraftInitialSettingsSchema>
+
+export const EMPTY_MINECRAFT_INITIAL_SETTINGS: MinecraftInitialSettings =
+  MinecraftInitialSettingsSchema.parse({})
+
+export const DEFAULT_CONCURRENT_DOWNLOADS = 10
+export const DEFAULT_MAX_WRITE_CONCURRENCY = 10
+
 export const SettingsSchema = z.object({
   selectedInstanceId: z.string().nullable(),
   lastPlayedInstanceId: z.string().nullable().default(null),
   locale: z.string().default('ja'),
   defaultMemoryMaxMb: z.number().int().positive().default(4096),
   defaultJvmArgs: z.array(z.string()).default([]),
+  minecraftInitialSettings: MinecraftInitialSettingsSchema.default({}),
   msaClientId: z.string().optional(),
-  /** CurseForge API Key（ディスク保存用。Renderer には渡さない） */
-  curseforgeApiKey: z.string().default(''),
-  /**
-   * Renderer 向けフラグ（永続化しない。IPC sanitize で付与）。
-   * true = キーが設定済み（中身は非表示）
-   */
-  curseforgeApiKeyConfigured: z.boolean().optional(),
-  /** true = 実行時は環境変数 FLEDGE_CURSEFORGE_API_KEY が優先（永続化しない） */
-  curseforgeApiKeyFromEnv: z.boolean().optional(),
   showSnapshots: z.boolean().default(false),
 
   // Minecraft 表示設定（ランチャー窓ではなくゲーム側）
@@ -134,6 +186,8 @@ export const SettingsSchema = z.object({
   // Fledge ランチャー窓
   launcherWindowWidth: z.number().int().min(900).max(7680).default(1280),
   launcherWindowHeight: z.number().int().min(600).max(4320).default(720),
+  uiScale: UiScaleSchema.default('normal'),
+  startupPage: StartupPageSchema.default('home'),
   // 旧キー互換（読み込み時に吸収）
   fullscreen: z.boolean().optional(),
   windowWidth: z.number().int().optional(),
@@ -161,15 +215,27 @@ export const SettingsSchema = z.object({
     .default([21, 17, 8]),
 
   // リソース
-  concurrentDownloads: z.number().int().min(1).max(32).default(10),
-  maxWriteConcurrency: z.number().int().min(1).max(32).default(10),
+  concurrentDownloads: z.number().int().min(1).max(32).default(DEFAULT_CONCURRENT_DOWNLOADS),
+  maxWriteConcurrency: z.number().int().min(1).max(32).default(DEFAULT_MAX_WRITE_CONCURRENCY),
   backupFolder: z.string().nullable().default(null),
+  backupSyncEnabled: z.boolean().default(false),
 
   // スキン
   selectedSkinId: z.string().default('steve'),
   skinModel: SkinModelSchema.default('wide'),
 })
 export type Settings = z.infer<typeof SettingsSchema>
+
+export const BackupKindSchema = z.enum(['snapshot', 'sync'])
+export type BackupKind = z.infer<typeof BackupKindSchema>
+
+export const BackupEntrySchema = z.object({
+  id: z.string(),
+  kind: BackupKindSchema,
+  path: z.string(),
+  createdAt: z.string(),
+})
+export type BackupEntry = z.infer<typeof BackupEntrySchema>
 
 export const PathInfoSchema = z.object({
   root: z.string(),
@@ -244,12 +310,22 @@ export const DownloadKindSchema = z.enum([
   'fabric-api',
   'forge-loader',
   'neoforge-loader',
+  'quilt-loader',
   'content',
 ])
 export type DownloadKind = z.infer<typeof DownloadKindSchema>
 
 export const ProgressScopeSchema = z.enum(['launch', 'download', 'java', 'auth', 'updater'])
 export type ProgressScope = z.infer<typeof ProgressScopeSchema>
+
+export const TransferJobStatusSchema = z.enum([
+  'queued',
+  'active',
+  'completed',
+  'failed',
+  'cancelled',
+])
+export type TransferJobStatus = z.infer<typeof TransferJobStatusSchema>
 
 export const ProgressEventSchema = z.object({
   scope: ProgressScopeSchema,
@@ -261,6 +337,7 @@ export const ProgressEventSchema = z.object({
   percent: z.number().optional(),
   bytesPerSecond: z.number().optional(),
   messageKey: z.string().optional(),
+  status: TransferJobStatusSchema.optional(),
   meta: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
 })
 export type ProgressEvent = z.infer<typeof ProgressEventSchema>
@@ -335,7 +412,7 @@ export const UpdateCheckResultSchema = z.object({
 })
 export type UpdateCheckResult = z.infer<typeof UpdateCheckResultSchema>
 
-export const JAVA_MANAGED_MAJORS = [8, 17, 21, 25] as const
+export const JAVA_MANAGED_MAJORS = [25, 21, 17, 8] as const
 export type JavaManagedMajor = (typeof JAVA_MANAGED_MAJORS)[number]
 
 export const JavaRuntimeViewSchema = z.object({
@@ -365,11 +442,10 @@ export const ContentCategorySchema = z.enum([
 ])
 export type ContentCategory = z.infer<typeof ContentCategorySchema>
 
-export const ContentSourceIdSchema = z.enum(['modrinth', 'curseforge'])
+export const ContentSourceIdSchema = z.enum(['modrinth'])
 export type ContentSourceId = z.infer<typeof ContentSourceIdSchema>
 
-/** @deprecated ContentSourceId を使用。検索 UI では aggregated も許可 */
-export const ContentProviderIdSchema = z.enum(['modrinth', 'curseforge', 'aggregated'])
+export const ContentProviderIdSchema = ContentSourceIdSchema
 export type ContentProviderId = z.infer<typeof ContentProviderIdSchema>
 
 export const ContentLoaderFilterSchema = z.enum([
@@ -386,8 +462,7 @@ export const ContentSearchQuerySchema = z.object({
   category: ContentCategorySchema,
   gameVersion: z.string().optional(),
   loaders: z.array(ContentLoaderFilterSchema).default([]),
-  /** aggregated = Modrinth+CurseForge をマージ（同一は Modrinth 優先） */
-  provider: ContentProviderIdSchema.default('aggregated'),
+  provider: ContentProviderIdSchema.default('modrinth'),
   offset: z.number().int().nonnegative().default(0),
   limit: z.number().int().positive().max(50).default(20),
 })

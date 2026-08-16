@@ -25,7 +25,7 @@ export class NeoForgeProvider implements LoaderVersionProvider {
     return matched.map((v) => ({
       id: v,
       version: v,
-      stable: true,
+      stable: !/-beta/i.test(v),
     }))
   }
 }

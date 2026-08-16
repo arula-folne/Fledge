@@ -7,6 +7,7 @@ import { Button } from '../components/ui/Button'
 import { InstanceWizard } from '../features/instances/InstanceWizard'
 import { useUiStore } from '../stores/appStores'
 import { Dialog } from '../components/ui/Dialog'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { TextField } from '../components/ui/TextField'
 
 type MenuState = {
@@ -22,6 +23,7 @@ export default function InstancesPage() {
   const setWizardOpen = useUiStore((s) => s.setInstanceWizardOpen)
   const [menu, setMenu] = useState<MenuState>(null)
   const [editing, setEditing] = useState<InstanceProfile | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<InstanceProfile | null>(null)
   const [editName, setEditName] = useState('')
   const [editMemory, setEditMemory] = useState(4096)
   const [editJvm, setEditJvm] = useState('')
@@ -148,9 +150,7 @@ export default function InstancesPage() {
             label={t('instances.delete')}
             danger
             onClick={() => {
-              if (window.confirm(t('instances.deleteConfirm'))) {
-                removeMutation.mutate(menu.instance.id)
-              }
+              setPendingDelete(menu.instance)
               setMenu(null)
             }}
           />
@@ -192,6 +192,20 @@ export default function InstancesPage() {
           />
         </div>
       </Dialog>
+      <ConfirmDialog
+        open={pendingDelete != null}
+        title={t('instances.delete')}
+        body={t('instances.deleteConfirm')}
+        confirmLabel={t('instances.delete')}
+        pending={removeMutation.isPending}
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (!pendingDelete) return
+          removeMutation.mutate(pendingDelete.id, {
+            onSettled: () => setPendingDelete(null),
+          })
+        }}
+      />
     </div>
   )
 }

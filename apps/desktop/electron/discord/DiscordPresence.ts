@@ -134,14 +134,14 @@ export class DiscordPresence {
     const client = this.client
     if (!client?.isConnected || !client.user) return
 
-    const { details, state } = this.describe()
+    const { details, name } = this.describe()
     try {
       await client.user.setActivity({
-        // Discord 側 Application 名が「Fledge」なら「Fledgeをプレイ中」になる
-        name: BRAND.name,
+        name,
         type: 0, // ActivityType.Playing
         details,
-        state,
+        // 1 行目はアプリ名「Fledge」、2 行目は details
+        statusDisplayType: 0,
         startTimestamp: this.startedAt,
         largeImageKey: 'fledge',
         largeImageText: BRAND.tagline,
@@ -154,30 +154,25 @@ export class DiscordPresence {
     }
   }
 
-  private describe(): { details: string; state: string } {
-    const { phase, instanceName, minecraftVersion, loader } = this.context
+  private describe(): { name: string; details: string } {
+    const { phase, instanceName } = this.context
+    const instance = instanceName?.trim()
     switch (phase) {
       case 'preparing':
-        return {
-          details: instanceName ? `${instanceName} を準備中` : 'インスタンスを準備中',
-          state: BRAND.tagline,
-        }
       case 'launching':
         return {
-          details: instanceName ? `${instanceName} を起動中` : 'Minecraft を起動中',
-          state: BRAND.tagline,
+          name: BRAND.name,
+          details: instance ? `${instance}を起動中` : '起動中',
         }
-      case 'running': {
-        const ver = [loader, minecraftVersion].filter(Boolean).join(' · ')
+      case 'running':
         return {
-          details: instanceName ? `プレイ中: ${instanceName}` : 'ワールドをプレイ中',
-          state: ver || BRAND.tagline,
+          name: BRAND.name,
+          details: instance ? `${instance}をプレイ中` : 'Minecraftをプレイ中',
         }
-      }
       default:
         return {
+          name: BRAND.name,
           details: 'ランチャー',
-          state: BRAND.tagline,
         }
     }
   }

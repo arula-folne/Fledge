@@ -10,6 +10,7 @@ type Props = {
   value: number
   onChange: (value: number) => void
   label: string
+  hint?: string
 }
 
 const PRESETS: number[] = [...MEMORY_PRESETS_MB]
@@ -124,7 +125,7 @@ function ratioAtClientX(track: HTMLDivElement, clientX: number): number {
   return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
 }
 
-export function MemorySnapSlider({ value, onChange, label }: Props) {
+export function MemorySnapSlider({ value, onChange, label, hint }: Props) {
   const { t } = useTranslation()
   const trackRef = useRef<HTMLDivElement>(null)
   const draggingRef = useRef(false)
@@ -202,9 +203,10 @@ export function MemorySnapSlider({ value, onChange, label }: Props) {
 
   return (
     <div className="flex flex-col gap-3 text-sm">
-      <div className="flex flex-wrap items-center gap-3">
-        <span className="font-medium text-[var(--color-text)]">{label}</span>
-        <div className="flex items-center gap-2">
+      <div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="font-medium text-[var(--color-text)]">{label}</span>
+          <div className="flex items-center gap-2">
           <input
             type="text"
             inputMode="numeric"
@@ -239,6 +241,10 @@ export function MemorySnapSlider({ value, onChange, label }: Props) {
         <span className="ml-auto text-xl font-semibold tabular-nums tracking-tight text-[var(--color-text)]">
           {formatMemory(displayMb)}
         </span>
+        </div>
+        {hint ? (
+          <p className="mt-1 text-xs font-normal text-[var(--color-text-muted)]">{hint}</p>
+        ) : null}
       </div>
 
       <div>

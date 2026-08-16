@@ -12,7 +12,12 @@ import type { InstanceStore } from '../instances/InstanceStore.js'
 import type { JavaManager } from '../java/JavaManager.js'
 import type { Logger } from '../logging/Logger.js'
 import type { MinecraftService } from '../minecraft/MinecraftService.js'
+import {
+  mergeMinecraftOptionsFile,
+} from '../minecraft/minecraftInitialOptions.js'
 import type { SettingsStore } from '../settings/SettingsStore.js'
+import type { SessionJoinProxy } from '../auth/SessionJoinProxy.js'
+import type { SkinApplier } from '../skins/SkinApplier.js'
 
 export type LaunchEventBus = {
   emitProgress: (e: ProgressEvent) => void
@@ -42,6 +47,8 @@ export class LaunchOrchestrator {
       queue: DownloadQueue
       logger: Logger
       events: LaunchEventBus
+      sessionProxy: SessionJoinProxy
+      skinApplier: SkinApplier
     },
   ) {}
 
@@ -194,6 +201,12 @@ export class LaunchOrchestrator {
     try {
       this.emitPhase(sessionId, 'auth', 'launch.phase.auth')
       const credentials = await this.deps.auth.getLaunchCredentials(accountId)
+      const skinDone = this.deps.skinApplier.applySelected(accountId).catch((err) => {
+        this.deps.logger.warn(
+          'launcher',
+          `Skin apply skipped: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      })
 
       this.emitPhase(sessionId, 'java', 'launch.phase.java')
       this.deps.events.emitProgress({
@@ -218,8 +231,24 @@ export class LaunchOrchestrator {
       const versionId = await this.deps.minecraft.ensureInstalled(profile, instanceDir, sessionId)
       if (abort.signal.aborted) throw Object.assign(new Error('cancelled'), { messageKey: 'download.cancelled' })
 
+      if (profile.minecraftInitialSettingsSeeded && !profile.minecraftInitialSettingsApplied) {
+        try {
+          await mergeMinecraftOptionsFile(instanceDir, profile.pendingMinecraftOptions ?? {})
+          await this.deps.instances.update(profileId, {
+            minecraftInitialSettingsApplied: true,
+            pendingMinecraftOptions: {},
+          })
+        } catch (err) {
+          this.deps.logger.warn(
+            'launcher',
+            `Failed to apply Minecraft initial options: ${err instanceof Error ? err.message : String(err)}`,
+          )
+        }
+      }
+
       this.emitPhase(sessionId, 'spawn', 'launch.phase.spawn')
       this.emitState(session, 'launching')
+      await skinDone
       this.deps.events.emitProgress({
         scope: 'launch',
         sessionId,
@@ -229,6 +258,15 @@ export class LaunchOrchestrator {
       })
 
       const settings = await this.deps.settings.get()
+      let sessionHost: string | undefined
+      try {
+        sessionHost = await this.deps.sessionProxy.ensureStarted()
+      } catch (err) {
+        this.deps.logger.warn(
+          'auth',
+          `Session proxy failed to start: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      }
       const child = await this.deps.minecraft.launchGame({
         profile,
         instanceDir,
@@ -240,6 +278,8 @@ export class LaunchOrchestrator {
           width: settings.gameWindowWidth,
           height: settings.gameWindowHeight,
         },
+        fledgeDiscordRpc: settings.discordRichPresence,
+        sessionHost,
       })
       session.child = child
       this.emitState(session, 'running')
@@ -260,10 +300,14 @@ export class LaunchOrchestrator {
       })
 
       child.stdout?.on('data', (buf: Buffer) => {
-        this.deps.logger.info('game', buf.toString('utf8').trimEnd())
+        const text = buf.toString('utf8')
+        this.deps.logger.info('game', text.trimEnd())
+        this.maybeRefreshSession(session, text)
       })
       child.stderr?.on('data', (buf: Buffer) => {
-        this.deps.logger.warn('game', buf.toString('utf8').trimEnd())
+        const text = buf.toString('utf8')
+        this.deps.logger.warn('game', text.trimEnd())
+        this.maybeRefreshSession(session, text)
       })
       child.on('exit', (code) => {
         const current = this.sessions.get(sessionId)
@@ -334,5 +378,29 @@ export class LaunchOrchestrator {
       state,
       errorMessageKey,
     })
+  }
+
+  private lastSessionRefreshAt = new Map<string, number>()
+
+  private maybeRefreshSession(session: Session, text: string): void {
+    if (!/invalid session/i.test(text)) return
+    const now = Date.now()
+    const prev = this.lastSessionRefreshAt.get(session.id) ?? 0
+    if (now - prev < 15_000) return
+    this.lastSessionRefreshAt.set(session.id, now)
+    void this.deps.auth
+      .ensureCredentials(session.accountId, { force: true })
+      .then(() => {
+        this.deps.logger.info(
+          'auth',
+          '無効なセッションを検知したためトークンを更新しました。サーバーに再接続してください（Fledge の再起動は不要です）。',
+        )
+      })
+      .catch((err) => {
+        this.deps.logger.warn(
+          'auth',
+          `Session refresh after invalid session failed: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      })
   }
 }
