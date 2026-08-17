@@ -90,6 +90,6 @@ Fledge は今後、運用中の **webw** と連携し、着せ替え機能など
 
 ## 9. 準拠
 
-本アプリは日本の利用者を主な対象として開発しています。個別の紛争がある場合は、まず GitHub Issue での連絡をお願いします。
+個別の紛争がある場合は、まず GitHub Issue での連絡をお願いします。
 
 https://github.com/arula-folne/Fledge/issues

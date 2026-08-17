@@ -2,7 +2,7 @@
   "name": "fledge",
   "private": true,
   "version": "0.1.0",
-  "description": "軽量・高速な日本人向け Minecraft ランチャー",
+  "description": "軽量・高速な Minecraft ランチャー",
   "license": "MIT",
   "author": "folne",
   "repository": {
