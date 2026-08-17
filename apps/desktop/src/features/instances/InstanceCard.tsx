@@ -47,21 +47,21 @@ export const InstanceCard = memo(function InstanceCard({
           }
         }}
         className={[
-          'group cursor-pointer rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 transition duration-200',
+          'group cursor-pointer rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 transition',
           'hover:border-[var(--color-accent)]/40 hover:bg-[var(--color-hover)]/40',
           className,
         ].join(' ')}
       >
-        <div className="flex flex-wrap items-start gap-4">
-          <InstanceIcon instance={instance} size="lg" />
+        <div className="flex flex-wrap items-center gap-3">
+          <InstanceIcon instance={instance} size="md" />
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-xl font-semibold text-[var(--color-text)]">
+            <h3 className="truncate text-lg font-semibold text-[var(--color-text)]">
               {instance.name}
             </h3>
-            <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+            <p className="truncate text-sm text-[var(--color-text-muted)]">
               {instance.minecraftVersion} · {formatLoaderLabel(instance.loader, t)}
             </p>
-            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+            <p className="text-xs text-[var(--color-text-muted)]">
               {t('instances.lastPlayed')}: {formatLastPlayed(instance.lastPlayedAt, t)}
             </p>
           </div>
@@ -84,23 +84,21 @@ export const InstanceCard = memo(function InstanceCard({
         }
       }}
       className={[
-        'group flex cursor-pointer items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 transition duration-200',
+        'group flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 transition',
         'hover:border-[var(--color-accent)]/35 hover:bg-[var(--color-hover)]/50',
         className,
       ].join(' ')}
     >
-      <InstanceIcon instance={instance} />
+      <InstanceIcon instance={instance} size="sm" />
       <div className="min-w-0 flex-1">
-        <div className="truncate font-medium text-[var(--color-text)]">{instance.name}</div>
-        <div className="truncate text-sm text-[var(--color-text-muted)]">
+        <div className="truncate text-sm font-medium text-[var(--color-text)]">{instance.name}</div>
+        <div className="truncate text-xs text-[var(--color-text-muted)]">
           {instance.minecraftVersion} · {formatLoaderLabel(instance.loader, t)}
-        </div>
-        <div className="mt-0.5 text-xs text-[var(--color-text-muted)]">
-          {formatLastPlayed(instance.lastPlayedAt, t)}
+          <span className="ml-1.5">{formatLastPlayed(instance.lastPlayedAt, t)}</span>
         </div>
         <InstancePrepareProgress instanceId={instance.id} />
       </div>
-      <InstanceLaunchButton instanceId={instance.id} />
+      <InstanceLaunchButton instanceId={instance.id} size="sm" />
     </article>
   )
 })

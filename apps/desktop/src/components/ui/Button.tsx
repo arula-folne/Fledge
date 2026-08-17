@@ -8,20 +8,20 @@ type Props = PropsWithChildren<
 
 const styles: Record<NonNullable<Props['variant']>, string> = {
   primary:
-    'bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:brightness-105 disabled:opacity-50',
+    'rounded-full bg-[var(--color-accent)] text-[var(--color-on-accent)] hover:brightness-105 disabled:opacity-50',
   secondary:
-    'bg-[var(--color-surface)] text-[var(--color-text)] border border-[var(--color-border)] hover:bg-[var(--color-hover)] disabled:opacity-50',
+    'rounded-[var(--radius-sm)] bg-[var(--color-surface)] text-[var(--color-text)] border border-[var(--color-border)] hover:bg-[var(--color-hover)] disabled:opacity-50',
   danger:
-    'bg-[var(--color-danger)] text-white hover:brightness-105 disabled:opacity-50',
+    'rounded-full bg-[var(--color-danger)] text-white hover:brightness-105 disabled:opacity-50',
   ghost:
-    'bg-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)] disabled:opacity-50',
+    'rounded-[var(--radius-sm)] bg-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)] disabled:opacity-50',
 }
 
 export function Button({ variant = 'secondary', className = '', children, ...rest }: Props) {
   return (
     <button
       className={[
-        'inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-md)] px-4 py-2 text-sm font-medium transition active:scale-[0.99]',
+        'inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium transition active:scale-[0.99]',
         styles[variant],
         className,
       ].join(' ')}

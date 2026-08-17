@@ -285,7 +285,7 @@ export const ThemeColorPicker = memo(function ThemeColorPicker({ value, onChange
                     aria-label={hex}
                     aria-pressed={selected}
                     className={[
-                      'size-6 rounded-md border transition',
+                      'size-6 rounded-[var(--radius-sm)] border transition',
                       selected
                         ? 'border-[var(--color-selection)] ring-2 ring-[var(--color-selection)]/50'
                         : 'border-black/15 hover:scale-105',

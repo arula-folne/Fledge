@@ -1,29 +1,41 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { IconDownload, IconSearch } from '@tabler/icons-react'
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconChevronsLeft,
+  IconChevronsRight,
+  IconClock,
+  IconDownload,
+  IconHeart,
+  IconSearch,
+} from '@tabler/icons-react'
 import type {
   ContentCategory,
   ContentLoaderFilter,
+  ContentProject,
   ContentSearchQuery,
+  ContentSearchSort,
   InstanceProfile,
   Loader,
 } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
-import { Button } from '../../components/ui/Button'
 import { Dialog } from '../../components/ui/Dialog'
-import { TextField } from '../../components/ui/TextField'
 import { useTransferStore } from '../../stores/appStores'
+import { ContentProjectView } from './ContentProjectView'
+import { ProjectTagRow } from './ModrinthTags'
 
+const PAGE_SIZES = [10, 20] as const
 const CATEGORIES: ContentCategory[] = [
   'mod',
   'resourcepack',
-  'shader',
   'datapack',
+  'shader',
   'plugin',
 ]
-
 const LOADERS: ContentLoaderFilter[] = ['fabric', 'forge', 'neoforge', 'quilt']
+const SORTS: ContentSearchSort[] = ['relevance', 'downloads', 'follows', 'newest', 'updated']
 
 function loadersFromInstance(loader: Loader): ContentLoaderFilter[] {
   if (loader === 'fabric') return ['fabric']
@@ -33,11 +45,103 @@ function loadersFromInstance(loader: Loader): ContentLoaderFilter[] {
   return []
 }
 
-function formatDownloads(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
-  return String(n)
+function formatJaCount(n: number): string {
+  if (n >= 100_000_000) {
+    const v = n / 100_000_000
+    return `${v >= 10 ? v.toFixed(1) : v.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}億`
+  }
+  if (n >= 10_000) {
+    const v = n / 10_000
+    return `${Number.isInteger(v) ? v : v.toFixed(1)}万`
+  }
+  return n.toLocaleString('ja-JP')
 }
+
+function formatRelativeJa(iso: string | undefined, t: (key: string, opts?: Record<string, unknown>) => string): string | null {
+  if (!iso) return null
+  const ms = Date.parse(iso)
+  if (!Number.isFinite(ms)) return null
+  const sec = Math.max(0, (Date.now() - ms) / 1000)
+  if (sec < 60) return t('content.time.justNow')
+  if (sec < 3600) return t('content.time.minutes', { n: Math.floor(sec / 60) })
+  if (sec < 86400) return t('content.time.hours', { n: Math.floor(sec / 3600) })
+  if (sec < 86400 * 7) return t('content.time.days', { n: Math.floor(sec / 86400) })
+  if (sec < 86400 * 30) return t('content.time.weeks', { n: Math.floor(sec / (86400 * 7)) })
+  if (sec < 86400 * 365) return t('content.time.months', { n: Math.floor(sec / (86400 * 30)) })
+  return t('content.time.years', { n: Math.floor(sec / (86400 * 365)) })
+}
+
+function PaginationBar({
+  page,
+  pageCount,
+  onPage,
+}: {
+  page: number
+  pageCount: number
+  onPage: (n: number) => void
+}) {
+  const cell = 'flex h-6 w-10 items-center justify-center rounded-[var(--radius-sm)] text-[11px] tabular-nums'
+  const chev =
+    'flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:bg-[var(--color-hover)]'
+  const barClass = 'ml-auto grid h-6 w-[18.5rem] shrink-0 items-center justify-items-center'
+  const barStyle = { gridTemplateColumns: '1.5rem 1.5rem repeat(5, 2.5rem) 1.5rem 1.5rem' } as const
+
+  if (pageCount <= 1) {
+    return <div className={barClass} style={barStyle} aria-hidden />
+  }
+
+  const windowSize = 5
+  const maxStart = Math.max(1, pageCount - windowSize + 1)
+  const start = Math.min(Math.max(page - 2, 1), maxStart)
+  const pages = [0, 1, 2, 3, 4].map((i) => start + i)
+
+  const pageBtn = (n: number) => (
+    <button
+      key={n}
+      type="button"
+      onClick={() => onPage(n)}
+      className={[
+        cell,
+        n === page
+          ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
+          : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)]',
+      ].join(' ')}
+    >
+      {n}
+    </button>
+  )
+
+  const jump = (
+    visible: boolean,
+    onClick: () => void,
+    icon: ReactNode,
+  ) => (
+    <button
+      type="button"
+      className={chev}
+      style={{ visibility: visible ? 'visible' : 'hidden' }}
+      disabled={!visible}
+      onClick={onClick}
+    >
+      {icon}
+    </button>
+  )
+
+  return (
+    <nav className={barClass} style={barStyle} aria-label="pagination">
+      {jump(page > 1, () => onPage(1), <IconChevronsLeft size={14} stroke={1.75} />)}
+      {jump(page > 1, () => onPage(page - 1), <IconChevronLeft size={14} stroke={1.75} />)}
+      {pages.map((n) =>
+        n >= 1 && n <= pageCount ? pageBtn(n) : <div key={n} className="h-6 w-10" />,
+      )}
+      {jump(page < pageCount, () => onPage(page + 1), <IconChevronRight size={14} stroke={1.75} />)}
+      {jump(page < pageCount, () => onPage(pageCount), <IconChevronsRight size={14} stroke={1.75} />)}
+    </nav>
+  )
+}
+
+const selectClass =
+  'rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-2 py-1 text-xs text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]'
 
 type Props = {
   open: boolean
@@ -58,14 +162,20 @@ export function AddContentModal({
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState<ContentCategory>(initialCategory)
   const [gameVersion, setGameVersion] = useState(instance.minecraftVersion)
+  const [versionFilter, setVersionFilter] = useState('')
   const [loaders, setLoaders] = useState<ContentLoaderFilter[]>(() =>
     loadersFromInstance(instance.loader),
   )
+  const [sort, setSort] = useState<ContentSearchSort>('relevance')
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(20)
+  const [page, setPage] = useState(1)
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const installingIds = useTransferStore((s) => {
+  const [selected, setSelected] = useState<ContentProject | null>(null)
+  const jobs = useTransferStore((s) => s.jobs)
+  const installingIds = useMemo(() => {
     const ids = new Set<string>()
-    for (const job of Object.values(s.jobs)) {
+    for (const job of Object.values(jobs)) {
       if (
         job.kind === 'content' &&
         job.meta.instanceId === instance.id &&
@@ -76,22 +186,49 @@ export function AddContentModal({
       }
     }
     return ids
+  }, [jobs, instance.id])
+
+  const versionsQuery = useQuery({
+    queryKey: ['versions-minecraft', false],
+    queryFn: () => fledgeApi.versions.listMinecraft({ includeSnapshots: false }),
+    enabled: open,
+    staleTime: 60_000,
   })
 
   useEffect(() => {
     if (!open) return
     setCategory(initialCategory)
     setGameVersion(instance.minecraftVersion)
+    setVersionFilter('')
     setLoaders(loadersFromInstance(instance.loader))
+    setSort('relevance')
+    setPageSize(20)
+    setPage(1)
     setQuery('')
     setDebouncedQuery('')
     setError(null)
+    setSelected(null)
   }, [open, initialCategory, instance.id, instance.minecraftVersion, instance.loader])
 
   useEffect(() => {
     const id = window.setTimeout(() => setDebouncedQuery(query.trim()), 280)
     return () => window.clearTimeout(id)
   }, [query])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedQuery, category, gameVersion, loaders, sort, pageSize])
+
+  const versionIds = useMemo(() => {
+    const q = versionFilter.trim().toLowerCase()
+    const ids = (versionsQuery.data?.versions ?? []).map((v) => v.id)
+    const filtered = q ? ids.filter((id) => id.toLowerCase().includes(q)) : ids
+    const head = filtered.slice(0, 36)
+    if (gameVersion && !head.includes(gameVersion) && (!q || gameVersion.toLowerCase().includes(q))) {
+      return [gameVersion, ...head.filter((id) => id !== gameVersion)]
+    }
+    return head
+  }, [versionsQuery.data?.versions, versionFilter, gameVersion])
 
   const searchInput: ContentSearchQuery = useMemo(
     () => ({
@@ -100,16 +237,18 @@ export function AddContentModal({
       gameVersion: gameVersion.trim() || undefined,
       loaders: category === 'mod' || category === 'plugin' ? loaders : [],
       provider: 'modrinth',
-      offset: 0,
-      limit: 24,
+      sort,
+      offset: (page - 1) * pageSize,
+      limit: pageSize,
     }),
-    [debouncedQuery, category, gameVersion, loaders],
+    [debouncedQuery, category, gameVersion, loaders, sort, page, pageSize],
   )
 
   const searchQuery = useQuery({
     queryKey: ['content-search', searchInput],
     queryFn: () => fledgeApi.content.search(searchInput),
     enabled: open,
+    placeholderData: keepPreviousData,
   })
 
   const installMutation = useMutation({
@@ -138,42 +277,42 @@ export function AddContentModal({
   }
 
   const hits = searchQuery.data?.hits ?? []
+  const total = searchQuery.data?.total ?? 0
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const typeLabel = t(`content.category.${category}`)
 
   return (
     <Dialog
       open={open}
-      title={t('content.add')}
+      title={t('content.browseTitle')}
       subtitle={`${instance.name} · ${instance.minecraftVersion} · ${instance.loader}`}
       onClose={onClose}
-      scrollable
-      size="lg"
+      size="full"
     >
-      <div className="space-y-4">
-        <div className="relative">
-          <IconSearch
-            size={16}
-            stroke={1.75}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
-          />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t('content.searchPlaceholder')}
-            className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] py-2.5 pl-9 pr-3 text-sm outline-none focus:border-[var(--color-accent)]"
-          />
-        </div>
-
-        <div className="flex flex-wrap gap-1.5">
+      {selected ? (
+        <ContentProjectView
+          hit={selected}
+          instance={instance}
+          gameVersion={gameVersion}
+          loaders={loaders}
+          installing={installingIds.has(selected.id)}
+          onBack={() => setSelected(null)}
+          onInstalled={onInstalled}
+          onError={setError}
+        />
+      ) : (
+      <div className="flex min-h-0 flex-1 flex-col gap-2.5">
+        <div className="flex shrink-0 flex-wrap gap-1">
           {CATEGORIES.map((c) => (
             <button
               key={c}
               type="button"
               onClick={() => setCategory(c)}
               className={[
-                'rounded-[var(--radius-sm)] px-2.5 py-1 text-xs transition',
+                'rounded-[var(--radius-sm)] px-2.5 py-1 text-xs font-medium transition-colors',
                 category === c
                   ? 'bg-[var(--color-selection)] text-[var(--color-on-selection)]'
-                  : 'bg-[var(--color-hover)] text-[var(--color-text-muted)]',
+                  : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)]',
               ].join(' ')}
             >
               {t(`content.category.${c}`)}
@@ -181,106 +320,275 @@ export function AddContentModal({
           ))}
         </div>
 
-        <TextField
-          label={t('content.filter.gameVersion')}
-          value={gameVersion}
-          onChange={(e) => setGameVersion(e.target.value)}
-        />
-
-        {(category === 'mod' || category === 'plugin') && (
-          <div>
-            <p className="mb-1.5 text-xs text-[var(--color-text-muted)]">
-              {t('content.filter.loader')}
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {LOADERS.map((l) => {
-                const on = loaders.includes(l)
-                return (
-                  <button
-                    key={l}
-                    type="button"
-                    onClick={() => toggleLoader(l)}
-                    className={[
-                      'rounded-[var(--radius-sm)] px-2.5 py-1 text-xs capitalize transition',
-                      on
-                        ? 'bg-[var(--color-selection-soft)] text-[var(--color-selection)]'
-                        : 'bg-[var(--color-hover)] text-[var(--color-text-muted)]',
-                    ].join(' ')}
+        <div className="flex min-h-0 flex-1 gap-3">
+          <aside className="hidden w-44 shrink-0 flex-col gap-3 overflow-y-auto sm:flex">
+            <section>
+              <h3 className="mb-1.5 text-[11px] font-semibold text-[var(--color-text)]">
+                {t('content.filter.gameVersion')}
+              </h3>
+              <div className="relative mb-1.5">
+                <IconSearch
+                  size={12}
+                  stroke={1.75}
+                  className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+                />
+                <input
+                  value={versionFilter}
+                  onChange={(e) => setVersionFilter(e.target.value)}
+                  placeholder={t('content.filter.versionSearch')}
+                  className="w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] py-1 pl-6 pr-2 text-[11px] outline-none focus:border-[var(--color-accent)]"
+                />
+              </div>
+              <div className="max-h-40 space-y-0.5 overflow-y-auto pr-0.5 text-[11px]">
+                <label className="flex cursor-pointer items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 py-0.5 hover:bg-[var(--color-hover)]">
+                  <input
+                    type="checkbox"
+                    checked={!gameVersion}
+                    onChange={() => setGameVersion('')}
+                    className="accent-[var(--color-accent)]"
+                  />
+                  {t('content.filter.anyVersion')}
+                </label>
+                {versionIds.map((id) => (
+                  <label
+                    key={id}
+                    className="flex cursor-pointer items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 py-0.5 hover:bg-[var(--color-hover)]"
                   >
-                    {l}
-                  </button>
-                )
-              })}
+                    <input
+                      type="checkbox"
+                      checked={gameVersion === id}
+                      onChange={() => setGameVersion(gameVersion === id ? '' : id)}
+                      className="accent-[var(--color-accent)]"
+                    />
+                    <span className="truncate">{id}</span>
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            {(category === 'mod' || category === 'plugin') && (
+              <section>
+                <h3 className="mb-1.5 text-[11px] font-semibold text-[var(--color-text)]">
+                  {t('content.filter.loader')}
+                </h3>
+                <div className="space-y-0.5 text-[11px]">
+                  {LOADERS.map((l) => (
+                    <label
+                      key={l}
+                      className="flex cursor-pointer items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 py-0.5 capitalize hover:bg-[var(--color-hover)]"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={loaders.includes(l)}
+                        onChange={() => toggleLoader(l)}
+                        className="accent-[var(--color-accent)]"
+                      />
+                      {l}
+                    </label>
+                  ))}
+                </div>
+              </section>
+            )}
+          </aside>
+
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <div className="relative shrink-0">
+              <IconSearch
+                size={14}
+                stroke={1.75}
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+              />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder={
+                  total > 0
+                    ? t('content.searchPlaceholderCount', {
+                        total: total.toLocaleString('ja-JP'),
+                        type: typeLabel,
+                      })
+                    : t('content.searchPlaceholder', { type: typeLabel })
+                }
+                className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] py-1.5 pl-8 pr-3 text-xs outline-none focus:border-[var(--color-accent)]"
+              />
+            </div>
+
+            <div className="flex h-6 shrink-0 flex-nowrap items-center gap-2">
+              <label className="flex items-center gap-1 text-[11px] text-[var(--color-text-muted)]">
+                {t('content.sort.label')}
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as ContentSearchSort)}
+                  className={selectClass}
+                >
+                  {SORTS.map((s) => (
+                    <option key={s} value={s}>
+                      {t(`content.sort.${s}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-1 text-[11px] text-[var(--color-text-muted)]">
+                {t('content.showCount')}
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number])}
+                  className={selectClass}
+                >
+                  {PAGE_SIZES.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {total > 0 ? (
+                <span className="text-[11px] text-[var(--color-text-muted)]">
+                  {t('content.resultCount', { total: total.toLocaleString('ja-JP') })}
+                </span>
+              ) : null}
+              {total > 0 ? (
+                <PaginationBar page={page} pageCount={pageCount} onPage={setPage} />
+              ) : (
+                <div className="ml-auto h-6 w-[18.5rem] shrink-0" aria-hidden />
+              )}
+            </div>
+
+            {error ? (
+              <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2 py-1.5 text-xs text-[var(--color-danger)]">
+                {error}
+              </p>
+            ) : null}
+            {searchQuery.isError ? (
+              <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2 py-1.5 text-xs text-[var(--color-danger)]">
+                {searchQuery.error instanceof Error
+                  ? searchQuery.error.message
+                  : String(searchQuery.error)}
+              </p>
+            ) : null}
+
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {searchQuery.isPending && !searchQuery.data ? (
+                <p className="text-xs text-[var(--color-text-muted)]">{t('common.loading')}</p>
+              ) : searchQuery.isError ? null : hits.length === 0 ? (
+                <p className="text-xs text-[var(--color-text-muted)]">{t('content.noResults')}</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {hits.map((hit) => (
+                    <SearchHitCard
+                      key={`${hit.provider}:${hit.id}`}
+                      hit={hit}
+                      installing={installingIds.has(hit.id)}
+                      onOpen={() => setSelected(hit)}
+                      onInstall={() => installMutation.mutate({ id: hit.id })}
+                    />
+                  ))}
+                </ul>
+              )}
             </div>
           </div>
-        )}
-
-        {error ? (
-          <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-3 py-2 text-sm text-[var(--color-danger)]">
-            {error}
-          </p>
-        ) : null}
-
-        {searchQuery.isError ? (
-          <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-3 py-2 text-sm text-[var(--color-danger)]">
-            {searchQuery.error instanceof Error
-              ? searchQuery.error.message
-              : String(searchQuery.error)}
-          </p>
-        ) : null}
-
-        {searchQuery.isFetching ? (
-          <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
-        ) : searchQuery.isError ? null : hits.length === 0 ? (
-          <p className="text-sm text-[var(--color-text-muted)]">{t('content.noResults')}</p>
-        ) : (
-          <ul className="space-y-2">
-            {hits.map((hit) => (
-              <li
-                key={`${hit.provider}:${hit.id}`}
-                className="flex gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/30 p-3"
-              >
-                {hit.iconUrl ? (
-                  <img
-                    src={hit.iconUrl}
-                    alt=""
-                    className="size-12 shrink-0 rounded-[var(--radius-sm)] object-cover"
-                  />
-                ) : (
-                  <div className="size-12 shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)]" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{hit.name}</span>
-                    <span className="rounded bg-[var(--color-hover)] px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-[var(--color-text-muted)]">
-                      Modrinth
-                    </span>
-                  </div>
-                  <p className="mt-0.5 line-clamp-2 text-xs text-[var(--color-text-muted)]">
-                    {hit.description}
-                  </p>
-                  <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">
-                    ↓ {formatDownloads(hit.downloads)}
-                    {hit.gameVersions[0] ? ` · ${hit.gameVersions.slice(0, 3).join(', ')}` : ''}
-                    {hit.loaders.length ? ` · ${hit.loaders.slice(0, 3).join(', ')}` : ''}
-                  </p>
-                </div>
-                <Button
-                  variant="primary"
-                  className="shrink-0 self-center"
-                  disabled={installingIds.has(hit.id)}
-                  onClick={() => installMutation.mutate({ id: hit.id })}
-                >
-                  <IconDownload size={16} stroke={1.75} />
-                  {installingIds.has(hit.id)
-                    ? t('content.installing')
-                    : t('content.install')}
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
+        </div>
       </div>
+      )}
     </Dialog>
+  )
+}
+
+function SearchHitCard({
+  hit,
+  installing,
+  onOpen,
+  onInstall,
+}: {
+  hit: ContentProject
+  installing: boolean
+  onOpen: () => void
+  onInstall: () => void
+}) {
+  const { t } = useTranslation()
+  const updated = formatRelativeJa(hit.dateModified, t)
+
+  return (
+    <li>
+      <div
+        role="link"
+        tabIndex={0}
+        className="flex cursor-pointer gap-2.5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-2.5 py-2 transition hover:border-[var(--color-accent)]/35 hover:bg-[var(--color-hover)]/40"
+        onClick={onOpen}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onOpen()
+          }
+        }}
+      >
+        {hit.iconUrl ? (
+          <img
+            src={hit.iconUrl}
+            alt=""
+            className="size-12 shrink-0 rounded-[var(--radius-sm)] object-cover"
+          />
+        ) : (
+          <div className="size-12 shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)]" />
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-baseline gap-x-1.5">
+                <span className="text-[13px] font-semibold leading-tight text-[var(--color-text)]">
+                  {hit.name}
+                </span>
+                {hit.author ? (
+                  <span className="text-[11px] text-[var(--color-text-muted)]">
+                    {t('content.byAuthor', { name: hit.author })}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-0.5 line-clamp-2 text-[11px] leading-snug text-[var(--color-text-muted)]">
+                {hit.description}
+              </p>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-0.5 text-[10px] tabular-nums text-[var(--color-text-muted)]">
+              <span className="inline-flex items-center gap-0.5">
+                <IconDownload size={11} stroke={1.75} />
+                {formatJaCount(hit.downloads)}
+              </span>
+              {hit.follows != null ? (
+                <span className="inline-flex items-center gap-0.5">
+                  <IconHeart size={11} stroke={1.75} />
+                  {formatJaCount(hit.follows)}
+                </span>
+              ) : null}
+              {updated ? (
+                <span className="inline-flex items-center gap-0.5">
+                  <IconClock size={11} stroke={1.75} />
+                  {updated}
+                </span>
+              ) : null}
+            </div>
+          </div>
+          <div className="mt-1.5 flex flex-wrap items-end justify-between gap-2">
+            <ProjectTagRow
+              clientSide={hit.clientSide}
+              serverSide={hit.serverSide}
+              categories={hit.displayCategories ?? []}
+              loaders={hit.loaders ?? []}
+            />
+            <button
+              type="button"
+              className="ml-auto inline-flex items-center gap-1 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--color-on-accent)] disabled:opacity-50"
+              disabled={installing}
+              onClick={(e) => {
+                e.stopPropagation()
+                onInstall()
+              }}
+            >
+              <IconDownload size={12} stroke={1.75} />
+              {installing ? t('content.installing') : t('content.install')}
+            </button>
+          </div>
+        </div>
+      </div>
+    </li>
   )
 }

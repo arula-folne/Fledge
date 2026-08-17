@@ -17,7 +17,7 @@ function formatNewsDate(iso: string): string {
   }
 }
 
-export function NewsList() {
+export function NewsList({ compact = false }: { compact?: boolean }) {
   const { t } = useTranslation()
   const [selected, setSelected] = useState<NewsItem | null>(null)
   const newsQuery = useQuery({
@@ -28,24 +28,24 @@ export function NewsList() {
   const items = newsQuery.data ?? []
 
   return (
-    <section>
-      <h2 className="mb-3 text-sm font-medium text-[var(--color-text-muted)]">{t('news.title')}</h2>
+    <section className="min-w-0">
+      <h2 className="mb-2 text-xs font-medium text-[var(--color-text-muted)]">{t('news.title')}</h2>
       {!items.length ? (
         <p className="text-sm text-[var(--color-text-muted)]">{t('news.empty')}</p>
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2">
+        <ul className={compact ? 'flex flex-col gap-1.5' : 'grid gap-2 sm:grid-cols-2'}>
           {items.map((item) => (
             <li key={item.id}>
               <button
                 type="button"
-                className="flex h-full w-full flex-col rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-left transition duration-200 hover:border-[var(--color-accent)]/40 hover:bg-[var(--color-hover)]/40"
+                className="flex h-full w-full flex-col rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-left transition hover:bg-[var(--color-hover)]/60"
                 onClick={() => setSelected(item)}
               >
-                <div className="font-medium text-[var(--color-text)]">{item.title}</div>
-                <p className="mt-1 line-clamp-2 text-sm text-[var(--color-text-muted)]">
+                <div className="truncate text-sm font-medium text-[var(--color-text)]">{item.title}</div>
+                <p className="mt-0.5 line-clamp-2 text-xs text-[var(--color-text-muted)]">
                   {item.body}
                 </p>
-                <p className="mt-2 text-xs text-[var(--color-text-muted)]">
+                <p className="mt-1 text-[10px] text-[var(--color-text-muted)]">
                   {formatNewsDate(item.publishedAt)}
                 </p>
               </button>

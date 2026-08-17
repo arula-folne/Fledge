@@ -8,6 +8,7 @@ import {
   type ContentCategory,
   type ContentLoaderFilter,
   type ContentMediaItem,
+  type ContentProjectPage,
   type ContentSearchQuery,
   type ContentSearchResult,
   type InstalledContent,
@@ -18,6 +19,7 @@ import { fetchBody } from '../download/fetchBody.js'
 import type { InstanceStore } from '../instances/InstanceStore.js'
 import type { Logger } from '../logging/Logger.js'
 import type { ContentProvider, ContentProviderInfo } from './ContentProvider.js'
+import { localizeProjectPage, localizeSearchResult } from './localizeContent.js'
 import { ModrinthProvider } from './ModrinthProvider.js'
 
 const INDEX_DIR = '.fledge'
@@ -83,7 +85,23 @@ export class ContentService {
 
   async search(raw: unknown): Promise<ContentSearchResult> {
     const query = ContentSearchQuerySchema.parse(raw)
-    return this.modrinth.search({ ...query, provider: 'modrinth' })
+    const result = await this.modrinth.search({ ...query, provider: 'modrinth' })
+    try {
+      return await localizeSearchResult(result)
+    } catch {
+      return result
+    }
+  }
+
+  async getProject(projectId: string): Promise<ContentProjectPage> {
+    const id = String(projectId ?? '').trim()
+    if (!id) throw new Error('Project id required')
+    const page = await this.modrinth.getProject(id)
+    try {
+      return await localizeProjectPage(page)
+    } catch {
+      return page
+    }
   }
 
   async listInstalled(instanceId: string, category?: ContentCategory): Promise<InstalledContent[]> {

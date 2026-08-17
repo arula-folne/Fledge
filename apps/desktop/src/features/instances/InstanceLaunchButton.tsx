@@ -8,7 +8,7 @@ import { useLaunchStore, useUiStore } from '../../stores/appStores'
 type Props = {
   instanceId: string
   /** ボタンサイズ */
-  size?: 'default' | 'lg'
+  size?: 'default' | 'lg' | 'sm'
   className?: string
   /** 進捗バーを下に出す（ホーム・詳細向け） */
   showProgress?: boolean
@@ -50,6 +50,15 @@ export function InstanceLaunchButton({
     progress?.percent ??
     (progress && progress.total > 0 ? (progress.current / progress.total) * 100 : 0)
 
+  const sizeClass =
+    size === 'lg'
+      ? 'min-w-36 px-6 py-2.5 text-base'
+      : size === 'sm'
+        ? 'min-w-0 shrink-0 px-3 py-1.5 text-xs'
+        : ''
+  const iconSize = size === 'sm' ? 14 : size === 'lg' ? 18 : 16
+  const playIconSize = size === 'sm' ? 14 : 18
+
   const onPlay = async (e: React.MouseEvent) => {
     e.stopPropagation()
     e.preventDefault()
@@ -74,11 +83,11 @@ export function InstanceLaunchButton({
   let action = (
     <Button
       variant="primary"
-      className={[size === 'lg' ? 'min-w-36 px-6 py-2.5 text-base' : '', className].join(' ')}
+      className={[sizeClass, className].join(' ')}
       disabled={!canPlay}
       onClick={(e) => void onPlay(e)}
     >
-      <IconPlayerPlay size={18} stroke={1.75} />
+      <IconPlayerPlay size={playIconSize} stroke={1.75} />
       {t('home.play')}
     </Button>
   )
@@ -87,13 +96,13 @@ export function InstanceLaunchButton({
     action = (
       <Button
         variant="secondary"
-        className={className}
+        className={[sizeClass, className].join(' ')}
         onClick={(e) => {
           stop(e)
           void fledgeApi.launch.cancel(session?.sessionId)
         }}
       >
-        <IconX size={16} stroke={1.75} />
+        <IconX size={iconSize} stroke={1.75} />
         {t('home.cancel')}
       </Button>
     )
@@ -101,33 +110,33 @@ export function InstanceLaunchButton({
     action = (
       <Button
         variant="danger"
-        className={className}
+        className={[sizeClass, className].join(' ')}
         onClick={(e) => {
           stop(e)
           void fledgeApi.launch.kill(session?.sessionId)
         }}
       >
-        <IconPlayerStop size={16} stroke={1.75} />
-        {t('home.killGame')}
+        <IconPlayerStop size={iconSize} stroke={1.75} />
+        {size === 'sm' ? t('home.killGameShort') : t('home.killGame')}
       </Button>
     )
   } else if (authStatus === 'logged_out' || authStatus === 'expired') {
     action = (
       <Button
         variant="primary"
-        className={className}
+        className={[sizeClass, className].join(' ')}
         onClick={(e) => {
           stop(e)
           void fledgeApi.auth.login()
         }}
       >
-        {t('auth.login')}
+        {size === 'sm' ? t('auth.loginShort') : t('auth.login')}
       </Button>
     )
   }
 
   return (
-    <div className="space-y-2" onClick={stop}>
+    <div className={size === 'sm' ? 'shrink-0' : 'space-y-2'} onClick={stop}>
       {action}
       {showProgress &&
       focused &&

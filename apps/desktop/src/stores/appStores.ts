@@ -130,7 +130,7 @@ export type SettingsSection =
   | 'resources'
   | 'privacyCredits'
 
-export type LibraryDetailTab = 'overview' | 'content' | 'screenshots' | 'logs' | 'settings'
+export type LibraryDetailTab = 'content' | 'screenshots' | 'files' | 'logs'
 
 export type LibraryFocus = {
   instanceId: string
@@ -164,7 +164,16 @@ export const useUiStore = create<UiStore>((set) => ({
   settingsSection: 'display',
   setSettingsSection: (settingsSection) => set({ settingsSection }),
   libraryFocus: null,
-  setLibraryFocus: (libraryFocus) => set({ libraryFocus }),
+  setLibraryFocus: (libraryFocus) =>
+    set((s) => {
+      if (
+        s.libraryFocus?.instanceId === libraryFocus?.instanceId &&
+        s.libraryFocus?.tab === libraryFocus?.tab
+      ) {
+        return s
+      }
+      return { libraryFocus }
+    }),
 }))
 
 export type TransferJob = {

@@ -37,7 +37,7 @@ export function HoverTooltip({ content, children, disabled }: Props) {
       const maxLeft = window.innerWidth - VIEW_PAD - tw
       if (left > maxLeft) left = Math.max(VIEW_PAD, maxLeft)
       if (left < VIEW_PAD) left = VIEW_PAD
-      setCoords({ top, left })
+      setCoords((prev) => (prev.top === top && prev.left === left ? prev : { top, left }))
     }
 
     place()
@@ -68,7 +68,7 @@ export function HoverTooltip({ content, children, disabled }: Props) {
             <div
               ref={tipRef}
               role="tooltip"
-              className="pointer-events-none fixed z-[200] w-max max-w-[14rem] rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5 shadow-md"
+              className="pointer-events-none fixed z-[200] w-max max-w-[14rem] rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5 shadow-md"
               style={{ top: coords.top, left: coords.left }}
             >
               {content}

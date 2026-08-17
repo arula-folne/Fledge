@@ -73,7 +73,7 @@ export default function SkinPage() {
   })
 
   return (
-    <div className="mx-auto flex h-full max-w-5xl flex-col gap-2.5">
+    <div className="flex h-full min-h-0 flex-col gap-2">
       <h1 className="text-lg font-semibold">{t('skin.title')}</h1>
       <p className="text-xs text-[var(--color-text-muted)]">{t('skin.playHint')}</p>
       {selectMutation.isError ? (
@@ -109,7 +109,7 @@ export default function SkinPage() {
             <div className="mt-2 text-center">
               <div className="flex items-center justify-center gap-1.5">
                 <span className="text-sm font-medium">{selectedSkin.name}</span>
-                <span className="rounded-full bg-[var(--color-selection)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-on-selection)]">
+                <span className="rounded-[var(--radius-sm)] bg-[var(--color-selection)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-on-selection)]">
                   {t('skin.using')}
                 </span>
               </div>
@@ -298,7 +298,7 @@ function SkinCard({
         </div>
       </button>
       {selected ? (
-        <span className="pointer-events-none absolute top-1.5 right-1.5 inline-flex items-center gap-0.5 rounded-full bg-[var(--color-selection)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--color-on-selection)]">
+        <span className="pointer-events-none absolute top-1.5 right-1.5 inline-flex items-center gap-0.5 rounded-[var(--radius-sm)] bg-[var(--color-selection)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--color-on-selection)]">
           <IconCheck size={11} stroke={2.2} />
           {t('skin.using')}
         </span>

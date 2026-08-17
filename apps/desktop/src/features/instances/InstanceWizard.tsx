@@ -1,12 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { IconRefresh } from '@tabler/icons-react'
 import {
   DEFAULT_INSTANCE_ICON_PRESET,
-  INSTANCE_ICON_EXTS,
-  MAX_INSTANCE_ICON_BYTES,
   type CreateInstanceInput,
   type InstanceIconPreset,
   type Loader,
@@ -17,7 +15,7 @@ import { Dialog } from '../../components/ui/Dialog'
 import { Select } from '../../components/ui/Select'
 import { TextField } from '../../components/ui/TextField'
 import { InstanceIcon } from './InstanceIcon'
-import { InstanceIconPresetPicker } from './instanceIconPresets'
+import { InstanceIconCustomizeDialog, type InstanceIconFilePick } from './instanceIconPresets'
 import {
   defaultInstanceName,
   resolveLoaderVersionId,
@@ -30,14 +28,6 @@ type Props = {
   title?: string
 }
 
-const ICON_ACCEPT = INSTANCE_ICON_EXTS.join(',')
-
-type IconPick = {
-  previewUrl: string
-  bytes: number[]
-  originalName: string
-}
-
 const LOADERS: Loader[] = ['vanilla', 'fabric', 'forge', 'neoforge', 'quilt']
 const CHANNELS: LoaderVersionChannel[] = ['stable', 'latest', 'other']
 
@@ -45,7 +35,6 @@ export function InstanceWizard({ open, onClose, title }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const iconInputRef = useRef<HTMLInputElement>(null)
 
   const [name, setName] = useState('')
   const [minecraftVersion, setMinecraftVersion] = useState('')
@@ -53,9 +42,9 @@ export function InstanceWizard({ open, onClose, title }: Props) {
   const [loaderChannel, setLoaderChannel] = useState<LoaderVersionChannel>('stable')
   const [otherLoaderVersion, setOtherLoaderVersion] = useState('')
   const [includeSnapshots, setIncludeSnapshots] = useState(false)
-  const [icon, setIcon] = useState<IconPick | null>(null)
+  const [icon, setIcon] = useState<InstanceIconFilePick | null>(null)
   const [iconPreset, setIconPreset] = useState<InstanceIconPreset>(DEFAULT_INSTANCE_ICON_PRESET)
-  const [iconError, setIconError] = useState('')
+  const [iconOpen, setIconOpen] = useState(false)
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
@@ -86,7 +75,7 @@ export function InstanceWizard({ open, onClose, title }: Props) {
     setOtherLoaderVersion('')
     setMinecraftVersion('')
     setIncludeSnapshots(false)
-    setIconError('')
+    setIconOpen(false)
     setIconPreset(DEFAULT_INSTANCE_ICON_PRESET)
     setIcon((prev) => {
       if (prev) URL.revokeObjectURL(prev.previewUrl)
@@ -190,26 +179,6 @@ export function InstanceWizard({ open, onClose, title }: Props) {
 
   const offline = versionsQuery.data?.offline || (needsLoaderVersion && loadersQuery.data?.offline)
 
-  const pickIcon = async (file: File | undefined) => {
-    setIconError('')
-    if (!file) return
-    const ext = `.${file.name.split('.').pop()?.toLowerCase() ?? ''}`
-    if (!(INSTANCE_ICON_EXTS as readonly string[]).includes(ext)) {
-      setIconError(t('instances.iconInvalid'))
-      return
-    }
-    if (file.size > MAX_INSTANCE_ICON_BYTES) {
-      setIconError(t('instances.iconTooLarge'))
-      return
-    }
-    const buf = new Uint8Array(await file.arrayBuffer())
-    const previewUrl = URL.createObjectURL(file)
-    setIcon((prev) => {
-      if (prev) URL.revokeObjectURL(prev.previewUrl)
-      return { previewUrl, bytes: Array.from(buf), originalName: file.name }
-    })
-  }
-
   const footer = (
     <>
       <Button type="button" onClick={onClose}>
@@ -240,58 +209,34 @@ export function InstanceWizard({ open, onClose, title }: Props) {
   )
 
   return (
-    <Dialog
+    <>
+      <Dialog
       open={open}
       title={title ?? t('instances.create')}
-      onClose={onClose}
+      onClose={() => {
+        if (iconOpen) return
+        onClose()
+      }}
       footer={footer}
       size="lg"
       scrollable
+      fixedHeight
     >
       <div className="flex flex-col gap-4">
         <div className="flex items-start gap-4">
           <div className="flex shrink-0 flex-col items-center gap-2">
             <span className="text-sm font-medium">{t('instances.icon')}</span>
-            <input
-              ref={iconInputRef}
-              type="file"
-              accept={ICON_ACCEPT}
-              className="hidden"
-              onChange={(e) => {
-                void pickIcon(e.target.files?.[0])
-                e.target.value = ''
-              }}
-            />
             <button
               type="button"
               className="rounded-[var(--radius-md)] outline-none ring-[var(--color-accent)] hover:ring-2 focus-visible:ring-2"
-              onClick={() => iconInputRef.current?.click()}
-              title={t('instances.iconChange')}
+              onClick={() => setIconOpen(true)}
+              title={t('instances.iconCustomize')}
             >
               <InstanceIcon previewSrc={icon?.previewUrl} preset={iconPreset} size="lg" />
             </button>
-            {icon ? (
-              <button
-                type="button"
-                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-                onClick={() =>
-                  setIcon((prev) => {
-                    if (prev) URL.revokeObjectURL(prev.previewUrl)
-                    return null
-                  })
-                }
-              >
-                {t('instances.iconClear')}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-                onClick={() => iconInputRef.current?.click()}
-              >
-                {t('instances.iconChange')}
-              </button>
-            )}
+            <span className="text-xs text-[var(--color-text-muted)]">
+              {t('instances.iconChangePreset')}
+            </span>
           </div>
 
           <div className="flex min-w-0 flex-1 flex-col gap-3">
@@ -317,15 +262,6 @@ export function InstanceWizard({ open, onClose, title }: Props) {
             />
           </div>
         </div>
-
-        {iconError ? <p className="text-sm text-[var(--color-danger)]">{iconError}</p> : null}
-        {icon ? <p className="text-xs text-[var(--color-text-muted)]">{t('instances.iconCustomNote')}</p> : null}
-
-        <InstanceIconPresetPicker
-          value={iconPreset}
-          onChange={setIconPreset}
-          disabled={Boolean(icon)}
-        />
 
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-sm font-medium text-[var(--color-text)]">{t('instances.version')}</h3>
@@ -374,7 +310,7 @@ export function InstanceWizard({ open, onClose, title }: Props) {
               <select
                 value={minecraftVersion}
                 onChange={(e) => setMinecraftVersion(e.target.value)}
-                className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 outline-none focus:border-[var(--color-accent)]"
+                className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 outline-none focus:border-[var(--color-accent)]"
               >
                 {releaseOptions.length ? (
                   <optgroup label={t('instances.versionGroup.release')}>
@@ -403,7 +339,7 @@ export function InstanceWizard({ open, onClose, title }: Props) {
           <div className="flex flex-col gap-3">
             <fieldset className="flex flex-col gap-2">
               <legend className="text-sm font-medium">{t('instances.loaderChannel')}</legend>
-              <div className="flex flex-wrap gap-1 rounded-[var(--radius-sm)] border border-[var(--color-border)] p-1">
+              <div className="flex flex-wrap gap-1 rounded-[var(--radius-md)] border border-[var(--color-border)] p-1">
                 {CHANNELS.map((channel) => {
                   const on = loaderChannel === channel
                   return (
@@ -463,6 +399,23 @@ export function InstanceWizard({ open, onClose, title }: Props) {
           <p className="text-sm text-[var(--color-danger)]">{t('launch.error.generic')}</p>
         ) : null}
       </div>
-    </Dialog>
+      </Dialog>
+      <InstanceIconCustomizeDialog
+        open={iconOpen}
+        preset={iconPreset}
+        image={icon}
+        onClose={() => setIconOpen(false)}
+        onApply={({ preset: nextPreset, image: nextImage }) => {
+          setIcon((prev) => {
+            if (prev && prev.previewUrl !== nextImage?.previewUrl) {
+              URL.revokeObjectURL(prev.previewUrl)
+            }
+            return nextImage
+          })
+          setIconPreset(nextPreset)
+          setIconOpen(false)
+        }}
+      />
+    </>
   )
 }

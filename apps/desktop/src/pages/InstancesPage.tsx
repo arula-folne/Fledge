@@ -68,19 +68,19 @@ export default function InstancesPage() {
   const empty = useMemo(() => items.length === 0, [items.length])
 
   return (
-    <div className="mx-auto max-w-4xl" onClick={() => setMenu(null)}>
-      <div className="mb-6 flex items-center justify-between">
-        <h1 className="text-xl font-semibold">{t('instances.title')}</h1>
+    <div className="flex h-full min-h-0 flex-col" onClick={() => setMenu(null)}>
+      <div className="mb-2 flex items-center justify-between">
+        <h1 className="text-lg font-semibold">{t('instances.title')}</h1>
         <Button variant="primary" onClick={() => setWizardOpen(true)}>
           {t('instances.create')}
         </Button>
       </div>
 
       {empty ? (
-        <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]/60 px-6 py-16 text-center">
+        <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]/60 px-4 py-10 text-center">
           <p className="font-medium">{t('instances.empty')}</p>
-          <p className="mt-2 text-sm text-[var(--color-text-muted)]">{t('instances.emptyHint')}</p>
-          <Button className="mt-6" variant="primary" onClick={() => setWizardOpen(true)}>
+          <p className="mt-1 text-sm text-[var(--color-text-muted)]">{t('instances.emptyHint')}</p>
+          <Button className="mt-3" variant="primary" onClick={() => setWizardOpen(true)}>
             {t('instances.create')}
           </Button>
         </div>
@@ -118,7 +118,7 @@ export default function InstancesPage() {
 
       {menu ? (
         <div
-          className="fixed z-50 min-w-44 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] py-1 text-[var(--color-text)] shadow-sm"
+          className="fixed z-50 min-w-44 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] py-1 text-[var(--color-text)] shadow-sm"
           style={{ left: menu.x, top: menu.y }}
           onClick={(e) => e.stopPropagation()}
         >
@@ -182,7 +182,7 @@ export default function InstancesPage() {
               step={512}
               value={editMemory}
               onChange={(e) => setEditMemory(Number(e.target.value))}
-              className="rounded-[var(--radius-sm)] border border-[var(--color-border)] px-3 py-2"
+              className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-2"
             />
           </label>
           <TextField

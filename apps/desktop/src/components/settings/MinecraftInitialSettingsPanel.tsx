@@ -99,7 +99,7 @@ function LanguageSelect({
       <button
         type="button"
         className={[
-          'flex w-full items-center justify-between rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-left text-[15px] text-[var(--color-text)] outline-none',
+          'flex w-full items-center justify-between rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-left text-[15px] text-[var(--color-text)] outline-none',
           'focus:border-[var(--color-accent)]',
         ].join(' ')}
         aria-haspopup="listbox"
@@ -113,7 +113,7 @@ function LanguageSelect({
         <span className="ml-2 shrink-0 text-[var(--color-text-muted)]">{open ? '▴' : '▾'}</span>
       </button>
       {open ? (
-        <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)]">
+        <div className="overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
           <input
             ref={searchRef}
             value={query}

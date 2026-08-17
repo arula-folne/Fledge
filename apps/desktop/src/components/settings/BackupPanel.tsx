@@ -125,7 +125,7 @@ export function BackupPanel({ settings, onSave, onMessage }: Props) {
             {(listQuery.data ?? []).map((entry: BackupEntry) => (
               <li
                 key={entry.path}
-                className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] border border-[var(--color-border)] px-3 py-2"
+                className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-2"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium text-[var(--color-text)]">

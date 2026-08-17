@@ -73,6 +73,7 @@ export const IPC = {
   javaVerify: 'java:verify',
   javaOpenFolder: 'java:open-folder',
   contentSearch: 'content:search',
+  contentGetProject: 'content:get-project',
   contentInstall: 'content:install',
   contentListInstalled: 'content:list-installed',
   contentSetEnabled: 'content:set-enabled',

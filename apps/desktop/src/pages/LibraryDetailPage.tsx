@@ -10,6 +10,7 @@ import {
   IconPackageExport,
   IconPhoto,
   IconPuzzle,
+  IconSettings,
   IconTrash,
   IconWorld,
 } from '@tabler/icons-react'
@@ -17,6 +18,7 @@ import { DEFAULT_INSTANCE_ICON_PRESET, type InstanceIconPreset, type InstanceSub
 import { fledgeApi } from '../api/fledgeApi'
 import { Button } from '../components/ui/Button'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { Dialog } from '../components/ui/Dialog'
 import { TextField } from '../components/ui/TextField'
 import { MemorySnapSlider } from '../components/ui/MemorySnapSlider'
 import { InstanceIcon } from '../features/instances/InstanceIcon'
@@ -27,6 +29,12 @@ import { ContentTab } from '../features/content/ContentTab'
 import { useUiStore, type LibraryDetailTab } from '../stores/appStores'
 
 type TabId = LibraryDetailTab
+
+const DETAIL_TABS: TabId[] = ['content', 'screenshots', 'files', 'logs']
+
+function isDetailTab(tab: string): tab is TabId {
+  return (DETAIL_TABS as string[]).includes(tab)
+}
 
 type Draft = {
   name: string
@@ -48,7 +56,7 @@ function FolderButton({
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-left text-sm transition duration-200 hover:border-[var(--color-accent)]/35 hover:bg-[var(--color-hover)]/50"
+      className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-2 text-left text-sm transition hover:bg-[var(--color-hover)]/50"
     >
       <span className="text-[var(--color-text-muted)]">{icon}</span>
       <span>{label}</span>
@@ -70,9 +78,9 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={[
-        'rounded-[var(--radius-sm)] px-3 py-2 text-sm transition duration-150',
+        'rounded-full px-2.5 py-1 text-sm font-medium transition-colors',
         active
-          ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
+          ? 'bg-[var(--color-selection)] text-[var(--color-on-selection)]'
           : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
       ].join(' ')}
     >
@@ -88,14 +96,19 @@ export default function LibraryDetailPage() {
   const queryClient = useQueryClient()
   const libraryFocus = useUiStore((s) => s.libraryFocus)
   const setLibraryFocus = useUiStore((s) => s.setLibraryFocus)
+  const editingInstanceId = useUiStore((s) => s.editingInstanceId)
+  const setEditingInstanceId = useUiStore((s) => s.setEditingInstanceId)
   const [tab, setTab] = useState<TabId>(() =>
-    libraryFocus?.instanceId === instanceId ? libraryFocus.tab : 'overview',
+    libraryFocus?.instanceId === instanceId && isDetailTab(libraryFocus.tab)
+      ? libraryFocus.tab
+      : 'content',
   )
   const [draft, setDraft] = useState<Draft | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [iconOpen, setIconOpen] = useState(false)
   const [iconDraft, setIconDraft] = useState<InstanceIconPreset>(DEFAULT_INSTANCE_ICON_PRESET)
+  const settingsOpen = editingInstanceId === instanceId
 
   const instanceQuery = useQuery({
     queryKey: ['instances', instanceId],
@@ -118,10 +131,10 @@ export default function LibraryDetailPage() {
   const instance = instanceQuery.data ?? null
 
   useEffect(() => {
-    if (libraryFocus?.instanceId === instanceId && libraryFocus.tab !== tab) {
-      setTab(libraryFocus.tab)
-    }
-  }, [libraryFocus?.instanceId, libraryFocus?.tab, instanceId, tab])
+    if (libraryFocus?.instanceId !== instanceId) return
+    if (!isDetailTab(libraryFocus.tab)) return
+    setTab((current) => (current === libraryFocus.tab ? current : libraryFocus.tab))
+  }, [libraryFocus?.instanceId, libraryFocus?.tab, instanceId])
 
   useEffect(() => {
     if (!instanceId) return
@@ -129,13 +142,16 @@ export default function LibraryDetailPage() {
   }, [instanceId, tab, setLibraryFocus])
 
   useEffect(() => {
-    if (tab !== 'settings') setIconOpen(false)
-  }, [tab])
+    if (!settingsOpen) setIconOpen(false)
+  }, [settingsOpen])
 
   useEffect(() => {
     return () => {
       const current = useUiStore.getState().libraryFocus
       if (current?.instanceId === instanceId) useUiStore.getState().setLibraryFocus(null)
+      if (useUiStore.getState().editingInstanceId === instanceId) {
+        useUiStore.getState().setEditingInstanceId(null)
+      }
     }
   }, [instanceId])
 
@@ -174,6 +190,7 @@ export default function LibraryDetailPage() {
   const duplicateMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.instances.duplicate(id),
     onSuccess: async (created) => {
+      setEditingInstanceId(null)
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
       navigate(`/library/${created.id}`)
     },
@@ -182,6 +199,7 @@ export default function LibraryDetailPage() {
   const removeMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.instances.remove(id),
     onSuccess: async () => {
+      setEditingInstanceId(null)
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
       navigate('/library')
@@ -191,6 +209,21 @@ export default function LibraryDetailPage() {
   const openSub = (sub: InstanceSubfolder) => {
     if (!instance) return
     void fledgeApi.instances.openSubfolder(instance.id, sub)
+  }
+
+  const closeSettings = () => {
+    if (!instance) {
+      setEditingInstanceId(null)
+      return
+    }
+    setDraft({
+      name: instance.name,
+      memoryMaxMb: instance.memory.maxMb,
+      jvmArgs: instance.jvmArgs.join(' '),
+      iconPreset: instance.iconPreset ?? DEFAULT_INSTANCE_ICON_PRESET,
+    })
+    setMessage(null)
+    setEditingInstanceId(null)
   }
 
   if (instanceQuery.isLoading) {
@@ -216,41 +249,49 @@ export default function LibraryDetailPage() {
       !sameIconPreset(draft.iconPreset, instance.iconPreset ?? DEFAULT_INSTANCE_ICON_PRESET))
 
   const tabs: { id: TabId; label: string }[] = [
-    { id: 'overview', label: t('library.tab.overview') },
     { id: 'content', label: t('library.tab.content') },
     { id: 'screenshots', label: t('library.tab.screenshots') },
+    { id: 'files', label: t('library.tab.files') },
     { id: 'logs', label: t('library.tab.logs') },
-    { id: 'settings', label: t('library.tab.settings') },
   ]
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <div className="flex shrink-0 items-center gap-2">
         <Button variant="ghost" className="px-2" onClick={() => navigate('/library')}>
-          <IconArrowLeft size={18} stroke={1.75} />
+          <IconArrowLeft size={16} stroke={1.75} />
           {t('library.backToList')}
         </Button>
       </div>
 
-      <header className="flex flex-wrap items-start gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+      <header className="flex flex-wrap items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5">
         <InstanceIcon
           instance={instance}
-          preset={tab === 'settings' ? draft.iconPreset : undefined}
-          size="lg"
+          preset={settingsOpen ? draft.iconPreset : undefined}
+          size="md"
         />
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-2xl font-semibold">{instance.name}</h1>
-          <p className="mt-1 text-sm text-[var(--color-text-muted)]">
+          <h1 className="truncate text-lg font-semibold">{instance.name}</h1>
+          <p className="truncate text-xs text-[var(--color-text-muted)]">
             {instance.minecraftVersion} · {formatLoaderLabel(instance.loader, t)}
-          </p>
-          <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+            {' · '}
             {t('instances.lastPlayed')}: {formatLastPlayed(instance.lastPlayedAt, t)}
           </p>
         </div>
-        <InstanceLaunchButton instanceId={instance.id} size="lg" showProgress />
+        <div className="flex shrink-0 items-center gap-1.5">
+          <InstanceLaunchButton instanceId={instance.id} />
+          <Button
+            variant="secondary"
+            className="px-2"
+            title={t('library.tab.settings')}
+            onClick={() => setEditingInstanceId(instance.id)}
+          >
+            <IconSettings size={18} stroke={1.75} />
+          </Button>
+        </div>
       </header>
 
-      <nav className="flex flex-wrap gap-1 border-b border-[var(--color-border)] pb-2">
+      <nav className="flex shrink-0 flex-wrap gap-1">
         {tabs.map((item) => (
           <TabButton
             key={item.id}
@@ -261,89 +302,7 @@ export default function LibraryDetailPage() {
         ))}
       </nav>
 
-      {message && tab === 'settings' ? (
-        <p className="text-sm text-[var(--color-text-muted)]">{message}</p>
-      ) : null}
-
-      {tab === 'overview' ? (
-        <div className="space-y-6">
-          <section className="space-y-3">
-            <h2 className="text-sm font-medium text-[var(--color-text-muted)]">
-              {t('library.section.folders')}
-            </h2>
-            <div className="grid gap-2 sm:grid-cols-2">
-              <FolderButton
-                label={t('instances.openFolder')}
-                icon={<IconFolderOpen size={18} stroke={1.75} />}
-                onClick={() => void fledgeApi.instances.openFolder(instance.id)}
-              />
-              <FolderButton
-                label={t('instances.openMods')}
-                icon={<IconPuzzle size={18} stroke={1.75} />}
-                onClick={() => openSub('mods')}
-              />
-              <FolderButton
-                label={t('instances.openResourcepacks')}
-                icon={<IconPhoto size={18} stroke={1.75} />}
-                onClick={() => openSub('resourcepacks')}
-              />
-              <FolderButton
-                label={t('instances.openShaderpacks')}
-                icon={<IconPhoto size={18} stroke={1.75} />}
-                onClick={() => openSub('shaderpacks')}
-              />
-              <FolderButton
-                label={t('instances.openSaves')}
-                icon={<IconWorld size={18} stroke={1.75} />}
-                onClick={() => openSub('saves')}
-              />
-              <FolderButton
-                label={t('instances.openLogs')}
-                icon={<IconFolder size={18} stroke={1.75} />}
-                onClick={() => openSub('logs')}
-              />
-              <FolderButton
-                label={t('instances.openScreenshots')}
-                icon={<IconPhoto size={18} stroke={1.75} />}
-                onClick={() => openSub('screenshots')}
-              />
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h2 className="text-sm font-medium text-[var(--color-text-muted)]">
-              {t('library.section.actions')}
-            </h2>
-            <div className="flex flex-wrap gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => setMessage(t('library.exportSoon'))}
-              >
-                <IconPackageExport size={16} stroke={1.75} />
-                {t('instances.export')}
-              </Button>
-              <Button
-                variant="secondary"
-                disabled={duplicateMutation.isPending}
-                onClick={() => duplicateMutation.mutate(instance.id)}
-              >
-                <IconCopy size={16} stroke={1.75} />
-                {t('instances.duplicate')}
-              </Button>
-              <Button
-                variant="danger"
-                disabled={removeMutation.isPending}
-                onClick={() => setDeleteOpen(true)}
-              >
-                <IconTrash size={16} stroke={1.75} />
-                {t('instances.delete')}
-              </Button>
-            </div>
-            {message ? <p className="text-sm text-[var(--color-text-muted)]">{message}</p> : null}
-          </section>
-        </div>
-      ) : null}
-
+      <div className="min-h-0 flex-1 overflow-auto">
       {tab === 'content' ? <ContentTab instance={instance} /> : null}
 
       {tab === 'screenshots' ? (
@@ -372,6 +331,46 @@ export default function LibraryDetailPage() {
         </div>
       ) : null}
 
+      {tab === 'files' ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          <FolderButton
+            label={t('instances.openFolder')}
+            icon={<IconFolderOpen size={18} stroke={1.75} />}
+            onClick={() => void fledgeApi.instances.openFolder(instance.id)}
+          />
+          <FolderButton
+            label={t('instances.openMods')}
+            icon={<IconPuzzle size={18} stroke={1.75} />}
+            onClick={() => openSub('mods')}
+          />
+          <FolderButton
+            label={t('instances.openResourcepacks')}
+            icon={<IconPhoto size={18} stroke={1.75} />}
+            onClick={() => openSub('resourcepacks')}
+          />
+          <FolderButton
+            label={t('instances.openShaderpacks')}
+            icon={<IconPhoto size={18} stroke={1.75} />}
+            onClick={() => openSub('shaderpacks')}
+          />
+          <FolderButton
+            label={t('instances.openSaves')}
+            icon={<IconWorld size={18} stroke={1.75} />}
+            onClick={() => openSub('saves')}
+          />
+          <FolderButton
+            label={t('instances.openLogs')}
+            icon={<IconFolder size={18} stroke={1.75} />}
+            onClick={() => openSub('logs')}
+          />
+          <FolderButton
+            label={t('instances.openScreenshots')}
+            icon={<IconPhoto size={18} stroke={1.75} />}
+            onClick={() => openSub('screenshots')}
+          />
+        </div>
+      ) : null}
+
       {tab === 'logs' ? (
         <div className="space-y-3">
           <div className="flex justify-end">
@@ -394,9 +393,34 @@ export default function LibraryDetailPage() {
           )}
         </div>
       ) : null}
+      </div>
 
-      {tab === 'settings' ? (
-        <div className="space-y-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+      <Dialog
+        open={settingsOpen}
+        title={t('library.tab.settings')}
+        onClose={() => {
+          if (iconOpen || deleteOpen) return
+          closeSettings()
+        }}
+        size="lg"
+        scrollable
+        footer={
+          <>
+            <Button type="button" onClick={closeSettings}>
+              {t('instances.cancel')}
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              disabled={!dirty || !draft.name.trim() || saveMutation.isPending}
+              onClick={() => saveMutation.mutate()}
+            >
+              {t('instances.save')}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
           <div className="flex items-start gap-4">
             <div className="flex shrink-0 flex-col items-center gap-2">
               <span className="text-sm font-medium">{t('instances.icon')}</span>
@@ -430,18 +454,18 @@ export default function LibraryDetailPage() {
               />
             </div>
           </div>
-          <div className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-3 py-2 text-sm">
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-3 py-2 text-sm">
             <div className="text-xs text-[var(--color-text-muted)]">{t('instances.version')}</div>
             <div className="mt-0.5">{instance.minecraftVersion}</div>
             <p className="mt-1 text-xs text-[var(--color-text-muted)]">
               {t('library.versionReadonly')}
             </p>
           </div>
-          <div className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-3 py-2 text-sm">
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-3 py-2 text-sm">
             <div className="text-xs text-[var(--color-text-muted)]">{t('instances.loader')}</div>
             <div className="mt-0.5">{formatLoaderLabel(instance.loader, t)}</div>
           </div>
-          <div className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-3 py-2 text-sm">
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-3 py-2 text-sm">
             <div className="text-xs text-[var(--color-text-muted)]">{t('instances.java')}</div>
             <div className="mt-0.5">
               {instance.java.strategy === 'auto'
@@ -459,19 +483,33 @@ export default function LibraryDetailPage() {
             value={draft.jvmArgs}
             onChange={(e) => setDraft({ ...draft, jvmArgs: e.target.value })}
           />
-          <div className="flex justify-end">
+          <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] pt-4">
+            <Button variant="secondary" onClick={() => setMessage(t('library.exportSoon'))}>
+              <IconPackageExport size={16} stroke={1.75} />
+              {t('instances.export')}
+            </Button>
             <Button
-              variant="primary"
-              disabled={!dirty || !draft.name.trim() || saveMutation.isPending}
-              onClick={() => saveMutation.mutate()}
+              variant="secondary"
+              disabled={duplicateMutation.isPending}
+              onClick={() => duplicateMutation.mutate(instance.id)}
             >
-              {t('instances.save')}
+              <IconCopy size={16} stroke={1.75} />
+              {t('instances.duplicate')}
+            </Button>
+            <Button
+              variant="danger"
+              disabled={removeMutation.isPending}
+              onClick={() => setDeleteOpen(true)}
+            >
+              <IconTrash size={16} stroke={1.75} />
+              {t('instances.delete')}
             </Button>
           </div>
+          {message ? <p className="text-sm text-[var(--color-text-muted)]">{message}</p> : null}
         </div>
-      ) : null}
+      </Dialog>
       <InstanceIconPresetDialog
-        open={iconOpen && !instance.iconFile}
+        open={iconOpen && settingsOpen && !instance.iconFile}
         value={iconDraft}
         onChange={setIconDraft}
         onClose={() => setIconOpen(false)}

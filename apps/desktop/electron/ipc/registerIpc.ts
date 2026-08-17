@@ -161,6 +161,9 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
 
   ipcMain.handle(IPC.contentProviders, async () => appCtx.content.listProviders())
   ipcMain.handle(IPC.contentSearch, async (_e, query: unknown) => appCtx.content.search(query))
+  ipcMain.handle(IPC.contentGetProject, async (_e, projectId: string) =>
+    appCtx.content.getProject(projectId),
+  )
   ipcMain.handle(IPC.contentInstall, async (_e, req: unknown) => {
     const result = await appCtx.content.install(req)
     touchBackup()

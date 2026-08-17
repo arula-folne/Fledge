@@ -103,7 +103,7 @@ export function TransferProgress() {
       instanceId ??
       Object.entries(byProfileId).find(([, s]) => s.sessionId === job.sessionId)?.[0]
     if (launchInstanceId) {
-      setLibraryFocus({ instanceId: launchInstanceId, tab: 'overview' })
+      setLibraryFocus({ instanceId: launchInstanceId, tab: 'content' })
       navigate(`/library/${launchInstanceId}`)
     }
   }

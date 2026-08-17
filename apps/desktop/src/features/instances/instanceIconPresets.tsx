@@ -1,6 +1,8 @@
-import type { CSSProperties, ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
+  IconBox,
+  IconBoxMultiple,
   IconCube,
   IconCube3dSphere,
   IconCube3dSphereOff,
@@ -8,11 +10,19 @@ import {
   IconCubePlus,
   IconCubeSend,
   IconCubeSpark,
+  IconDice,
+  IconHexagonalPrism,
+  IconPackages,
+  IconPhoto,
+  IconPyramid,
+  IconStack3,
 } from '@tabler/icons-react'
 import {
   DEFAULT_INSTANCE_ICON_PRESET,
   INSTANCE_ICON_BACKDROPS,
+  INSTANCE_ICON_EXTS,
   INSTANCE_ICON_VARIANTS,
+  MAX_INSTANCE_ICON_BYTES,
   type InstanceIconBackdrop,
   type InstanceIconPreset,
   type InstanceIconVariant,
@@ -51,6 +61,13 @@ const VARIANT_ICON: Record<InstanceIconVariant, (props: CubeIconProps) => ReactN
   cubePlus: (props) => <IconCubePlus {...props} />,
   cubeSend: (props) => <IconCubeSend {...props} />,
   cubeSpark: (props) => <IconCubeSpark {...props} />,
+  box: (props) => <IconBox {...props} />,
+  boxMultiple: (props) => <IconBoxMultiple {...props} />,
+  packages: (props) => <IconPackages {...props} />,
+  dice: (props) => <IconDice {...props} />,
+  pyramid: (props) => <IconPyramid {...props} />,
+  hexagonalPrism: (props) => <IconHexagonalPrism {...props} />,
+  stack3: (props) => <IconStack3 {...props} />,
 }
 
 export function cubeIconFor(variant: InstanceIconVariant) {
@@ -122,7 +139,7 @@ function BackdropArt({ kind }: { kind: InstanceIconBackdrop }) {
 
 type TileProps = {
   preset?: InstanceIconPreset | null
-  size?: 'md' | 'lg' | 'sm'
+  size?: 'md' | 'lg' | 'sm' | 'xl'
   className?: string
 }
 
@@ -130,12 +147,14 @@ const tileClass = {
   sm: 'size-8',
   md: 'size-12',
   lg: 'size-16',
+  xl: 'size-20',
 } as const
 
 const glyphSize = {
   sm: 16,
   md: 28,
   lg: 36,
+  xl: 44,
 } as const
 
 export function InstanceIconTile({
@@ -168,7 +187,7 @@ export function InstanceIconTile({
 
 function choiceClass(active: boolean) {
   return [
-    'rounded-[var(--radius-sm)] outline-none transition',
+    'rounded-[var(--radius-md)] outline-none transition',
     active
       ? 'ring-2 ring-[var(--color-selection)] ring-offset-2 ring-offset-[var(--color-surface)]'
       : 'hover:ring-1 hover:ring-[var(--color-border)]',
@@ -179,18 +198,34 @@ type PickerProps = {
   value: InstanceIconPreset
   onChange: (next: InstanceIconPreset) => void
   disabled?: boolean
+  density?: 'compact' | 'comfortable'
 }
 
-export function InstanceIconPresetPicker({ value, onChange, disabled }: PickerProps) {
+export function InstanceIconPresetPicker({
+  value,
+  onChange,
+  disabled,
+  density = 'compact',
+}: PickerProps) {
   const { t } = useTranslation()
+  const comfortable = density === 'comfortable'
+  const tileSize = comfortable ? 'md' : 'sm'
+  const swatchClass = comfortable ? 'size-9' : 'size-7'
+  const legendClass = comfortable
+    ? 'text-sm font-medium text-[var(--color-text-muted)]'
+    : 'text-xs text-[var(--color-text-muted)]'
 
   return (
-    <div className={['flex flex-col gap-3', disabled ? 'pointer-events-none opacity-45' : ''].join(' ')}>
-      <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-xs text-[var(--color-text-muted)]">
-          {t('instances.iconPreset.variant')}
-        </legend>
-        <div className="flex flex-wrap gap-1.5">
+    <div
+      className={[
+        'flex flex-col',
+        comfortable ? 'gap-4' : 'gap-3',
+        disabled ? 'pointer-events-none opacity-45' : '',
+      ].join(' ')}
+    >
+      <fieldset className="flex flex-col gap-2">
+        <legend className={legendClass}>{t('instances.iconPreset.variant')}</legend>
+        <div className={comfortable ? 'flex flex-wrap gap-2' : 'flex flex-wrap gap-1.5'}>
           {INSTANCE_ICON_VARIANTS.map((variant) => (
             <HoverTooltip key={variant} content={t(`instances.iconPreset.variant.${variant}`)}>
               <button
@@ -200,25 +235,27 @@ export function InstanceIconPresetPicker({ value, onChange, disabled }: PickerPr
                 className={choiceClass(value.variant === variant)}
                 onClick={() => onChange({ ...value, variant })}
               >
-                <InstanceIconTile preset={{ ...value, variant }} size="sm" />
+                <InstanceIconTile preset={{ ...value, variant }} size={tileSize} />
               </button>
             </HoverTooltip>
           ))}
         </div>
       </fieldset>
 
-      <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-xs text-[var(--color-text-muted)]">
-          {t('instances.iconPreset.color')}
-        </legend>
-        <div className="flex flex-wrap gap-1.5">
+      <fieldset className="flex flex-col gap-2">
+        <legend className={legendClass}>{t('instances.iconPreset.color')}</legend>
+        <div className={comfortable ? 'flex flex-wrap gap-2' : 'flex flex-wrap gap-1.5'}>
           {INSTANCE_ICON_COLOR_SWATCHES.map((swatch) => (
             <HoverTooltip key={swatch.id} content={t(`instances.iconPreset.color.${swatch.id}`)}>
               <button
                 type="button"
                 aria-pressed={value.color.toLowerCase() === swatch.value}
                 aria-label={t(`instances.iconPreset.color.${swatch.id}`)}
-                className={['size-7 border border-black/10', choiceClass(value.color.toLowerCase() === swatch.value)].join(' ')}
+                className={[
+                  swatchClass,
+                  'border border-black/10',
+                  choiceClass(value.color.toLowerCase() === swatch.value),
+                ].join(' ')}
                 style={{ background: swatch.value }}
                 onClick={() => onChange({ ...value, color: swatch.value })}
               />
@@ -227,11 +264,9 @@ export function InstanceIconPresetPicker({ value, onChange, disabled }: PickerPr
         </div>
       </fieldset>
 
-      <fieldset className="flex flex-col gap-1.5">
-        <legend className="text-xs text-[var(--color-text-muted)]">
-          {t('instances.iconPreset.backdrop')}
-        </legend>
-        <div className="flex flex-wrap gap-1.5">
+      <fieldset className="flex flex-col gap-2">
+        <legend className={legendClass}>{t('instances.iconPreset.backdrop')}</legend>
+        <div className={comfortable ? 'flex flex-wrap gap-2' : 'flex flex-wrap gap-1.5'}>
           {INSTANCE_ICON_BACKDROPS.map((backdrop) => (
             <HoverTooltip key={backdrop} content={t(`instances.iconPreset.backdrop.${backdrop}`)}>
               <button
@@ -241,7 +276,7 @@ export function InstanceIconPresetPicker({ value, onChange, disabled }: PickerPr
                 className={choiceClass(value.backdrop === backdrop)}
                 onClick={() => onChange({ ...value, backdrop })}
               >
-                <InstanceIconTile preset={{ ...value, backdrop }} size="sm" />
+                <InstanceIconTile preset={{ ...value, backdrop }} size={tileSize} />
               </button>
             </HoverTooltip>
           ))}
@@ -273,7 +308,7 @@ export function InstanceIconPresetDialog({
       open={open}
       title={t('instances.icon')}
       onClose={onClose}
-      size="md"
+      size="lg"
       overlayClassName="z-[60]"
       footer={
         <>
@@ -286,11 +321,186 @@ export function InstanceIconPresetDialog({
         </>
       }
     >
-      <div className="flex flex-col gap-4">
-        <div className="flex justify-center">
-          <InstanceIconTile preset={value} size="lg" />
+      <div className="flex items-center gap-6">
+        <div className="flex w-52 shrink-0 flex-col items-center">
+          <InstanceIconTile preset={value} size="xl" />
         </div>
-        <InstanceIconPresetPicker value={value} onChange={onChange} />
+        <div className="min-w-0 flex-1 border-l border-[var(--color-border)] pl-6">
+          <p className="mb-3 text-sm font-medium text-[var(--color-text)]">
+            {t('instances.iconSectionPreset')}
+          </p>
+          <InstanceIconPresetPicker density="comfortable" value={value} onChange={onChange} />
+        </div>
+      </div>
+    </Dialog>
+  )
+}
+
+export type InstanceIconFilePick = {
+  previewUrl: string
+  bytes: number[]
+  originalName: string
+}
+
+type CustomizeProps = {
+  open: boolean
+  preset: InstanceIconPreset
+  image: InstanceIconFilePick | null
+  onClose: () => void
+  onApply: (next: { preset: InstanceIconPreset; image: InstanceIconFilePick | null }) => void
+}
+
+const ICON_ACCEPT = INSTANCE_ICON_EXTS.join(',')
+
+export function InstanceIconCustomizeDialog({
+  open,
+  preset,
+  image,
+  onClose,
+  onApply,
+}: CustomizeProps) {
+  const { t } = useTranslation()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [draftPreset, setDraftPreset] = useState(preset)
+  const [draftImage, setDraftImage] = useState<InstanceIconFilePick | null>(image)
+  const [error, setError] = useState('')
+  const createdUrls = useRef<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!open) return
+    setDraftPreset(preset)
+    setDraftImage(image)
+    setError('')
+  }, [open, preset, image])
+
+  const revokeIfOwned = (url: string) => {
+    if (!createdUrls.current.has(url)) return
+    URL.revokeObjectURL(url)
+    createdUrls.current.delete(url)
+  }
+
+  const discardOwnedExcept = (keepUrl: string | null) => {
+    for (const url of [...createdUrls.current]) {
+      if (url === keepUrl) continue
+      URL.revokeObjectURL(url)
+      createdUrls.current.delete(url)
+    }
+  }
+
+  const close = () => {
+    discardOwnedExcept(image?.previewUrl ?? null)
+    onClose()
+  }
+
+  const pickFile = async (file: File | undefined) => {
+    setError('')
+    if (!file) return
+    const ext = `.${file.name.split('.').pop()?.toLowerCase() ?? ''}`
+    if (!(INSTANCE_ICON_EXTS as readonly string[]).includes(ext)) {
+      setError(t('instances.iconInvalid'))
+      return
+    }
+    if (file.size > MAX_INSTANCE_ICON_BYTES) {
+      setError(t('instances.iconTooLarge'))
+      return
+    }
+    const buf = new Uint8Array(await file.arrayBuffer())
+    const previewUrl = URL.createObjectURL(file)
+    createdUrls.current.add(previewUrl)
+    setDraftImage((prev) => {
+      if (prev) revokeIfOwned(prev.previewUrl)
+      return { previewUrl, bytes: Array.from(buf), originalName: file.name }
+    })
+  }
+
+  return (
+    <Dialog
+      open={open}
+      title={t('instances.iconCustomize')}
+      onClose={close}
+      size="lg"
+      scrollable
+      overlayClassName="z-[60]"
+      footer={
+        <>
+          <Button type="button" onClick={close}>
+            {t('instances.cancel')}
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            onClick={() => {
+              const keep = draftImage?.previewUrl ?? null
+              discardOwnedExcept(keep)
+              if (keep) createdUrls.current.delete(keep)
+              onApply({ preset: draftPreset, image: draftImage })
+            }}
+          >
+            {t('instances.iconPreset.apply')}
+          </Button>
+        </>
+      }
+    >
+      <div className="flex items-center gap-6">
+        <div className="flex shrink-0 flex-col items-center gap-3">
+          {draftImage ? (
+            <div className="size-20 overflow-hidden rounded-[var(--radius-md)] bg-[var(--color-surface)]">
+              <img src={draftImage.previewUrl} alt="" className="size-full object-cover" draggable={false} />
+            </div>
+          ) : (
+            <InstanceIconTile preset={draftPreset} size="xl" />
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept={ICON_ACCEPT}
+            className="hidden"
+            onChange={(e) => {
+              void pickFile(e.target.files?.[0])
+              e.target.value = ''
+            }}
+          />
+          <Button type="button" className="whitespace-nowrap px-3" onClick={() => fileRef.current?.click()}>
+            <IconPhoto size={16} stroke={1.75} />
+            {t('instances.iconUpload')}
+          </Button>
+          {draftImage ? (
+            <Button
+              type="button"
+              variant="ghost"
+              className="whitespace-nowrap px-3"
+              onClick={() => {
+                setDraftImage((prev) => {
+                  if (prev) revokeIfOwned(prev.previewUrl)
+                  return null
+                })
+              }}
+            >
+              {t('instances.iconUsePreset')}
+            </Button>
+          ) : null}
+          <p className="max-w-[11rem] text-center text-xs leading-relaxed text-[var(--color-text-muted)]">
+            {t('instances.iconHint')}
+          </p>
+          {error ? <p className="max-w-[11rem] text-center text-sm text-[var(--color-danger)]">{error}</p> : null}
+        </div>
+
+        <div className="min-w-0 flex-1 border-l border-[var(--color-border)] pl-6">
+          <p className="mb-3 text-sm font-medium text-[var(--color-text)]">
+            {t('instances.iconSectionPreset')}
+          </p>
+          <InstanceIconPresetPicker
+            density="comfortable"
+            value={draftPreset}
+            onChange={(next) => {
+              setDraftImage((prev) => {
+                if (prev) revokeIfOwned(prev.previewUrl)
+                return null
+              })
+              setDraftPreset(next)
+            }}
+          />
+        </div>
       </div>
     </Dialog>
   )

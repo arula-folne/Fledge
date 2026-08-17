@@ -10,13 +10,15 @@ type Props = {
   scrollable?: boolean
   /** 副題（日付など） */
   subtitle?: string
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'full'
   /** 背景のぼかし強度（カラーピッカー等は soft） */
   backdrop?: 'default' | 'soft'
   /** false のとき Esc / 背景 / × で閉じない（確認ダイアログ向け） */
   dismissible?: boolean
   /** 重ね表示用（確認ダイアログはより手前） */
   overlayClassName?: string
+  /** 内容量に関係なく高さを固定する（作成ダイアログなど） */
+  fixedHeight?: boolean
 }
 
 /**
@@ -34,15 +36,30 @@ export function Dialog({
   backdrop = 'default',
   dismissible = true,
   overlayClassName = '',
+  fixedHeight = false,
 }: Props) {
+  const full = size === 'full'
   const backdropClass =
     backdrop === 'soft'
       ? 'bg-black/25 backdrop-blur-sm'
       : 'bg-black/45 backdrop-blur-md'
-  const sizeClass =
-    size === 'sm' ? 'max-w-sm' : size === 'lg' ? 'max-w-2xl' : 'max-w-lg'
+  const sizeClass = full
+    ? 'h-full max-h-none max-w-none rounded-none border-0 shadow-none'
+    : size === 'sm'
+      ? 'max-w-sm'
+      : size === 'lg'
+        ? 'max-w-2xl'
+        : 'max-w-lg'
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
+  const fill = full || scrollable || fixedHeight
+  const heightClass = full
+    ? 'h-full'
+    : fixedHeight
+      ? 'h-[min(80vh,40rem)]'
+      : scrollable
+        ? 'max-h-[min(80vh,40rem)]'
+        : ''
 
   useEffect(() => {
     if (!open || !dismissible) return
@@ -69,12 +86,16 @@ export function Dialog({
 
   return (
     <div
-      className={['fixed inset-0 z-50 flex items-center justify-center p-4', overlayClassName]
+      className={[
+        'fixed inset-0 z-50 flex',
+        full ? 'items-stretch p-0' : 'items-center justify-center p-4',
+        overlayClassName,
+      ]
         .filter(Boolean)
         .join(' ')}
       role="presentation"
     >
-      {dismissible ? (
+      {full ? null : dismissible ? (
         <button
           type="button"
           aria-label="close"
@@ -90,26 +111,26 @@ export function Dialog({
         aria-modal="true"
         aria-labelledby={titleId}
         className={[
-          'relative z-10 flex w-full flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] shadow-xl',
+          'relative z-10 flex w-full flex-col overflow-hidden bg-[var(--color-surface)] text-[var(--color-text)]',
+          full
+            ? ''
+            : 'rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-xl',
           sizeClass,
-          'animate-in fade-in zoom-in-95 duration-200',
-          scrollable ? 'max-h-[min(80vh,40rem)]' : '',
+          heightClass,
         ].join(' ')}
-        style={{
-          animation: 'fledge-dialog-in 200ms ease-out',
-        }}
+        style={full ? undefined : { animation: 'fledge-dialog-in 200ms ease-out' }}
         onClick={(e) => e.stopPropagation()}
       >
         <div
           className={[
             'flex shrink-0 items-start justify-between gap-3 border-b border-[var(--color-border)]',
-            size === 'sm' ? 'px-3.5 py-2.5' : 'px-5 py-4',
+            size === 'sm' ? 'px-3.5 py-2.5' : full ? 'px-4 py-2' : 'px-5 py-4',
           ].join(' ')}
         >
           <div className="min-w-0">
             <h2
               id={titleId}
-              className={size === 'sm' ? 'text-sm font-semibold' : 'text-base font-semibold'}
+              className={size === 'sm' || full ? 'text-sm font-semibold' : 'text-base font-semibold'}
             >
               {title}
             </h2>
@@ -129,8 +150,12 @@ export function Dialog({
         </div>
         <div
           className={
-            scrollable
-              ? `min-h-0 flex-1 overflow-y-auto ${size === 'sm' ? 'px-3.5 py-3' : 'px-5 py-4'}`
+            fill
+              ? [
+                  'min-h-0 flex-1',
+                  full ? 'flex flex-col overflow-hidden' : 'overflow-y-auto',
+                  size === 'sm' ? 'px-3.5 py-3' : full ? 'px-4 py-2.5' : 'px-5 py-4',
+                ].join(' ')
               : size === 'sm'
                 ? 'px-3.5 py-3'
                 : 'px-5 py-4'
@@ -144,12 +169,14 @@ export function Dialog({
           </div>
         ) : null}
       </div>
-      <style>{`
+      {full ? null : (
+        <style>{`
         @keyframes fledge-dialog-in {
           from { opacity: 0; transform: translateY(6px) scale(0.98); }
           to { opacity: 1; transform: translateY(0) scale(1); }
         }
       `}</style>
+      )}
     </div>
   )
 }

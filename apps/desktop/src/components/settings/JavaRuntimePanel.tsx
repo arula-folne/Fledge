@@ -181,7 +181,7 @@ export function JavaRuntimePanel({ onMessage }: { onMessage: (msg: string | null
               </h3>
               <span
                 className={[
-                  'rounded-full px-2.5 py-1 text-xs font-semibold',
+                  'rounded-[var(--radius-sm)] px-2.5 py-1 text-xs font-semibold',
                   installed
                     ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)]'
                     : 'bg-[var(--color-hover)] text-[var(--color-text-muted)]',

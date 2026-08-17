@@ -30,6 +30,7 @@ export default function LibraryPage() {
   const wizardOpen = useUiStore((s) => s.instanceWizardOpen)
   const setWizardOpen = useUiStore((s) => s.setInstanceWizardOpen)
   const setLibraryFocus = useUiStore((s) => s.setLibraryFocus)
+  const setEditingInstanceId = useUiStore((s) => s.setEditingInstanceId)
   const [menu, setMenu] = useState<InstanceContextMenuState>(null)
   const [pendingDelete, setPendingDelete] = useState<InstanceProfile | null>(null)
 
@@ -64,19 +65,21 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl">
-      <h1 className="mb-6 text-xl font-semibold">{t('library.title')}</h1>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
+        <h1 className="text-lg font-semibold">{t('library.title')}</h1>
+        <Button variant="primary" onClick={() => setWizardOpen(true)}>
+          {t('library.create')}
+        </Button>
+      </div>
 
       {empty ? (
-        <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]/60 px-6 py-16 text-center">
+        <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]/60 px-4 py-10 text-center">
           <p className="font-medium">{t('library.empty')}</p>
-          <p className="mt-2 text-sm text-[var(--color-text-muted)]">{t('library.emptyHint')}</p>
-          <Button className="mt-6" variant="primary" onClick={() => setWizardOpen(true)}>
-            {t('library.create')}
-          </Button>
+          <p className="mt-1 text-sm text-[var(--color-text-muted)]">{t('library.emptyHint')}</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-1.5">
           {items.map((item) => (
             <InstanceCard key={item.id} instance={item} onContextMenu={openMenu} />
           ))}
@@ -88,13 +91,14 @@ export default function LibraryPage() {
         onClose={closeMenu}
         onOpen={() => {
           if (!menuInstance) return
-          setLibraryFocus({ instanceId: menuInstance.id, tab: 'overview' })
+          setLibraryFocus({ instanceId: menuInstance.id, tab: 'content' })
           navigate(`/library/${menuInstance.id}`)
           closeMenu()
         }}
         onEdit={() => {
           if (!menuInstance) return
-          setLibraryFocus({ instanceId: menuInstance.id, tab: 'settings' })
+          setEditingInstanceId(menuInstance.id)
+          setLibraryFocus({ instanceId: menuInstance.id, tab: 'content' })
           navigate(`/library/${menuInstance.id}`)
           closeMenu()
         }}

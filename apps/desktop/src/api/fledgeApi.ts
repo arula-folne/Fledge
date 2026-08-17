@@ -5,6 +5,7 @@ import type {
   ContentCategory,
   ContentInstallRequest,
   ContentMediaItem,
+  ContentProjectPage,
   ContentSearchQuery,
   ContentSearchResult,
   CreateInstanceInput,
@@ -63,6 +64,7 @@ export type FledgeApi = {
       }>
     >
     search: (query: ContentSearchQuery) => Promise<ContentSearchResult>
+    getProject: (projectId: string) => Promise<ContentProjectPage>
     install: (req: ContentInstallRequest) => Promise<InstalledContent>
     listInstalled: (instanceId: string, category?: ContentCategory) => Promise<InstalledContent[]>
     setEnabled: (instanceId: string, entryId: string, enabled: boolean) => Promise<InstalledContent>

@@ -32,7 +32,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
           </p>
           <button
             type="button"
-            className="self-start rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-3 py-2 text-sm text-white"
+            className="self-start rounded-[var(--radius-md)] bg-[var(--color-accent)] px-3 py-2 text-sm text-white"
             onClick={() => this.setState({ error: null })}
           >
             再試行

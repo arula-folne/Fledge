@@ -151,11 +151,11 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto flex h-full min-h-0 max-w-6xl flex-col text-[var(--color-text)]">
-      <h1 className="mb-4 shrink-0 text-xl font-semibold text-[var(--color-text)]">
+      <h1 className="mb-2 shrink-0 text-lg font-semibold text-[var(--color-text)]">
         {t('settings.title')}
       </h1>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[13.5rem_minmax(0,1fr)] gap-8">
+      <div className="grid min-h-0 flex-1 grid-cols-[11rem_minmax(0,1fr)] gap-4">
         <nav
           className="flex min-h-0 flex-col gap-0.5 self-stretch py-1"
           aria-label={t('settings.title')}
@@ -165,7 +165,7 @@ export default function SettingsPage() {
               key={tab.id}
               type="button"
               className={[
-                'w-full rounded-[var(--radius-sm)] px-3 py-2 text-left text-sm',
+                'w-full rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-sm',
                 section === tab.id
                   ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
@@ -360,7 +360,7 @@ export default function SettingsPage() {
                         return (
                           <li
                             key={a.id}
-                            className="flex flex-wrap items-center gap-3 rounded-[var(--radius-sm)] border border-[var(--color-border)] px-3 py-2"
+                            className="flex flex-wrap items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-2"
                           >
                             <img
                               src={aFace}
@@ -587,7 +587,7 @@ export default function SettingsPage() {
                   concurrentDownloads: Number(e.target.value) || DEFAULT_CONCURRENT_DOWNLOADS,
                 })
               }
-              className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-[var(--color-text)]"
+              className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-[var(--color-text)]"
             />
           </label>
           <label className="flex flex-col gap-1 text-sm">
@@ -605,7 +605,7 @@ export default function SettingsPage() {
                   maxWriteConcurrency: Number(e.target.value) || DEFAULT_MAX_WRITE_CONCURRENCY,
                 })
               }
-              className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-[var(--color-text)]"
+              className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-[var(--color-text)]"
             />
           </label>
           <div className="border-t border-[var(--color-border)] pt-5">
@@ -653,7 +653,7 @@ export default function SettingsPage() {
 
 function Section({ title, children }: { title?: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+    <section className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5">
       {title ? <BlockHeading>{title}</BlockHeading> : null}
       {children}
     </section>
@@ -661,7 +661,7 @@ function Section({ title, children }: { title?: string; children: React.ReactNod
 }
 
 function BlockHeading({ children }: { children: React.ReactNode }) {
-  return <h2 className="text-lg font-semibold tracking-tight text-[var(--color-text)]">{children}</h2>
+  return <h2 className="text-base font-semibold tracking-tight text-[var(--color-text)]">{children}</h2>
 }
 
 const STARTUP_PAGE_OPTIONS: StartupPage[] = ['home', 'library']

@@ -32,6 +32,13 @@ export const INSTANCE_ICON_VARIANTS = [
   'cubePlus',
   'cubeSend',
   'cubeSpark',
+  'box',
+  'boxMultiple',
+  'packages',
+  'dice',
+  'pyramid',
+  'hexagonalPrism',
+  'stack3',
 ] as const
 export type InstanceIconVariant = (typeof INSTANCE_ICON_VARIANTS)[number]
 
@@ -487,12 +494,22 @@ export const ContentLoaderFilterSchema = z.enum([
 ])
 export type ContentLoaderFilter = z.infer<typeof ContentLoaderFilterSchema>
 
+export const ContentSearchSortSchema = z.enum([
+  'relevance',
+  'downloads',
+  'follows',
+  'newest',
+  'updated',
+])
+export type ContentSearchSort = z.infer<typeof ContentSearchSortSchema>
+
 export const ContentSearchQuerySchema = z.object({
   query: z.string().default(''),
   category: ContentCategorySchema,
   gameVersion: z.string().optional(),
   loaders: z.array(ContentLoaderFilterSchema).default([]),
   provider: ContentProviderIdSchema.default('modrinth'),
+  sort: ContentSearchSortSchema.default('relevance'),
   offset: z.number().int().nonnegative().default(0),
   limit: z.number().int().positive().max(50).default(20),
 })
@@ -504,14 +521,82 @@ export const ContentProjectSchema = z.object({
   slug: z.string(),
   name: z.string(),
   description: z.string(),
+  /** 説明を日本語へ自動翻訳したとき true（元から日本語なら付かない） */
+  descriptionTranslated: z.boolean().optional(),
   iconUrl: z.string().nullable(),
   downloads: z.number().nonnegative(),
+  follows: z.number().nonnegative().optional(),
+  author: z.string().optional(),
+  displayCategories: z.array(z.string()).default([]),
+  dateModified: z.string().optional(),
+  clientSide: z.enum(['required', 'optional', 'unsupported']).optional(),
+  serverSide: z.enum(['required', 'optional', 'unsupported']).optional(),
   categories: z.array(z.string()).default([]),
   gameVersions: z.array(z.string()).default([]),
   loaders: z.array(z.string()).default([]),
   projectType: ContentCategorySchema,
 })
 export type ContentProject = z.infer<typeof ContentProjectSchema>
+
+export const ContentProjectDetailSchema = ContentProjectSchema.extend({
+  body: z.string().default(''),
+  bodyTranslated: z.boolean().optional(),
+  publishedAt: z.string().optional(),
+  licenseId: z.string().optional(),
+  licenseName: z.string().optional(),
+  licenseUrl: z.string().optional(),
+  issuesUrl: z.string().optional(),
+  sourceUrl: z.string().optional(),
+  wikiUrl: z.string().optional(),
+  discordUrl: z.string().optional(),
+  donationUrls: z
+    .array(
+      z.object({
+        platform: z.string(),
+        url: z.string(),
+      }),
+    )
+    .default([]),
+  members: z
+    .array(
+      z.object({
+        username: z.string(),
+        role: z.string().optional(),
+        avatarUrl: z.string().optional(),
+      }),
+    )
+    .default([]),
+  gallery: z
+    .array(
+      z.object({
+        url: z.string(),
+        title: z.string().optional(),
+        featured: z.boolean().optional(),
+      }),
+    )
+    .default([]),
+})
+export type ContentProjectDetail = z.infer<typeof ContentProjectDetailSchema>
+
+export const ContentVersionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  versionNumber: z.string(),
+  gameVersions: z.array(z.string()).default([]),
+  loaders: z.array(z.string()).default([]),
+  featured: z.boolean().default(false),
+  datePublished: z.string().optional(),
+  downloads: z.number().nonnegative().default(0),
+  versionType: z.enum(['release', 'beta', 'alpha']).optional(),
+  changelog: z.string().optional(),
+})
+export type ContentVersion = z.infer<typeof ContentVersionSchema>
+
+export const ContentProjectPageSchema = z.object({
+  project: ContentProjectDetailSchema,
+  versions: z.array(ContentVersionSchema).default([]),
+})
+export type ContentProjectPage = z.infer<typeof ContentProjectPageSchema>
 
 export const ContentSearchResultSchema = z.object({
   hits: z.array(ContentProjectSchema),

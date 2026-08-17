@@ -116,13 +116,13 @@ export function AccountChip() {
     <div ref={rootRef} className="relative">
       <button
         type="button"
-        className="flex items-center gap-3 rounded-[var(--radius-sm)] px-1.5 py-1 text-left transition hover:bg-[var(--color-hover)]"
+        className="flex items-center gap-2 rounded-[var(--radius-sm)] px-1 py-0.5 text-left transition hover:bg-[var(--color-hover)]"
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
       >
-        <div className="text-right text-sm">
+        <div className="text-right text-sm leading-tight">
           <div className="font-medium text-[var(--color-text)]">{chipLabel}</div>
           {authStatus === 'expired' ? (
             <div className="text-xs text-[var(--color-danger)]">{t('auth.reloginRequired')}</div>
@@ -132,7 +132,7 @@ export function AccountChip() {
             </div>
           ) : null}
         </div>
-        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-accent-soft)]">
+        <div className="h-8 w-8 shrink-0 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-accent-soft)]">
           {faceUrl ? (
             <img
               src={faceUrl}
@@ -157,7 +157,7 @@ export function AccountChip() {
           className="absolute right-0 top-[calc(100%+8px)] z-[100] w-72 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-lg"
         >
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-accent-soft)]">
+            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-accent-soft)]">
               {faceUrl ? (
                 <img
                   src={faceUrl}
@@ -207,7 +207,7 @@ export function AccountChip() {
                         ].join(' ')}
                         onClick={() => switchMutation.mutate(a.id)}
                       >
-                        <span className="h-7 w-7 shrink-0 overflow-hidden rounded border border-[var(--color-border)] bg-[var(--color-bg)]">
+                        <span className="h-7 w-7 shrink-0 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)]">
                           {aFace ? (
                             <img
                               src={aFace}

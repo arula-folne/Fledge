@@ -8,6 +8,7 @@ import {
   type ContentCategory,
   type ContentInstallRequest,
   type ContentMediaItem,
+  type ContentProjectPage,
   type ContentSearchQuery,
   type ContentSearchResult,
   type CreateInstanceInput,
@@ -66,6 +67,7 @@ export type FledgeApi = {
       }>
     >
     search: (query: ContentSearchQuery) => Promise<ContentSearchResult>
+    getProject: (projectId: string) => Promise<ContentProjectPage>
     install: (req: ContentInstallRequest) => Promise<InstalledContent>
     listInstalled: (instanceId: string, category?: ContentCategory) => Promise<InstalledContent[]>
     setEnabled: (instanceId: string, entryId: string, enabled: boolean) => Promise<InstalledContent>
@@ -195,6 +197,7 @@ const api: FledgeApi = {
   content: {
     providers: () => ipcRenderer.invoke(IPC.contentProviders),
     search: (query) => ipcRenderer.invoke(IPC.contentSearch, query),
+    getProject: (projectId) => ipcRenderer.invoke(IPC.contentGetProject, projectId),
     install: (req) => ipcRenderer.invoke(IPC.contentInstall, req),
     listInstalled: (instanceId, category) =>
       ipcRenderer.invoke(IPC.contentListInstalled, instanceId, category),

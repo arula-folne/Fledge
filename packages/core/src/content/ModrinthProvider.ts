@@ -2,8 +2,11 @@ import type {
   ContentCategory,
   ContentLoaderFilter,
   ContentProject,
+  ContentProjectDetail,
+  ContentProjectPage,
   ContentSearchQuery,
   ContentSearchResult,
+  ContentVersion,
 } from '@fledge/shared'
 import type { ContentProvider, ResolvedContentFile } from './ContentProvider.js'
 
@@ -23,12 +26,49 @@ type MrHit = {
   slug: string
   title: string
   description: string
+  author?: string
   icon_url?: string | null
   downloads: number
+  follows?: number
   categories?: string[]
-  versions?: string[]
   display_categories?: string[]
+  versions?: string[]
+  date_modified?: string
+  client_side?: 'required' | 'optional' | 'unsupported'
+  server_side?: 'required' | 'optional' | 'unsupported'
   project_type: string
+}
+
+type MrProject = {
+  id: string
+  slug: string
+  title: string
+  description: string
+  body?: string
+  icon_url?: string | null
+  downloads: number
+  followers?: number
+  categories?: string[]
+  additional_categories?: string[]
+  loaders?: string[]
+  game_versions?: string[]
+  client_side?: 'required' | 'optional' | 'unsupported'
+  server_side?: 'required' | 'optional' | 'unsupported'
+  project_type: string
+  published?: string
+  updated?: string
+  issues_url?: string | null
+  source_url?: string | null
+  wiki_url?: string | null
+  discord_url?: string | null
+  donation_urls?: Array<{ id?: string; platform?: string; url?: string }>
+  license?: { id?: string | null; name?: string | null; url?: string | null } | null
+  gallery?: Array<{ url: string; title?: string | null; featured?: boolean }>
+}
+
+type MrMember = {
+  role?: string
+  user?: { username?: string; name?: string; avatar_url?: string | null }
 }
 
 type MrVersion = {
@@ -38,6 +78,11 @@ type MrVersion = {
   version_number: string
   game_versions: string[]
   loaders: string[]
+  featured?: boolean
+  date_published?: string
+  downloads?: number
+  version_type?: 'release' | 'beta' | 'alpha'
+  changelog?: string | null
   files: Array<{
     url: string
     filename: string
@@ -64,13 +109,26 @@ function mapCategory(projectType: string): ContentCategory | null {
   }
 }
 
+const LOADER_CATS = [
+  'fabric',
+  'forge',
+  'neoforge',
+  'quilt',
+  'bukkit',
+  'paper',
+  'spigot',
+  'purpur',
+]
+
+function loadersFromCats(cats: string[]): string[] {
+  return cats.filter((c) => LOADER_CATS.includes(c))
+}
+
 function hitToProject(hit: MrHit): ContentProject | null {
   const projectType = mapCategory(hit.project_type)
   if (!projectType) return null
   const cats = hit.categories ?? []
-  const loaders = cats.filter((c) =>
-    ['fabric', 'forge', 'neoforge', 'quilt', 'bukkit', 'paper', 'spigot', 'purpur'].includes(c),
-  )
+  const display = hit.display_categories ?? []
   return {
     provider: 'modrinth',
     id: hit.project_id,
@@ -79,10 +137,80 @@ function hitToProject(hit: MrHit): ContentProject | null {
     description: hit.description || '',
     iconUrl: hit.icon_url ?? null,
     downloads: hit.downloads ?? 0,
+    follows: hit.follows ?? 0,
+    author: hit.author,
+    displayCategories: display,
+    dateModified: hit.date_modified,
+    clientSide: hit.client_side,
+    serverSide: hit.server_side,
     categories: cats,
     gameVersions: hit.versions ?? [],
+    loaders: loadersFromCats(cats),
+    projectType,
+  }
+}
+
+function projectToDetail(
+  p: MrProject,
+  members: Array<{ username: string; role?: string; avatarUrl?: string }>,
+): ContentProjectDetail | null {
+  const projectType = mapCategory(p.project_type)
+  if (!projectType) return null
+  const cats = [...(p.categories ?? []), ...(p.additional_categories ?? [])]
+  const loaders = p.loaders?.length ? p.loaders : loadersFromCats(cats)
+  const display = cats.filter((c) => !LOADER_CATS.includes(c))
+  const gallery = (p.gallery ?? [])
+    .slice()
+    .sort((a, b) => Number(Boolean(b.featured)) - Number(Boolean(a.featured)))
+    .map((g) => ({ url: g.url, title: g.title ?? undefined, featured: Boolean(g.featured) }))
+  const author = members[0]?.username
+  return {
+    provider: 'modrinth',
+    id: p.id,
+    slug: p.slug,
+    name: p.title,
+    description: p.description || '',
+    iconUrl: p.icon_url ?? null,
+    downloads: p.downloads ?? 0,
+    follows: p.followers ?? 0,
+    author,
+    displayCategories: display,
+    dateModified: p.updated,
+    clientSide: p.client_side,
+    serverSide: p.server_side,
+    categories: cats,
+    gameVersions: p.game_versions ?? [],
     loaders,
     projectType,
+    body: p.body ?? '',
+    publishedAt: p.published,
+    licenseId: p.license?.id ?? undefined,
+    licenseName: p.license?.name ?? undefined,
+    licenseUrl: p.license?.url ?? undefined,
+    issuesUrl: p.issues_url ?? undefined,
+    sourceUrl: p.source_url ?? undefined,
+    wikiUrl: p.wiki_url ?? undefined,
+    discordUrl: p.discord_url ?? undefined,
+    donationUrls: (p.donation_urls ?? [])
+      .filter((d) => d.url)
+      .map((d) => ({ platform: d.platform || d.id || 'donate', url: d.url! })),
+    members,
+    gallery,
+  }
+}
+
+function mapVersion(v: MrVersion): ContentVersion {
+  return {
+    id: v.id,
+    name: v.name,
+    versionNumber: v.version_number,
+    gameVersions: v.game_versions ?? [],
+    loaders: v.loaders ?? [],
+    featured: Boolean(v.featured),
+    datePublished: v.date_published,
+    downloads: v.downloads ?? 0,
+    versionType: v.version_type,
+    changelog: v.changelog ?? undefined,
   }
 }
 
@@ -91,6 +219,7 @@ async function mrFetch<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       Accept: 'application/json',
+      'Accept-Language': 'ja,en;q=0.8',
       'User-Agent': UA,
       ...(init?.headers ?? {}),
     },
@@ -103,7 +232,8 @@ async function mrFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 function pickPrimaryFile(version: MrVersion): MrVersion['files'][number] {
-  return version.files.find((f) => f.primary) ?? version.files[0]!
+  const files = version.files ?? []
+  return files.find((f) => f.primary) ?? files[0]!
 }
 
 export class ModrinthProvider implements ContentProvider {
@@ -112,25 +242,52 @@ export class ModrinthProvider implements ContentProvider {
   async search(query: ContentSearchQuery): Promise<ContentSearchResult> {
     const facets: string[][] = [[`project_type:${TYPE_MAP[query.category]}`]]
     if (query.gameVersion) facets.push([`versions:${query.gameVersion}`])
-    if (query.loaders.length) {
+    if (query.loaders?.length) {
       facets.push(query.loaders.map((l) => `categories:${l}`))
     }
 
     const params = new URLSearchParams({
-      query: query.query,
       limit: String(query.limit),
       offset: String(query.offset),
-      index: 'relevance',
+      index: query.sort ?? 'relevance',
       facets: JSON.stringify(facets),
     })
+    if (query.query?.trim()) params.set('query', query.query.trim())
 
-    const data = await mrFetch<{ hits: MrHit[]; total_hits: number }>(`/search?${params}`)
-    const hits = data.hits.map(hitToProject).filter((p): p is ContentProject => Boolean(p))
+    const data = await mrFetch<{ hits?: MrHit[]; total_hits?: number }>(`/search?${params}`)
+    const hits = (data.hits ?? []).map(hitToProject).filter((p): p is ContentProject => Boolean(p))
     return {
       hits,
-      total: data.total_hits,
+      total: data.total_hits ?? hits.length,
       offset: query.offset,
       limit: query.limit,
+    }
+  }
+
+  async getProject(projectId: string): Promise<ContentProjectPage> {
+    const id = encodeURIComponent(projectId)
+    const [raw, versions, members] = await Promise.all([
+      mrFetch<MrProject>(`/project/${id}`),
+      mrFetch<MrVersion[]>(`/project/${id}/version`),
+      mrFetch<MrMember[]>(`/project/${id}/members`).catch(() => [] as MrMember[]),
+    ])
+    const team = members
+      .map((m) => ({
+        username: m.user?.username ?? m.user?.name ?? '',
+        role: m.role,
+        avatarUrl: m.user?.avatar_url ?? undefined,
+      }))
+      .filter((m) => m.username)
+    const ownerIdx = team.findIndex((m) => m.role === 'Owner' || m.role === 'owner')
+    if (ownerIdx > 0) {
+      const [owner] = team.splice(ownerIdx, 1)
+      if (owner) team.unshift(owner)
+    }
+    const project = projectToDetail(raw, team)
+    if (!project) throw new Error('Unsupported Modrinth project type')
+    return {
+      project,
+      versions: (versions ?? []).map(mapVersion),
     }
   }
 

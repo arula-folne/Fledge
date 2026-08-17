@@ -16,18 +16,22 @@ import { fledgeApi } from '../../api/fledgeApi'
 import { applyTheme } from '../../styles/theme'
 import { TitleBar } from './TitleBar'
 import { TransferProgress } from './TransferProgress'
+import { HeaderQuickPlay } from './HeaderQuickPlay'
+import appIcon from '../../assets/app-icon.png'
 
-const SIDEBAR_COLLAPSED_KEY = 'fledge.sidebarCollapsed'
+const SIDEBAR_COLLAPSED_KEY = 'fledge.navRail'
 
-const navIcon = { size: 18, stroke: 1.75 } as const
+const navIcon = { size: 20, stroke: 1.7 } as const
 
 const navClass = (collapsed: boolean) =>
   ({ isActive }: { isActive: boolean }) =>
     [
-      'flex items-center rounded-[var(--radius-sm)] text-sm transition-colors',
-      collapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2',
+      'flex items-center text-sm transition-colors',
+      collapsed
+        ? 'size-9 justify-center rounded-[var(--radius-sm)]'
+        : 'gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5',
       isActive
-        ? 'bg-[var(--color-selection-soft)] text-[var(--color-selection)] font-medium'
+        ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
         : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
     ].join(' ')
 
@@ -35,9 +39,9 @@ export function AppShell() {
   const { t } = useTranslation()
   const [collapsed, setCollapsed] = useState(() => {
     try {
-      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'expanded' ? false : true
     } catch {
-      return false
+      return true
     }
   })
   const settingsQuery = useQuery({
@@ -51,7 +55,7 @@ export function AppShell() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0')
+      localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? 'collapsed' : 'expanded')
     } catch {
       /* ignore */
     }
@@ -66,24 +70,36 @@ export function AppShell() {
       <div className="flex min-h-0 flex-1">
         <aside
           className={[
-            'flex shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]/80 py-4 backdrop-blur-[2px] transition-[width]',
-            collapsed ? 'w-[3.75rem] px-1.5' : 'w-44 px-2.5',
+            'flex shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]/90 py-2 transition-[width]',
+            collapsed ? 'w-12 items-center px-1.5' : 'w-40 px-2',
           ].join(' ')}
         >
-          <div className={['mb-6 flex items-center', collapsed ? 'justify-center' : 'gap-1'].join(' ')}>
+          <div
+            className={['mb-3 flex items-center', collapsed ? 'flex-col gap-1' : 'gap-0.5'].join(' ')}
+          >
+            {collapsed ? (
+              <img
+                src={appIcon}
+                alt=""
+                width={22}
+                height={22}
+                className="mt-1 mb-1 shrink-0 rounded-[22%]"
+                draggable={false}
+              />
+            ) : null}
             <button
               type="button"
-              className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
+              className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
               aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
               title={collapsed ? t('nav.expand') : t('nav.collapse')}
               onClick={() => setCollapsed((v) => !v)}
             >
-              <IconMenu2 size={20} stroke={1.75} />
+              <IconMenu2 size={18} stroke={1.75} />
             </button>
-            {collapsed ? null : <TextLogo showIcon={false} />}
+            {collapsed ? null : <TextLogo compact showIcon={false} />}
           </div>
-          <nav className="flex flex-col gap-1">
-            <NavLink to="/" end className={itemClass} title={collapsed ? t('nav.home') : undefined}>
+          <nav className={['flex flex-col', collapsed ? 'items-center gap-1' : 'gap-0.5'].join(' ')}>
+            <NavLink to="/" end className={itemClass} title={t('nav.home')}>
               <IconHome {...navIcon} aria-hidden />
               {collapsed ? null : t('nav.home')}
             </NavLink>
@@ -91,36 +107,33 @@ export function AppShell() {
               to="/library"
               className={itemClass}
               end={false}
-              title={collapsed ? t('nav.library') : undefined}
+              title={t('nav.library')}
             >
               <IconStack2 {...navIcon} aria-hidden />
               {collapsed ? null : t('nav.library')}
             </NavLink>
-            <NavLink to="/skin" className={itemClass} title={collapsed ? t('nav.skin') : undefined}>
+            <NavLink to="/skin" className={itemClass} title={t('nav.skin')}>
               <IconShirt {...navIcon} aria-hidden />
               {collapsed ? null : t('nav.skin')}
             </NavLink>
-            <NavLink
-              to="/settings"
-              className={itemClass}
-              title={collapsed ? t('nav.settings') : undefined}
-            >
+            <NavLink to="/settings" className={itemClass} title={t('nav.settings')}>
               <IconSettings {...navIcon} aria-hidden />
               {collapsed ? null : t('nav.settings')}
             </NavLink>
           </nav>
-          <div className={['mt-auto pt-4', collapsed ? 'px-0.5 text-center' : 'px-1'].join(' ')}>
+          <div className={['mt-auto pt-2', collapsed ? 'text-center' : 'px-0.5'].join(' ')}>
             <AppCredits compact={collapsed} size="sidebar" />
           </div>
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="relative z-50 flex items-center gap-3 border-b border-[var(--color-border)] bg-[var(--color-surface)]/60 px-6 py-3 backdrop-blur-[2px]">
+          <header className="relative z-50 flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]/70 px-3 py-1.5">
+            <HeaderQuickPlay />
             <TransferProgress />
             <div className="ml-auto shrink-0">
               <AccountChip />
             </div>
           </header>
-          <main className="flex min-h-0 flex-1 flex-col overflow-hidden p-6">
+          <main className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
             <div className="min-h-0 flex-1 overflow-auto">
               <Outlet />
             </div>

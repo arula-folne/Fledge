@@ -4,7 +4,7 @@ import { DEFAULT_INSTANCE_ICON_PRESET } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
 import { InstanceIconTile } from './instanceIconPresets'
 
-type Size = 'md' | 'lg'
+type Size = 'sm' | 'md' | 'lg'
 
 type Props = {
   instance?: Pick<InstanceProfile, 'id' | 'iconFile' | 'iconPreset'>
@@ -17,6 +17,7 @@ type Props = {
 }
 
 const dimClass: Record<Size, string> = {
+  sm: 'size-8',
   md: 'size-12',
   lg: 'size-16',
 }

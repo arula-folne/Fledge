@@ -2,7 +2,7 @@ import type {
   ContentCategory,
   ContentInstallRequest,
   ContentLoaderFilter,
-  ContentProject,
+  ContentProjectPage,
   ContentSearchQuery,
   ContentSearchResult,
   ContentSourceId,
@@ -39,6 +39,7 @@ export type ContentProviderInfo = {
 export interface ContentProvider {
   readonly id: ContentSourceId
   search(query: ContentSearchQuery): Promise<ContentSearchResult>
+  getProject(projectId: string): Promise<ContentProjectPage>
   resolveInstall(input: {
     projectId: string
     category: ContentCategory

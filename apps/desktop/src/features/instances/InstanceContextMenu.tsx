@@ -93,7 +93,7 @@ export function InstanceContextMenu({
     <div
       ref={panelRef}
       role="menu"
-      className="fixed z-[70] min-w-44 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] py-1 text-[var(--color-text)] shadow-sm"
+      className="fixed z-[70] min-w-44 overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] py-1 text-[var(--color-text)] shadow-sm"
       style={{ left: pos.x, top: pos.y }}
     >
       <MenuItem label={t('instances.open')} onClick={onOpen} />

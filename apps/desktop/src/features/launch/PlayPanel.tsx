@@ -66,10 +66,10 @@ export function PlayPanel() {
     (progress && progress.total > 0 ? (progress.current / progress.total) * 100 : 0)
 
   return (
-    <section className="rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-6 text-[var(--color-text)]">
-      <p className="mb-4 text-xs tracking-wide text-[var(--color-text-muted)]">{t('app.tagline')}</p>
+    <section className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-[var(--color-text)]">
+      <p className="mb-2 text-xs tracking-wide text-[var(--color-text-muted)]">{t('app.tagline')}</p>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-3">
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-[var(--color-text-muted)]">{t('home.selectInstance')}</span>
           <select

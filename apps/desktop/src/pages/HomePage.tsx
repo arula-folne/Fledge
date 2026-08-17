@@ -26,36 +26,31 @@ export default function HomePage() {
   const lastInstance = instancesQuery.data?.find((i) => i.id === lastId) ?? null
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-8">
-      <section>
-        <p className="mb-1 text-xs tracking-wide text-[var(--color-text-muted)]">{t('app.tagline')}</p>
-        <h2 className="mb-4 text-sm font-medium text-[var(--color-text-muted)]">
-          {t('home.lastPlayed')}
-        </h2>
-
+    <div className="grid h-full min-h-0 gap-3 lg:grid-cols-[minmax(0,1fr)_18rem]">
+      <section className="min-w-0">
         {lastInstance ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <InstanceCard instance={lastInstance} variant="hero" />
             {runningCount > 0 ? (
               <p className="text-xs text-[var(--color-text-muted)]">
                 {t('home.runningCount', { count: runningCount })}
               </p>
             ) : null}
-            <Link to="/library" className="text-sm text-[var(--color-accent)] hover:underline">
+            <Link to="/library" className="text-xs text-[var(--color-accent)] hover:underline">
               {t('home.goLibrary')}
             </Link>
           </div>
         ) : (
-          <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]/60 px-6 py-10 text-center">
-            <p className="text-[var(--color-text-muted)]">{t('home.noLastPlayed')}</p>
-            <Link to="/library" className="mt-4 inline-block">
+          <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]/60 px-4 py-8 text-center">
+            <p className="text-sm text-[var(--color-text-muted)]">{t('home.noLastPlayed')}</p>
+            <Link to="/library" className="mt-3 inline-block">
               <Button variant="primary">{t('home.goLibrary')}</Button>
             </Link>
           </div>
         )}
       </section>
 
-      <NewsList />
+      <NewsList compact />
     </div>
   )
 }

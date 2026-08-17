@@ -1,5 +1,5 @@
-import { useCallback, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useCallback, useMemo, useState } from 'react'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   IconPlus,
@@ -38,6 +38,7 @@ export function ContentTab({ instance }: Props) {
   const installedQuery = useQuery({
     queryKey: ['content-installed', instance.id, category],
     queryFn: () => fledgeApi.content.listInstalled(instance.id, category),
+    placeholderData: keepPreviousData,
   })
 
   const invalidate = useCallback(async () => {
@@ -74,9 +75,10 @@ export function ContentTab({ instance }: Props) {
   })
 
   const items = installedQuery.data ?? []
-  const installingProjectIds = useTransferStore((s) => {
+  const jobs = useTransferStore((s) => s.jobs)
+  const installingProjectIds = useMemo(() => {
     const ids = new Set<string>()
-    for (const job of Object.values(s.jobs)) {
+    for (const job of Object.values(jobs)) {
       if (
         job.kind === 'content' &&
         job.meta.instanceId === instance.id &&
@@ -86,21 +88,21 @@ export function ContentTab({ instance }: Props) {
       }
     }
     return ids
-  })
+  }, [jobs, instance.id])
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-1.5">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-1">
           {CATEGORIES.map((c) => (
             <button
               key={c}
               type="button"
               onClick={() => setCategory(c)}
               className={[
-                'rounded-[var(--radius-sm)] px-3 py-1.5 text-sm transition duration-150',
+                'rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
                 category === c
-                  ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
+                  ? 'bg-[var(--color-selection)] text-[var(--color-on-selection)]'
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)]',
               ].join(' ')}
             >
@@ -124,35 +126,35 @@ export function ContentTab({ instance }: Props) {
         </div>
       </div>
 
-      {installedQuery.isLoading ? (
+      {installedQuery.isPending && !installedQuery.data ? (
         <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
       ) : items.length === 0 ? (
-        <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border)] px-5 py-12 text-center">
-          <IconPuzzle size={28} stroke={1.5} className="mx-auto text-[var(--color-text-muted)]" />
-          <p className="mt-3 text-sm text-[var(--color-text-muted)]">{t('content.empty')}</p>
-          <Button className="mt-4" variant="primary" onClick={() => setAddOpen(true)}>
+        <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-8 text-center">
+          <IconPuzzle size={24} stroke={1.5} className="mx-auto text-[var(--color-text-muted)]" />
+          <p className="mt-2 text-sm text-[var(--color-text-muted)]">{t('content.empty')}</p>
+          <Button className="mt-3" variant="primary" onClick={() => setAddOpen(true)}>
             <IconPlus size={16} stroke={1.75} />
             {t('content.add')}
           </Button>
         </div>
       ) : (
-        <ul className="divide-y divide-[var(--color-border)] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)]">
+        <ul className="divide-y divide-[var(--color-border)] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
           {items.map((item) => (
-            <li key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <li key={item.id} className="flex flex-wrap items-center gap-2.5 px-3 py-1.5">
               {item.iconUrl ? (
                 <img
                   src={item.iconUrl}
                   alt=""
-                  className="size-10 rounded-[var(--radius-sm)] object-cover"
+                  className="size-8 rounded-[var(--radius-sm)] object-cover"
                 />
               ) : (
-                <div className="flex size-10 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
-                  <IconPuzzle size={20} stroke={1.6} />
+                <div className="flex size-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
+                  <IconPuzzle size={16} stroke={1.6} />
                 </div>
               )}
               <div className="min-w-0 flex-1">
-                <div className="truncate font-medium">{item.name}</div>
-                <div className="text-xs text-[var(--color-text-muted)]">
+                <div className="truncate text-sm font-medium">{item.name}</div>
+                <div className="text-[11px] text-[var(--color-text-muted)]">
                   {item.versionNumber}
                   {item.updateAvailable && item.latestVersionNumber
                     ? ` → ${item.latestVersionNumber}`
@@ -180,9 +182,9 @@ export function ContentTab({ instance }: Props) {
                 }
               >
                 {item.enabled ? (
-                  <IconToggleRight size={28} stroke={1.5} className="text-[var(--color-accent)]" />
+                  <IconToggleRight size={22} stroke={1.5} className="text-[var(--color-accent)]" />
                 ) : (
-                  <IconToggleLeft size={28} stroke={1.5} />
+                  <IconToggleLeft size={22} stroke={1.5} />
                 )}
               </button>
               <Button

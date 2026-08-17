@@ -34,9 +34,9 @@ export default function LogsPage() {
   }, [filtered.length, autoScroll])
 
   return (
-    <div className="flex h-full min-h-[28rem] flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold">{t('logs.title')}</h1>
+    <div className="flex h-full min-h-0 flex-col gap-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <h1 className="text-lg font-semibold">{t('logs.title')}</h1>
         <div className="flex flex-wrap items-center gap-2">
           <select
             className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-2 py-1.5 text-sm text-[var(--color-text)]"
