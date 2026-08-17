@@ -6,8 +6,8 @@
 **Windows 11** での利用を想定しています。  
 **現時点では** 広告も利用解析もありません。インスタンスを作って、すぐに遊べます。
 
-> **制作について（Cursor / AI）**  
-> Fledge は [Cursor](https://cursor.com) を使って制作しています。ソースコードの作成には AI を利用しています。
+> **制作について**  
+> Fledge は [Cursor](https://cursor.com) を使って制作しています。
 
 [機能](#できること) · [Fledge らしさ](#fledge-らしさ) · [はじめる](#はじめる) · [ドキュメント](#ドキュメント)
 
@@ -24,7 +24,7 @@ Fledge は、Minecraft Java Edition を起動するための **非公式デス�
 
 オープンソース（[MIT](./LICENSE)）として公開しています。現在は **Ver.0.1.0 - Beta** です。
 
-Fledge は [Cursor](https://cursor.com) を使って制作しており、ソースコードの作成には AI を利用しています。
+Fledge は [Cursor](https://cursor.com) を使って制作しています。
 
 ## Fledge らしさ
 
@@ -168,4 +168,4 @@ pnpm dev
 
 Fledge は非公式ランチャーです。Minecraft は Mojang Studios の商標です。
 
-制作には [Cursor](https://cursor.com) を使用しており、ソースコードの作成には AI を利用しています。
+制作には [Cursor](https://cursor.com) を使用しています。
