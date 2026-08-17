@@ -89,11 +89,13 @@ Main (Electron)
     Settings/          settings.json
     Skins/             アップロードスキン + uploaded.json
     Temp/
-  Instances/           インスタンスごと（mods / saves / config / screenshots 等）
+  Instances/           インスタンスごと（mods / saves / config / options.txt / screenshots 等）
 ```
 
 `packages/core/src/app/paths.ts` の `resolvePathLayout` がこの配置を組み立てます。  
-Minecraft 本体は共有、ワールド・Mod・インスタンス設定は `Instances/<id>/` です。
+Minecraft 本体・ライブラリ・アセットは `Data/Minecraft` で共有します。  
+ワールド、Mod、ゲーム内設定（`options.txt`）、Mod 設定（`config/`）などは `Instances/<id>/` です。  
+Fledge のテーマ・アカウント・スキンは `Data/` 側でランチャー全体共通です。
 
 インスタンス配下で開いてよいサブフォルダ（`INSTANCE_SUBFOLDERS`）:
 
