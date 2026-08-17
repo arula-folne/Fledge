@@ -1,90 +1,134 @@
 # Fledge
 
-日本人向けの軽量・高速・シンプルな Minecraft ランチャーです。MIT ライセンスのオープンソースプロジェクトです。
+**Ready to take flight.**
 
-> Ready to take flight.
+日本人向けに作った、軽量でシンプルな Minecraft ランチャーです。  
+広告も利用解析もありません。インスタンスを作って、すぐに遊べます。
 
-## 方針
+[機能](#できること) · [Fledge らしさ](#fledge-らしさ) · [はじめる](#はじめる) · [ドキュメント](#ドキュメント)
 
-- **広告・利用解析・クラッシュ報告は行いません**（詳細は [PRIVACY.md](./PRIVACY.md)）
-- Discord Rich Presence は**任意**（既定オフ）
-- 認証・ゲーム取得・Mod 検索は、機能利用時のみ各公式／配布サービスの API を使います
+---
 
-## 技術スタック
+## Fledge とは
 
-- Electron / React / TypeScript / Vite / Tailwind CSS / Zustand
-- TanStack Query / Zod / React Router / i18next
-- `@xmcl/core` / `@xmcl/installer`（Minecraft インストール・起動）
-- `msmc`（Microsoft 認証。アダプタ経由のみ）
+Fledge は、Minecraft Java Edition を起動するための **非公式デスクトップアプリ** です。  
+「英語のランチャーを日本語化した」のではなく、**最初から日本語で使うこと** を前提にしています。
 
-## リポジトリ構成
+ワールドや Mod はインスタンスごとに分かれ、ゲーム本体やライブラリは共有します。  
+データは exe と同じフォルダにまとまるので、バックアップや引っ越しがしやすい構成です。
+
+オープンソース（[MIT](./LICENSE)）として公開しています。現在は **Ver.0.1.0 - Beta** です。
+
+## Fledge らしさ
+
+公式ランチャーや海外製ランチャーと比べて、Fledge が大事にしているポイントです。
+
+### 広告・解析なし
+
+Fledge 運営のサーバーへ利用状況を送ることはありません。広告 SDK、テレメトリ、クラッシュ報告の外部送信も入れていません。  
+認証や Mod の取得は、**その機能を使ったときだけ** 各公式／配布サービスの API を使います。
+
+詳細は [プライバシーポリシー](./PRIVACY.md) を参照してください。
+
+### 日本語ではじめる Minecraft
+
+ランチャー UI は日本語です。新規インスタンスの初回起動では、ゲーム側の言語・字幕・FOV・音量などを **あらかじめ指定した初期設定** で始められます。  
+言語一覧では日本語と英語を先頭に出します。毎回ゲーム内オプションから探し直す必要はありません。
+
+### データが手元にまとまる
+
+本番では `Fledge.exe` と同じ階層に `Data/` と `Instances/` を置きます。  
+AppData の奥に散らばらないので、「フォルダごとコピー」「USB に置く」「バックアップする」がしやすいです。
+
+Minecraft 本体・アセット・ライブラリはインスタンス間で共有し、ワールド・Mod・設定だけをインスタンス側に分けます。
+
+### スキンをランチャーから選ぶ
+
+Steve / Alex ほか公式デフォルトに加え、マイスキンを最大 5 件登録できます。  
+3D プレビューで回転・拡大しながら確認し、選んだスキンは Minecraft の公式プロフィールへ反映します。  
+ゲーム中でも切り替えられ、ワールドやサーバーに入り直すと新しいスキンになります。
+
+### アカウントを切り替えながら遊べる
+
+Microsoft アカウントを複数保存できます。  
+A で起動したまま B に切り替え、別インスタンスを起動できます。実行中のゲームは、アカウント切替だけでは終わりません。
+
+### 見た目を自分好みに
+
+ライト / ダーク / OLED / システム追従に加え、テーマカラーを自由に選べます。  
+UI サイズ（コンパクト〜ワイド）や、OS 標準タイトルバー／Fledge 独自タイトルバーの切り替えにも対応しています。
+
+### 必要なものだけバックアップ
+
+設定・スキン・インスタンス（Mod・ワールドなど）を保存します。Minecraft 本体と Java は含めないので、容量を抑えられます。  
+手動のスナップショットと、変更を書き出す自動同期（初期オフ）があります。
+
+## できること
+
+| カテゴリ | 内容 |
+|----------|------|
+| 起動 | Vanilla / Fabric / Forge / NeoForge / Quilt。スナップショットも選べます |
+| Java | 必要バージョンを自動判定。不足時は Eclipse Temurin（8 / 17 / 21 / 25）を導入 |
+| インスタンス | 作成・複製・アイコン・メモリ・JVM 引数。フォルダは mods / saves / screenshots など用途ごとに開けます |
+| コンテンツ | [Modrinth](https://modrinth.com) から Mod・リソースパック・シェーダー・データパック・プラグインを検索・導入・更新 |
+| スキン | デフォルト＋マイスキン、3D プレビュー、公式プロフィールへの適用 |
+| アカウント | Microsoft ログイン、複数アカウント、トークンは端末内で暗号化保存 |
+| ニュース | ランチャー内のお知らせ（日本語） |
+| ログ | 起動ログの確認 |
+| Discord | Rich Presence は任意。**既定はオフ** |
+
+## はじめる
+
+1. Microsoft アカウントでログインする  
+2. ライブラリからインスタンスを作成する（バージョンとローダーを選ぶ）  
+3. 必要なら Modrinth からコンテンツを追加する  
+4. ホーム、またはライブラリから起動する  
+
+Java が足りないときは、起動準備の流れで導入できます。設定画面から個別にインストール・再インストール・整合性チェックもできます。
+
+インストーラーの配布は [Releases](https://github.com/arula-folne/Fledge/releases) を確認してください。ソースから動かす場合は [開発ガイド](./docs/development.md) を参照してください。
+
+## ドキュメント
+
+GitHub 上の資料です。アプリの紹介は本 README、実装の詳細は `docs/` に分けています。
+
+| 文書 | 内容 |
+|------|------|
+| [技術仕様](./docs/spec.md) | リポジトリ構成、データ配置、起動・認証・コンテンツなどの仕様 |
+| [開発ガイド](./docs/development.md) | ビルド・開発時の注意 |
+| [プライバシーポリシー](./PRIVACY.md) | 取り扱う情報と外部通信 |
+| [利用規約](./TERMS.md) | 利用条件 |
+
+Issue・要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) へお願いします。
+
+## 開発者向け（概要）
+
+Electron + React + TypeScript のデスクトップアプリです。ランチャー中核は UI 非依存の `@fledge/core` に置いています。
+
+詳しい構成・IPC・保存先・起動フローは **[技術仕様](./docs/spec.md)**、手順は **[開発ガイド](./docs/development.md)** を見てください。
 
 ```
 Fledge/
-  apps/desktop/       Electron + React UI
-  packages/core/      ランチャー中核（UI 非依存）
-  packages/shared/    型・IPC 契約
-  packages/i18n/      文言リソース
-  scripts/patch-xmcl.js  @xmcl 公開パッケージのエントリ修正
+  apps/desktop/     Electron + React UI
+  packages/core/    ランチャー中核
+  packages/shared/  型・IPC 契約
+  packages/i18n/    文言
+  docs/             GitHub 向けの仕様・開発資料
 ```
 
-## ランタイムデータ（インストール先集約）
-
-本番では `Fledge.exe` と同じフォルダ配下に集約します。
-
-```
-Fledge/
-  Fledge.exe
-  Data/
-    Accounts/
-    Cache/
-    java-version/  # java8 / java17 / java21 / java25
-    Logs/
-    Minecraft/     # 共有 libraries / assets / versions
-    News/
-    Settings/
-    Temp/
-  Instances/       # インスタンス固有（mods / saves / config 等）
-```
-
-開発時のルートは `apps/desktop/.fledge-root/` です。
-
-## 開発手順
-
-前提: Node.js 20+、pnpm 11+
+前提は Node.js 20+、pnpm 11+ です。最短の起動は次のとおりです。
 
 ```powershell
-cd Fledge
 pnpm install
 pnpm approve-builds --all
-node scripts/patch-xmcl.js
 pnpm --filter @fledge/shared build
 pnpm --filter @fledge/i18n build
 pnpm --filter @fledge/core build
-pnpm --filter @fledge/desktop exec electron-vite dev
+pnpm dev
 ```
-
-ルートの `pnpm dev` でも起動できます。
-
-### 補足
-
-- `@xmcl/*` は npm 上の `main` がソースを指しているため、`postinstall` で `scripts/patch-xmcl.js` が dist を指すよう修正します。
-- Electron のダウンロードに失敗する場合は、GitHub Releases から `electron-v*-win32-x64.zip` を取得し `apps/desktop/node_modules/electron/dist` に展開してください。
-
-## 主な機能
-
-- Microsoft アカウントログイン
-- Vanilla / Fabric / Forge / NeoForge 起動
-- Java 自動検出・不足時ダウンロード（Temurin）
-- インスタンス管理
-- Modrinth コンテンツ検索・インストール
-- ニュース（ローカル JSON）
-- 起動ログ / 基本設定
 
 ## ライセンス
 
 [MIT](./LICENSE) © folne
-
-## 注意
 
 Fledge は非公式ランチャーです。Minecraft は Mojang Studios の商標です。
