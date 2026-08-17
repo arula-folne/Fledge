@@ -1,4 +1,11 @@
-import { useEffect, useState, type CSSProperties } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import {
+  IconCircleLetterD,
+  IconDeviceDesktop,
+  IconMoon,
+  IconPalette,
+  IconSun,
+} from '@tabler/icons-react'
 import type { ThemeMode } from '@fledge/shared'
 
 type Props = {
@@ -14,6 +21,8 @@ const SKEW = 12
 const COLOR_RAINBOW =
   'linear-gradient(135deg, #ff4d6d 0%, #ff9f1c 22%, #ffd60a 40%, #2ec4b6 58%, #4cc9f0 76%, #7b2cbf 100%)'
 
+const ICON_PROPS = { size: 16, stroke: 1.75 } as const
+
 function previewBg(mode: ThemeMode): string {
   switch (mode) {
     case 'light':
@@ -27,6 +36,58 @@ function previewBg(mode: ThemeMode): string {
     case 'color':
       return COLOR_RAINBOW
   }
+}
+
+function ModeIcon({ mode }: { mode: ThemeMode }) {
+  switch (mode) {
+    case 'light':
+      return <IconSun {...ICON_PROPS} />
+    case 'dark':
+      return <IconMoon {...ICON_PROPS} />
+    case 'color':
+      return <IconPalette {...ICON_PROPS} />
+    case 'oled':
+      return <IconCircleLetterD {...ICON_PROPS} />
+    case 'system':
+      return <IconDeviceDesktop {...ICON_PROPS} />
+  }
+}
+
+function RadioMark({ selected }: { selected: boolean }) {
+  return (
+    <span
+      className={[
+        'inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border',
+        selected ? 'border-[var(--color-accent)]' : 'border-current opacity-55',
+      ].join(' ')}
+      aria-hidden
+    >
+      {selected ? <span className="h-2 w-2 rounded-full bg-[var(--color-accent)]" /> : null}
+    </span>
+  )
+}
+
+function LabelBar({
+  selected,
+  label,
+  icon,
+}: {
+  selected: boolean
+  label: string
+  icon: ReactNode
+}) {
+  return (
+    <span
+      className={[
+        'mt-auto grid h-7 w-full grid-cols-[18px_minmax(0,1fr)_18px] items-center gap-0.5 px-0.5',
+        selected ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]',
+      ].join(' ')}
+    >
+      <RadioMark selected={selected} />
+      <span className="min-w-0 truncate text-center text-xs font-semibold leading-none">{label}</span>
+      <span className="flex justify-end text-current">{icon}</span>
+    </span>
+  )
 }
 
 export function ThemeModePicker({ value, labels, onChange }: Props) {
@@ -76,14 +137,7 @@ export function ThemeModePicker({ value, labels, onChange }: Props) {
                   } satisfies CSSProperties
                 }
               />
-              <span
-                className={[
-                  'mt-auto truncate px-0.5 text-center text-xs font-semibold',
-                  selected ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]',
-                ].join(' ')}
-              >
-                {labels[mode]}
-              </span>
+              <LabelBar selected={selected} label={labels[mode]} icon={<ModeIcon mode={mode} />} />
             </button>
           )
         })}
