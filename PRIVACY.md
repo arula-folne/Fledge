@@ -1,10 +1,10 @@
 # プライバシーポリシー（Privacy Policy）
 
-最終更新: 2026-08-16
+最終更新: 2026-08-17
 
-本ポリシーは、Minecraft ランチャー **Fledge**（以下「本アプリ」）が取り扱う情報について説明します。Fledge は個人・OSS プロジェクト（[arula-folne/Fledge](https://github.com/arula-folne/Fledge)）です。Fledge 運営の解析サーバーや広告 SDK はありません。
+本ポリシーは、Minecraft ランチャー **Fledge**（以下「本アプリ」）が取り扱う情報について説明します。Fledge は個人・OSS プロジェクト（[arula-folne/Fledge](https://github.com/arula-folne/Fledge)）です。**現時点では** Fledge 運営の解析サーバーや広告 SDK はありません。
 
-English summary: Fledge does not include ads, analytics, telemetry, or crash-reporting SDKs. Account tokens stay on your PC. Data leaves the device only to official / opted-in third-party services when you use those features. See below for details.
+English summary: At present, Fledge does not include ads, analytics, telemetry, or crash-reporting SDKs. Account tokens stay on your PC. Data leaves the device only to official / opted-in third-party services when you use those features. See below for details.
 
 関連文書: [利用規約](./TERMS.md)
 
@@ -113,7 +113,24 @@ Fledge 運営が利用者情報を第三者に販売・提供することはあ�
 
 ---
 
-## 9. 問い合わせ
+## 9. 今後予定している連携と運用方針
+
+Fledge は今後、運用中の **webw** と連携し、アプリ内で使える着せ替え機能を提供する予定です。これに伴い、将来的には次のような運用を行う可能性があります。
+
+- Fledge 独自アカウントの運用
+- 機能の利用率や継続利用状況の把握
+- サービス改善や障害対応のために必要な範囲での利用状況の解析
+
+これらは**現時点では未導入**です。実装するときは、少なくとも次の方針を守ります。
+
+- 個人情報は必要最小限にとどめ、保護方法を明示する
+- パスワード、トークン、個人情報などの秘密情報をソースコードや公開リポジトリに含めない
+- 公開資料に、取得する情報・保存期間・利用目的・第三者提供の有無を追記する
+- 実装前後で本ポリシーと関連文書を更新し、GitHub 上で公開する
+
+---
+
+## 10. 問い合わせ
 
 質問は GitHub の Issue へお願いします。  
 https://github.com/arula-folne/Fledge/issues
