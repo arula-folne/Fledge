@@ -6,7 +6,7 @@
 
 English summary: At present, Fledge does not include ads, analytics, telemetry, or crash-reporting SDKs. Account tokens stay on your PC. Data leaves the device only to official / opted-in third-party services when you use those features. See below for details.
 
-関連文書: [利用規約](./TERMS.md)
+関連文書: [利用規約](./TERMS.md) / [データ取扱一覧表](./docs/data-handling.md)
 
 ---
 
@@ -129,6 +129,8 @@ Fledge は今後、運用中の **webw** と連携し、アプリ内で使える
 - パスワード、トークン、個人情報などの秘密情報をソースコードや公開リポジトリに含めない
 - 公開資料に、取得する情報・保存期間・利用目的・第三者提供の有無を追記する
 - 実装前後で本ポリシーと関連文書を更新し、GitHub 上で公開する
+
+将来の導入候補を含む整理表は [データ取扱一覧表](./docs/data-handling.md) を参照してください。
 
 ---
 

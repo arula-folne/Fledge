@@ -5,7 +5,7 @@
 GitHub リポジトリ向けの実装仕様です。アプリ紹介・機能のアピールは [README](../README.md) を先に読んでください。  
 開発手順は [development.md](./development.md) です。
 
-関連: [PRIVACY.md](../PRIVACY.md) / [TERMS.md](../TERMS.md)
+関連: [PRIVACY.md](../PRIVACY.md) / [TERMS.md](../TERMS.md) / [data-handling.md](./data-handling.md)
 
 ---
 
