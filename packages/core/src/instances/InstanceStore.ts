@@ -2,6 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import {
   CreateInstanceInputSchema,
+  DEFAULT_INSTANCE_ICON_PRESET,
   INSTANCE_ICON_EXTS,
   MAX_INSTANCE_ICON_BYTES,
   InstanceProfileSchema,
@@ -113,6 +114,7 @@ export class InstanceStore {
         maxMb: fields.memoryMaxMb || defaults?.memoryMaxMb || 4096,
       },
       jvmArgs: fields.jvmArgs.length ? fields.jvmArgs : (defaults?.jvmArgs ?? []),
+      iconPreset: icon ? undefined : (fields.iconPreset ?? DEFAULT_INSTANCE_ICON_PRESET),
       ...(seed
         ? {
             minecraftInitialSettingsSeeded: true,

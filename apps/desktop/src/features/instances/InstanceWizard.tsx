@@ -4,9 +4,11 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { IconRefresh } from '@tabler/icons-react'
 import {
+  DEFAULT_INSTANCE_ICON_PRESET,
   INSTANCE_ICON_EXTS,
   MAX_INSTANCE_ICON_BYTES,
   type CreateInstanceInput,
+  type InstanceIconPreset,
   type Loader,
 } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
@@ -15,6 +17,7 @@ import { Dialog } from '../../components/ui/Dialog'
 import { Select } from '../../components/ui/Select'
 import { TextField } from '../../components/ui/TextField'
 import { InstanceIcon } from './InstanceIcon'
+import { InstanceIconPresetPicker } from './instanceIconPresets'
 import {
   defaultInstanceName,
   resolveLoaderVersionId,
@@ -51,6 +54,7 @@ export function InstanceWizard({ open, onClose, title }: Props) {
   const [otherLoaderVersion, setOtherLoaderVersion] = useState('')
   const [includeSnapshots, setIncludeSnapshots] = useState(false)
   const [icon, setIcon] = useState<IconPick | null>(null)
+  const [iconPreset, setIconPreset] = useState<InstanceIconPreset>(DEFAULT_INSTANCE_ICON_PRESET)
   const [iconError, setIconError] = useState('')
 
   const settingsQuery = useQuery({
@@ -83,6 +87,7 @@ export function InstanceWizard({ open, onClose, title }: Props) {
     setMinecraftVersion('')
     setIncludeSnapshots(false)
     setIconError('')
+    setIconPreset(DEFAULT_INSTANCE_ICON_PRESET)
     setIcon((prev) => {
       if (prev) URL.revokeObjectURL(prev.previewUrl)
       return null
@@ -225,6 +230,7 @@ export function InstanceWizard({ open, onClose, title }: Props) {
             icon: icon
               ? { bytes: icon.bytes, originalName: icon.originalName }
               : undefined,
+            iconPreset: icon ? undefined : iconPreset,
           })
         }
       >
@@ -262,7 +268,7 @@ export function InstanceWizard({ open, onClose, title }: Props) {
               onClick={() => iconInputRef.current?.click()}
               title={t('instances.iconChange')}
             >
-              <InstanceIcon previewSrc={icon?.previewUrl} size="lg" />
+              <InstanceIcon previewSrc={icon?.previewUrl} preset={iconPreset} size="lg" />
             </button>
             {icon ? (
               <button
@@ -278,9 +284,13 @@ export function InstanceWizard({ open, onClose, title }: Props) {
                 {t('instances.iconClear')}
               </button>
             ) : (
-              <span className="max-w-[7rem] text-center text-[11px] text-[var(--color-text-muted)]">
-                {t('instances.iconHint')}
-              </span>
+              <button
+                type="button"
+                className="text-xs text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
+                onClick={() => iconInputRef.current?.click()}
+              >
+                {t('instances.iconChange')}
+              </button>
             )}
           </div>
 
@@ -309,6 +319,13 @@ export function InstanceWizard({ open, onClose, title }: Props) {
         </div>
 
         {iconError ? <p className="text-sm text-[var(--color-danger)]">{iconError}</p> : null}
+        {icon ? <p className="text-xs text-[var(--color-text-muted)]">{t('instances.iconCustomNote')}</p> : null}
+
+        <InstanceIconPresetPicker
+          value={iconPreset}
+          onChange={setIconPreset}
+          disabled={Boolean(icon)}
+        />
 
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-sm font-medium text-[var(--color-text)]">{t('instances.version')}</h3>
@@ -396,7 +413,7 @@ export function InstanceWizard({ open, onClose, title }: Props) {
                       className={[
                         'flex-1 rounded-[var(--radius-sm)] px-3 py-1.5 text-sm transition',
                         on
-                          ? 'bg-[var(--color-accent-soft)] font-medium text-[var(--color-accent)]'
+                          ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
                           : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
                       ].join(' ')}
                       onClick={() => setLoaderChannel(channel)}

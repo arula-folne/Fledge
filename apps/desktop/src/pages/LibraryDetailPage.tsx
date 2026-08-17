@@ -13,13 +13,14 @@ import {
   IconTrash,
   IconWorld,
 } from '@tabler/icons-react'
-import type { InstanceSubfolder } from '@fledge/shared'
+import { DEFAULT_INSTANCE_ICON_PRESET, type InstanceIconPreset, type InstanceSubfolder } from '@fledge/shared'
 import { fledgeApi } from '../api/fledgeApi'
 import { Button } from '../components/ui/Button'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { TextField } from '../components/ui/TextField'
 import { MemorySnapSlider } from '../components/ui/MemorySnapSlider'
 import { InstanceIcon } from '../features/instances/InstanceIcon'
+import { InstanceIconPresetDialog, sameIconPreset } from '../features/instances/instanceIconPresets'
 import { InstanceLaunchButton } from '../features/instances/InstanceLaunchButton'
 import { formatLastPlayed, formatLoaderLabel } from '../features/instances/instanceMeta'
 import { ContentTab } from '../features/content/ContentTab'
@@ -31,6 +32,7 @@ type Draft = {
   name: string
   memoryMaxMb: number
   jvmArgs: string
+  iconPreset: InstanceIconPreset
 }
 
 function FolderButton({
@@ -70,7 +72,7 @@ function TabButton({
       className={[
         'rounded-[var(--radius-sm)] px-3 py-2 text-sm transition duration-150',
         active
-          ? 'bg-[var(--color-accent-soft)] font-medium text-[var(--color-accent)]'
+          ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
           : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
       ].join(' ')}
     >
@@ -92,6 +94,8 @@ export default function LibraryDetailPage() {
   const [draft, setDraft] = useState<Draft | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [iconOpen, setIconOpen] = useState(false)
+  const [iconDraft, setIconDraft] = useState<InstanceIconPreset>(DEFAULT_INSTANCE_ICON_PRESET)
 
   const instanceQuery = useQuery({
     queryKey: ['instances', instanceId],
@@ -125,6 +129,10 @@ export default function LibraryDetailPage() {
   }, [instanceId, tab, setLibraryFocus])
 
   useEffect(() => {
+    if (tab !== 'settings') setIconOpen(false)
+  }, [tab])
+
+  useEffect(() => {
     return () => {
       const current = useUiStore.getState().libraryFocus
       if (current?.instanceId === instanceId) useUiStore.getState().setLibraryFocus(null)
@@ -137,6 +145,7 @@ export default function LibraryDetailPage() {
       name: instance.name,
       memoryMaxMb: instance.memory.maxMb,
       jvmArgs: instance.jvmArgs.join(' '),
+      iconPreset: instance.iconPreset ?? DEFAULT_INSTANCE_ICON_PRESET,
     })
   }, [instance?.id, instance?.updatedAt, instance?.name, instance?.memory.maxMb, instance?.jvmArgs])
 
@@ -150,6 +159,7 @@ export default function LibraryDetailPage() {
           .split(/\s+/)
           .map((s) => s.trim())
           .filter(Boolean),
+        iconPreset: instance.iconFile ? instance.iconPreset : draft.iconPreset,
       })
     },
     onSuccess: async () => {
@@ -201,7 +211,9 @@ export default function LibraryDetailPage() {
   const dirty =
     draft.name.trim() !== instance.name ||
     draft.memoryMaxMb !== instance.memory.maxMb ||
-    draft.jvmArgs.trim() !== instance.jvmArgs.join(' ')
+    draft.jvmArgs.trim() !== instance.jvmArgs.join(' ') ||
+    (!instance.iconFile &&
+      !sameIconPreset(draft.iconPreset, instance.iconPreset ?? DEFAULT_INSTANCE_ICON_PRESET))
 
   const tabs: { id: TabId; label: string }[] = [
     { id: 'overview', label: t('library.tab.overview') },
@@ -221,7 +233,11 @@ export default function LibraryDetailPage() {
       </div>
 
       <header className="flex flex-wrap items-start gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-        <InstanceIcon instance={instance} size="lg" />
+        <InstanceIcon
+          instance={instance}
+          preset={tab === 'settings' ? draft.iconPreset : undefined}
+          size="lg"
+        />
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-2xl font-semibold">{instance.name}</h1>
           <p className="mt-1 text-sm text-[var(--color-text-muted)]">
@@ -381,11 +397,39 @@ export default function LibraryDetailPage() {
 
       {tab === 'settings' ? (
         <div className="space-y-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-          <TextField
-            label={t('instances.name')}
-            value={draft.name}
-            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-          />
+          <div className="flex items-start gap-4">
+            <div className="flex shrink-0 flex-col items-center gap-2">
+              <span className="text-sm font-medium">{t('instances.icon')}</span>
+              <button
+                type="button"
+                className="rounded-[var(--radius-md)] outline-none ring-[var(--color-accent)] hover:ring-2 focus-visible:ring-2 disabled:cursor-default disabled:hover:ring-0"
+                disabled={Boolean(instance.iconFile)}
+                title={
+                  instance.iconFile ? t('instances.iconCustomNote') : t('instances.iconChangePreset')
+                }
+                onClick={() => {
+                  setIconDraft(draft.iconPreset)
+                  setIconOpen(true)
+                }}
+              >
+                <InstanceIcon instance={instance} preset={draft.iconPreset} size="lg" />
+              </button>
+              {instance.iconFile ? (
+                <p className="text-xs text-[var(--color-text-muted)]">{t('instances.iconCustomShort')}</p>
+              ) : (
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  {t('instances.iconChangePreset')}
+                </span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <TextField
+                label={t('instances.name')}
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+              />
+            </div>
+          </div>
           <div className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-3 py-2 text-sm">
             <div className="text-xs text-[var(--color-text-muted)]">{t('instances.version')}</div>
             <div className="mt-0.5">{instance.minecraftVersion}</div>
@@ -426,6 +470,16 @@ export default function LibraryDetailPage() {
           </div>
         </div>
       ) : null}
+      <InstanceIconPresetDialog
+        open={iconOpen && !instance.iconFile}
+        value={iconDraft}
+        onChange={setIconDraft}
+        onClose={() => setIconOpen(false)}
+        onApply={() => {
+          setDraft({ ...draft, iconPreset: iconDraft })
+          setIconOpen(false)
+        }}
+      />
       <ConfirmDialog
         open={deleteOpen}
         title={t('instances.delete')}

@@ -109,7 +109,7 @@ export default function SkinPage() {
             <div className="mt-2 text-center">
               <div className="flex items-center justify-center gap-1.5">
                 <span className="text-sm font-medium">{selectedSkin.name}</span>
-                <span className="rounded-full bg-[var(--color-accent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-on-accent)]">
+                <span className="rounded-full bg-[var(--color-selection)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-on-selection)]">
                   {t('skin.using')}
                 </span>
               </div>
@@ -286,7 +286,7 @@ function SkinCard({
       className={[
         'relative flex flex-col overflow-hidden rounded-[var(--radius-md)] border transition',
         selected
-          ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/35'
+          ? 'border-[var(--color-selection)] ring-2 ring-[var(--color-selection)]/35'
           : dashed
             ? 'border-dashed border-[var(--color-border)] hover:border-[var(--color-accent)]/60'
             : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50',
@@ -298,7 +298,7 @@ function SkinCard({
         </div>
       </button>
       {selected ? (
-        <span className="pointer-events-none absolute top-1.5 right-1.5 inline-flex items-center gap-0.5 rounded-full bg-[var(--color-accent)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--color-on-accent)]">
+        <span className="pointer-events-none absolute top-1.5 right-1.5 inline-flex items-center gap-0.5 rounded-full bg-[var(--color-selection)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--color-on-selection)]">
           <IconCheck size={11} stroke={2.2} />
           {t('skin.using')}
         </span>

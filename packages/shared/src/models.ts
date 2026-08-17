@@ -24,6 +24,33 @@ export type AccountView = z.infer<typeof AccountViewSchema>
 export const LoaderSchema = z.enum(['vanilla', 'fabric', 'forge', 'neoforge', 'quilt'])
 export type Loader = z.infer<typeof LoaderSchema>
 
+export const INSTANCE_ICON_VARIANTS = [
+  'cube',
+  'cubeOff',
+  'cube3dSphere',
+  'cube3dSphereOff',
+  'cubePlus',
+  'cubeSend',
+  'cubeSpark',
+] as const
+export type InstanceIconVariant = (typeof INSTANCE_ICON_VARIANTS)[number]
+
+export const INSTANCE_ICON_BACKDROPS = ['plain', 'sea', 'sky', 'grass', 'night'] as const
+export type InstanceIconBackdrop = (typeof INSTANCE_ICON_BACKDROPS)[number]
+
+export const InstanceIconPresetSchema = z.object({
+  variant: z.enum(INSTANCE_ICON_VARIANTS).catch('cube'),
+  color: z.string().min(4).max(9).default('#f4f7fa'),
+  backdrop: z.enum(INSTANCE_ICON_BACKDROPS).default('plain'),
+})
+export type InstanceIconPreset = z.infer<typeof InstanceIconPresetSchema>
+
+export const DEFAULT_INSTANCE_ICON_PRESET: InstanceIconPreset = {
+  variant: 'cube',
+  color: '#f4f7fa',
+  backdrop: 'plain',
+}
+
 export const InstanceProfileSchema = z.object({
   id: z.string(),
   name: z.string().min(1).max(64),
@@ -45,6 +72,8 @@ export const InstanceProfileSchema = z.object({
   jvmArgs: z.array(z.string()),
   /** インスタンスフォルダ内のアイコンファイル名（例: icon.png） */
   iconFile: z.string().optional(),
+  /** カスタム画像が無いときのプリセット */
+  iconPreset: InstanceIconPresetSchema.optional(),
   notes: z.string().optional(),
   /**
    * 新規作成時にだけ立つ。既存インスタンスには無い。
@@ -87,6 +116,7 @@ export const CreateInstanceInputSchema = z.object({
   memoryMaxMb: z.number().int().positive().default(4096),
   jvmArgs: z.array(z.string()).default([]),
   icon: CreateInstanceIconSchema.optional(),
+  iconPreset: InstanceIconPresetSchema.optional(),
 })
 export type CreateInstanceInput = z.infer<typeof CreateInstanceInputSchema>
 

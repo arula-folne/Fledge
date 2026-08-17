@@ -202,7 +202,7 @@ export function AccountChip() {
                         className={[
                           'flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left text-sm transition',
                           active
-                            ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)]'
+                            ? 'bg-[var(--color-selection-soft)] text-[var(--color-selection)]'
                             : 'hover:bg-[var(--color-hover)] text-[var(--color-text)]',
                         ].join(' ')}
                         onClick={() => switchMutation.mutate(a.id)}

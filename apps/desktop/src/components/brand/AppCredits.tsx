@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { BRAND } from '@fledge/shared'
 import folneLogo from '../../assets/folne-logo.png'
 
@@ -10,6 +11,8 @@ type Props = {
 }
 
 export function AppCredits({ compact = false, size = 'default', className = '' }: Props) {
+  const { t } = useTranslation()
+
   if (size === 'sidebar') {
     return (
       <div
@@ -48,6 +51,12 @@ export function AppCredits({ compact = false, size = 'default', className = '' }
           className="h-6 w-auto max-w-[9rem] object-contain object-left"
           draggable={false}
         />
+      </div>
+      <div className="mt-4 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-3 py-3">
+        <p className="text-sm font-medium text-[var(--color-text)]">{t('settings.creditsAiTitle')}</p>
+        <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-[var(--color-text-muted)]">
+          {t('settings.creditsAiBody')}
+        </p>
       </div>
     </div>
   )

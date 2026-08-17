@@ -100,7 +100,7 @@ export function ContentTab({ instance }: Props) {
               className={[
                 'rounded-[var(--radius-sm)] px-3 py-1.5 text-sm transition duration-150',
                 category === c
-                  ? 'bg-[var(--color-accent-soft)] font-medium text-[var(--color-accent)]'
+                  ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)]',
               ].join(' ')}
             >

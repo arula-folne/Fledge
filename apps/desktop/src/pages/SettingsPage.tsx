@@ -167,7 +167,7 @@ export default function SettingsPage() {
               className={[
                 'w-full rounded-[var(--radius-sm)] px-3 py-2 text-left text-sm',
                 section === tab.id
-                  ? 'bg-[var(--color-accent-soft)] font-medium text-[var(--color-accent)]'
+                  ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
               ].join(' ')}
               onClick={() => setSection(tab.id)}
@@ -373,7 +373,7 @@ export default function SettingsPage() {
                               <p className="truncate text-sm font-medium text-[var(--color-text)]">
                                 {a.displayName}
                                 {active ? (
-                                  <span className="ml-2 text-[10px] font-semibold text-[var(--color-accent)]">
+                                  <span className="ml-2 text-[10px] font-semibold text-[var(--color-selection)]">
                                     {t('auth.active')}
                                   </span>
                                 ) : null}

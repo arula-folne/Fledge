@@ -136,7 +136,7 @@ function LanguageSelect({
                     className={[
                       'flex w-full px-3 py-2 text-left text-[15px]',
                       selected
-                        ? 'bg-[var(--color-accent-soft)] font-medium text-[var(--color-accent)]'
+                        ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
                         : 'text-[var(--color-text)] hover:bg-[var(--color-hover)]',
                     ].join(' ')}
                     onClick={() => {

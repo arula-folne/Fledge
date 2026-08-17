@@ -27,7 +27,7 @@ const navClass = (collapsed: boolean) =>
       'flex items-center rounded-[var(--radius-sm)] text-sm transition-colors',
       collapsed ? 'justify-center px-2 py-2.5' : 'gap-2.5 px-3 py-2',
       isActive
-        ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] font-medium'
+        ? 'bg-[var(--color-selection-soft)] text-[var(--color-selection)] font-medium'
         : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
     ].join(' ')
 

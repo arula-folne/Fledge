@@ -9,6 +9,10 @@
   --color-text-muted: #6e6a64;
   --color-accent: #5a8fb0;
   --color-accent-soft: #e4e0da;
+  /* 選択中の縁・ラジオなど。テーマカラーでは上書きしない */
+  --color-selection: #6bb0df;
+  --color-selection-soft: rgba(107, 176, 223, 0.22);
+  --color-on-selection: #1a1a1c;
   --color-hover: rgba(44, 42, 39, 0.06);
   --color-on-accent: #f4f1eb;
   --color-scrollbar: #b0aba5;

@@ -172,7 +172,7 @@ export function AddContentModal({
               className={[
                 'rounded-[var(--radius-sm)] px-2.5 py-1 text-xs transition',
                 category === c
-                  ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
+                  ? 'bg-[var(--color-selection)] text-[var(--color-on-selection)]'
                   : 'bg-[var(--color-hover)] text-[var(--color-text-muted)]',
               ].join(' ')}
             >
@@ -203,7 +203,7 @@ export function AddContentModal({
                     className={[
                       'rounded-[var(--radius-sm)] px-2.5 py-1 text-xs capitalize transition',
                       on
-                        ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)]'
+                        ? 'bg-[var(--color-selection-soft)] text-[var(--color-selection)]'
                         : 'bg-[var(--color-hover)] text-[var(--color-text-muted)]',
                     ].join(' ')}
                   >

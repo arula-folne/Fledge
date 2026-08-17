@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { InstanceProfile } from '@fledge/shared'
@@ -12,18 +12,26 @@ type Props = {
   /** 大きいヒーローカード（ホーム用） */
   variant?: 'list' | 'hero'
   className?: string
+  onContextMenu?: (event: MouseEvent, instance: InstanceProfile) => void
 }
 
 export const InstanceCard = memo(function InstanceCard({
   instance,
   variant = 'list',
   className = '',
+  onContextMenu,
 }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const detailPath = `/library/${instance.id}`
 
   const goDetail = () => navigate(detailPath)
+  const handleContextMenu = (e: MouseEvent) => {
+    if (!onContextMenu) return
+    e.preventDefault()
+    e.stopPropagation()
+    onContextMenu(e, instance)
+  }
 
   if (variant === 'hero') {
     return (
@@ -31,6 +39,7 @@ export const InstanceCard = memo(function InstanceCard({
         role="link"
         tabIndex={0}
         onClick={goDetail}
+        onContextMenu={handleContextMenu}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault()
@@ -67,6 +76,7 @@ export const InstanceCard = memo(function InstanceCard({
       role="link"
       tabIndex={0}
       onClick={goDetail}
+      onContextMenu={handleContextMenu}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()

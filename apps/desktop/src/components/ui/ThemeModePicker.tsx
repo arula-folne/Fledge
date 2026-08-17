@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import {
   IconCircleLetterD,
   IconDeviceDesktop,
@@ -16,12 +16,18 @@ type Props = {
 
 const ORDER: ThemeMode[] = ['light', 'dark', 'oled', 'color', 'system']
 
+const MODE_ICON = {
+  dark: IconMoon,
+  light: IconSun,
+  color: IconPalette,
+  oled: IconCircleLetterD,
+  system: IconDeviceDesktop,
+} as const
+
 const SKEW = 12
 
 const COLOR_RAINBOW =
   'linear-gradient(135deg, #ff4d6d 0%, #ff9f1c 22%, #ffd60a 40%, #2ec4b6 58%, #4cc9f0 76%, #7b2cbf 100%)'
-
-const ICON_PROPS = { size: 16, stroke: 1.75 } as const
 
 function previewBg(mode: ThemeMode): string {
   switch (mode) {
@@ -38,58 +44,6 @@ function previewBg(mode: ThemeMode): string {
   }
 }
 
-function ModeIcon({ mode }: { mode: ThemeMode }) {
-  switch (mode) {
-    case 'light':
-      return <IconSun {...ICON_PROPS} />
-    case 'dark':
-      return <IconMoon {...ICON_PROPS} />
-    case 'color':
-      return <IconPalette {...ICON_PROPS} />
-    case 'oled':
-      return <IconCircleLetterD {...ICON_PROPS} />
-    case 'system':
-      return <IconDeviceDesktop {...ICON_PROPS} />
-  }
-}
-
-function RadioMark({ selected }: { selected: boolean }) {
-  return (
-    <span
-      className={[
-        'inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border',
-        selected ? 'border-[var(--color-accent)]' : 'border-current opacity-55',
-      ].join(' ')}
-      aria-hidden
-    >
-      {selected ? <span className="h-2 w-2 rounded-full bg-[var(--color-accent)]" /> : null}
-    </span>
-  )
-}
-
-function LabelBar({
-  selected,
-  label,
-  icon,
-}: {
-  selected: boolean
-  label: string
-  icon: ReactNode
-}) {
-  return (
-    <span
-      className={[
-        'mt-auto grid h-7 w-full grid-cols-[18px_minmax(0,1fr)_18px] items-center gap-0.5 px-0.5',
-        selected ? 'text-[var(--color-accent)]' : 'text-[var(--color-text)]',
-      ].join(' ')}
-    >
-      <RadioMark selected={selected} />
-      <span className="min-w-0 truncate text-center text-xs font-semibold leading-none">{label}</span>
-      <span className="flex justify-end text-current">{icon}</span>
-    </span>
-  )
-}
-
 export function ThemeModePicker({ value, labels, onChange }: Props) {
   const [pending, setPending] = useState<ThemeMode | null>(null)
   const current = pending ?? value
@@ -103,6 +57,7 @@ export function ThemeModePicker({ value, labels, onChange }: Props) {
       <div className="flex w-full gap-2.5">
         {ORDER.map((mode) => {
           const selected = current === mode
+          const Icon = MODE_ICON[mode]
           return (
             <button
               key={mode}
@@ -110,21 +65,22 @@ export function ThemeModePicker({ value, labels, onChange }: Props) {
               role="radio"
               aria-checked={selected}
               aria-label={labels[mode]}
+              title={labels[mode]}
               onClick={() => {
                 setPending(mode)
                 onChange(mode)
               }}
               className={[
-                'relative flex h-[124px] min-w-0 flex-1 flex-col',
-                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]',
+                'relative h-[108px] min-w-0 flex-1',
+                'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-selection)]',
               ].join(' ')}
             >
               <div
                 className={[
-                  'pointer-events-none absolute inset-x-[4%] top-0 bottom-7 overflow-hidden rounded-[18px]',
+                  'pointer-events-none absolute inset-y-0 inset-x-[4%] flex overflow-hidden rounded-[18px]',
                   'transition-[box-shadow,filter]',
                   selected
-                    ? 'z-[1] shadow-[0_0_0_2px_var(--color-accent)]'
+                    ? 'z-[1] shadow-[0_0_0_2px_var(--color-selection)]'
                     : mode === 'oled'
                       ? 'shadow-[inset_0_0_0_1px_rgba(255,255,255,0.25)]'
                       : 'shadow-[inset_0_0_0_1px_rgba(0,0,0,0.2)]',
@@ -136,8 +92,33 @@ export function ThemeModePicker({ value, labels, onChange }: Props) {
                     backfaceVisibility: 'hidden',
                   } satisfies CSSProperties
                 }
-              />
-              <LabelBar selected={selected} label={labels[mode]} icon={<ModeIcon mode={mode} />} />
+              >
+                <div
+                  className="flex h-full w-[130%] flex-col justify-end"
+                  style={{
+                    transform: `skewX(${SKEW}deg)`,
+                    marginLeft: '-15%',
+                  }}
+                >
+                  <div className="flex items-center justify-center gap-1 bg-black/55 px-1 py-2 backdrop-blur-[1px]">
+                    <span
+                      className={[
+                        'grid size-3.5 shrink-0 place-items-center rounded-full border-2',
+                        selected ? 'border-[var(--color-selection)]' : 'border-white/85',
+                      ].join(' ')}
+                      aria-hidden
+                    >
+                      {selected ? (
+                        <span className="size-1.5 rounded-full bg-[var(--color-selection)]" />
+                      ) : null}
+                    </span>
+                    <span className="truncate text-[11px] font-semibold leading-none text-white">
+                      {labels[mode]}
+                    </span>
+                    <Icon size={13} stroke={1.75} className="shrink-0 text-white/95" aria-hidden />
+                  </div>
+                </div>
+              </div>
             </button>
           )
         })}

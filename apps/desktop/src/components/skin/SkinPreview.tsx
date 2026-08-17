@@ -251,6 +251,7 @@ function InteractivePreview({
     viewer.controls.enablePan = false
     viewer.controls.enableZoom = true
     viewer.controls.enableRotate = true
+    viewer.controls.rotateSpeed = 0.5
     viewer.controls.minDistance = 32
     viewer.controls.maxDistance = 110
     // ホイールクリックは OrbitControls のズームではなく、向き・ズームのリセットに使う

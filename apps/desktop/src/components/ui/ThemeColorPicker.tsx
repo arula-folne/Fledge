@@ -208,7 +208,7 @@ export const ThemeColorPicker = memo(function ThemeColorPicker({ value, onChange
           'flex w-full items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)]',
           'bg-[var(--color-surface)] px-4 py-3 text-left transition',
           'hover:bg-[var(--color-hover)]',
-          'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]',
+          'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-selection)]',
         ].join(' ')}
         onClick={openMenu}
       >
@@ -287,7 +287,7 @@ export const ThemeColorPicker = memo(function ThemeColorPicker({ value, onChange
                     className={[
                       'size-6 rounded-md border transition',
                       selected
-                        ? 'border-[var(--color-accent)] ring-2 ring-[var(--color-accent)]/50'
+                        ? 'border-[var(--color-selection)] ring-2 ring-[var(--color-selection)]/50'
                         : 'border-black/15 hover:scale-105',
                     ].join(' ')}
                     style={{ background: themeColorSwatchPreview(swatch) }}
