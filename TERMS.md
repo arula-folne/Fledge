@@ -19,6 +19,7 @@ Fledge は、個人・OSS として公開している **非公式** の Minecraf
 ## 2. 利用できる人
 
 - 本アプリを自分の責任で利用できる方
+- **Windows 11** で利用する方（ほかの OS は想定していません）
 - Minecraft および Microsoft アカウントの各規約を守れる方
 - Discord Rich Presence を使う場合は、あわせて Discord の利用規約を守れる方
 

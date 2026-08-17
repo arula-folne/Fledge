@@ -10,7 +10,7 @@
 
 - Node.js **20+**
 - pnpm **11+**（リポジトリは `packageManager: pnpm@11.4.0`）
-- Windows を主対象（Electron の配布設定は `win32-x64` / NSIS）
+- **Windows 11** のみ想定（Electron の配布設定は `win32-x64` / NSIS）
 
 ## セットアップと起動
 
