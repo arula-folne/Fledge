@@ -48,6 +48,7 @@ export function requiredJavaMajor(minecraftVersion: string): number {
 
 export class JavaManager {
   private readonly inflight = new Map<JavaManagedMajor, Promise<JavaRuntimeView>>()
+  private readonly pathMemo = new Map<number, string>()
 
   constructor(
     private readonly layout: PathLayout,
@@ -115,6 +116,7 @@ export class JavaManager {
   }
 
   private async removeManaged(major: JavaManagedMajor): Promise<void> {
+    this.pathMemo.delete(major)
     const targets = [
       this.installDir(major),
       this.legacyInstallDir(major),
@@ -226,6 +228,7 @@ export class JavaManager {
           messageKey: 'settings.java.downloading',
         })
         if (force) {
+          this.pathMemo.delete(major)
           await fs.rm(this.installDir(major), { recursive: true, force: true })
         }
         const javaHome = await this.downloadTemurin(
@@ -250,6 +253,7 @@ export class JavaManager {
         )
         await fs.mkdir(this.installDir(major), { recursive: true })
         await fs.writeFile(this.markerPath(major), javaHome, 'utf8')
+        this.pathMemo.set(major, javaHome)
         ctx.report({ current: 1, total: 1, unit: 'count', messageKey: 'settings.java.install' })
       },
     })
@@ -258,6 +262,16 @@ export class JavaManager {
 
   /** Fledge 管理下の Temurin のみ（新パス優先、旧 Data/Java/temurin-* も読取可） */
   private async detectManagedJava(major: number): Promise<string | null> {
+    const memo = this.pathMemo.get(major)
+    if (memo) {
+      try {
+        await fs.access(memo)
+        return memo
+      } catch {
+        this.pathMemo.delete(major)
+      }
+    }
+
     const candidates: string[] = [
       this.markerPath(major),
       this.legacyMarkerPath(major),
@@ -265,7 +279,10 @@ export class JavaManager {
     for (const marker of candidates) {
       try {
         const stored = (await fs.readFile(marker, 'utf8')).trim()
-        if (stored && (await this.isExactMajor(stored, major))) return stored
+        if (!stored) continue
+        await fs.access(stored)
+        this.pathMemo.set(major, stored)
+        return stored
       } catch {
         /* continue */
       }
@@ -274,7 +291,10 @@ export class JavaManager {
     for (const dir of [this.installDir(major), this.legacyInstallDir(major)]) {
       try {
         const exe = await this.findJavaExe(dir)
-        if (exe && (await this.isExactMajor(exe, major))) return exe
+        if (exe && (await this.isExactMajor(exe, major))) {
+          this.pathMemo.set(major, exe)
+          return exe
+        }
       } catch {
         /* continue */
       }

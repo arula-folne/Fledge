@@ -84,7 +84,7 @@ Main (Electron)
     Cache/
     java-version/      java8 / java17 / java21 / java25
     Logs/
-    Minecraft/         共有 libraries / assets / versions
+    Minecraft/         共有 libraries / assets / versions / natives
     News/
     Settings/          settings.json
     Skins/             アップロードスキン + uploaded.json
@@ -120,15 +120,16 @@ Fledge のテーマ・アカウント・スキンは `Data/` 側でランチャ�
 
 おおよその位相:
 
-1. `auth` — 資格情報の確認。選択中スキンを公式プロフィールへ適用（ログイン時）
-2. `java` — 対象 MC バージョンからメジャーを推定し、未導入なら Temurin を取得
-3. `download` / `install` — クライアント・ライブラリ・アセット、ローダー
-4. `prepare-natives`
-5. 新規インスタンスなら `pendingMinecraftOptions` を `options.txt` にマージ（初回のみ）
-6. `spawn` — ゲームプロセス起動
-7. `running`
+1. `auth` — 資格情報の確認。選択中スキン適用は起動と並行（ログイン時）
+2. `java` / `install` — Java 確認とクライアント準備を並行。導入済みならネット確認を省略
+3. ネイティブは `Data/Minecraft/natives/<versionId>/` に残し、次回は再展開しない
+4. 新規インスタンスなら `pendingMinecraftOptions` を `options.txt` にマージ（初回のみ）
+5. `spawn` — ゲームプロセス起動
+6. `running`
 
-`prepare` はゲームを出さず Java・クライアント等だけ整えます（インスタンス作成直後のライブラリ画面用）。
+起動直前のライブラリ SHA1 全件検査は行わず、準備済みマーカーとバージョン JSON の存在で再利用します。  
+`prepare` はゲームを出さず Java・クライアント等だけ整えます（インスタンス作成直後のライブラリ画面用）。  
+Fledge 起動後は、最後に遊んだインスタンスを裏で warmup します。
 
 Java メジャー推定の目安（`requiredJavaMajor`）:
 

@@ -72,9 +72,28 @@ declare module '@xmcl/installer' {
 }
 
 declare module '@xmcl/core' {
+  export class MinecraftFolder {
+    constructor(root: string)
+  }
+
   export const Version: {
     parse(minecraft: string, version: string): Promise<unknown>
   }
+
+  export type LaunchPrecheck = (
+    resource: unknown,
+    version: unknown,
+    option: Record<string, unknown>,
+  ) => Promise<void>
+
+  export const LaunchPrecheck: {
+    checkVersion: LaunchPrecheck
+    checkLibraries: LaunchPrecheck
+    checkNatives: LaunchPrecheck
+    linkAssets: LaunchPrecheck
+    DEFAULT_PRECHECKS: readonly LaunchPrecheck[]
+  }
+
   export function launch(options: Record<string, unknown>): Promise<
     import('node:child_process').ChildProcess
   >

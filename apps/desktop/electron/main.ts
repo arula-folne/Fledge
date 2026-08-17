@@ -140,6 +140,16 @@ async function bootstrap(): Promise<void> {
   })
   logger.info('system', `Fledge root: ${root}`)
   if (settings.backupSyncEnabled) launcherApp.backup.scheduleSync()
+
+  const warmupId = settings.lastPlayedInstanceId ?? settings.selectedInstanceId
+  if (warmupId) {
+    void launcherApp.launch.warmup(warmupId).catch((err) => {
+      logger.warn(
+        'launcher',
+        `Launch warmup skipped: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    })
+  }
 }
 
 // ready 前に適用（Electron 要件）

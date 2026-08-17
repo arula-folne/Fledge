@@ -94,7 +94,7 @@ UI サイズ（コンパクト〜ワイド）や、OS 標準タイトルバー�
 
 | カテゴリ | 内容 |
 |----------|------|
-| 起動 | Vanilla / Fabric / Forge / NeoForge / Quilt。スナップショットも選べます |
+| 起動 | Vanilla / Fabric / Forge / NeoForge / Quilt。スナップショットも選べます。一度入れた本体・ライブラリ・ネイティブは再利用し、2回目以降はすぐ起動します |
 | Java | 必要バージョンを自動判定。不足時は Eclipse Temurin（8 / 17 / 21 / 25）を導入 |
 | インスタンス | 作成・複製・アイコン・メモリ・JVM 引数。フォルダは mods / saves / screenshots など用途ごとに開けます |
 | コンテンツ | [Modrinth](https://modrinth.com) から Mod・リソースパック・シェーダー・データパック・プラグインを検索・導入・更新 |

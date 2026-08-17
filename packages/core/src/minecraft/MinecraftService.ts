@@ -8,7 +8,7 @@ import {
   installNeoForge,
   installQuiltVersion,
 } from '@xmcl/installer'
-import { Version, launch } from '@xmcl/core'
+import { Version, launch, LaunchPrecheck, MinecraftFolder } from '@xmcl/core'
 import type { ChildProcess } from 'node:child_process'
 import type { InstanceProfile } from '@fledge/shared'
 import type { PathLayout } from '../app/paths.js'
@@ -16,6 +16,12 @@ import type { DownloadQueue } from '../download/DownloadQueue.js'
 import type { Logger } from '../logging/Logger.js'
 import type { LaunchCredentials } from '../auth/authTypes.js'
 import { sessionHostJvmArgs } from '../auth/SessionJoinProxy.js'
+import {
+  findReadyVersionId,
+  nativesRoot,
+  readyKey,
+  writeReadyRecord,
+} from './installReady.js'
 
 /**
  * Minecraft のインストール・起動。
@@ -23,6 +29,8 @@ import { sessionHostJvmArgs } from '../auth/SessionJoinProxy.js'
  * バージョン一覧は VersionService 側。
  */
 export class MinecraftService {
+  private readonly inflight = new Map<string, Promise<string>>()
+
   constructor(
     private readonly layout: PathLayout,
     private readonly queue: DownloadQueue,
@@ -34,6 +42,44 @@ export class MinecraftService {
     _instanceDir: string,
     sessionId: string,
   ): Promise<string> {
+    const key = readyKey(profile)
+    const existing = this.inflight.get(key)
+    if (existing) return existing
+    const run = this.ensureInstalledInner(profile, sessionId).finally(() => {
+      this.inflight.delete(key)
+    })
+    this.inflight.set(key, run)
+    return run
+  }
+
+  private async ensureInstalledInner(profile: InstanceProfile, sessionId: string): Promise<string> {
+    const readyId = await findReadyVersionId(this.layout.minecraft, profile)
+    if (readyId) {
+      this.logger.info('minecraft', `Reusing installed ${readyId} (skip network install)`)
+      await this.ensureNatives(readyId)
+      return readyId
+    }
+    const installedId = await this.installFromNetwork(profile, sessionId)
+    await this.ensureNatives(installedId)
+    return installedId
+  }
+
+  private async ensureNatives(versionId: string): Promise<void> {
+    try {
+      const resolved = await Version.parse(this.layout.minecraft, versionId)
+      const folder = new MinecraftFolder(this.layout.minecraft)
+      await LaunchPrecheck.checkNatives(folder, resolved, {
+        nativeRoot: nativesRoot(this.layout.minecraft, versionId),
+      })
+    } catch (err) {
+      this.logger.warn(
+        'minecraft',
+        `Native prepare skipped: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+  }
+
+  private async installFromNetwork(profile: InstanceProfile, sessionId: string): Promise<string> {
     const { done: vanillaDone } = this.queue.enqueue({
       kind: 'minecraft-client',
       labelKey: 'launch.phase.install',
@@ -64,6 +110,7 @@ export class MinecraftService {
     await vanillaDone
 
     if (profile.loader === 'vanilla') {
+      await writeReadyRecord(this.layout.minecraft, profile, profile.minecraftVersion)
       return profile.minecraftVersion
     }
 
@@ -105,6 +152,7 @@ export class MinecraftService {
         },
       })
       await done
+      await writeReadyRecord(this.layout.minecraft, profile, installedId)
       return installedId
     }
 
@@ -137,6 +185,7 @@ export class MinecraftService {
         },
       })
       await done
+      await writeReadyRecord(this.layout.minecraft, profile, installedId)
       return installedId
     }
 
@@ -166,6 +215,7 @@ export class MinecraftService {
         },
       })
       await done
+      await writeReadyRecord(this.layout.minecraft, profile, installedId)
       return installedId
     }
 
@@ -199,6 +249,7 @@ export class MinecraftService {
         },
       })
       await done
+      await writeReadyRecord(this.layout.minecraft, profile, installedId)
       return installedId
     }
 
@@ -237,6 +288,8 @@ export class MinecraftService {
       resourcePath: this.layout.minecraft,
       javaPath,
       version: versionId,
+      nativeRoot: nativesRoot(this.layout.minecraft, versionId),
+      prechecks: [LaunchPrecheck.checkNatives, LaunchPrecheck.linkAssets],
       gameProfile: {
         id: credentials.uuid,
         name: credentials.name,

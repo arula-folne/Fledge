@@ -157,6 +157,28 @@ export class LaunchOrchestrator {
     }
   }
 
+  /**
+   * 最後に使ったインスタンスの Java・本体・ネイティブを裏で整える。
+   * 起動ボタンのセッションは作らない。
+   */
+  async warmup(profileId: string): Promise<void> {
+    const profile = await this.deps.instances.get(profileId)
+    if (!profile) return
+    const sessionId = `warmup-${profileId}`
+    const instanceDir = this.deps.instances.instanceDir(profile.id)
+    await Promise.all([
+      this.deps.java.ensureJava(profile.minecraftVersion, sessionId),
+      this.deps.minecraft.ensureInstalled(profile, instanceDir, sessionId),
+      this.deps.sessionProxy.ensureStarted().catch((err) => {
+        this.deps.logger.warn(
+          'auth',
+          `Session proxy warmup skipped: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      }),
+    ])
+    this.deps.logger.info('launcher', `Warmed launch cache for ${profileId}`)
+  }
+
   async start(
     profileId: string,
     opts?: { accountId?: string },
@@ -200,36 +222,57 @@ export class LaunchOrchestrator {
 
     try {
       this.emitPhase(sessionId, 'auth', 'launch.phase.auth')
-      const credentials = await this.deps.auth.getLaunchCredentials(accountId)
-      const skinDone = this.deps.skinApplier.applySelected(accountId).catch((err) => {
+      this.deps.events.emitProgress({
+        scope: 'launch',
+        sessionId,
+        current: 1,
+        total: 4,
+        messageKey: 'launch.phase.auth',
+      })
+
+      const credentialsPromise = this.deps.auth.getLaunchCredentials(accountId)
+      void this.deps.skinApplier.applySelected(accountId).catch((err) => {
         this.deps.logger.warn(
           'launcher',
           `Skin apply skipped: ${err instanceof Error ? err.message : String(err)}`,
         )
+      })
+      const sessionHostPromise = this.deps.sessionProxy.ensureStarted().catch((err) => {
+        this.deps.logger.warn(
+          'auth',
+          `Session proxy failed to start: ${err instanceof Error ? err.message : String(err)}`,
+        )
+        return undefined
       })
 
       this.emitPhase(sessionId, 'java', 'launch.phase.java')
       this.deps.events.emitProgress({
         scope: 'launch',
         sessionId,
-        current: 1,
+        current: 2,
         total: 4,
         messageKey: 'launch.phase.java',
       })
-      const javaPath = await this.deps.java.ensureJava(profile.minecraftVersion, sessionId)
+      const instanceDir = this.deps.instances.instanceDir(profile.id)
+      const javaPromise = this.deps.java.ensureJava(profile.minecraftVersion, sessionId)
+      const installPromise = this.deps.minecraft.ensureInstalled(profile, instanceDir, sessionId)
+
+      const [credentials, javaPath, versionId, sessionHost] = await Promise.all([
+        credentialsPromise,
+        javaPromise,
+        installPromise,
+        sessionHostPromise,
+      ])
       if (abort.signal.aborted) throw Object.assign(new Error('cancelled'), { messageKey: 'download.cancelled' })
 
       this.emitPhase(sessionId, 'install', 'launch.phase.install')
       this.deps.events.emitProgress({
         scope: 'launch',
         sessionId,
-        current: 2,
+        current: 3,
         total: 4,
-        messageKey: 'launch.phase.install',
+        messageKey: 'launch.phase.spawn',
       })
-      const instanceDir = this.deps.instances.instanceDir(profile.id)
-      const versionId = await this.deps.minecraft.ensureInstalled(profile, instanceDir, sessionId)
-      if (abort.signal.aborted) throw Object.assign(new Error('cancelled'), { messageKey: 'download.cancelled' })
 
       if (profile.minecraftInitialSettingsSeeded && !profile.minecraftInitialSettingsApplied) {
         try {
@@ -248,25 +291,7 @@ export class LaunchOrchestrator {
 
       this.emitPhase(sessionId, 'spawn', 'launch.phase.spawn')
       this.emitState(session, 'launching')
-      await skinDone
-      this.deps.events.emitProgress({
-        scope: 'launch',
-        sessionId,
-        current: 3,
-        total: 4,
-        messageKey: 'launch.phase.spawn',
-      })
-
       const settings = await this.deps.settings.get()
-      let sessionHost: string | undefined
-      try {
-        sessionHost = await this.deps.sessionProxy.ensureStarted()
-      } catch (err) {
-        this.deps.logger.warn(
-          'auth',
-          `Session proxy failed to start: ${err instanceof Error ? err.message : String(err)}`,
-        )
-      }
       const child = await this.deps.minecraft.launchGame({
         profile,
         instanceDir,
