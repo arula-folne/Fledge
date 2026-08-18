@@ -4,7 +4,7 @@
 
 本規約は、Minecraft ランチャー **Fledge**（以下「本アプリ」）の利用条件です。本アプリを使うことで、本規約に同意したものとみなします。
 
-関連文書: [プライバシーポリシー](./PRIVACY.md) / [MIT ライセンス](./LICENSE)
+関連文書: [プライバシーポリシー](./PRIVACY.md) / [クレジット](./CREDITS.md) / [MIT ライセンス](./LICENSE)
 
 ---
 
@@ -12,7 +12,7 @@
 
 Fledge は、個人・OSS として公開している **非公式** の Minecraft ランチャーです。Mojang Studios、Microsoft、Discord、Modrinth その他の公式製品ではありません。それらの商標は各権利者に帰属します。
 
-ソースコードは GitHub（[arula-folne/Fledge](https://github.com/arula-folne/Fledge)）で MIT ライセンスのもと公開しています。本アプリは Cursor を使って制作しています。
+ソースコードは GitHub（[arula-folne/Fledge](https://github.com/arula-folne/Fledge)）で MIT ライセンスのもと公開しています。
 
 ---
 

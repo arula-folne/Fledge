@@ -4,8 +4,6 @@
 
 ソースから Fledge を動かす手順です。製品の紹介は [README](../README.md)、実装の詳細は [spec.md](./spec.md) です。
 
-Fledge は [Cursor](https://cursor.com) を使って制作しています。
-
 ---
 
 ## 前提
