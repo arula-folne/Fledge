@@ -114,7 +114,7 @@ export class LaunchOrchestrator {
         percent: 10,
         messageKey: 'launch.phase.java',
       })
-      await this.deps.java.ensureJava(profile.minecraftVersion, sessionId)
+      const javaPath = await this.deps.java.ensureJava(profile.minecraftVersion, sessionId)
       if (abort.signal.aborted) {
         throw Object.assign(new Error('cancelled'), { messageKey: 'download.cancelled' })
       }
@@ -129,7 +129,7 @@ export class LaunchOrchestrator {
         messageKey: 'launch.phase.install',
       })
       const instanceDir = this.deps.instances.instanceDir(profile.id)
-      await this.deps.minecraft.ensureInstalled(profile, instanceDir, sessionId)
+      await this.deps.minecraft.ensureInstalled(profile, instanceDir, sessionId, javaPath)
       if (abort.signal.aborted) {
         throw Object.assign(new Error('cancelled'), { messageKey: 'download.cancelled' })
       }
@@ -166,16 +166,14 @@ export class LaunchOrchestrator {
     if (!profile) return
     const sessionId = `warmup-${profileId}`
     const instanceDir = this.deps.instances.instanceDir(profile.id)
-    await Promise.all([
-      this.deps.java.ensureJava(profile.minecraftVersion, sessionId),
-      this.deps.minecraft.ensureInstalled(profile, instanceDir, sessionId),
-      this.deps.sessionProxy.ensureStarted().catch((err) => {
-        this.deps.logger.warn(
-          'auth',
-          `Session proxy warmup skipped: ${err instanceof Error ? err.message : String(err)}`,
-        )
-      }),
-    ])
+    const javaPath = await this.deps.java.ensureJava(profile.minecraftVersion, sessionId)
+    await this.deps.minecraft.ensureInstalled(profile, instanceDir, sessionId, javaPath)
+    await this.deps.sessionProxy.ensureStarted().catch((err) => {
+      this.deps.logger.warn(
+        'auth',
+        `Session proxy warmup skipped: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    })
     this.deps.logger.info('launcher', `Warmed launch cache for ${profileId}`)
   }
 
@@ -255,12 +253,10 @@ export class LaunchOrchestrator {
       })
       const instanceDir = this.deps.instances.instanceDir(profile.id)
       const javaPromise = this.deps.java.ensureJava(profile.minecraftVersion, sessionId)
-      const installPromise = this.deps.minecraft.ensureInstalled(profile, instanceDir, sessionId)
 
-      const [credentials, javaPath, versionId, sessionHost] = await Promise.all([
+      const [credentials, javaPath, sessionHost] = await Promise.all([
         credentialsPromise,
         javaPromise,
-        installPromise,
         sessionHostPromise,
       ])
       if (abort.signal.aborted) throw Object.assign(new Error('cancelled'), { messageKey: 'download.cancelled' })
@@ -271,8 +267,15 @@ export class LaunchOrchestrator {
         sessionId,
         current: 3,
         total: 4,
-        messageKey: 'launch.phase.spawn',
+        messageKey: 'launch.phase.install',
       })
+      const versionId = await this.deps.minecraft.ensureInstalled(
+        profile,
+        instanceDir,
+        sessionId,
+        javaPath,
+      )
+      if (abort.signal.aborted) throw Object.assign(new Error('cancelled'), { messageKey: 'download.cancelled' })
 
       if (profile.minecraftInitialSettingsSeeded && !profile.minecraftInitialSettingsApplied) {
         try {
@@ -309,6 +312,44 @@ export class LaunchOrchestrator {
       session.child = child
       this.emitState(session, 'running')
       this.emitPhase(sessionId, 'running', 'launch.phase.running')
+      child.stdout?.on('data', (buf: Buffer) => {
+        const text = buf.toString('utf8')
+        this.deps.logger.info('game', text.trimEnd())
+        this.maybeRefreshSession(session, text)
+      })
+      child.stderr?.on('data', (buf: Buffer) => {
+        const text = buf.toString('utf8')
+        this.deps.logger.warn('game', text.trimEnd())
+        this.maybeRefreshSession(session, text)
+      })
+      child.on('error', (err) => {
+        const current = this.sessions.get(sessionId)
+        if (!current) return
+        this.deps.logger.error(
+          'launcher',
+          `Game process failed to start: ${err instanceof Error ? err.message : String(err)}`,
+        )
+        this.emitState(current, 'error', 'launch.error.generic')
+        this.sessions.delete(sessionId)
+      })
+      child.on('exit', (code) => {
+        const current = this.sessions.get(sessionId)
+        if (!current) return
+        if (code && code !== 0) {
+          this.deps.logger.error('launcher', `Minecraft exited with code ${code}`)
+          this.emitState(current, 'error', 'launch.error.gameExited')
+        } else {
+          current.state = 'exited'
+          this.deps.events.emitState({
+            sessionId,
+            profileId,
+            accountId,
+            state: 'exited',
+            code: code ?? 0,
+          })
+        }
+        this.sessions.delete(sessionId)
+      })
       const playedAt = new Date().toISOString()
       await this.deps.settings.set({
         lastPlayedInstanceId: profileId,
@@ -324,31 +365,6 @@ export class LaunchOrchestrator {
         messageKey: 'launch.phase.running',
       })
 
-      child.stdout?.on('data', (buf: Buffer) => {
-        const text = buf.toString('utf8')
-        this.deps.logger.info('game', text.trimEnd())
-        this.maybeRefreshSession(session, text)
-      })
-      child.stderr?.on('data', (buf: Buffer) => {
-        const text = buf.toString('utf8')
-        this.deps.logger.warn('game', text.trimEnd())
-        this.maybeRefreshSession(session, text)
-      })
-      child.on('exit', (code) => {
-        const current = this.sessions.get(sessionId)
-        if (current) {
-          current.state = 'exited'
-          this.deps.events.emitState({
-            sessionId,
-            profileId,
-            accountId,
-            state: 'exited',
-            code: code ?? 0,
-          })
-          this.sessions.delete(sessionId)
-        }
-      })
-
       return { sessionId }
     } catch (err) {
       const messageKey =
@@ -357,7 +373,10 @@ export class LaunchOrchestrator {
           : err && typeof err === 'object' && 'messageKey' in err
             ? String((err as { messageKey: string }).messageKey)
             : 'launch.error.generic'
-      this.deps.logger.error('launcher', `Launch failed: ${messageKey}`)
+      this.deps.logger.error(
+        'launcher',
+        `Launch failed: ${messageKey}: ${err instanceof Error ? err.message : String(err)}`,
+      )
       this.emitState(session, 'error', messageKey)
       this.sessions.delete(sessionId)
       throw Object.assign(err instanceof Error ? err : new Error(String(err)), { messageKey })

@@ -50,6 +50,7 @@
   "launch.phase.spawn": "Minecraftを起動しています…",
   "launch.phase.running": "起動中",
   "launch.error.generic": "起動に失敗しました",
+  "launch.error.gameExited": "Minecraft が起動直後に終了しました。Mod の対応バージョンや不足している前提 Mod を確認してください。",
   "launch.error.noInstance": "インスタンスを選択してください",
   "launch.error.alreadyRunning": "すでに起動処理中です",
   "library.title": "ライブラリ",

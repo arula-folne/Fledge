@@ -41,45 +41,60 @@ export class MinecraftService {
     profile: InstanceProfile,
     _instanceDir: string,
     sessionId: string,
+    javaPath?: string,
   ): Promise<string> {
     const key = readyKey(profile)
     const existing = this.inflight.get(key)
     if (existing) return existing
-    const run = this.ensureInstalledInner(profile, sessionId).finally(() => {
+    const run = this.ensureInstalledInner(profile, sessionId, javaPath).finally(() => {
       this.inflight.delete(key)
     })
     this.inflight.set(key, run)
     return run
   }
 
-  private async ensureInstalledInner(profile: InstanceProfile, sessionId: string): Promise<string> {
+  private async ensureInstalledInner(
+    profile: InstanceProfile,
+    sessionId: string,
+    javaPath?: string,
+  ): Promise<string> {
     const readyId = await findReadyVersionId(this.layout.minecraft, profile)
     if (readyId) {
       this.logger.info('minecraft', `Reusing installed ${readyId} (skip network install)`)
       await this.ensureNatives(readyId)
       return readyId
     }
-    const installedId = await this.installFromNetwork(profile, sessionId)
+    this.logger.info(
+      'minecraft',
+      `Installing ${profile.loader} ${profile.minecraftVersion}${profile.loaderVersion ? ` (${profile.loaderVersion})` : ''}`,
+    )
+    const installedId = await this.installFromNetwork(profile, sessionId, javaPath)
     await this.ensureNatives(installedId)
     return installedId
   }
 
   private async ensureNatives(versionId: string): Promise<void> {
-    try {
-      const resolved = await Version.parse(this.layout.minecraft, versionId)
-      const folder = new MinecraftFolder(this.layout.minecraft)
-      await LaunchPrecheck.checkNatives(folder, resolved, {
-        nativeRoot: nativesRoot(this.layout.minecraft, versionId),
-      })
-    } catch (err) {
-      this.logger.warn(
-        'minecraft',
-        `Native prepare skipped: ${err instanceof Error ? err.message : String(err)}`,
-      )
-    }
+    const resolved = await Version.parse(this.layout.minecraft, versionId)
+    const folder = new MinecraftFolder(this.layout.minecraft)
+    await LaunchPrecheck.checkNatives(folder, resolved, {
+      nativeRoot: nativesRoot(this.layout.minecraft, versionId),
+    })
   }
 
-  private async installFromNetwork(profile: InstanceProfile, sessionId: string): Promise<string> {
+  private loaderInstallOptions(javaPath?: string) {
+    if (!javaPath) {
+      throw Object.assign(new Error('Java is required to install Forge/NeoForge'), {
+        messageKey: 'launch.error.generic',
+      })
+    }
+    return { java: javaPath, side: 'client' as const }
+  }
+
+  private async installFromNetwork(
+    profile: InstanceProfile,
+    sessionId: string,
+    javaPath?: string,
+  ): Promise<string> {
     const { done: vanillaDone } = this.queue.enqueue({
       kind: 'minecraft-client',
       labelKey: 'launch.phase.install',
@@ -143,6 +158,7 @@ export class MinecraftService {
             minecraftVersion: profile.minecraftVersion,
             version: loader.version,
             minecraft: this.layout.minecraft,
+            side: 'client',
           })
           ctx.report({ current: 1, total: 2, unit: 'count' })
 
@@ -177,6 +193,7 @@ export class MinecraftService {
           installedId = await installForge(
             { version: forgeVersion, mcversion: profile.minecraftVersion },
             this.layout.minecraft,
+            this.loaderInstallOptions(javaPath),
           )
           ctx.report({ current: 1, total: 2, unit: 'count' })
           const resolved = await Version.parse(this.layout.minecraft, installedId)
@@ -207,7 +224,12 @@ export class MinecraftService {
             'minecraft',
             `Installing NeoForge ${neoVersion} for ${profile.minecraftVersion}`,
           )
-          installedId = await installNeoForge('neoforge', neoVersion, this.layout.minecraft)
+          installedId = await installNeoForge(
+            'neoforge',
+            neoVersion,
+            this.layout.minecraft,
+            this.loaderInstallOptions(javaPath),
+          )
           ctx.report({ current: 1, total: 2, unit: 'count' })
           const resolved = await Version.parse(this.layout.minecraft, installedId)
           await completeInstallation(resolved)
@@ -241,6 +263,7 @@ export class MinecraftService {
             minecraftVersion: profile.minecraftVersion,
             version: quiltVersion,
             minecraft: this.layout.minecraft,
+            side: 'client',
           })
           ctx.report({ current: 1, total: 2, unit: 'count' })
           const resolved = await Version.parse(this.layout.minecraft, installedId)
@@ -311,6 +334,8 @@ export class MinecraftService {
       extraExecOption: {
         cwd: instanceDir,
       },
+      ignoreInvalidMinecraftCertificates: profile.loader === 'forge' || profile.loader === 'neoforge',
+      ignorePatchDiscrepancies: profile.loader === 'forge' || profile.loader === 'neoforge',
     })
 
     return proc

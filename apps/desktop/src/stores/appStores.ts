@@ -23,6 +23,7 @@ type LaunchStore = {
   progress: ProgressEvent | null
   phaseMessageKey: string | null
   errorMessageKey: string | null
+  errorProfileId: string | null
   lastExitCode: number | null
   applyStateEvent: (e: LaunchStateEvent) => void
   applyPhase: (phase: LaunchPhase, messageKey: string, sessionId?: string) => void
@@ -40,6 +41,7 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
   progress: null,
   phaseMessageKey: null,
   errorMessageKey: null,
+  errorProfileId: null,
   lastExitCode: null,
 
   applyStateEvent: (e) => {
@@ -69,7 +71,22 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
       return {
         byProfileId: nextMap,
         focusSessionId: focusing,
-        errorMessageKey: e.errorMessageKey ?? (e.state === 'error' ? s.errorMessageKey : null),
+        errorMessageKey:
+          e.state === 'error'
+            ? (e.errorMessageKey ?? s.errorMessageKey)
+            : e.state === 'preparing' || e.state === 'launching' || e.state === 'running'
+              ? e.profileId === s.errorProfileId
+                ? null
+                : s.errorMessageKey
+              : s.errorMessageKey,
+        errorProfileId:
+          e.state === 'error'
+            ? (e.profileId ?? s.errorProfileId)
+            : e.state === 'preparing' || e.state === 'launching' || e.state === 'running'
+              ? e.profileId === s.errorProfileId
+                ? null
+                : s.errorProfileId
+              : s.errorProfileId,
         lastExitCode: e.code ?? null,
         ...(e.state === 'idle' || e.state === 'exited' || e.state === 'error'
           ? s.focusSessionId === e.sessionId

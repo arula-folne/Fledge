@@ -33,6 +33,7 @@ export function InstanceLaunchButton({
   const phaseMessageKey = useLaunchStore((s) => s.phaseMessageKey)
   const progress = useLaunchStore((s) => s.progress)
   const errorMessageKey = useLaunchStore((s) => s.errorMessageKey)
+  const errorProfileId = useLaunchStore((s) => s.errorProfileId)
 
   const state = stateFor(instanceId)
   const session = byProfileId[instanceId]
@@ -153,7 +154,7 @@ export function InstanceLaunchButton({
           </div>
         </div>
       ) : null}
-      {showProgress && focused && errorMessageKey ? (
+      {errorMessageKey && errorProfileId === instanceId ? (
         <div className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2 py-1.5 text-xs text-[var(--color-danger)]">
           {t(errorMessageKey)}
         </div>

@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { Version } from '@xmcl/core'
 import type { InstanceProfile } from '@fledge/shared'
 
 export type ReadyRecord = {
@@ -8,6 +9,12 @@ export type ReadyRecord = {
   loader: InstanceProfile['loader']
   loaderVersion?: string
   readyAt: string
+}
+
+type ParsedVersion = {
+  jar?: string
+  minecraftVersion?: string
+  libraries?: Array<{ download?: { path?: string }; path?: string }>
 }
 
 function readyDir(minecraftRoot: string): string {
@@ -35,6 +42,36 @@ export function nativesRoot(minecraftRoot: string, versionId: string): string {
 export async function versionJsonExists(minecraftRoot: string, versionId: string): Promise<boolean> {
   try {
     await fs.access(path.join(minecraftRoot, 'versions', versionId, `${versionId}.json`))
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function fileExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** バージョン JSON だけでなく、本体 jar・ライブラリが揃っているか */
+export async function isVersionComplete(minecraftRoot: string, versionId: string): Promise<boolean> {
+  if (!(await versionJsonExists(minecraftRoot, versionId))) return false
+  try {
+    const parsed = (await Version.parse(minecraftRoot, versionId)) as ParsedVersion
+    const jarId = parsed.jar || parsed.minecraftVersion
+    if (jarId) {
+      const jarPath = path.join(minecraftRoot, 'versions', jarId, `${jarId}.jar`)
+      if (!(await fileExists(jarPath))) return false
+    }
+    for (const lib of parsed.libraries ?? []) {
+      const libPath = lib.download?.path || lib.path
+      if (!libPath) continue
+      if (!(await fileExists(path.join(minecraftRoot, 'libraries', libPath)))) return false
+    }
     return true
   } catch {
     return false
@@ -69,7 +106,7 @@ export async function findReadyVersionId(
   try {
     const raw = await fs.readFile(readyPath(minecraftRoot, profile), 'utf8')
     const parsed = JSON.parse(raw) as ReadyRecord
-    if (parsed?.versionId && (await versionJsonExists(minecraftRoot, parsed.versionId))) {
+    if (parsed?.versionId && (await isVersionComplete(minecraftRoot, parsed.versionId))) {
       return parsed.versionId
     }
   } catch {
@@ -77,7 +114,7 @@ export async function findReadyVersionId(
   }
 
   for (const id of expectedVersionIds(profile)) {
-    if (await versionJsonExists(minecraftRoot, id)) return id
+    if (await isVersionComplete(minecraftRoot, id)) return id
   }
   return null
 }
