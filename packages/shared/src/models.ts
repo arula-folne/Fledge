@@ -503,11 +503,19 @@ export const ContentSearchSortSchema = z.enum([
 ])
 export type ContentSearchSort = z.infer<typeof ContentSearchSortSchema>
 
+/** Modrinth 検索: クライアント / サーバー対応 */
+export const ContentEnvironmentFilterSchema = z.enum(['client', 'server'])
+export type ContentEnvironmentFilter = z.infer<typeof ContentEnvironmentFilterSchema>
+
 export const ContentSearchQuerySchema = z.object({
   query: z.string().default(''),
   category: ContentCategorySchema,
   gameVersion: z.string().optional(),
   loaders: z.array(ContentLoaderFilterSchema).default([]),
+  /** Modrinth display category（adventure, optimization 等） */
+  tags: z.array(z.string()).default([]),
+  /** クライアント / サーバー対応で絞り込み */
+  environments: z.array(ContentEnvironmentFilterSchema).default([]),
   provider: ContentProviderIdSchema.default('modrinth'),
   sort: ContentSearchSortSchema.default('relevance'),
   offset: z.number().int().nonnegative().default(0),

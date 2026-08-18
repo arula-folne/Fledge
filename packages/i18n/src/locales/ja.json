@@ -96,6 +96,8 @@
   "content.autoTranslatedHint": "日本語の説明があればそれを使い、なければ自動翻訳します",
   "content.filter.gameVersion": "ゲームバージョン",
   "content.filter.loader": "ローダー",
+  "content.filter.environment": "対応環境",
+  "content.filter.category": "カテゴリ",
   "content.filter.versionSearch": "バージョンを検索…",
   "content.filter.anyVersion": "すべて",
   "content.sort.label": "並び替え",

@@ -13,6 +13,7 @@ import {
 } from '@tabler/icons-react'
 import type {
   ContentCategory,
+  ContentEnvironmentFilter,
   ContentLoaderFilter,
   ContentProject,
   ContentSearchQuery,
@@ -24,7 +25,9 @@ import { fledgeApi } from '../../api/fledgeApi'
 import { Dialog } from '../../components/ui/Dialog'
 import { useTransferStore } from '../../stores/appStores'
 import { ContentProjectView } from './ContentProjectView'
-import { ProjectTagRow } from './ModrinthTags'
+import { filterTagsForCategory, ProjectTagRow, tagLabel } from './ModrinthTags'
+
+const ENVIRONMENTS: ContentEnvironmentFilter[] = ['client', 'server']
 
 const PAGE_SIZES = [10, 20] as const
 const CATEGORIES: ContentCategory[] = [
@@ -166,6 +169,8 @@ export function AddContentModal({
   const [loaders, setLoaders] = useState<ContentLoaderFilter[]>(() =>
     loadersFromInstance(instance.loader),
   )
+  const [tags, setTags] = useState<string[]>([])
+  const [environments, setEnvironments] = useState<ContentEnvironmentFilter[]>([])
   const [sort, setSort] = useState<ContentSearchSort>('relevance')
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(20)
   const [page, setPage] = useState(1)
@@ -201,6 +206,8 @@ export function AddContentModal({
     setGameVersion(instance.minecraftVersion)
     setVersionFilter('')
     setLoaders(loadersFromInstance(instance.loader))
+    setTags([])
+    setEnvironments([])
     setSort('relevance')
     setPageSize(20)
     setPage(1)
@@ -217,7 +224,13 @@ export function AddContentModal({
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedQuery, category, gameVersion, loaders, sort, pageSize])
+  }, [debouncedQuery, category, gameVersion, loaders, tags, environments, sort, pageSize])
+
+  useEffect(() => {
+    setTags([])
+  }, [category])
+
+  const availableTags = useMemo(() => filterTagsForCategory(category), [category])
 
   const versionIds = useMemo(() => {
     const q = versionFilter.trim().toLowerCase()
@@ -236,12 +249,14 @@ export function AddContentModal({
       category,
       gameVersion: gameVersion.trim() || undefined,
       loaders: category === 'mod' || category === 'plugin' ? loaders : [],
+      tags,
+      environments,
       provider: 'modrinth',
       sort,
       offset: (page - 1) * pageSize,
       limit: pageSize,
     }),
-    [debouncedQuery, category, gameVersion, loaders, sort, page, pageSize],
+    [debouncedQuery, category, gameVersion, loaders, tags, environments, sort, page, pageSize],
   )
 
   const searchQuery = useQuery({
@@ -274,6 +289,14 @@ export function AddContentModal({
 
   const toggleLoader = (l: ContentLoaderFilter) => {
     setLoaders((prev) => (prev.includes(l) ? prev.filter((x) => x !== l) : [...prev, l]))
+  }
+
+  const toggleTag = (tag: string) => {
+    setTags((prev) => (prev.includes(tag) ? prev.filter((x) => x !== tag) : [...prev, tag]))
+  }
+
+  const toggleEnvironment = (env: ContentEnvironmentFilter) => {
+    setEnvironments((prev) => (prev.includes(env) ? prev.filter((x) => x !== env) : [...prev, env]))
   }
 
   const hits = searchQuery.data?.hits ?? []
@@ -321,7 +344,7 @@ export function AddContentModal({
         </div>
 
         <div className="flex min-h-0 flex-1 gap-3">
-          <aside className="hidden w-44 shrink-0 flex-col gap-3 overflow-y-auto sm:flex">
+          <aside className="hidden w-48 shrink-0 flex-col gap-3 overflow-y-auto sm:flex">
             <section>
               <h3 className="mb-1.5 text-[11px] font-semibold text-[var(--color-text)]">
                 {t('content.filter.gameVersion')}
@@ -389,6 +412,50 @@ export function AddContentModal({
                 </div>
               </section>
             )}
+
+            <section>
+              <h3 className="mb-1.5 text-[11px] font-semibold text-[var(--color-text)]">
+                {t('content.filter.environment')}
+              </h3>
+              <div className="space-y-0.5 text-[11px]">
+                {ENVIRONMENTS.map((env) => (
+                  <label
+                    key={env}
+                    className="flex cursor-pointer items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 py-0.5 hover:bg-[var(--color-hover)]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={environments.includes(env)}
+                      onChange={() => toggleEnvironment(env)}
+                      className="accent-[var(--color-accent)]"
+                    />
+                    {t(`content.env.${env}`)}
+                  </label>
+                ))}
+              </div>
+            </section>
+
+            <section>
+              <h3 className="mb-1.5 text-[11px] font-semibold text-[var(--color-text)]">
+                {t('content.filter.category')}
+              </h3>
+              <div className="max-h-48 space-y-0.5 overflow-y-auto pr-0.5 text-[11px]">
+                {availableTags.map((tag) => (
+                  <label
+                    key={tag}
+                    className="flex cursor-pointer items-center gap-1.5 rounded-[var(--radius-sm)] px-1.5 py-0.5 hover:bg-[var(--color-hover)]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={tags.includes(tag)}
+                      onChange={() => toggleTag(tag)}
+                      className="accent-[var(--color-accent)]"
+                    />
+                    <span className="truncate">{tagLabel(tag, t)}</span>
+                  </label>
+                ))}
+              </div>
+            </section>
           </aside>
 
           <div className="flex min-w-0 flex-1 flex-col gap-2">

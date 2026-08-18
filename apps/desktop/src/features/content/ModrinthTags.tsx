@@ -103,6 +103,68 @@ const TAG_I18N = new Set(Object.keys(CATEGORY_COLOR))
 
 export const LOADER_IDS = new Set(Object.keys(LOADER_COLOR))
 
+export const MOD_TAG_IDS = Object.keys(CATEGORY_COLOR)
+
+export const RESOURCEPACK_TAG_IDS = [
+  '16x',
+  '32x',
+  '64x',
+  '128x',
+  '256x',
+  '512x+',
+  '8x-',
+  '48x',
+  'audio',
+  'blocks',
+  'combat',
+  'core-shaders',
+  'cursed',
+  'decoration',
+  'entities',
+  'environment',
+  'equipment',
+  'fonts',
+  'gui',
+  'items',
+  'locale',
+  'modded',
+  'models',
+  'realistic',
+  'simplistic',
+  'themed',
+  'tweaks',
+  'utility',
+  'vanilla-like',
+] as const
+
+export const SHADER_TAG_IDS = [
+  'atmosphere',
+  'bloom',
+  'cartoon',
+  'colored-lighting',
+  'cursed',
+  'fantasy',
+  'foliage',
+  'high',
+  'low',
+  'medium',
+  'path-tracing',
+  'pbr',
+  'potato',
+  'realistic',
+  'reflections',
+  'screenshot',
+  'semi-realistic',
+  'shadows',
+  'vanilla-like',
+] as const
+
+export function filterTagsForCategory(category: string): readonly string[] {
+  if (category === 'resourcepack') return RESOURCEPACK_TAG_IDS
+  if (category === 'shader') return SHADER_TAG_IDS
+  return MOD_TAG_IDS
+}
+
 type Side = 'required' | 'optional' | 'unsupported' | undefined
 
 function sideColor(side: Side): string {
@@ -186,7 +248,11 @@ export function EnvironmentPanel({
   )
 }
 
-export function loaderLabel(loader: string): string {
+export function tagLabel(tag: string, t: (key: string) => string): string {
+  return TAG_I18N.has(tag)
+    ? t(`content.tag.${tag}` as 'content.tag.library')
+    : tag.replace(/-/g, ' ')
+}
   return LOADER_LABEL[loader.toLowerCase()] ?? loader
 }
 
