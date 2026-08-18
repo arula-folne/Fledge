@@ -12,10 +12,11 @@ import { Version, launch, LaunchPrecheck, MinecraftFolder } from '@xmcl/core'
 import type { ChildProcess } from 'node:child_process'
 import type { InstanceProfile } from '@fledge/shared'
 import type { PathLayout } from '../app/paths.js'
-import type { DownloadQueue } from '../download/DownloadQueue.js'
+import type { DownloadContext, DownloadQueue } from '../download/DownloadQueue.js'
 import type { Logger } from '../logging/Logger.js'
 import type { LaunchCredentials } from '../auth/authTypes.js'
 import { sessionHostJvmArgs } from '../auth/SessionJoinProxy.js'
+import { withInstallTracker } from './installProgress.js'
 import {
   findReadyVersionId,
   nativesRoot,
@@ -61,6 +62,7 @@ export class MinecraftService {
     const readyId = await findReadyVersionId(this.layout.minecraft, profile)
     if (readyId) {
       this.logger.info('minecraft', `Reusing installed ${readyId} (skip network install)`)
+      this.queue.emitStatus(sessionId, 'launch.install.natives')
       await this.ensureNatives(readyId)
       return readyId
     }
@@ -90,6 +92,21 @@ export class MinecraftService {
     return { java: javaPath, side: 'client' as const }
   }
 
+  private async completeTracked(
+    ctx: DownloadContext,
+    resolved: unknown,
+    fallbackKey: string,
+    javaPath?: string,
+  ) {
+    await withInstallTracker(ctx, fallbackKey, (tracker, signal) =>
+      completeInstallation(resolved, {
+        tracker,
+        signal,
+        ...(javaPath ? { java: javaPath } : {}),
+      }),
+    )
+  }
+
   private async installFromNetwork(
     profile: InstanceProfile,
     sessionId: string,
@@ -97,11 +114,16 @@ export class MinecraftService {
   ): Promise<string> {
     const { done: vanillaDone } = this.queue.enqueue({
       kind: 'minecraft-client',
-      labelKey: 'launch.phase.install',
+      labelKey: 'launch.install.client',
       sessionId,
-      meta: { instanceId: profile.id },
+      meta: { instanceId: profile.id, version: profile.minecraftVersion },
       execute: async (ctx) => {
-        ctx.report({ current: 0, total: 3, unit: 'count' })
+        ctx.report({
+          current: 0,
+          total: 1,
+          unit: 'count',
+          messageKey: 'launch.install.versionList',
+        })
         const location = this.layout.minecraft
         const manifest = await getVersionList()
         const meta = manifest.versions.find((v) => v.id === profile.minecraftVersion)
@@ -113,19 +135,26 @@ export class MinecraftService {
 
         this.logger.info('minecraft', `Installing Minecraft ${profile.minecraftVersion}`)
         ctx.setKind('minecraft-client')
-        const resolvedVanilla = await installMinecraft(meta, location)
-        ctx.report({ current: 1, total: 3, unit: 'count' })
+        ctx.report({
+          messageKey: 'launch.install.client',
+          meta: { version: profile.minecraftVersion },
+        })
+        const resolvedVanilla = await withInstallTracker(
+          ctx,
+          'launch.install.client',
+          (tracker, signal) => installMinecraft(meta, location, { tracker, signal }),
+        )
 
         ctx.setKind('library')
-        await completeInstallation(resolvedVanilla)
-        ctx.setKind('asset')
-        ctx.report({ current: 3, total: 3, unit: 'count' })
+        ctx.report({ messageKey: 'launch.install.libraries' })
+        await this.completeTracked(ctx, resolvedVanilla, 'launch.install.libraries')
       },
     })
     await vanillaDone
 
     if (profile.loader === 'vanilla') {
       await writeReadyRecord(this.layout.minecraft, profile, profile.minecraftVersion)
+      this.queue.emitStatus(sessionId, 'launch.install.natives')
       return profile.minecraftVersion
     }
 
@@ -133,10 +162,17 @@ export class MinecraftService {
       let installedId = ''
       const { done } = this.queue.enqueue({
         kind: 'fabric-loader',
-        labelKey: 'launch.phase.install',
+        labelKey: 'launch.install.fabric',
         sessionId,
+        meta: { version: profile.loaderVersion ?? '' },
         execute: async (ctx) => {
-          ctx.report({ current: 0, total: 2, unit: 'count' })
+          ctx.report({
+            current: 0,
+            total: 2,
+            unit: 'count',
+            messageKey: 'launch.install.fabric',
+            meta: { version: profile.loaderVersion ?? '' },
+          })
           const loaders = await getFabricLoaders()
           const loader =
             (profile.loaderVersion
@@ -154,21 +190,24 @@ export class MinecraftService {
             'minecraft',
             `Installing Fabric ${loader.version} for ${profile.minecraftVersion}`,
           )
+          ctx.report({
+            messageKey: 'launch.install.fabric',
+            meta: { version: loader.version },
+          })
           installedId = await installFabric({
             minecraftVersion: profile.minecraftVersion,
             version: loader.version,
             minecraft: this.layout.minecraft,
             side: 'client',
           })
-          ctx.report({ current: 1, total: 2, unit: 'count' })
-
+          ctx.report({ current: 1, total: 2, unit: 'count', messageKey: 'launch.install.libraries' })
           const resolved = await Version.parse(this.layout.minecraft, installedId)
-          await completeInstallation(resolved)
-          ctx.report({ current: 2, total: 2, unit: 'count' })
+          await this.completeTracked(ctx, resolved, 'launch.install.libraries', javaPath)
         },
       })
       await done
       await writeReadyRecord(this.layout.minecraft, profile, installedId)
+      this.queue.emitStatus(sessionId, 'launch.install.natives')
       return installedId
     }
 
@@ -182,27 +221,36 @@ export class MinecraftService {
       }
       const { done } = this.queue.enqueue({
         kind: 'forge-loader',
-        labelKey: 'launch.phase.install',
+        labelKey: 'launch.install.forge',
         sessionId,
+        meta: { version: forgeVersion },
         execute: async (ctx) => {
-          ctx.report({ current: 0, total: 2, unit: 'count' })
+          ctx.report({
+            current: 0,
+            total: 2,
+            unit: 'count',
+            messageKey: 'launch.install.forge',
+            meta: { version: forgeVersion },
+          })
           this.logger.info(
             'minecraft',
             `Installing Forge ${forgeVersion} for ${profile.minecraftVersion}`,
           )
-          installedId = await installForge(
-            { version: forgeVersion, mcversion: profile.minecraftVersion },
-            this.layout.minecraft,
-            this.loaderInstallOptions(javaPath),
+          installedId = await withInstallTracker(ctx, 'launch.install.forge', (tracker, signal) =>
+            installForge(
+              { version: forgeVersion, mcversion: profile.minecraftVersion },
+              this.layout.minecraft,
+              { ...this.loaderInstallOptions(javaPath), tracker, signal },
+            ),
           )
-          ctx.report({ current: 1, total: 2, unit: 'count' })
+          ctx.report({ current: 1, total: 2, unit: 'count', messageKey: 'launch.install.libraries' })
           const resolved = await Version.parse(this.layout.minecraft, installedId)
-          await completeInstallation(resolved)
-          ctx.report({ current: 2, total: 2, unit: 'count' })
+          await this.completeTracked(ctx, resolved, 'launch.install.libraries', javaPath)
         },
       })
       await done
       await writeReadyRecord(this.layout.minecraft, profile, installedId)
+      this.queue.emitStatus(sessionId, 'launch.install.natives')
       return installedId
     }
 
@@ -216,28 +264,36 @@ export class MinecraftService {
       }
       const { done } = this.queue.enqueue({
         kind: 'neoforge-loader',
-        labelKey: 'launch.phase.install',
+        labelKey: 'launch.install.neoforge',
         sessionId,
+        meta: { version: neoVersion },
         execute: async (ctx) => {
-          ctx.report({ current: 0, total: 2, unit: 'count' })
+          ctx.report({
+            current: 0,
+            total: 2,
+            unit: 'count',
+            messageKey: 'launch.install.neoforge',
+            meta: { version: neoVersion },
+          })
           this.logger.info(
             'minecraft',
             `Installing NeoForge ${neoVersion} for ${profile.minecraftVersion}`,
           )
-          installedId = await installNeoForge(
-            'neoforge',
-            neoVersion,
-            this.layout.minecraft,
-            this.loaderInstallOptions(javaPath),
+          installedId = await withInstallTracker(ctx, 'launch.install.neoforge', (tracker, signal) =>
+            installNeoForge('neoforge', neoVersion, this.layout.minecraft, {
+              ...this.loaderInstallOptions(javaPath),
+              tracker,
+              signal,
+            }),
           )
-          ctx.report({ current: 1, total: 2, unit: 'count' })
+          ctx.report({ current: 1, total: 2, unit: 'count', messageKey: 'launch.install.libraries' })
           const resolved = await Version.parse(this.layout.minecraft, installedId)
-          await completeInstallation(resolved)
-          ctx.report({ current: 2, total: 2, unit: 'count' })
+          await this.completeTracked(ctx, resolved, 'launch.install.libraries', javaPath)
         },
       })
       await done
       await writeReadyRecord(this.layout.minecraft, profile, installedId)
+      this.queue.emitStatus(sessionId, 'launch.install.natives')
       return installedId
     }
 
@@ -251,10 +307,17 @@ export class MinecraftService {
       }
       const { done } = this.queue.enqueue({
         kind: 'quilt-loader',
-        labelKey: 'launch.phase.install',
+        labelKey: 'launch.install.quilt',
         sessionId,
+        meta: { version: quiltVersion },
         execute: async (ctx) => {
-          ctx.report({ current: 0, total: 2, unit: 'count' })
+          ctx.report({
+            current: 0,
+            total: 2,
+            unit: 'count',
+            messageKey: 'launch.install.quilt',
+            meta: { version: quiltVersion },
+          })
           this.logger.info(
             'minecraft',
             `Installing Quilt ${quiltVersion} for ${profile.minecraftVersion}`,
@@ -265,14 +328,14 @@ export class MinecraftService {
             minecraft: this.layout.minecraft,
             side: 'client',
           })
-          ctx.report({ current: 1, total: 2, unit: 'count' })
+          ctx.report({ current: 1, total: 2, unit: 'count', messageKey: 'launch.install.libraries' })
           const resolved = await Version.parse(this.layout.minecraft, installedId)
-          await completeInstallation(resolved)
-          ctx.report({ current: 2, total: 2, unit: 'count' })
+          await this.completeTracked(ctx, resolved, 'launch.install.libraries', javaPath)
         },
       })
       await done
       await writeReadyRecord(this.layout.minecraft, profile, installedId)
+      this.queue.emitStatus(sessionId, 'launch.install.natives')
       return installedId
     }
 

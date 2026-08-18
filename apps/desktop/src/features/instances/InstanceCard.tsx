@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { InstanceProfile } from '@fledge/shared'
 import { useLaunchStore } from '../../stores/appStores'
+import { formatProgressMessage } from '../launch/formatProgressMessage'
 import { InstanceIcon } from './InstanceIcon'
 import { InstanceLaunchButton } from './InstanceLaunchButton'
 import { formatLastPlayed, formatLoaderLabel } from './instanceMeta'
@@ -125,7 +126,12 @@ function InstancePrepareProgress({ instanceId }: { instanceId: string }) {
   return (
     <div className="mt-2 max-w-sm space-y-1">
       <div className="text-[11px] text-[var(--color-text-muted)]">
-        {phaseMessageKey ? t(phaseMessageKey) : t('library.preparing')}
+        {formatProgressMessage(
+          t,
+          progress?.messageKey ?? phaseMessageKey,
+          progress?.meta,
+          'library.preparing',
+        )}
       </div>
       <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-accent-soft)]">
         <div

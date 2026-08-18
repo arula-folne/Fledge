@@ -113,6 +113,7 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
       if (!isLaunch) return s
       return {
         progress,
+        phaseMessageKey: progress.messageKey ?? s.phaseMessageKey,
         focusSessionId: sid ?? s.focusSessionId,
       }
     }),

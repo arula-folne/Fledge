@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { IconPlayerPlay, IconPlayerStop, IconX } from '@tabler/icons-react'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
+import { formatProgressMessage } from '../launch/formatProgressMessage'
 import { useLaunchStore, useUiStore } from '../../stores/appStores'
 
 type Props = {
@@ -139,12 +140,11 @@ export function InstanceLaunchButton({
   return (
     <div className={size === 'sm' ? 'shrink-0' : 'space-y-2'} onClick={stop}>
       {action}
-      {showProgress &&
-      focused &&
-      (state === 'preparing' || state === 'launching' || state === 'running') ? (
-        <div className="min-w-[12rem] space-y-1.5">
+      {focused &&
+      (state === 'preparing' || state === 'launching' || (showProgress && state === 'running')) ? (
+        <div className={size === 'sm' ? 'hidden' : 'min-w-[12rem] space-y-1.5'}>
           <div className="text-xs text-[var(--color-text-muted)]">
-            {phaseMessageKey ? t(phaseMessageKey) : t('common.loading')}
+            {formatProgressMessage(t, progress?.messageKey ?? phaseMessageKey, progress?.meta)}
           </div>
           <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-accent-soft)]">
             <div

@@ -30,7 +30,10 @@ export type DownloadContext = {
   jobId: string
   signal: AbortSignal
   setKind: (kind: DownloadKind) => void
-  report: (update: Partial<DownloadProgress> & { messageKey?: string }) => void
+  report: (update: Partial<DownloadProgress> & {
+    messageKey?: string
+    meta?: Record<string, string | number | boolean>
+  }) => void
 }
 
 export type EnqueueInput = {
@@ -129,6 +132,23 @@ export class DownloadQueue {
     }
   }
 
+  /** ジョブを増やさず、セッションの表示用ステータスだけ更新する */
+  emitStatus(
+    sessionId: string,
+    messageKey: string,
+    meta?: Record<string, string | number | boolean>,
+  ): void {
+    this.emitProgress({
+      scope: 'launch',
+      sessionId,
+      current: 0,
+      total: 1,
+      messageKey,
+      status: 'active',
+      meta,
+    })
+  }
+
   private pump(): void {
     while (this.active.size < this.concurrency && this.queued.length > 0) {
       const job = this.queued.shift()
@@ -150,7 +170,13 @@ export class DownloadQueue {
         job.kind = kind
       },
       report: (update) => {
-        job.progress = { ...job.progress, ...update }
+        if (update.meta) job.meta = { ...job.meta, ...update.meta }
+        job.progress = {
+          current: update.current ?? job.progress.current,
+          total: update.total ?? job.progress.total,
+          unit: update.unit ?? job.progress.unit,
+          bytesPerSecond: update.bytesPerSecond ?? job.progress.bytesPerSecond,
+        }
         this.emitJobProgress(job, update.messageKey)
       },
     }

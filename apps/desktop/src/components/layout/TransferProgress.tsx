@@ -14,17 +14,27 @@ import { isSettingsJavaJob, jobInstanceId, jobPercent } from '../../features/tra
 function jobLabel(job: TransferJob, t: (key: string, opts?: Record<string, unknown>) => string): string {
   if (isSettingsJavaJob(job)) {
     const major = job.meta.major
+    if (job.messageKey) return t(job.messageKey, { major })
     return job.meta.action === 'reinstall'
       ? t('transfer.javaReinstall', { major })
       : t('transfer.java', { major })
   }
   if (job.kind === 'content') {
     const name = job.meta.projectName
+    const file = job.meta.file
+    if (job.messageKey) return t(job.messageKey, { name, file })
     return typeof name === 'string' && name.length > 0
       ? t('transfer.content', { name })
       : t('content.installing')
   }
-  if (job.messageKey) return t(job.messageKey)
+  if (job.messageKey) {
+    const text = t(job.messageKey, job.meta)
+    const file = job.meta.file
+    if (typeof file === 'string' && file.length > 0 && !text.includes(file)) {
+      return `${text}（${file}）`
+    }
+    return text
+  }
   return t('transfer.generic')
 }
 

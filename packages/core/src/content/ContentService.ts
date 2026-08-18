@@ -141,7 +141,7 @@ export class ContentService {
 
     await this.queue.enqueue({
       kind: 'content',
-      labelKey: 'content.installing',
+      labelKey: 'content.downloading',
       priority: 5,
       sessionId: `content-${req.instanceId}-${resolved.projectId}`,
       meta: {
@@ -155,7 +155,13 @@ export class ContentService {
           signal: ctx.signal,
           headers: { 'User-Agent': 'Fledge/0.1.0 (content-download)' },
           onProgress: (current, total) => {
-            ctx.report({ current, total, unit: 'bytes' })
+            ctx.report({
+              current,
+              total,
+              unit: 'bytes',
+              messageKey: 'content.downloading',
+              meta: { name: resolved.name, file: resolved.fileName },
+            })
           },
         })
         if (resolved.sha1) {

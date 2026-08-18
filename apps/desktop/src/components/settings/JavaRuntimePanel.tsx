@@ -199,7 +199,7 @@ export function JavaRuntimePanel({ onMessage }: { onMessage: (msg: string | null
             {job ? (
               <div className="mb-4 space-y-1.5">
                 <div className="flex items-center justify-between gap-3 text-xs text-[var(--color-text-muted)]">
-                  <span>{t(job.messageKey ?? 'settings.java.busy')}</span>
+                  <span>{t(job.messageKey ?? 'settings.java.busy', { major: job.meta.major })}</span>
                   <span className="tabular-nums">{Math.round(percent)}%</span>
                 </div>
                 <ProgressBar percent={percent} />

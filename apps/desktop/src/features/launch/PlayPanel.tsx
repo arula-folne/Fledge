@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
+import { formatProgressMessage } from './formatProgressMessage'
 import { useLaunchStore, useUiStore } from '../../stores/appStores'
 
 export function PlayPanel() {
@@ -134,7 +135,7 @@ export function PlayPanel() {
         {(state === 'preparing' || state === 'launching' || state === 'running') && (
           <div className="space-y-2">
             <div className="text-sm text-[var(--color-text-muted)]">
-              {phaseMessageKey ? t(phaseMessageKey) : t('common.loading')}
+              {formatProgressMessage(t, progress?.messageKey ?? phaseMessageKey, progress?.meta)}
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-[var(--color-accent-soft)]">
               <div
