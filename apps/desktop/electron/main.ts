@@ -204,7 +204,7 @@ app.on('activate', () => {
       mainWindow = createMainWindow({
         width: s?.launcherWindowWidth,
         height: s?.launcherWindowHeight,
-        frame: s?.useOsWindowChrome ?? true,
+        frame: s?.useOsWindowChrome ?? false,
         uiScale: s?.uiScale ?? 'normal',
       })
     })()

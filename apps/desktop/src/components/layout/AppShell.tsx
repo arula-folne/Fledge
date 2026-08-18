@@ -61,7 +61,7 @@ export function AppShell() {
     }
   }, [collapsed])
 
-  const useOsChrome = settingsQuery.data?.useOsWindowChrome ?? true
+  const useOsChrome = settingsQuery.data?.useOsWindowChrome ?? false
   const itemClass = navClass(collapsed)
 
   return (

@@ -120,7 +120,7 @@ export const CreateInstanceInputSchema = z.object({
   minecraftVersion: z.string().min(1),
   loader: LoaderSchema,
   loaderVersion: z.string().optional(),
-  memoryMaxMb: z.number().int().positive().default(4096),
+  memoryMaxMb: z.number().int().positive().default(2048),
   jvmArgs: z.array(z.string()).default([]),
   icon: CreateInstanceIconSchema.optional(),
   iconPreset: InstanceIconPresetSchema.optional(),
@@ -210,7 +210,7 @@ export const SettingsSchema = z.object({
   selectedInstanceId: z.string().nullable(),
   lastPlayedInstanceId: z.string().nullable().default(null),
   locale: z.string().default('ja'),
-  defaultMemoryMaxMb: z.number().int().positive().default(4096),
+  defaultMemoryMaxMb: z.number().int().positive().default(2048),
   defaultJvmArgs: z.array(z.string()).default([]),
   minecraftInitialSettings: MinecraftInitialSettingsSchema.default({}),
   msaClientId: z.string().optional(),
@@ -240,7 +240,7 @@ export const SettingsSchema = z.object({
     })
     .default({ r: 91, g: 164, b: 217 }),
   hardwareAcceleration: z.boolean().default(true),
-  useOsWindowChrome: z.boolean().default(true),
+  useOsWindowChrome: z.boolean().default(false),
   minimizeOnLaunch: z.boolean().default(false),
   discordRichPresence: z.boolean().default(false),
   /** 初回プライバシー注意の確認済み */

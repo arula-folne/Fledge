@@ -111,7 +111,7 @@ export class InstanceStore {
       loaderVersion: fields.loaderVersion,
       java: { strategy: 'auto' },
       memory: {
-        maxMb: fields.memoryMaxMb || defaults?.memoryMaxMb || 4096,
+        maxMb: fields.memoryMaxMb || defaults?.memoryMaxMb || 2048,
       },
       jvmArgs: fields.jvmArgs.length ? fields.jvmArgs : (defaults?.jvmArgs ?? []),
       iconPreset: icon ? undefined : (fields.iconPreset ?? DEFAULT_INSTANCE_ICON_PRESET),
