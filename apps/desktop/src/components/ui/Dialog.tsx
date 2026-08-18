@@ -1,4 +1,6 @@
 import { useEffect, useId, useRef } from 'react'
+import { IconX } from '@tabler/icons-react'
+import { useTranslation } from 'react-i18next'
 
 type Props = {
   open: boolean
@@ -38,6 +40,7 @@ export function Dialog({
   overlayClassName = '',
   fixedHeight = false,
 }: Props) {
+  const { t } = useTranslation()
   const full = size === 'full'
   const backdropClass =
     backdrop === 'soft'
@@ -98,7 +101,7 @@ export function Dialog({
       {full ? null : dismissible ? (
         <button
           type="button"
-          aria-label="close"
+          aria-label={t('common.close')}
           className={`absolute inset-0 transition-opacity duration-200 ${backdropClass}`}
           onClick={onClose}
         />
@@ -123,7 +126,7 @@ export function Dialog({
       >
         <div
           className={[
-            'flex shrink-0 items-start justify-between gap-3 border-b border-[var(--color-border)]',
+            'flex shrink-0 items-center justify-between gap-3 border-b border-[var(--color-border)]',
             size === 'sm' ? 'px-3.5 py-2.5' : full ? 'px-4 py-2' : 'px-5 py-4',
           ].join(' ')}
         >
@@ -141,10 +144,11 @@ export function Dialog({
           {dismissible ? (
             <button
               type="button"
-              className="shrink-0 rounded-[var(--radius-sm)] px-2 py-1 text-lg leading-none text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
+              aria-label={t('common.close')}
+              className="inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
               onClick={onClose}
             >
-              ×
+              <IconX size={22} stroke={1.75} />
             </button>
           ) : null}
         </div>
