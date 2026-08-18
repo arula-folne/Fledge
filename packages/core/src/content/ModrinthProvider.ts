@@ -245,6 +245,15 @@ export class ModrinthProvider implements ContentProvider {
     if (query.loaders?.length) {
       facets.push(query.loaders.map((l) => `categories:${l}`))
     }
+    if (query.tags?.length) {
+      facets.push(query.tags.map((tag) => `categories:${tag}`))
+    }
+    if (query.environments?.includes('client')) {
+      facets.push(['client_side:required', 'client_side:optional'])
+    }
+    if (query.environments?.includes('server')) {
+      facets.push(['server_side:required', 'server_side:optional'])
+    }
 
     const params = new URLSearchParams({
       limit: String(query.limit),
