@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -26,6 +26,7 @@ import { InstanceIconPresetDialog, sameIconPreset } from '../features/instances/
 import { InstanceLaunchButton } from '../features/instances/InstanceLaunchButton'
 import { formatLastPlayed, formatLoaderLabel } from '../features/instances/instanceMeta'
 import { ContentTab } from '../features/content/ContentTab'
+import { parseLibraryTab, writeLibraryTab } from '../navigation/libraryDetailSearch'
 import { useUiStore, type LibraryDetailTab } from '../stores/appStores'
 
 type TabId = LibraryDetailTab
@@ -93,16 +94,13 @@ export default function LibraryDetailPage() {
   const { instanceId = '' } = useParams()
   const { t } = useTranslation()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const libraryFocus = useUiStore((s) => s.libraryFocus)
   const setLibraryFocus = useUiStore((s) => s.setLibraryFocus)
   const editingInstanceId = useUiStore((s) => s.editingInstanceId)
   const setEditingInstanceId = useUiStore((s) => s.setEditingInstanceId)
-  const [tab, setTab] = useState<TabId>(() =>
-    libraryFocus?.instanceId === instanceId && isDetailTab(libraryFocus.tab)
-      ? libraryFocus.tab
-      : 'content',
-  )
+  const tab = parseLibraryTab(searchParams.get('tab'))
   const [draft, setDraft] = useState<Draft | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
@@ -133,8 +131,17 @@ export default function LibraryDetailPage() {
   useEffect(() => {
     if (libraryFocus?.instanceId !== instanceId) return
     if (!isDetailTab(libraryFocus.tab)) return
-    setTab((current) => (current === libraryFocus.tab ? current : libraryFocus.tab))
-  }, [libraryFocus?.instanceId, libraryFocus?.tab, instanceId])
+    const focusedTab = libraryFocus.tab
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (parseLibraryTab(next.get('tab')) === focusedTab) return prev
+        writeLibraryTab(next, focusedTab)
+        return next
+      },
+      { replace: true },
+    )
+  }, [libraryFocus?.instanceId, libraryFocus?.tab, instanceId, setSearchParams])
 
   useEffect(() => {
     if (!instanceId) return
@@ -226,6 +233,14 @@ export default function LibraryDetailPage() {
     setEditingInstanceId(null)
   }
 
+  const changeTab = (next: TabId) => {
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev)
+      writeLibraryTab(params, next)
+      return params
+    })
+  }
+
   if (instanceQuery.isLoading) {
     return <div className="text-[var(--color-text-muted)]">{t('common.loading')}</div>
   }
@@ -297,7 +312,7 @@ export default function LibraryDetailPage() {
             key={item.id}
             active={tab === item.id}
             label={item.label}
-            onClick={() => setTab(item.id)}
+            onClick={() => changeTab(item.id)}
           />
         ))}
       </nav>

@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   IconPlus,
   IconPuzzle,
@@ -9,10 +10,17 @@ import {
   IconToggleLeft,
   IconToggleRight,
 } from '@tabler/icons-react'
-import type { ContentCategory, InstalledContent, InstanceProfile } from '@fledge/shared'
+import type { ContentCategory, ContentProject, InstalledContent, InstanceProfile } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import {
+  closeBrowse,
+  openBrowse,
+  parseContentCategory,
+  writeContentCategory,
+  writeProject,
+} from '../../navigation/libraryDetailSearch'
 import { AddContentModal } from './AddContentModal'
 import { useTransferStore } from '../../stores/appStores'
 
@@ -30,10 +38,60 @@ type Props = {
 
 export function ContentTab({ instance }: Props) {
   const { t } = useTranslation()
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
-  const [category, setCategory] = useState<ContentCategory>('mod')
-  const [addOpen, setAddOpen] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<InstalledContent | null>(null)
+
+  const category = parseContentCategory(searchParams.get('category'))
+  const browseOpen = searchParams.get('browse') === '1'
+  const projectId = searchParams.get('project')
+
+  const changeCategory = useCallback(
+    (next: ContentCategory) => {
+      if (next === category) return
+      setSearchParams((prev) => {
+        const params = new URLSearchParams(prev)
+        writeContentCategory(params, next)
+        return params
+      })
+    },
+    [category, setSearchParams],
+  )
+
+  const openBrowseModal = useCallback(() => {
+    setSearchParams((prev) => {
+      const params = new URLSearchParams(prev)
+      openBrowse(params)
+      return params
+    })
+  }, [setSearchParams])
+
+  const closeBrowseModal = useCallback(() => {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev)
+        closeBrowse(params)
+        return params
+      },
+      { replace: true },
+    )
+  }, [setSearchParams])
+
+  const selectProject = useCallback(
+    (hit: ContentProject) => {
+      setSearchParams((prev) => {
+        const params = new URLSearchParams(prev)
+        writeProject(params, hit.slug || hit.id)
+        return params
+      })
+    },
+    [setSearchParams],
+  )
+
+  const backFromProject = useCallback(() => {
+    navigate(-1)
+  }, [navigate])
 
   const installedQuery = useQuery({
     queryKey: ['content-installed', instance.id, category],
@@ -98,7 +156,7 @@ export function ContentTab({ instance }: Props) {
             <button
               key={c}
               type="button"
-              onClick={() => setCategory(c)}
+              onClick={() => changeCategory(c)}
               className={[
                 'rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
                 category === c
@@ -119,7 +177,7 @@ export function ContentTab({ instance }: Props) {
             <IconRefresh size={16} stroke={1.75} />
             {t('content.checkUpdates')}
           </Button>
-          <Button variant="primary" onClick={() => setAddOpen(true)}>
+          <Button variant="primary" onClick={openBrowseModal}>
             <IconPlus size={16} stroke={1.75} />
             {t('content.add')}
           </Button>
@@ -132,7 +190,7 @@ export function ContentTab({ instance }: Props) {
         <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-8 text-center">
           <IconPuzzle size={24} stroke={1.5} className="mx-auto text-[var(--color-text-muted)]" />
           <p className="mt-2 text-sm text-[var(--color-text-muted)]">{t('content.empty')}</p>
-          <Button className="mt-3" variant="primary" onClick={() => setAddOpen(true)}>
+          <Button className="mt-3" variant="primary" onClick={openBrowseModal}>
             <IconPlus size={16} stroke={1.75} />
             {t('content.add')}
           </Button>
@@ -200,10 +258,14 @@ export function ContentTab({ instance }: Props) {
       )}
 
       <AddContentModal
-        open={addOpen}
-        onClose={() => setAddOpen(false)}
+        open={browseOpen}
+        onClose={closeBrowseModal}
         instance={instance}
-        initialCategory={category}
+        category={category}
+        onCategoryChange={changeCategory}
+        projectId={projectId}
+        onSelectProject={selectProject}
+        onBackFromProject={backFromProject}
         onInstalled={() => {
           void invalidate()
         }}

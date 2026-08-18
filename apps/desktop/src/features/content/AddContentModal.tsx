@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -150,7 +150,11 @@ type Props = {
   open: boolean
   onClose: () => void
   instance: InstanceProfile
-  initialCategory: ContentCategory
+  category: ContentCategory
+  onCategoryChange: (category: ContentCategory) => void
+  projectId: string | null
+  onSelectProject: (hit: ContentProject) => void
+  onBackFromProject: () => void
   onInstalled: () => void
 }
 
@@ -158,12 +162,16 @@ export function AddContentModal({
   open,
   onClose,
   instance,
-  initialCategory,
+  category,
+  onCategoryChange,
+  projectId,
+  onSelectProject,
+  onBackFromProject,
   onInstalled,
 }: Props) {
   const { t } = useTranslation()
+  const wasOpenRef = useRef(false)
   const [query, setQuery] = useState('')
-  const [category, setCategory] = useState<ContentCategory>(initialCategory)
   const [gameVersion, setGameVersion] = useState(instance.minecraftVersion)
   const [versionFilter, setVersionFilter] = useState('')
   const [loaders, setLoaders] = useState<ContentLoaderFilter[]>(() =>
@@ -176,7 +184,6 @@ export function AddContentModal({
   const [page, setPage] = useState(1)
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [selected, setSelected] = useState<ContentProject | null>(null)
   const jobs = useTransferStore((s) => s.jobs)
   const installingIds = useMemo(() => {
     const ids = new Set<string>()
@@ -201,21 +208,21 @@ export function AddContentModal({
   })
 
   useEffect(() => {
-    if (!open) return
-    setCategory(initialCategory)
-    setGameVersion(instance.minecraftVersion)
-    setVersionFilter('')
-    setLoaders(loadersFromInstance(instance.loader))
-    setTags([])
-    setEnvironments([])
-    setSort('relevance')
-    setPageSize(20)
-    setPage(1)
-    setQuery('')
-    setDebouncedQuery('')
-    setError(null)
-    setSelected(null)
-  }, [open, initialCategory, instance.id, instance.minecraftVersion, instance.loader])
+    if (open && !wasOpenRef.current) {
+      setGameVersion(instance.minecraftVersion)
+      setVersionFilter('')
+      setLoaders(loadersFromInstance(instance.loader))
+      setTags([])
+      setEnvironments([])
+      setSort('relevance')
+      setPageSize(20)
+      setPage(1)
+      setQuery('')
+      setDebouncedQuery('')
+      setError(null)
+    }
+    wasOpenRef.current = open
+  }, [open, instance.id, instance.minecraftVersion, instance.loader])
 
   useEffect(() => {
     const id = window.setTimeout(() => setDebouncedQuery(query.trim()), 280)
@@ -287,6 +294,21 @@ export function AddContentModal({
     },
   })
 
+  const hits = searchQuery.data?.hits ?? []
+  const selectedFromHits = useMemo(() => {
+    if (!projectId) return null
+    return hits.find((hit) => hit.id === projectId || hit.slug === projectId) ?? null
+  }, [projectId, hits])
+
+  const projectQuery = useQuery({
+    queryKey: ['content-project-browse', projectId],
+    queryFn: () => fledgeApi.content.getProject(projectId!),
+    enabled: open && Boolean(projectId) && !selectedFromHits,
+    staleTime: 60_000,
+  })
+
+  const selected = selectedFromHits ?? projectQuery.data?.project ?? null
+
   const toggleLoader = (l: ContentLoaderFilter) => {
     setLoaders((prev) => (prev.includes(l) ? prev.filter((x) => x !== l) : [...prev, l]))
   }
@@ -299,7 +321,6 @@ export function AddContentModal({
     setEnvironments((prev) => (prev.includes(env) ? prev.filter((x) => x !== env) : [...prev, env]))
   }
 
-  const hits = searchQuery.data?.hits ?? []
   const total = searchQuery.data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const typeLabel = t(`content.category.${category}`)
@@ -312,17 +333,27 @@ export function AddContentModal({
       onClose={onClose}
       size="full"
     >
-      {selected ? (
-        <ContentProjectView
-          hit={selected}
-          instance={instance}
-          gameVersion={gameVersion}
-          loaders={loaders}
-          installing={installingIds.has(selected.id)}
-          onBack={() => setSelected(null)}
-          onInstalled={onInstalled}
-          onError={setError}
-        />
+      {projectId ? (
+        selected ? (
+          <ContentProjectView
+            hit={selected}
+            instance={instance}
+            gameVersion={gameVersion}
+            loaders={loaders}
+            installing={installingIds.has(selected.id)}
+            onBack={onBackFromProject}
+            onInstalled={onInstalled}
+            onError={setError}
+          />
+        ) : projectQuery.isError ? (
+          <p className="text-xs text-[var(--color-danger)]">
+            {projectQuery.error instanceof Error
+              ? projectQuery.error.message
+              : String(projectQuery.error)}
+          </p>
+        ) : (
+          <p className="text-xs text-[var(--color-text-muted)]">{t('common.loading')}</p>
+        )
       ) : (
       <div className="flex min-h-0 flex-1 flex-col gap-2.5">
         <div className="flex shrink-0 flex-wrap gap-1">
@@ -330,7 +361,7 @@ export function AddContentModal({
             <button
               key={c}
               type="button"
-              onClick={() => setCategory(c)}
+              onClick={() => onCategoryChange(c)}
               className={[
                 'rounded-[var(--radius-sm)] px-2.5 py-1 text-xs font-medium transition-colors',
                 category === c
@@ -541,12 +572,12 @@ export function AddContentModal({
                 <p className="text-xs text-[var(--color-text-muted)]">{t('content.noResults')}</p>
               ) : (
                 <ul className="space-y-1.5">
-                  {hits.map((hit) => (
+                  {hitsForList.map((hit) => (
                     <SearchHitCard
                       key={`${hit.provider}:${hit.id}`}
                       hit={hit}
                       installing={installingIds.has(hit.id)}
-                      onOpen={() => setSelected(hit)}
+                      onOpen={() => onSelectProject(hit)}
                       onInstall={() => installMutation.mutate({ id: hit.id })}
                     />
                   ))}
