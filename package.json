@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "軽量・高速な Minecraft ランチャー",
-  "license": "MIT",
+  "license": "GPL-3.0",
   "author": "folne",
   "repository": {
     "type": "git",

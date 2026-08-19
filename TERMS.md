@@ -1,10 +1,10 @@
 # 利用規約（Terms of Service）
 
-最終更新: 2026-08-17
+最終更新: 2026-08-20
 
 本規約は、Minecraft ランチャー **Fledge**（以下「本アプリ」）の利用条件です。本アプリを使うことで、本規約に同意したものとみなします。
 
-関連文書: [プライバシーポリシー](./PRIVACY.md) / [クレジット](./CREDITS.md) / [MIT ライセンス](./LICENSE)
+関連文書: [プライバシーポリシー](./PRIVACY.md) / [クレジット](./CREDITS.md) / [GPL-3.0 ライセンス](./LICENSE)
 
 ---
 
@@ -12,7 +12,7 @@
 
 Fledge は、個人・OSS として公開している **非公式** の Minecraft ランチャーです。Mojang Studios、Microsoft、Discord、Modrinth その他の公式製品ではありません。それらの商標は各権利者に帰属します。
 
-ソースコードは GitHub（[arula-folne/Fledge](https://github.com/arula-folne/Fledge)）で MIT ライセンスのもと公開しています。
+ソースコードは GitHub（[arula-folne/Fledge](https://github.com/arula-folne/Fledge)）で GNU GPL-3.0 ライセンスのもと公開しています。
 
 ---
 
@@ -71,7 +71,7 @@ Fledge は今後、運用中の **webw** と連携し、着せ替え機能など
 
 ## 6. 知的財産
 
-- Fledge のソースコードは MIT ライセンスです
+- Fledge のソースコードは GNU GPL-3.0 ライセンスです
 - Minecraft のゲーム本体・アセットの権利は Mojang / Microsoft にあります
 - 本アプリが取得する Mod 等の権利は、各作者および配布サイトにあります
 

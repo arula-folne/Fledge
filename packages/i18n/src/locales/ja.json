@@ -452,7 +452,7 @@
   "privacy.noticeSaveError": "了解状態を保存できませんでした。アプリを再起動してからもう一度お試しください。",
   "privacy.noticeBody": "Fledge は広告・利用解析・クラッシュ報告などの情報収集を行いません。\n\nアカウント認証は Microsoft / Mojang の公式サービス、ゲームや Mod の取得は必要時のみ公式／配布サイトの API を使います。\n\nアバター表示のため、アカウントの UUID を第三者サービス（mc-heads.net）へ送ることがあります。Discord Rich Presence は設定でオフのままにするか、必要なときだけオンにしてください。\n\n詳細はリポジトリの PRIVACY.md を参照してください。",
   "settings.privacyNote": "Fledge は広告および利用解析を行いません。クラッシュ報告の送信もありません。\n\n・アバター: 表示のため mc-heads.net へ UUID を送る場合があります（Microsoft 側の画像 URL があればそちらを優先）。\n・Discord Rich Presence: 既定オフ。オン時のみローカル Discord へ状態を送ります。\n・Modrinth / Mojang 等: 検索・ダウンロード・起動時にのみ、それらのサービスへ通常の API 通信を行います。",
-  "settings.aboutNote": "Fledge は非公式の Minecraft ランチャーです。Minecraft は Mojang Studios の商標です。\nオープンソース（MIT）として公開しています。",
+  "settings.aboutNote": "Fledge は非公式の Minecraft ランチャーです。Minecraft は Mojang Studios の商標です。\nオープンソース（GPL-3.0）として公開しています。",
   "settings.java21": "Java 21",
   "settings.java17": "Java 17",
   "settings.java8": "Java 8",

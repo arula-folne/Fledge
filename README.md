@@ -19,7 +19,7 @@ Fledge は、Minecraft Java Edition を起動するための **非公式デス�
 ゲーム本体やライブラリは共有するので、同じバージョンを複数のインスタンスで使い回せます。  
 データは exe と同じフォルダにまとまるので、バックアップや引っ越しがしやすい構成です。
 
-オープンソース（[MIT](./LICENSE)）として公開しています。現在は **Ver.0.1.0 - Beta** です。
+オープンソース（[GPL-3.0](./LICENSE)）として公開しています。現在は **Ver.0.1.0 - Beta** です。
 
 ## Fledge らしさ
 
@@ -160,6 +160,6 @@ pnpm dev
 
 ## ライセンス
 
-[MIT](./LICENSE) © folne
+[GPL-3.0](./LICENSE) © folne
 
 Fledge は非公式ランチャーです。Minecraft は Mojang Studios の商標です。
