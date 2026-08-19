@@ -39,7 +39,6 @@ function IconAction({
 }) {
   return (
     <HoverTooltip
-      disabled={disabled}
       content={
         <>
           <div className="text-xs font-semibold text-[var(--color-text)]">{label}</div>
@@ -53,7 +52,12 @@ function IconAction({
         variant={variant}
         disabled={disabled}
         aria-label={hint ? `${label}. ${hint}` : label}
-        className={['px-3 py-2.5', className].filter(Boolean).join(' ')}
+        className={[
+          '!rounded-[var(--radius-sm)] size-10 p-0',
+          className,
+        ]
+          .filter(Boolean)
+          .join(' ')}
         onClick={onClick}
       >
         {children}
@@ -158,6 +162,7 @@ export function JavaRuntimePanel({ onMessage }: { onMessage: (msg: string | null
       {JAVA_MANAGED_MAJORS.map((major) => {
         const runtime = byMajor.get(major)
         const installed = runtime?.installed ?? false
+        const removable = installed || Boolean(runtime?.removable)
         const job = Object.values(transferJobs).find(
           (j) =>
             j.kind === 'java' &&
@@ -193,9 +198,19 @@ export function JavaRuntimePanel({ onMessage }: { onMessage: (msg: string | null
                 <span className="text-sm text-[var(--color-text-muted)]">{t('settings.java.busy')}</span>
               ) : null}
             </div>
-            <p className="mb-4 break-all font-mono text-sm text-[var(--color-text-muted)]">
-              {runtime?.displayPath ?? `…/java-version/java${major}/bin`}
-            </p>
+            {installed ? (
+              <p className="mb-4 break-all font-mono text-sm text-[var(--color-text-muted)]">
+                {runtime?.displayPath}
+              </p>
+            ) : removable ? (
+              <p className="mb-4 text-sm text-[var(--color-text-muted)]">
+                {t('settings.java.leftoverHint')}
+              </p>
+            ) : (
+              <p className="mb-4 text-sm text-[var(--color-text-muted)]">
+                {t('settings.java.notInstalledHint')}
+              </p>
+            )}
             {job ? (
               <div className="mb-4 space-y-1.5">
                 <div className="flex items-center justify-between gap-3 text-xs text-[var(--color-text-muted)]">
@@ -206,15 +221,17 @@ export function JavaRuntimePanel({ onMessage }: { onMessage: (msg: string | null
               </div>
             ) : null}
             <div className="flex flex-wrap gap-2">
-              <IconAction
-                label={t('settings.java.install')}
-                hint={t('settings.java.installHint')}
-                variant="primary"
-                disabled={installing || installed || uninstalling}
-                onClick={() => installMutation.mutate(major)}
-              >
-                <IconDownload {...iconProps} />
-              </IconAction>
+              {!installed ? (
+                <IconAction
+                  label={t('settings.java.install')}
+                  hint={t('settings.java.installHint')}
+                  variant="primary"
+                  disabled={installing || uninstalling}
+                  onClick={() => installMutation.mutate(major)}
+                >
+                  <IconDownload {...iconProps} />
+                </IconAction>
+              ) : null}
               <IconAction
                 label={t('settings.java.openFolder')}
                 hint={t('settings.java.openFolderHint')}
@@ -223,28 +240,36 @@ export function JavaRuntimePanel({ onMessage }: { onMessage: (msg: string | null
               >
                 <IconFolderOpen {...iconProps} />
               </IconAction>
-              <IconAction
-                label={t('settings.java.verify')}
-                hint={t('settings.java.verifyHint')}
-                disabled={installing || verifying || uninstalling || !installed}
-                className="!border-transparent !bg-[#f08a24] !text-white hover:!brightness-105"
-                onClick={() => verifyMutation.mutate(major)}
-              >
-                <IconShieldCheck {...iconProps} />
-              </IconAction>
-              <IconAction
-                label={t('settings.java.reinstall')}
-                hint={t('settings.java.reinstallHint')}
-                disabled={installing || uninstalling}
-                onClick={() => reinstallMutation.mutate(major)}
-              >
-                <IconRefresh {...iconProps} />
-              </IconAction>
+              {installed ? (
+                <IconAction
+                  label={t('settings.java.verify')}
+                  hint={t('settings.java.verifyHint')}
+                  disabled={installing || verifying || uninstalling}
+                  className="!border-transparent !bg-[#f08a24] !text-white hover:!brightness-105"
+                  onClick={() => verifyMutation.mutate(major)}
+                >
+                  <IconShieldCheck {...iconProps} />
+                </IconAction>
+              ) : null}
+              {installed ? (
+                <IconAction
+                  label={t('settings.java.reinstall')}
+                  hint={t('settings.java.reinstallHint')}
+                  disabled={installing || uninstalling}
+                  onClick={() => reinstallMutation.mutate(major)}
+                >
+                  <IconRefresh {...iconProps} />
+                </IconAction>
+              ) : null}
               <IconAction
                 label={t('settings.java.uninstall')}
-                hint={t('settings.java.uninstallHint')}
+                hint={
+                  removable
+                    ? t('settings.java.uninstallHint')
+                    : t('settings.java.uninstallDisabledHint')
+                }
                 variant="danger"
-                disabled={installing || uninstalling || !installed}
+                disabled={installing || uninstalling || !removable}
                 onClick={() => setUninstallMajor(major)}
               >
                 <IconTrash {...iconProps} />

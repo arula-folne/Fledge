@@ -48,21 +48,21 @@ export const InstanceCard = memo(function InstanceCard({
           }
         }}
         className={[
-          'group cursor-pointer rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 transition',
+          'group cursor-pointer rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-5 transition',
           'hover:border-[var(--color-accent)]/40 hover:bg-[var(--color-hover)]/40',
           className,
         ].join(' ')}
       >
-        <div className="flex flex-wrap items-center gap-3">
-          <InstanceIcon instance={instance} size="md" />
+        <div className="flex flex-wrap items-center gap-4">
+          <InstanceIcon instance={instance} size="lg" />
           <div className="min-w-0 flex-1">
-            <h3 className="truncate text-lg font-semibold text-[var(--color-text)]">
+            <h3 className="truncate text-xl font-semibold text-[var(--color-text)]">
               {instance.name}
             </h3>
-            <p className="truncate text-sm text-[var(--color-text-muted)]">
+            <p className="mt-1 truncate text-sm text-[var(--color-text-muted)]">
               {instance.minecraftVersion} · {formatLoaderLabel(instance.loader, t)}
             </p>
-            <p className="text-xs text-[var(--color-text-muted)]">
+            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
               {t('instances.lastPlayed')}: {formatLastPlayed(instance.lastPlayedAt, t)}
             </p>
           </div>

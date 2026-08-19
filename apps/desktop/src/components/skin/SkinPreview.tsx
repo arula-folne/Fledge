@@ -13,7 +13,12 @@ type Props = {
   className?: string
   width?: number
   height?: number
+  /** キャラクターの見え方。小さいほど縮小。未指定は 0.92 */
+  zoom?: number
 }
+
+const STAGE_BG =
+  'radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--color-accent-soft) 75%, transparent), transparent 58%), linear-gradient(180deg, color-mix(in srgb, var(--color-border) 22%, var(--color-surface)), var(--color-bg))'
 
 let renderChain: Promise<unknown> = Promise.resolve()
 function enqueueRender<T>(task: () => Promise<T>): Promise<T> {
@@ -68,27 +73,20 @@ function SkinStage({
 }: {
   children?: ReactNode
   className?: string
-  width: number
-  height: number
+  width?: number
+  height?: number
 }) {
   return (
     <div
-      className={['relative overflow-hidden', className].filter(Boolean).join(' ')}
+      className={['relative h-full w-full overflow-hidden', className].filter(Boolean).join(' ')}
       style={{
-        width,
-        height,
-        background:
-          'radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--color-accent-soft) 75%, transparent), transparent 58%), linear-gradient(180deg, color-mix(in srgb, var(--color-border) 22%, var(--color-surface)), var(--color-bg))',
+        ...(width && height ? { width, height } : {}),
+        background: STAGE_BG,
       }}
     >
       {children}
     </div>
   )
-}
-
-function snapshotBackdropColor(): string {
-  const value = getComputedStyle(document.documentElement).getPropertyValue('--color-bg').trim()
-  return value || '#111111'
 }
 
 async function renderSkinSnapshotToCanvas(
@@ -97,37 +95,38 @@ async function renderSkinSnapshotToCanvas(
   model: SkinModel,
   cssWidth: number,
   cssHeight: number,
+  zoom: number,
 ): Promise<void> {
   const pixelRatio = Math.min(window.devicePixelRatio || 1, 3)
   const glCanvas = document.createElement('canvas')
-  const backdrop = snapshotBackdropColor()
   const viewer = new SkinViewer({
     canvas: glCanvas,
     width: Math.max(1, cssWidth),
     height: Math.max(1, cssHeight),
     model: toModel(model),
     enableControls: false,
-    zoom: 0.92,
+    zoom,
     fov: 42,
     pixelRatio,
     renderPaused: true,
     preserveDrawingBuffer: true,
-    background: backdrop,
   })
 
   try {
     viewer.controls.enabled = false
+    viewer.background = null
+    viewer.renderer.setClearColor(0x000000, 0)
     applyLauncherLights(viewer)
     await viewer.loadSkin(skinUrl, { model: toModel(model) })
     applyLauncherPose(viewer)
+    viewer.zoom = zoom
     viewer.render()
     target.width = glCanvas.width
     target.height = glCanvas.height
     const ctx = target.getContext('2d')
     if (!ctx) return
     ctx.imageSmoothingEnabled = false
-    ctx.fillStyle = backdrop
-    ctx.fillRect(0, 0, target.width, target.height)
+    ctx.clearRect(0, 0, target.width, target.height)
     ctx.drawImage(glCanvas, 0, 0)
   } finally {
     viewer.dispose()
@@ -141,8 +140,10 @@ function SnapshotPreview({
   className,
   width,
   height,
+  zoom = 0.92,
 }: Required<Pick<Props, 'skinUrl' | 'model' | 'width' | 'height'>> & {
   className?: string
+  zoom?: number
 }) {
   const boxRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -185,7 +186,7 @@ function SnapshotPreview({
       const dest = canvasRef.current
       if (!dest) return
       try {
-        await renderSkinSnapshotToCanvas(dest, skinUrl, model, viewSize.width, viewSize.height)
+        await renderSkinSnapshotToCanvas(dest, skinUrl, model, viewSize.width, viewSize.height, zoom)
         if (requestId.current === id) setReady(true)
       } catch (err) {
         console.error('Skin preview failed:', err)
@@ -196,14 +197,14 @@ function SnapshotPreview({
     return () => {
       requestId.current += 1
     }
-  }, [skinUrl, model, viewSize.width, viewSize.height])
+  }, [skinUrl, model, viewSize.width, viewSize.height, zoom])
 
   return (
     <div
       ref={boxRef}
       className={['relative h-full w-full overflow-hidden', className].filter(Boolean).join(' ')}
       style={{
-        background: 'var(--color-bg)',
+        background: STAGE_BG,
       }}
     >
       {!skinUrl || failed || !ready ? (
@@ -211,7 +212,7 @@ function SnapshotPreview({
       ) : null}
       <canvas
         ref={canvasRef}
-        className="block h-full w-full"
+        className="block h-full w-full bg-transparent"
         style={{ visibility: ready ? 'visible' : 'hidden' }}
       />
     </div>
@@ -227,18 +228,23 @@ function InteractivePreview({
 }: Required<Pick<Props, 'skinUrl' | 'model' | 'width' | 'height'>> & {
   className?: string
 }) {
+  const boxRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viewerRef = useRef<SkinViewer | null>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
+    const box = boxRef.current
     if (!canvas || !skinUrl) return
+
+    const startW = Math.max(1, box?.clientWidth || width)
+    const startH = Math.max(1, box?.clientHeight || height)
 
     let disposed = false
     const viewer = new SkinViewer({
       canvas,
-      width,
-      height,
+      width: startW,
+      height: startH,
       model: toModel(model),
       enableControls: true,
       zoom: INTERACTIVE_ZOOM,
@@ -293,17 +299,37 @@ function InteractivePreview({
     }
   }, [skinUrl, model, width, height])
 
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el) return
+    const update = () => {
+      const viewer = viewerRef.current
+      if (!viewer) return
+      const nextW = Math.max(1, Math.round(el.clientWidth))
+      const nextH = Math.max(1, Math.round(el.clientHeight))
+      if (viewer.width !== nextW || viewer.height !== nextH) {
+        viewer.setSize(nextW, nextH)
+      }
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [skinUrl, model])
+
   if (!skinUrl) {
-    return <SkinStage className={className} width={width} height={height} />
+    return <SkinStage className={className} />
   }
 
   return (
-    <SkinStage className={className} width={width} height={height}>
-      <canvas
-        ref={canvasRef}
-        className="block h-full w-full cursor-grab touch-none active:cursor-grabbing"
-      />
-    </SkinStage>
+    <div ref={boxRef} className="h-full min-h-0 w-full">
+      <SkinStage className={className}>
+        <canvas
+          ref={canvasRef}
+          className="block h-full w-full cursor-grab touch-none active:cursor-grabbing"
+        />
+      </SkinStage>
+    </div>
   )
 }
 
@@ -314,6 +340,7 @@ export function SkinPreview({
   className,
   width = 120,
   height = 160,
+  zoom,
 }: Props) {
   if (interactive) {
     return (
@@ -334,6 +361,7 @@ export function SkinPreview({
       className={className}
       width={width}
       height={height}
+      zoom={zoom}
     />
   )
 }

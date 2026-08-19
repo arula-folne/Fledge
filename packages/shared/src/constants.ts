@@ -57,6 +57,7 @@ export const IPC = {
   skinsSelect: 'skins:select',
   skinsGetData: 'skins:get-data',
   cacheClear: 'cache:clear',
+  appFactoryReset: 'app:factory-reset',
   backupRun: 'backup:run',
   backupList: 'backup:list',
   backupRestore: 'backup:restore',

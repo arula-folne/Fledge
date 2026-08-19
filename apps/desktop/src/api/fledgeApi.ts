@@ -133,6 +133,9 @@ export type FledgeApi = {
   cache: {
     clear: () => Promise<void>
   }
+  app: {
+    factoryReset: () => Promise<void>
+  }
   backup: {
     run: () => Promise<string>
     list: () => Promise<BackupEntry[]>

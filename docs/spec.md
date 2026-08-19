@@ -83,7 +83,7 @@ Main (Electron)
   Data/
     Accounts/          アカウント一覧 + secrets/（暗号化トークン）
     Cache/
-    java-version/      java8 / java17 / java21 / java25
+    java-version/      java8 / java17 / java21 / java25（各配下に bin/ と jdk-*.md）
     Logs/
     Minecraft/         共有 libraries / assets / versions / natives
     News/

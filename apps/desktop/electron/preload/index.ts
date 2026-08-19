@@ -136,6 +136,9 @@ export type FledgeApi = {
   cache: {
     clear: () => Promise<void>
   }
+  app: {
+    factoryReset: () => Promise<void>
+  }
   backup: {
     run: () => Promise<string>
     list: () => Promise<BackupEntry[]>
@@ -249,6 +252,9 @@ const api: FledgeApi = {
   },
   cache: {
     clear: () => ipcRenderer.invoke(IPC.cacheClear),
+  },
+  app: {
+    factoryReset: () => ipcRenderer.invoke(IPC.appFactoryReset),
   },
   backup: {
     run: () => ipcRenderer.invoke(IPC.backupRun),

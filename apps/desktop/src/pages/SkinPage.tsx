@@ -84,25 +84,25 @@ export default function SkinPage() {
         </p>
       ) : null}
 
-      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[200px_1fr]">
-        <aside className="flex flex-col items-center rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5">
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <aside className="flex min-h-0 flex-col items-center rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5">
           <p className="mb-0.5 text-xs font-medium text-[var(--color-text)]">{t('skin.current')}</p>
           <p className="mb-2 text-[10px] leading-tight text-[var(--color-text-muted)]">
             {t('skin.dragHint')}
           </p>
-          <div className="flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden rounded-[var(--radius-md)]">
+          <div className="flex min-h-[300px] w-full flex-1 overflow-hidden rounded-[var(--radius-md)] lg:min-h-0">
             {selectedSkin ? (
               <SkinEntryPreview
                 skin={selectedSkin}
                 pose="full"
                 interactive
-                width={184}
-                height={300}
-                className="rounded-[var(--radius-md)]"
+                width={280}
+                height={420}
+                className="h-full w-full rounded-[var(--radius-md)]"
                 model={selectedSkin.model}
               />
             ) : (
-              <div className="h-[300px] w-full animate-pulse rounded-[var(--radius-md)] bg-[var(--color-border)]/40" />
+              <div className="h-full min-h-[300px] w-full animate-pulse rounded-[var(--radius-md)] bg-[var(--color-border)]/40" />
             )}
           </div>
           {selectedSkin ? (
@@ -159,6 +159,7 @@ export default function SkinPage() {
                     pose="full"
                     width={140}
                     height={112}
+                    zoom={0.72}
                     className="h-full w-full"
                   />
                 </SkinCard>
@@ -213,6 +214,7 @@ export default function SkinPage() {
                     pose="full"
                     width={140}
                     height={112}
+                    zoom={0.72}
                     className="h-full w-full"
                   />
                 </SkinCard>
@@ -284,7 +286,7 @@ function SkinCard({
   return (
     <div
       className={[
-        'relative flex flex-col overflow-hidden rounded-[var(--radius-md)] border transition',
+        'relative flex aspect-[2.5/3] w-full min-w-0 flex-col overflow-hidden rounded-[var(--radius-md)] border transition',
         selected
           ? 'border-[var(--color-selection)] ring-2 ring-[var(--color-selection)]/35'
           : dashed
@@ -292,8 +294,14 @@ function SkinCard({
             : 'border-[var(--color-border)] hover:border-[var(--color-accent)]/50',
       ].join(' ')}
     >
-      <button type="button" onClick={onClick} className="flex flex-col text-left">
-        <div className="h-[112px] w-full overflow-hidden">
+      <button type="button" onClick={onClick} className="flex min-h-0 flex-1 flex-col text-left">
+        <div
+          className="min-h-0 w-full flex-1 overflow-hidden"
+          style={{
+            background:
+              'radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--color-accent-soft) 75%, transparent), transparent 58%), linear-gradient(180deg, color-mix(in srgb, var(--color-border) 22%, var(--color-surface)), var(--color-bg))',
+          }}
+        >
           {children}
         </div>
       </button>
@@ -303,7 +311,7 @@ function SkinCard({
           {t('skin.using')}
         </span>
       ) : null}
-      <div className="flex items-center gap-1 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-1">
+      <div className="flex shrink-0 items-center gap-1 border-t border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-1">
         <button type="button" onClick={onClick} className="min-w-0 flex-1 text-left">
           <div className="truncate text-xs font-medium">{title}</div>
           <div className="truncate text-[10px] text-[var(--color-text-muted)]">{subtitle}</div>
@@ -348,6 +356,7 @@ function SkinEntryPreview({
   model: modelOverride,
   interactive = false,
   className,
+  zoom,
 }: {
   skin: SkinEntry
   pose: 'bust' | 'full'
@@ -356,6 +365,7 @@ function SkinEntryPreview({
   model?: SkinModel
   interactive?: boolean
   className?: string
+  zoom?: number
 }) {
   const urlQuery = useQuery({
     queryKey: ['skin-data', skin.id],
@@ -376,6 +386,7 @@ function SkinEntryPreview({
       width={width}
       height={height}
       className={className}
+      zoom={zoom}
     />
   )
 }

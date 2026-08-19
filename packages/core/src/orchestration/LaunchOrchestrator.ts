@@ -277,6 +277,9 @@ export class LaunchOrchestrator {
       )
       if (abort.signal.aborted) throw Object.assign(new Error('cancelled'), { messageKey: 'download.cancelled' })
 
+      // 導入後の version JSON（javaVersion）に合わせて Java を取り直す
+      const resolvedJavaPath = await this.deps.java.ensureJava(profile.minecraftVersion, sessionId)
+
       if (profile.minecraftInitialSettingsSeeded && !profile.minecraftInitialSettingsApplied) {
         try {
           await mergeMinecraftOptionsFile(instanceDir, profile.pendingMinecraftOptions ?? {})
@@ -299,7 +302,7 @@ export class LaunchOrchestrator {
         profile,
         instanceDir,
         versionId,
-        javaPath,
+        javaPath: resolvedJavaPath,
         credentials,
         display: {
           fullscreen: settings.gameFullscreen,
@@ -403,6 +406,21 @@ export class LaunchOrchestrator {
     if (!child) return
     child.kill()
     this.deps.logger.info('launcher', `Game process kill requested (${session?.id})`)
+  }
+
+  /** 進行中の導入・起動・ゲームをすべて止める（完全リセット用） */
+  stopAll(): void {
+    for (const session of [...this.sessions.values()]) {
+      session.abort.abort()
+      this.deps.queue.cancelBySession(session.id)
+      try {
+        session.child?.kill()
+      } catch {
+        /* ignore */
+      }
+      this.emitState(session, 'idle')
+      this.sessions.delete(session.id)
+    }
   }
 
   private emitPhase(sessionId: string, phase: LaunchPhaseEvent['phase'], messageKey: string): void {

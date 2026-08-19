@@ -12,7 +12,7 @@ import {
   type Settings,
   type SkinModel,
 } from '@fledge/shared'
-import { snapshotMinecraftInitialOptions, type LauncherApp } from '@fledge/core'
+import { snapshotMinecraftInitialOptions, factoryReset, type LauncherApp } from '@fledge/core'
 import { applyWindowUiScale } from '../windows/MainWindow'
 
 function send(win: BrowserWindow | null, channel: string, payload: unknown): void {
@@ -31,7 +31,11 @@ function toRendererSettings(settings: Settings): Settings {
   return settings
 }
 
-export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow | null): void {
+export function registerIpc(
+  appCtx: LauncherApp,
+  getWindow: () => BrowserWindow | null,
+  hooks?: { onFactoryReset?: () => void },
+): void {
   const win = () => getWindow()
   const touchBackup = () => appCtx.backup.scheduleSync()
 
@@ -331,6 +335,11 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
     appCtx.logger.info('system', 'Cache cleared')
   })
 
+  ipcMain.handle(IPC.appFactoryReset, async () => {
+    await factoryReset(appCtx)
+    hooks?.onFactoryReset?.()
+  })
+
   ipcMain.handle(IPC.backupRun, async () => {
     const entry = await appCtx.backup.snapshot()
     return entry.path
@@ -405,8 +414,13 @@ export function registerIpc(appCtx: LauncherApp, getWindow: () => BrowserWindow 
     const m = [8, 17, 21, 25].includes(major) ? (major as 8 | 17 | 21 | 25) : null
     if (!m) throw new Error('Unsupported Java major')
     const view = await appCtx.java.getRuntimeView(m)
-    await fs.mkdir(view.installDir, { recursive: true })
-    const target = view.installed && view.javaPath ? path.dirname(view.javaPath) : view.installDir
+    const target =
+      view.installed && view.javaPath
+        ? path.dirname(view.javaPath)
+        : view.removable
+          ? view.installDir
+          : path.dirname(view.installDir)
+    await fs.mkdir(target, { recursive: true })
     await shell.openPath(target)
   })
 }

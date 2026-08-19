@@ -31,7 +31,7 @@ export function ConfirmDialog({
       open={open}
       title={title}
       onClose={onCancel}
-      overlayClassName="z-[60]"
+      overlayClassName="z-[90]"
       footer={
         <>
           <Button type="button" disabled={pending} onClick={onCancel}>

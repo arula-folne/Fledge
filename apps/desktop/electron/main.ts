@@ -14,6 +14,7 @@ let mainWindow: BrowserWindow | null = null
 let launcherApp: LauncherApp | null = null
 let discordPresence: DiscordPresence | null = null
 let cachedClientId: string | undefined
+let allowQuit = false
 
 function getWindow(): BrowserWindow | null {
   return mainWindow
@@ -131,7 +132,14 @@ async function bootstrap(): Promise<void> {
     return next
   }
 
-  registerIpc(launcherApp, getWindow)
+  registerIpc(launcherApp, getWindow, {
+    onFactoryReset: () => {
+      allowQuit = true
+      void discordPresence?.destroy()
+      app.relaunch()
+      app.quit()
+    },
+  })
   mainWindow = createMainWindow({
     width: settings.launcherWindowWidth,
     height: settings.launcherWindowHeight,
@@ -171,8 +179,6 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
-
-let allowQuit = false
 
 app.on('before-quit', (e) => {
   if (allowQuit) {

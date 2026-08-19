@@ -33,9 +33,8 @@ export function PrivacyNoticeDialog() {
     },
   })
 
-  const acknowledged = settingsQuery.data?.privacyNoticeAcknowledged === true
   const open =
-    !acknowledged && (settingsQuery.isLoading || settingsQuery.isSuccess || settingsQuery.isError)
+    settingsQuery.isSuccess && settingsQuery.data.privacyNoticeAcknowledged !== true
 
   return (
     <Dialog
@@ -43,24 +42,25 @@ export function PrivacyNoticeDialog() {
       title={t('privacy.noticeTitle')}
       onClose={() => undefined}
       dismissible={false}
-      size="lg"
-      scrollable
+      size="md"
+      overlayClassName="z-[90]"
       footer={
         <Button
           variant="primary"
           type="button"
-          disabled={!settingsQuery.isSuccess || ackMutation.isPending}
+          disabled={ackMutation.isPending}
           onClick={() => ackMutation.mutate()}
         >
           {ackMutation.isPending ? t('common.loading') : t('privacy.noticeAcknowledge')}
         </Button>
       }
     >
-      <div className="space-y-3 whitespace-pre-line text-sm leading-relaxed text-[var(--color-text)]">
-        {settingsQuery.isLoading ? t('common.loading') : t('privacy.noticeBody')}
-        {settingsQuery.isError ? (
-          <p className="text-[var(--color-danger)]">{t('privacy.noticeLoadError')}</p>
-        ) : null}
+      <div className="space-y-3 text-sm leading-relaxed text-[var(--color-text)]">
+        {t('privacy.noticeBody')
+          .split('\n\n')
+          .map((paragraph, index) => (
+            <p key={index}>{paragraph}</p>
+          ))}
         {error ? <p className="text-[var(--color-danger)]">{error}</p> : null}
       </div>
     </Dialog>

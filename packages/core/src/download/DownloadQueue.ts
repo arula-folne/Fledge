@@ -132,6 +132,11 @@ export class DownloadQueue {
     }
   }
 
+  cancelAll(): void {
+    for (const job of [...this.queued]) this.cancel(job.id)
+    for (const job of this.active.values()) this.cancel(job.id)
+  }
+
   /** ジョブを増やさず、セッションの表示用ステータスだけ更新する */
   emitStatus(
     sessionId: string,

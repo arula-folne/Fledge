@@ -65,6 +65,13 @@ export class BackupService {
     }, SYNC_DEBOUNCE_MS)
   }
 
+  cancelPending(): void {
+    if (this.timer) {
+      clearTimeout(this.timer)
+      this.timer = null
+    }
+  }
+
   async flushSync(): Promise<void> {
     if (this.timer) {
       clearTimeout(this.timer)

@@ -253,6 +253,8 @@ export function tagLabel(tag: string, t: (key: string) => string): string {
     ? t(`content.tag.${tag}` as 'content.tag.library')
     : tag.replace(/-/g, ' ')
 }
+
+export function loaderLabel(loader: string): string {
   return LOADER_LABEL[loader.toLowerCase()] ?? loader
 }
 

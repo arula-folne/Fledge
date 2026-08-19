@@ -1,6 +1,7 @@
 export { createLauncherApp } from './app/createLauncherApp.js'
 export type { LauncherApp, CreateLauncherAppOptions, PathLayout, LaunchEventBus } from './app/createLauncherApp.js'
 export { resolvePathLayout, ensurePathLayout } from './app/paths.js'
+export { factoryReset } from './app/factoryReset.js'
 export type { AuthProvider } from './auth/AuthProvider.js'
 export { AuthError } from './auth/authTypes.js'
 export type { LaunchCredentials } from './auth/authTypes.js'

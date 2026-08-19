@@ -1,4 +1,5 @@
 @import 'tailwindcss';
+@import './cursors.css';
 
 :root {
   --color-bg: #e4e1dc;

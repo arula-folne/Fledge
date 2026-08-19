@@ -17,7 +17,7 @@ type Props = {
   backdrop?: 'default' | 'soft'
   /** false のとき Esc / 背景 / × で閉じない（確認ダイアログ向け） */
   dismissible?: boolean
-  /** 重ね表示用（確認ダイアログはより手前） */
+  /** 重ね表示用（確認ダイアログはより手前）。z-index はここだけ指定する */
   overlayClassName?: string
   /** 内容量に関係なく高さを固定する（作成ダイアログなど） */
   fixedHeight?: boolean
@@ -37,7 +37,7 @@ export function Dialog({
   size = 'md',
   backdrop = 'default',
   dismissible = true,
-  overlayClassName = '',
+  overlayClassName = 'z-[80]',
   fixedHeight = false,
 }: Props) {
   const { t } = useTranslation()
@@ -90,7 +90,7 @@ export function Dialog({
   return (
     <div
       className={[
-        'fixed inset-0 z-50 flex',
+        'fixed inset-0 flex',
         full ? 'items-stretch p-0' : 'items-center justify-center p-4',
         overlayClassName,
       ]

@@ -29,6 +29,7 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [restartNoticeOpen, setRestartNoticeOpen] = useState(false)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
+  const [factoryResetOpen, setFactoryResetOpen] = useState(false)
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
@@ -86,6 +87,20 @@ export default function SettingsPage() {
       applyTheme(next)
       queryClient.setQueryData(['settings'], next)
       setMessage(t('settings.resetAllDone'))
+    },
+    onError: (err) => {
+      setMessage(err instanceof Error ? err.message : String(err))
+    },
+  })
+
+  const factoryResetMutation = useMutation({
+    mutationFn: async () => {
+      try {
+        localStorage.clear()
+      } catch {
+        /* ignore */
+      }
+      await fledgeApi.app.factoryReset()
     },
     onError: (err) => {
       setMessage(err instanceof Error ? err.message : String(err))
@@ -572,6 +587,19 @@ export default function SettingsPage() {
               {t('settings.clearCache')}
             </Button>
           </div>
+          <div className="border-t border-[var(--color-border)] pt-5">
+            <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.factoryReset')}</h3>
+            <p className="mt-1 mb-2 text-xs text-[var(--color-text-muted)]">{t('settings.factoryResetHint')}</p>
+            <Button
+              variant="danger"
+              disabled={factoryResetMutation.isPending}
+              onClick={() => setFactoryResetOpen(true)}
+            >
+              {factoryResetMutation.isPending
+                ? t('settings.factoryResetPending')
+                : t('settings.factoryReset')}
+            </Button>
+          </div>
           <label className="flex flex-col gap-1 text-sm">
             <span className="font-medium text-[var(--color-text)]">{t('settings.concurrentDownloads')}</span>
             <span className="text-xs text-[var(--color-text-muted)]">
@@ -645,6 +673,19 @@ export default function SettingsPage() {
           resetMutation.mutate(undefined, {
             onSettled: () => setResetConfirmOpen(false),
           })
+        }}
+      />
+      <ConfirmDialog
+        open={factoryResetOpen}
+        title={t('settings.factoryResetConfirm')}
+        body={t('settings.factoryResetConfirmBody')}
+        confirmLabel={t('settings.factoryReset')}
+        pending={factoryResetMutation.isPending}
+        onCancel={() => {
+          if (!factoryResetMutation.isPending) setFactoryResetOpen(false)
+        }}
+        onConfirm={() => {
+          factoryResetMutation.mutate()
         }}
       />
     </div>

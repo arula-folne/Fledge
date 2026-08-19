@@ -458,6 +458,8 @@ export const JavaRuntimeViewSchema = z.object({
   javaPath: z.string().nullable(),
   displayPath: z.string(),
   installDir: z.string(),
+  /** インストール済み、または消し残しがある（アンインストール可能） */
+  removable: z.boolean().default(false),
 })
 export type JavaRuntimeView = z.infer<typeof JavaRuntimeViewSchema>
 

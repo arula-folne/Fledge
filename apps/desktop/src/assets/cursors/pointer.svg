@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Tabler pointer-2 (MIT), filled -->
+  <defs>
+    <filter id="s" x="-25%" y="-25%" width="160%" height="160%">
+      <feDropShadow dx="0.5" dy="1.1" stdDeviation="0.7" flood-color="#102536" flood-opacity="0.42"/>
+    </filter>
+  </defs>
+  <g transform="translate(4 3)" stroke-linecap="round" stroke-linejoin="round" filter="url(#s)">
+    <path fill="#16324a" stroke="#16324a" stroke-width="5" d="M14.185 13.14l5.644 -2.202c1.625 -.634 1.538 -2.962 -.13 -3.473l-14.319 -4.382c-1.41 -.431 -2.73 .888 -2.298 2.298l4.382 14.318c.51 1.668 2.84 1.755 3.473 .13l2.202 -5.644a1.84 1.84 0 0 1 1.045 -1.045z"/>
+    <path fill="#ffffff" stroke="#ffffff" stroke-width="3.15" d="M14.185 13.14l5.644 -2.202c1.625 -.634 1.538 -2.962 -.13 -3.473l-14.319 -4.382c-1.41 -.431 -2.73 .888 -2.298 2.298l4.382 14.318c.51 1.668 2.84 1.755 3.473 .13l2.202 -5.644a1.84 1.84 0 0 1 1.045 -1.045z"/>
+    <path fill="#8ec8ea" stroke="#6bb0df" stroke-width="1.75" d="M14.185 13.14l5.644 -2.202c1.625 -.634 1.538 -2.962 -.13 -3.473l-14.319 -4.382c-1.41 -.431 -2.73 .888 -2.298 2.298l4.382 14.318c.51 1.668 2.84 1.755 3.473 .13l2.202 -5.644a1.84 1.84 0 0 1 1.045 -1.045z"/>
+  </g>
+</svg>

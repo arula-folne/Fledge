@@ -309,7 +309,7 @@ export function InstanceIconPresetDialog({
       title={t('instances.icon')}
       onClose={onClose}
       size="lg"
-      overlayClassName="z-[60]"
+      overlayClassName="z-[90]"
       footer={
         <>
           <Button type="button" onClick={onClose}>
@@ -420,7 +420,7 @@ export function InstanceIconCustomizeDialog({
       onClose={close}
       size="lg"
       scrollable
-      overlayClassName="z-[60]"
+      overlayClassName="z-[90]"
       footer={
         <>
           <Button type="button" onClick={close}>

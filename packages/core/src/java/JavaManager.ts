@@ -22,6 +22,8 @@ export type JavaRuntimeView = {
   displayPath: string
   /** 展開ディレクトリ */
   installDir: string
+  /** インストール済み、または消し残しがある */
+  removable: boolean
 }
 
 export type JavaVerifyResult = {
@@ -31,15 +33,20 @@ export type JavaVerifyResult = {
   detectedMajor: number | null
 }
 
-/** Minecraft バージョンから必要 Java メジャーを推定 */
+/**
+ * Minecraft バージョンから必要 Java メジャーを推定。
+ * 26.x 以降は年号バージョン（java-runtime-epsilon = 25）。
+ */
 export function requiredJavaMajor(minecraftVersion: string): number {
   const m = /^(\d+)\.(\d+)/.exec(minecraftVersion)
   if (!m) return 21
   const major = Number(m[1])
   const minor = Number(m[2])
-  if (major === 1 && minor <= 16) return 8
-  if (major === 1 && minor <= 20) {
-    if (minor < 20) return 17
+  if (major >= 26) return 25
+  if (major !== 1) return 21
+  if (minor <= 16) return 8
+  if (minor < 20) return 17
+  if (minor === 20) {
     const patch = Number((/^\d+\.\d+\.(\d+)/.exec(minecraftVersion) ?? [])[1] ?? 0)
     return patch >= 5 ? 21 : 17
   }
@@ -59,6 +66,10 @@ export class JavaManager {
   installDir(major: number): string {
     // Data/java-version/java25 のようにメジャー名で並ぶ
     return path.join(this.layout.java, `java${major}`)
+  }
+
+  clearMemo(): void {
+    this.pathMemo.clear()
   }
 
   private markerPath(major: number): string {
@@ -84,16 +95,20 @@ export class JavaManager {
 
   async getRuntimeView(major: JavaManagedMajor): Promise<JavaRuntimeView> {
     const installDir = this.installDir(major)
+    await this.maybeFlattenExisting(major)
     const detected = await this.detectManagedJava(major)
-    const displayPath = detected
-      ? path.join(path.dirname(detected))
-      : path.join(installDir, 'bin')
+    const leftover =
+      (await this.pathExists(installDir)) ||
+      (await this.pathExists(this.legacyInstallDir(major))) ||
+      (await this.pathExists(this.legacyMarkerPath(major)))
+    const displayPath = detected ? path.dirname(detected) : installDir
     return {
       major,
       installed: Boolean(detected),
       javaPath: detected,
       displayPath,
       installDir,
+      removable: Boolean(detected) || leftover,
     }
   }
 
@@ -177,8 +192,27 @@ export class JavaManager {
     }
   }
 
+  /** 導入済み version JSON の javaVersion を優先し、なければ推定 */
+  private async resolveRequiredMajor(minecraftVersion: string): Promise<number> {
+    try {
+      const jsonPath = path.join(
+        this.layout.minecraft,
+        'versions',
+        minecraftVersion,
+        `${minecraftVersion}.json`,
+      )
+      const raw = await fs.readFile(jsonPath, 'utf8')
+      const parsed = JSON.parse(raw) as { javaVersion?: { majorVersion?: number } }
+      const fromJson = parsed.javaVersion?.majorVersion
+      if (typeof fromJson === 'number' && fromJson >= 8) return fromJson
+    } catch {
+      /* 未導入なら推定 */
+    }
+    return requiredJavaMajor(minecraftVersion)
+  }
+
   async ensureJava(minecraftVersion: string, sessionId: string): Promise<string> {
-    const needed = requiredJavaMajor(minecraftVersion)
+    const needed = await this.resolveRequiredMajor(minecraftVersion)
     const major = this.toManagedMajor(needed)
     const detected = await this.detectManagedJava(major)
     if (detected) {
@@ -342,13 +376,143 @@ export class JavaManager {
       { windowsHide: true },
     )
 
-    const javaExe = await this.findJavaExe(destDir)
-    if (!javaExe) {
+    const versionLabel = await this.flattenJdkLayout(destDir)
+    const javaExe = path.join(destDir, 'bin', 'java.exe')
+    const resolved = (await this.pathExists(javaExe)) ? javaExe : await this.findJavaExe(destDir)
+    if (!resolved) {
       throw Object.assign(new Error('java.exe not found after extract'), {
         messageKey: 'launch.error.generic',
       })
     }
-    return javaExe
+    const version =
+      versionLabel ??
+      (await this.readJdkReleaseVersion(destDir)) ??
+      path.basename(path.dirname(resolved))
+    await this.writeVersionDoc(destDir, version, major)
+    return resolved
+  }
+
+  private async pathExists(target: string): Promise<boolean> {
+    try {
+      await fs.access(target)
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * Adoptium zip は jdk-21.0.12+8 のような一段深いフォルダになる。
+   * Data/java-version/java21/bin になるよう中身を上げる。
+   * @returns 分かれば JDK のバージョンラベル（例: 21.0.12+8）
+   */
+  private async flattenJdkLayout(destDir: string): Promise<string | null> {
+    const flatJava = path.join(destDir, 'bin', 'java.exe')
+    if (await this.pathExists(flatJava)) {
+      return this.readJdkReleaseVersion(destDir)
+    }
+
+    let entries: import('node:fs').Dirent[]
+    try {
+      entries = await fs.readdir(destDir, { withFileTypes: true })
+    } catch {
+      return null
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue
+      const nested = path.join(destDir, entry.name)
+      if (!(await this.pathExists(path.join(nested, 'bin', 'java.exe')))) continue
+
+      const nestedNames = await fs.readdir(nested)
+      for (const name of nestedNames) {
+        await fs.rename(path.join(nested, name), path.join(destDir, name))
+      }
+      await fs.rm(nested, { recursive: true, force: true })
+      return entry.name.replace(/^jdk-/i, '')
+    }
+    return null
+  }
+
+  private async maybeFlattenExisting(major: number): Promise<void> {
+    const destDir = this.installDir(major)
+    if (!(await this.pathExists(destDir))) return
+    const flatJava = path.join(destDir, 'bin', 'java.exe')
+    try {
+      if (await this.pathExists(flatJava)) {
+        if (!(await this.hasVersionDoc(destDir))) {
+          const version = (await this.readJdkReleaseVersion(destDir)) ?? String(major)
+          await this.writeVersionDoc(destDir, version, major)
+        }
+        return
+      }
+
+      const versionLabel = await this.flattenJdkLayout(destDir)
+      const resolved = (await this.pathExists(flatJava)) ? flatJava : await this.findJavaExe(destDir)
+      if (!resolved) return
+      await fs.writeFile(this.markerPath(major), resolved, 'utf8')
+      this.pathMemo.set(major, resolved)
+      if (!(await this.hasVersionDoc(destDir))) {
+        const version =
+          versionLabel ?? (await this.readJdkReleaseVersion(destDir)) ?? String(major)
+        await this.writeVersionDoc(destDir, version, major)
+      }
+    } catch {
+      // 使用中などで移動できない場合は入れ子のまま検出する
+    }
+  }
+
+  private async hasVersionDoc(installDir: string): Promise<boolean> {
+    try {
+      const names = await fs.readdir(installDir)
+      return names.some((name) => /^jdk-.*\.md$/i.test(name))
+    } catch {
+      return false
+    }
+  }
+
+  private async readJdkReleaseVersion(javaHome: string): Promise<string | null> {
+    try {
+      const raw = await fs.readFile(path.join(javaHome, 'release'), 'utf8')
+      const semantic = /SEMANTIC_VERSION="([^"]+)"/.exec(raw)
+      if (semantic?.[1]) return semantic[1]
+      const javaVersion = /JAVA_VERSION="([^"]+)"/.exec(raw)
+      if (javaVersion?.[1]) return javaVersion[1]
+    } catch {
+      /* ignore */
+    }
+    return null
+  }
+
+  private async writeVersionDoc(
+    installDir: string,
+    version: string,
+    major: number,
+  ): Promise<void> {
+    const label = version.replace(/^jdk-/i, '')
+    const fileName = `jdk-${label}.md`
+    const body = [
+      `# Eclipse Temurin JDK ${label}`,
+      '',
+      'Fledge が導入した Java ランタイムです。',
+      '',
+      `- Major: ${major}`,
+      `- Version: ${label}`,
+      `- Layout: \`java${major}/bin\``,
+      '',
+    ].join('\n')
+
+    try {
+      const names = await fs.readdir(installDir)
+      for (const name of names) {
+        if (/^jdk-.*\.md$/i.test(name) && name !== fileName) {
+          await fs.rm(path.join(installDir, name), { force: true })
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    await fs.writeFile(path.join(installDir, fileName), body, 'utf8')
   }
 
   private async findJavaExe(root: string): Promise<string | null> {

@@ -18,7 +18,9 @@ import type { LaunchCredentials } from '../auth/authTypes.js'
 import { sessionHostJvmArgs } from '../auth/SessionJoinProxy.js'
 import { withInstallTracker } from './installProgress.js'
 import {
+  findInstalledVersionId,
   findReadyVersionId,
+  isVersionComplete,
   nativesRoot,
   readyKey,
   writeReadyRecord,
@@ -66,13 +68,37 @@ export class MinecraftService {
       await this.ensureNatives(readyId)
       return readyId
     }
+
+    const partialId = await findInstalledVersionId(this.layout.minecraft, profile)
+    if (partialId) {
+      this.logger.info('minecraft', `Repairing incomplete ${partialId}`)
+      this.queue.emitStatus(sessionId, 'launch.install.libraries')
+      await this.repairInstallation(partialId, javaPath)
+      if (await isVersionComplete(this.layout.minecraft, partialId)) {
+        await writeReadyRecord(this.layout.minecraft, profile, partialId)
+        this.queue.emitStatus(sessionId, 'launch.install.natives')
+        await this.ensureNatives(partialId)
+        return partialId
+      }
+    }
+
     this.logger.info(
       'minecraft',
       `Installing ${profile.loader} ${profile.minecraftVersion}${profile.loaderVersion ? ` (${profile.loaderVersion})` : ''}`,
     )
     const installedId = await this.installFromNetwork(profile, sessionId, javaPath)
+    if (!(await isVersionComplete(this.layout.minecraft, installedId))) {
+      throw Object.assign(new Error(`Incomplete install: ${installedId}`), {
+        messageKey: 'launch.error.generic',
+      })
+    }
     await this.ensureNatives(installedId)
     return installedId
+  }
+
+  private async repairInstallation(versionId: string, javaPath?: string): Promise<void> {
+    const resolved = await Version.parse(this.layout.minecraft, versionId)
+    await completeInstallation(resolved, javaPath ? { java: javaPath } : {})
   }
 
   private async ensureNatives(versionId: string): Promise<void> {

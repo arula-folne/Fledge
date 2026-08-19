@@ -87,9 +87,9 @@ function expectedVersionIds(
   if (!lv) return []
   switch (profile.loader) {
     case 'fabric':
-      return [`fabric-loader-${lv}-${mc}`]
+      return [`${mc}-fabric${lv}`, `fabric-loader-${lv}-${mc}`]
     case 'quilt':
-      return [`quilt-loader-${lv}-${mc}`]
+      return [`${mc}-quilt${lv}`, `quilt-loader-${lv}-${mc}`]
     case 'forge':
       return [`${mc}-forge-${lv}`]
     case 'neoforge':
@@ -97,6 +97,27 @@ function expectedVersionIds(
     default:
       return []
   }
+}
+
+/** version JSON があるだけ（ライブラリ不足でも再利用・修復の起点にする） */
+export async function findInstalledVersionId(
+  minecraftRoot: string,
+  profile: Pick<InstanceProfile, 'minecraftVersion' | 'loader' | 'loaderVersion'>,
+): Promise<string | null> {
+  try {
+    const raw = await fs.readFile(readyPath(minecraftRoot, profile), 'utf8')
+    const parsed = JSON.parse(raw) as ReadyRecord
+    if (parsed?.versionId && (await versionJsonExists(minecraftRoot, parsed.versionId))) {
+      return parsed.versionId
+    }
+  } catch {
+    /* fall through */
+  }
+
+  for (const id of expectedVersionIds(profile)) {
+    if (await versionJsonExists(minecraftRoot, id)) return id
+  }
+  return null
 }
 
 export async function findReadyVersionId(
