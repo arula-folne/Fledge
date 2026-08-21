@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +16,7 @@ import {
 } from '@tabler/icons-react'
 import { DEFAULT_INSTANCE_ICON_PRESET, type InstanceIconPreset, type InstanceSubfolder } from '@fledge/shared'
 import { fledgeApi } from '../api/fledgeApi'
+import { RouteErrorBoundary } from '../components/RouteErrorBoundary'
 import { Button } from '../components/ui/Button'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { Dialog } from '../components/ui/Dialog'
@@ -25,9 +26,13 @@ import { InstanceIcon } from '../features/instances/InstanceIcon'
 import { InstanceIconPresetDialog, sameIconPreset } from '../features/instances/instanceIconPresets'
 import { InstanceLaunchButton } from '../features/instances/InstanceLaunchButton'
 import { formatLastPlayed, formatLoaderLabel } from '../features/instances/instanceMeta'
-import { ContentTab } from '../features/content/ContentTab'
 import { parseLibraryTab, writeLibraryTab } from '../navigation/libraryDetailSearch'
 import { useUiStore, type LibraryDetailTab } from '../stores/appStores'
+
+/** コンテンツ（Modrinth）周りは詳細ページ本体と分離し、読み込み失敗で全体を落とさない */
+const ContentTab = lazy(() =>
+  import('../features/content/ContentTab').then((m) => ({ default: m.ContentTab })),
+)
 
 type TabId = LibraryDetailTab
 
@@ -318,7 +323,20 @@ export default function LibraryDetailPage() {
       </nav>
 
       <div className="min-h-0 flex-1 overflow-auto">
-      {tab === 'content' ? <ContentTab instance={instance} /> : null}
+      {tab === 'content' ? (
+        <Suspense
+          fallback={<p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>}
+        >
+          <RouteErrorBoundary
+            key={instance.id}
+            title={t('content.panelErrorTitle')}
+            description={t('content.panelErrorBody')}
+            retryLabel={t('common.retry')}
+          >
+            <ContentTab instance={instance} />
+          </RouteErrorBoundary>
+        </Suspense>
+      ) : null}
 
       {tab === 'screenshots' ? (
         <div className="space-y-3">

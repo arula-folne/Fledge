@@ -12,6 +12,9 @@ import type { ContentProvider, ResolvedContentFile } from './ContentProvider.js'
 
 const API = 'https://api.modrinth.com/v2'
 const UA = 'Fledge/0.1.0 (https://github.com/arula-folne/Fledge; content-manager)'
+const FETCH_TIMEOUT_MS = 20_000
+const MAX_RATE_LIMIT_RETRIES = 2
+const MAX_TRANSIENT_RETRIES = 1
 
 const TYPE_MAP: Record<ContentCategory, string> = {
   mod: 'mod',
@@ -214,21 +217,89 @@ function mapVersion(v: MrVersion): ContentVersion {
   }
 }
 
-async function mrFetch<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API}${path}`, {
-    ...init,
-    headers: {
-      Accept: 'application/json',
-      'Accept-Language': 'ja,en;q=0.8',
-      'User-Agent': UA,
-      ...(init?.headers ?? {}),
-    },
-  })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`Modrinth API ${res.status}: ${body.slice(0, 200)}`)
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+function rateLimitDelayMs(res: Response): number {
+  const retryAfter = Number(res.headers.get('Retry-After'))
+  if (Number.isFinite(retryAfter) && retryAfter > 0) return Math.min(retryAfter * 1000, 10_000)
+  const reset = Number(res.headers.get('X-Ratelimit-Reset'))
+  if (Number.isFinite(reset) && reset > 0) return Math.min(reset * 1000, 10_000)
+  return 1_500
+}
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof Error && (err.name === 'AbortError' || err.name === 'TimeoutError')
+}
+
+function timedSignal(external?: AbortSignal | null): { signal: AbortSignal; cancel: () => void } {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  const onExternalAbort = () => controller.abort()
+  if (external) {
+    if (external.aborted) controller.abort()
+    else external.addEventListener('abort', onExternalAbort, { once: true })
   }
-  return (await res.json()) as T
+  return {
+    signal: controller.signal,
+    cancel: () => {
+      clearTimeout(timer)
+      external?.removeEventListener('abort', onExternalAbort)
+    },
+  }
+}
+
+async function mrFetch<T>(
+  path: string,
+  init?: RequestInit,
+  attempt = 0,
+): Promise<T> {
+  const { signal, cancel } = timedSignal(init?.signal)
+  try {
+    const res = await fetch(`${API}${path}`, {
+      ...init,
+      signal,
+      headers: {
+        Accept: 'application/json',
+        'Accept-Language': 'ja,en;q=0.8',
+        'User-Agent': UA,
+        ...(init?.headers ?? {}),
+      },
+    })
+    if (res.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+      await wait(rateLimitDelayMs(res))
+      return mrFetch<T>(path, init, attempt + 1)
+    }
+    if (!res.ok) {
+      const body = await res.text().catch(() => '')
+      const err = new Error(`Modrinth API ${res.status}: ${body.slice(0, 200)}`)
+      Object.assign(err, {
+        messageKey: res.status === 429 ? 'content.searchRateLimited' : 'content.searchFailed',
+      })
+      throw err
+    }
+    return (await res.json()) as T
+  } catch (err) {
+    if (isAbortError(err) && !init?.signal?.aborted) {
+      const timeout = new Error('Modrinth API timed out')
+      Object.assign(timeout, { messageKey: 'content.searchTimeout' })
+      throw timeout
+    }
+    const transient =
+      err instanceof TypeError ||
+      (err instanceof Error && /ECONNRESET|ETIMEDOUT|ENOTFOUND|fetch failed/i.test(err.message))
+    if (transient && attempt < MAX_TRANSIENT_RETRIES) {
+      await wait(800 * (attempt + 1))
+      return mrFetch<T>(path, init, attempt + 1)
+    }
+    if (err instanceof Error && !(err as Error & { messageKey?: string }).messageKey) {
+      Object.assign(err, { messageKey: 'content.searchFailed' })
+    }
+    throw err
+  } finally {
+    cancel()
+  }
 }
 
 function pickPrimaryFile(version: MrVersion): MrVersion['files'][number] {
