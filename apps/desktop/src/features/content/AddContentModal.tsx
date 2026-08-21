@@ -271,7 +271,24 @@ export function AddContentModal({
     queryFn: () => fledgeApi.content.search(searchInput),
     enabled: open,
     placeholderData: keepPreviousData,
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 5_000),
   })
+
+  const searchErrorMessage = (() => {
+    if (!searchQuery.isError) return null
+    const err = searchQuery.error
+    const key =
+      err && typeof err === 'object' && 'messageKey' in err && typeof err.messageKey === 'string'
+        ? err.messageKey
+        : null
+    if (key === 'content.searchTimeout') return t('content.searchTimeout')
+    if (key === 'content.searchRateLimited') return t('content.searchRateLimited')
+    if (key === 'content.searchFailed') return t('content.searchFailed')
+    if (err instanceof Error && /timed?\s*out/i.test(err.message)) return t('content.searchTimeout')
+    if (err instanceof Error && /429|rate.?limit/i.test(err.message)) return t('content.searchRateLimited')
+    return err instanceof Error && err.message ? err.message : t('content.searchFailed')
+  })()
 
   const installMutation = useMutation({
     mutationFn: (hit: { id: string }) =>
@@ -557,22 +574,27 @@ export function AddContentModal({
                 {error}
               </p>
             ) : null}
-            {searchQuery.isError ? (
-              <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2 py-1.5 text-xs text-[var(--color-danger)]">
-                {searchQuery.error instanceof Error
-                  ? searchQuery.error.message
-                  : String(searchQuery.error)}
-              </p>
+            {searchErrorMessage ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2 py-1.5 text-xs text-[var(--color-danger)]">
+                <p className="min-w-0 flex-1">{searchErrorMessage}</p>
+                <button
+                  type="button"
+                  className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2 py-1 text-[11px] font-medium text-[var(--color-on-accent)]"
+                  onClick={() => void searchQuery.refetch()}
+                >
+                  {t('common.retry')}
+                </button>
+              </div>
             ) : null}
 
             <div className="min-h-0 flex-1 overflow-y-auto">
               {searchQuery.isPending && !searchQuery.data ? (
                 <p className="text-xs text-[var(--color-text-muted)]">{t('common.loading')}</p>
-              ) : searchQuery.isError ? null : hits.length === 0 ? (
+              ) : searchQuery.isError && hits.length === 0 ? null : hits.length === 0 ? (
                 <p className="text-xs text-[var(--color-text-muted)]">{t('content.noResults')}</p>
               ) : (
                 <ul className="space-y-1.5">
-                  {hitsForList.map((hit) => (
+                  {hits.map((hit) => (
                     <SearchHitCard
                       key={`${hit.provider}:${hit.id}`}
                       hit={hit}

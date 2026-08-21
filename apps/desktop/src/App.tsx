@@ -95,7 +95,11 @@ export default function App() {
           </div>
         }
       >
-        <RouteErrorBoundary>
+        <RouteErrorBoundary
+          title={t('common.loadErrorTitle')}
+          description={t('common.loadErrorBody')}
+          retryLabel={t('common.retry')}
+        >
           <Routes>
             <Route element={<AppShell />}>
               <Route index element={<HomePage />} />

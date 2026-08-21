@@ -12,8 +12,10 @@ import {
 } from '@tabler/icons-react'
 import type { ContentCategory, ContentProject, InstalledContent, InstanceProfile } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
+import { RouteErrorBoundary } from '../../components/RouteErrorBoundary'
 import { Button } from '../../components/ui/Button'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { Dialog } from '../../components/ui/Dialog'
 import {
   closeBrowse,
   openBrowse,
@@ -257,19 +259,46 @@ export function ContentTab({ instance }: Props) {
         </ul>
       )}
 
-      <AddContentModal
-        open={browseOpen}
-        onClose={closeBrowseModal}
-        instance={instance}
-        category={category}
-        onCategoryChange={changeCategory}
-        projectId={projectId}
-        onSelectProject={selectProject}
-        onBackFromProject={backFromProject}
-        onInstalled={() => {
-          void invalidate()
-        }}
-      />
+      <RouteErrorBoundary
+        resetKeys={[browseOpen, category, projectId ?? '']}
+        fallback={({ reset }) =>
+          browseOpen ? (
+            <Dialog
+              open
+              title={t('content.browseErrorTitle')}
+              subtitle={instance.name}
+              onClose={closeBrowseModal}
+              size="md"
+            >
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-[var(--color-text-muted)]">{t('content.browseErrorBody')}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="primary" onClick={reset}>
+                    {t('common.retry')}
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={closeBrowseModal}>
+                    {t('common.close')}
+                  </Button>
+                </div>
+              </div>
+            </Dialog>
+          ) : null
+        }
+      >
+        <AddContentModal
+          open={browseOpen}
+          onClose={closeBrowseModal}
+          instance={instance}
+          category={category}
+          onCategoryChange={changeCategory}
+          projectId={projectId}
+          onSelectProject={selectProject}
+          onBackFromProject={backFromProject}
+          onInstalled={() => {
+            void invalidate()
+          }}
+        />
+      </RouteErrorBoundary>
       <ConfirmDialog
         open={removeTarget != null}
         title={t('content.remove')}
