@@ -52,6 +52,19 @@ export interface ContentProvider {
     gameVersion?: string
     loaders?: ContentLoaderFilter[]
   }): Promise<ResolvedContentFile>
+  /**
+   * 本体＋ Modrinth の required 依存を解決した導入セット。
+   * 依存が先、本体が末尾。未実装の Provider は resolveInstall のみでよい。
+   */
+  resolveInstallSet?(input: {
+    projectId: string
+    category: ContentCategory
+    versionId?: string
+    gameVersion?: string
+    loaders?: ContentLoaderFilter[]
+    /** すでに入っている projectId → versionId（incompatible 判定用） */
+    installed?: ReadonlyMap<string, string>
+  }): Promise<ResolvedContentFile[]>
   findUpdate?(
     entry: Pick<InstalledContent, 'projectId' | 'versionId' | 'category'>,
     opts: { gameVersion?: string; loaders?: ContentLoaderFilter[] },

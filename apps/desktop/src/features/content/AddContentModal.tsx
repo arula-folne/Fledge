@@ -304,6 +304,18 @@ export function AddContentModal({
       }),
     onError: (err, input) => {
       unmark(input.id)
+      const key =
+        err && typeof err === 'object' && 'messageKey' in err && typeof err.messageKey === 'string'
+          ? err.messageKey
+          : null
+      const detail =
+        err && typeof err === 'object' && 'detail' in err && err.detail && typeof err.detail === 'object'
+          ? (err.detail as Record<string, string>)
+          : undefined
+      if (key && key.startsWith('content.error.')) {
+        setError(t(key, detail))
+        return
+      }
       setError(err instanceof Error ? err.message : String(err))
     },
     onSuccess: async () => {
