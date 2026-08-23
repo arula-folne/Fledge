@@ -1,4 +1,4 @@
-import type { LoaderVersion } from '@fledge/shared'
+import { fledgeUserAgent, type LoaderVersion } from '@fledge/shared'
 import type { LoaderVersionProvider } from './VersionProvider.js'
 
 /**
@@ -16,7 +16,7 @@ export class NeoForgeProvider implements LoaderVersionProvider {
     if (!prefix) return []
 
     const res = await fetch(this.metadataUrl, {
-      headers: { 'User-Agent': 'Fledge/0.1.1 (neoforge-versions)' },
+      headers: { 'User-Agent': fledgeUserAgent('neoforge-versions') },
     })
     if (!res.ok) throw new Error(`NeoForge metadata HTTP ${res.status}`)
     const xml = await res.text()

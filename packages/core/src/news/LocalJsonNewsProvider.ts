@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { NEWS, NewsItemSchema, type NewsItem } from '@fledge/shared'
+import { NEWS, NewsItemSchema, fledgeUserAgent, type NewsItem } from '@fledge/shared'
 import type { PathLayout } from '../app/paths.js'
 import type { NewsProvider } from './NewsProvider.js'
 
@@ -108,7 +108,7 @@ export class LocalJsonNewsProvider implements NewsProvider {
         redirect: 'follow',
         headers: {
           Accept: 'application/json',
-          'User-Agent': 'Fledge/0.1.1 (news-fetcher)',
+          'User-Agent': fledgeUserAgent('news-fetcher'),
         },
       })
       if (!res.ok) throw new Error(`News fetch failed: HTTP ${res.status}`)

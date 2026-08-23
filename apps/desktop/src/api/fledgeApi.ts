@@ -143,12 +143,14 @@ export type FledgeApi = {
   }
   updater: {
     check: () => Promise<UpdateCheckResult>
+    apply: () => Promise<void>
   }
   cache: {
     clear: () => Promise<void>
   }
   app: {
     factoryReset: () => Promise<void>
+    relaunch: () => Promise<void>
     deviceSpecs: () => Promise<DeviceSpecs>
   }
   backup: {

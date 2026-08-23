@@ -46,7 +46,7 @@ function toRendererSettings(settings: Settings): Settings {
 export function registerIpc(
   appCtx: LauncherApp,
   getWindow: () => BrowserWindow | null,
-  hooks?: { onFactoryReset?: () => void },
+  hooks?: { onFactoryReset?: () => void; onRelaunch?: () => void },
 ): void {
   const win = () => getWindow()
   const touchBackup = () => appCtx.backup.scheduleSync()
@@ -294,6 +294,11 @@ export function registerIpc(
   ipcMain.handle(IPC.newsList, async () => appCtx.news.list())
   ipcMain.handle(IPC.logsRecent, async () => appCtx.logger.getRecent())
   ipcMain.handle(IPC.updaterCheck, async () => appCtx.updater.check())
+  ipcMain.handle(IPC.updaterApply, async () => {
+    const installerPath = await appCtx.updater.downloadInstaller()
+    const err = await shell.openPath(installerPath)
+    if (err) throw new Error(err)
+  })
 
   ipcMain.handle(IPC.skinsList, async () => appCtx.skins.list())
   ipcMain.handle(
@@ -385,6 +390,10 @@ export function registerIpc(
   ipcMain.handle(IPC.appFactoryReset, async () => {
     await factoryReset(appCtx)
     hooks?.onFactoryReset?.()
+  })
+
+  ipcMain.handle(IPC.appRelaunch, async () => {
+    hooks?.onRelaunch?.()
   })
 
   ipcMain.handle(IPC.appDeviceSpecs, async () => {

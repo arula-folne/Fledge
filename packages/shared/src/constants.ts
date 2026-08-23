@@ -1,7 +1,11 @@
+import { APP_VERSION, APP_VERSION_FULL } from './version.js'
+
+export * from './version.js'
+
 export const BRAND = {
   name: 'Fledge',
-  versionFull: 'Fledge Ver.0.1.1 - Beta',
-  versionShort: '0.1.1',
+  versionFull: APP_VERSION_FULL,
+  versionShort: APP_VERSION,
   author: 'folne',
   developedBy: 'Developed by folne',
 } as const
@@ -23,6 +27,19 @@ export const NEWS = {
   metaFileName: 'news.meta.json',
   cacheTtlMs: 60 * 60 * 1000,
   fetchTimeoutMs: 15_000,
+} as const
+
+/** GitHub Releases からの自動更新 */
+export const UPDATER = {
+  owner: 'arula-folne',
+  repo: 'Fledge',
+  /** GET /repos/{owner}/{repo}/releases/latest */
+  latestReleaseUrl: 'https://api.github.com/repos/arula-folne/Fledge/releases/latest',
+  cacheTtlMs: 30 * 60 * 1000,
+  fetchTimeoutMs: 15_000,
+  /** electron-builder の artifactName と一致させる */
+  installerNamePattern: /^Fledge-Setup-[\d.]+\.exe$/i,
+  installerFallbackPattern: /\.exe$/i,
 } as const
 
 export const IPC = {
@@ -58,6 +75,7 @@ export const IPC = {
   launchSessions: 'launch:sessions',
   logsRecent: 'logs:recent',
   updaterCheck: 'updater:check',
+  updaterApply: 'updater:apply',
   skinsList: 'skins:list',
   skinsUpload: 'skins:upload',
   skinsUpdate: 'skins:update',
@@ -68,6 +86,7 @@ export const IPC = {
   skinsSaveThumb: 'skins:save-thumb',
   cacheClear: 'cache:clear',
   appFactoryReset: 'app:factory-reset',
+  appRelaunch: 'app:relaunch',
   appDeviceSpecs: 'app:device-specs',
   backupRun: 'backup:run',
   backupList: 'backup:list',

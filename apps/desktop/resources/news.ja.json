@@ -1,22 +1,29 @@
 [
   {
+    "id": "v0.1.2",
+    "title": "【バージョンアップ】Fledge Ver.0.1.2 - Beta",
+    "body": "**Fledge Ver.0.1.2 - Beta** を公開しました。\n\n## 主な変更\n\n- GitHub Releases 連携のアップデート通知（新しい版があるときにヘッダーで案内）\n- アプリ完全リセット後の再起動を実装\n- お知らせ表示の改善（分類バッジ・記事レイアウト）\n- クリックエフェクトとテキスト選択まわりの調整\n- 設定変更時の「今すぐ再起動」案内\n\n> 引き続きベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-23T15:00:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.1.2"
+  },
+  {
     "id": "v0.1.1",
     "title": "【バージョンアップ】Fledge Ver.0.1.1 - Beta",
-    "body": "Fledge Ver.0.1.1 - Beta を公開しました。\n\nコンテンツ一覧の改善、ギャラリー表示の調整、インスタンス詳細まわりの安定性向上などを含みます。引き続きベータ版のため、不具合や要望は GitHub Issues からお知らせください。",
+    "body": "**Fledge Ver.0.1.1 - Beta** を公開しました。\n\n## 主な変更\n\n- コンテンツ一覧の改善（「すべて」表示・種別フィルター）\n- ギャラリー表示と詳細閲覧の調整\n- インスタンス詳細まわりの安定性向上\n- お知らせ表示の見やすさ改善\n\n> 引き続きベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
     "publishedAt": "2026-08-23T14:00:00.000Z",
     "url": "https://github.com/arula-folne/Fledge/releases"
   },
   {
     "id": "welcome",
     "title": "【重要】Fledge へようこそ",
-    "body": "広告や利用解析はありません（現時点）。インスタンスを作成して、すぐに Minecraft を起動できます。\n\nWindows 11 向けのベータ版です。不具合や要望は GitHub Issues からお知らせください。",
+    "body": "**広告や利用解析はありません**（現時点）。\n\nインスタンスを作成して、すぐに Minecraft を起動できます。\n\n## 対応環境\n\n- Windows 11 向けベータ版\n\n> 不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
     "publishedAt": "2026-08-03T00:00:00.000Z",
     "url": "https://github.com/arula-folne/Fledge/issues"
   },
   {
     "id": "privacy",
     "title": "【重要】プライバシーについて",
-    "body": "Fledge 運営の解析サーバーや広告 SDK はありません。\n\n外部通信は、ログイン（Microsoft）、ゲームファイルの取得（Mojang 等）、コンテンツ検索・インストール（Modrinth）、アバター表示（mc-heads.net）、Discord Rich Presence（設定でオンにした場合のみ）など、機能を利用したときに限られます。\n\n詳細は設定 → プライバシー、および PRIVACY.md を参照してください。",
+    "body": "Fledge 運営の **解析サーバーや広告 SDK はありません**。\n\n## 外部通信が発生するタイミング\n\n- Microsoft ログイン\n- ゲームファイルの取得（Mojang 等）\n- コンテンツ検索・インストール（Modrinth）\n- アバター表示（mc-heads.net）\n- Discord Rich Presence（**設定でオンにした場合のみ**）\n\n> 詳細は **設定 → プライバシー** および [PRIVACY.md](https://github.com/arula-folne/Fledge/blob/main/PRIVACY.md) を参照してください。",
     "publishedAt": "2026-08-05T00:00:00.000Z",
     "url": "https://github.com/arula-folne/Fledge/blob/main/PRIVACY.md"
   }

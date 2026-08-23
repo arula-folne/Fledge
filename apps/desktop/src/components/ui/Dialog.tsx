@@ -12,7 +12,7 @@ type Props = {
   scrollable?: boolean
   /** 副題（日付など） */
   subtitle?: string
-  size?: 'xs' | 'sm' | 'md' | 'lg' | 'full'
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | 'full'
   /** 背景のぼかし強度（lighter は背面の文字がうっすら見える） */
   backdrop?: 'default' | 'soft' | 'lighter'
   /** false のとき Esc / 背景 / × で閉じない（確認ダイアログ向け） */
@@ -23,6 +23,8 @@ type Props = {
   fixedHeight?: boolean
   /** 見出し・余白・フッターを小さくする */
   compact?: boolean
+  /** パネル幅・高さの追加クラス（お知らせなど） */
+  panelClassName?: string
 }
 
 /**
@@ -42,6 +44,7 @@ export function Dialog({
   overlayClassName = 'z-[80]',
   fixedHeight = false,
   compact = false,
+  panelClassName = '',
 }: Props) {
   const { t } = useTranslation()
   const full = size === 'full'
@@ -59,16 +62,20 @@ export function Dialog({
         ? 'max-w-sm'
         : size === 'lg'
           ? 'max-w-2xl'
-          : 'max-w-lg'
+          : size === 'xl'
+            ? 'max-w-3xl'
+            : 'max-w-lg'
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const fill = full || scrollable || fixedHeight
   const heightClass = full
     ? 'h-full'
     : fixedHeight
-      ? 'h-[min(80vh,40rem)]'
+      ? scrollable
+        ? 'h-[min(85vh,44rem)]'
+        : 'h-[min(80vh,40rem)]'
       : scrollable
-        ? 'max-h-[min(80vh,40rem)]'
+        ? 'max-h-[min(85vh,48rem)]'
         : ''
 
   useEffect(() => {
@@ -127,6 +134,7 @@ export function Dialog({
             : 'rounded-[var(--radius-lg)] border border-[var(--color-border)] shadow-xl',
           sizeClass,
           heightClass,
+          panelClassName,
         ].join(' ')}
         style={full ? undefined : { animation: 'fledge-dialog-in 200ms ease-out' }}
         onClick={(e) => e.stopPropagation()}
@@ -138,9 +146,11 @@ export function Dialog({
               ? 'px-3 py-2'
               : size === 'sm'
                 ? 'px-3.5 py-2.5'
-                : full
-                  ? 'px-6 py-3.5'
-                  : 'px-5 py-4',
+                : size === 'lg' || size === 'xl'
+                  ? 'px-6 py-4'
+                  : full
+                    ? 'px-6 py-3.5'
+                    : 'px-5 py-4',
           ].join(' ')}
         >
           <div className="min-w-0">
@@ -151,13 +161,22 @@ export function Dialog({
                   ? 'text-xs font-semibold'
                   : size === 'sm'
                     ? 'text-sm font-semibold'
-                    : 'text-base font-semibold'
+                    : size === 'lg' || size === 'xl'
+                      ? 'text-lg font-semibold leading-snug'
+                      : 'text-base font-semibold'
               }
             >
               {title}
             </h2>
             {subtitle ? (
-              <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{subtitle}</p>
+              <p
+                className={[
+                  'mt-1 text-[var(--color-text-muted)]',
+                  size === 'lg' || size === 'xl' ? 'text-sm' : 'text-xs',
+                ].join(' ')}
+              >
+                {subtitle}
+              </p>
             ) : null}
           </div>
           {dismissible ? (
@@ -184,9 +203,11 @@ export function Dialog({
                     ? 'px-3 py-2'
                     : size === 'sm'
                       ? 'px-3.5 py-3'
-                      : full
-                        ? 'px-6 py-4'
-                        : 'px-5 py-4',
+                      : size === 'lg' || size === 'xl'
+                        ? 'px-6 py-5'
+                        : full
+                          ? 'px-6 py-4'
+                          : 'px-5 py-4',
                 ].join(' ')
               : compact
                 ? 'px-3 py-2'
@@ -201,7 +222,7 @@ export function Dialog({
           <div
             className={[
               'flex shrink-0 justify-end gap-2 border-t border-[var(--color-border)]',
-              compact ? 'px-3 py-2' : 'px-5 py-3',
+              compact ? 'px-3 py-2' : size === 'lg' || size === 'xl' ? 'px-6 py-4' : 'px-5 py-3',
             ].join(' ')}
           >
             {footer}

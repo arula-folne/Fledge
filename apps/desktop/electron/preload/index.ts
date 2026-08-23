@@ -146,12 +146,14 @@ export type FledgeApi = {
   }
   updater: {
     check: () => Promise<UpdateCheckResult>
+    apply: () => Promise<void>
   }
   cache: {
     clear: () => Promise<void>
   }
   app: {
     factoryReset: () => Promise<void>
+    relaunch: () => Promise<void>
     deviceSpecs: () => Promise<DeviceSpecs>
   }
   backup: {
@@ -268,12 +270,14 @@ const api: FledgeApi = {
   },
   updater: {
     check: () => ipcRenderer.invoke(IPC.updaterCheck),
+    apply: () => ipcRenderer.invoke(IPC.updaterApply),
   },
   cache: {
     clear: () => ipcRenderer.invoke(IPC.cacheClear),
   },
   app: {
     factoryReset: () => ipcRenderer.invoke(IPC.appFactoryReset),
+    relaunch: () => ipcRenderer.invoke(IPC.appRelaunch),
     deviceSpecs: () => ipcRenderer.invoke(IPC.appDeviceSpecs),
   },
   backup: {

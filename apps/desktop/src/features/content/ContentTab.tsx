@@ -306,15 +306,15 @@ export function ContentTab({ instance }: Props) {
                 aria-label={item.enabled ? t('content.disable') : t('content.enable')}
                 onChange={(enabled) => toggleMutation.mutate({ id: item.id, enabled })}
               />
-              <Button
-                variant="ghost"
-                className="size-9 shrink-0 px-0 text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10"
+              <button
+                type="button"
+                className="inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/10"
                 title={t('content.remove')}
                 aria-label={t('content.remove')}
                 onClick={() => setRemoveTarget(item)}
               >
-                <IconTrash size={24} stroke={1.75} />
-              </Button>
+                <IconTrash size={28} stroke={1.75} aria-hidden />
+              </button>
             </li>
           ))}
         </ul>

@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 import { AppShell } from './components/layout/AppShell'
+import { CrystalClickEffect } from './components/effects/CrystalClickEffect'
 import { PrivacyNoticeDialog } from './components/PrivacyNoticeDialog'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { fledgeApi } from './api/fledgeApi'
@@ -76,6 +77,7 @@ export default function App() {
     <>
       <EventBridge />
       <DisableNonInputDrag />
+      <CrystalClickEffect />
       <PrivacyNoticeDialog />
       <Suspense
         fallback={

@@ -47,6 +47,7 @@ export type CreateLauncherAppOptions = {
   newsBundledPath?: string
   defaultSkinsDir?: string
   onProgress?: (e: ProgressEvent) => void
+  updater?: Updater
 }
 
 export async function createLauncherApp(options: CreateLauncherAppOptions): Promise<LauncherApp> {
@@ -58,7 +59,7 @@ export async function createLauncherApp(options: CreateLauncherAppOptions): Prom
   const instances = new InstanceStore(paths)
   const skins = new SkinStore(paths, options.defaultSkinsDir)
   const news = new LocalJsonNewsProvider(paths, options.newsBundledPath)
-  const updater = new NoopUpdater()
+  const updater = options.updater ?? new NoopUpdater()
   const sessionProxy = new SessionJoinProxy(options.auth, logger)
   const skinApplier = new SkinApplier(skins, settings, options.auth, logger)
 

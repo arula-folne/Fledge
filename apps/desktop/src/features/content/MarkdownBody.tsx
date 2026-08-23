@@ -51,12 +51,14 @@ function markdownToHtml(md: string): string {
   return s
 }
 
-export function MarkdownBody({ text }: { text: string }) {
+export function MarkdownBody({ text, className = '' }: { text: string; className?: string }) {
   const html = useMemo(() => markdownToHtml(text), [text])
   if (!text.trim()) return null
   return (
     <div
-      className="content-md text-sm leading-relaxed text-[var(--color-text)]"
+      className={['content-md text-sm leading-relaxed text-[var(--color-text)]', className]
+        .filter(Boolean)
+        .join(' ')}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )

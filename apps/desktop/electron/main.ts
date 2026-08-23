@@ -2,7 +2,7 @@ import { app, BrowserWindow, Menu, net, protocol } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { createLauncherApp, Logger, type LauncherApp } from '@fledge/core'
+import { createLauncherApp, GithubReleaseUpdater, Logger, NoopUpdater, resolvePathLayout, type LauncherApp } from '@fledge/core'
 import { IPC_EVENTS, type LaunchStateEvent } from '@fledge/shared'
 import { MicrosoftAuthProvider } from './auth/MicrosoftAuthProvider'
 import { DiscordPresence } from './discord/DiscordPresence'
@@ -16,9 +16,53 @@ let launcherApp: LauncherApp | null = null
 let discordPresence: DiscordPresence | null = null
 let cachedClientId: string | undefined
 let allowQuit = false
+let relaunchScheduled = false
 
 function getWindow(): BrowserWindow | null {
   return mainWindow
+}
+
+/**
+ * アプリを終了し、インストール版では同じ exe を起動し直す。
+ * 開発版 (electron-vite) は Vite 無しの Electron だけが起きるため終了のみ。
+ */
+async function scheduleAppRelaunch(options?: {
+  /** 完全リセット後は Data が消えているのでバックアップ flush を省略 */
+  skipBackupFlush?: boolean
+  /** ファイルハンドル解放待ち（完全リセット後など） */
+  delayMs?: number
+}): Promise<void> {
+  if (relaunchScheduled) return
+  relaunchScheduled = true
+  allowQuit = true
+
+  if (options?.delayMs && options.delayMs > 0) {
+    await new Promise((resolve) => setTimeout(resolve, options.delayMs))
+  }
+
+  try {
+    await discordPresence?.destroy()
+  } catch {
+    /* ignore */
+  }
+
+  if (!options?.skipBackupFlush) {
+    try {
+      await launcherApp?.backup.flushSync()
+    } catch {
+      /* ignore */
+    }
+    try {
+      await launcherApp?.sessionProxy.stop()
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (app.isPackaged) {
+    app.relaunch({ execPath: process.execPath })
+  }
+  app.quit()
 }
 
 /** settings.json を同期読み（app.ready 前の HA 切替用。失敗時は既定 ON） */
@@ -132,6 +176,9 @@ async function bootstrap(): Promise<void> {
     events: events as never,
     newsBundledPath: path.join(app.getAppPath(), 'resources', 'news.ja.json'),
     defaultSkinsDir: resolveBundledSkinsDir(),
+    updater: app.isPackaged
+      ? new GithubReleaseUpdater(resolvePathLayout(root))
+      : new NoopUpdater(),
   })
 
   const settings = await launcherApp.settings.get()
@@ -150,13 +197,10 @@ async function bootstrap(): Promise<void> {
 
   registerIpc(launcherApp, getWindow, {
     onFactoryReset: () => {
-      allowQuit = true
-      void discordPresence?.destroy()
-      setTimeout(() => {
-        // electron-vite 配下で relaunch すると Vite が死んだまま Electron だけが起き、白画面になる
-        if (app.isPackaged) app.relaunch()
-        app.quit()
-      }, 400)
+      void scheduleAppRelaunch({ skipBackupFlush: true, delayMs: 400 })
+    },
+    onRelaunch: () => {
+      void scheduleAppRelaunch()
     },
   })
   mainWindow = createMainWindow({

@@ -17,6 +17,7 @@ import i18n from '../../i18n'
 import { TitleBar } from './TitleBar'
 import { TransferProgress } from './TransferProgress'
 import { HeaderQuickPlay } from './HeaderQuickPlay'
+import { UpdateAvailableBanner } from './UpdateAvailableBanner'
 import appIcon from '../../assets/app-icon.png'
 
 const SIDEBAR_COLLAPSED_KEY = 'fledge.sidebarCollapsed'
@@ -132,7 +133,8 @@ export function AppShell() {
           <header className="relative z-20 flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]/70 px-3 py-1.5">
             <HeaderQuickPlay />
             <TransferProgress />
-            <div className="ml-auto shrink-0">
+            <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
+              <UpdateAvailableBanner />
               <AccountChip />
             </div>
           </header>

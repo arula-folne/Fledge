@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { NewsItem } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Dialog } from '../../components/ui/Dialog'
 import { Button } from '../../components/ui/Button'
+import { NewsArticleLayout } from './NewsArticleLayout'
+import { parseNewsTitle } from './newsFormat'
 
 function formatNewsDate(iso: string): string {
   try {
@@ -27,6 +29,10 @@ export function NewsList({ compact = false }: { compact?: boolean }) {
   })
 
   const items = newsQuery.data ?? []
+  const selectedMeta = useMemo(
+    () => (selected ? parseNewsTitle(selected.title) : null),
+    [selected],
+  )
 
   return (
     <section className="min-w-0">
@@ -37,37 +43,44 @@ export function NewsList({ compact = false }: { compact?: boolean }) {
         <p className="text-sm text-[var(--color-text-muted)]">{t('news.empty')}</p>
       ) : (
         <ul className={compact ? 'flex flex-col gap-1.5' : 'grid gap-2 sm:grid-cols-2'}>
-          {items.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                className="flex h-full w-full flex-col rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-left transition hover:bg-[var(--color-hover)]/60"
-                onClick={() => setSelected(item)}
-              >
-                <div className="truncate text-sm font-medium text-[var(--color-text)]">{item.title}</div>
-                <p className="mt-0.5 line-clamp-2 text-xs text-[var(--color-text-muted)]">
-                  {item.body}
-                </p>
-                <p className="mt-1 text-[10px] text-[var(--color-text-muted)]">
-                  {formatNewsDate(item.publishedAt)}
-                </p>
-              </button>
-            </li>
-          ))}
+          {items.map((item) => {
+            const { category, label } = parseNewsTitle(item.title)
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className="flex h-full w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-left transition hover:border-[var(--color-accent)]/30 hover:bg-[var(--color-hover)]/60"
+                  onClick={() => setSelected(item)}
+                >
+                  <NewsArticleLayout
+                    category={category}
+                    title={label}
+                    body={item.body}
+                    date={formatNewsDate(item.publishedAt)}
+                    mode="preview"
+                  />
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
 
       <Dialog
         open={Boolean(selected)}
-        title={selected?.title ?? ''}
-        subtitle={selected ? formatNewsDate(selected.publishedAt) : undefined}
+        title={t('news.title')}
         onClose={() => setSelected(null)}
         scrollable
+        fixedHeight
+        size="xl"
+        backdrop="lighter"
+        panelClassName="w-[min(85vw,48rem)] max-w-none"
         footer={
           <>
             {selected?.url ? (
               <Button
                 variant="secondary"
+                className="px-4 py-2 text-base"
                 onClick={() => {
                   if (selected.url) window.open(selected.url, '_blank', 'noopener,noreferrer')
                 }}
@@ -75,15 +88,21 @@ export function NewsList({ compact = false }: { compact?: boolean }) {
                 {t('news.openLink')}
               </Button>
             ) : null}
-            <Button variant="primary" onClick={() => setSelected(null)}>
+            <Button variant="primary" className="px-4 py-2 text-base" onClick={() => setSelected(null)}>
               {t('common.close')}
             </Button>
           </>
         }
       >
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-text)]">
-          {selected?.body}
-        </p>
+        {selected && selectedMeta ? (
+          <NewsArticleLayout
+            category={selectedMeta.category}
+            title={selectedMeta.label}
+            body={selected.body}
+            date={formatNewsDate(selected.publishedAt)}
+            mode="full"
+          />
+        ) : null}
       </Dialog>
     </section>
   )

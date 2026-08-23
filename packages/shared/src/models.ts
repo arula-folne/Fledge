@@ -472,6 +472,10 @@ export type LogLine = z.infer<typeof LogLineSchema>
 export const UpdateCheckResultSchema = z.object({
   status: z.enum(['idle', 'unavailable', 'up-to-date', 'available']),
   messageKey: z.string().optional(),
+  currentVersion: z.string().optional(),
+  nextVersion: z.string().optional(),
+  downloadUrl: z.string().url().optional(),
+  releaseUrl: z.string().url().optional(),
 })
 export type UpdateCheckResult = z.infer<typeof UpdateCheckResultSchema>
 

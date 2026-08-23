@@ -704,9 +704,20 @@ export default function SettingsPage() {
         title={t('settings.restartNoticeTitle')}
         onClose={() => setRestartNoticeOpen(false)}
         footer={
-          <Button variant="primary" type="button" onClick={() => setRestartNoticeOpen(false)}>
-            {t('settings.restartNoticeOk')}
-          </Button>
+          <>
+            <Button type="button" onClick={() => setRestartNoticeOpen(false)}>
+              {t('settings.restartNoticeOk')}
+            </Button>
+            <Button
+              variant="primary"
+              type="button"
+              onClick={() => {
+                void fledgeApi.app.relaunch()
+              }}
+            >
+              {t('settings.restartNoticeRestart')}
+            </Button>
+          </>
         }
       >
         <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--color-text)]">

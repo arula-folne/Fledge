@@ -1,3 +1,4 @@
+import { fledgeUserAgent } from '@fledge/shared'
 import type {
   ContentCategory,
   ContentCategoryTag,
@@ -12,7 +13,7 @@ import type {
 import type { ContentProvider, ResolvedContentFile } from './ContentProvider.js'
 
 const API = 'https://api.modrinth.com/v2'
-const UA = 'Fledge/0.1.1 (https://github.com/arula-folne/Fledge; content-manager)'
+const UA = fledgeUserAgent('https://github.com/arula-folne/Fledge; content-manager')
 const FETCH_TIMEOUT_MS = 20_000
 const MAX_RATE_LIMIT_RETRIES = 2
 const MAX_TRANSIENT_RETRIES = 1

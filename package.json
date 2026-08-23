@@ -1,7 +1,7 @@
 {
   "name": "fledge",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "軽量・高速な Minecraft ランチャー",
   "license": "GPL-3.0",
   "author": "folne",
@@ -11,6 +11,7 @@
   },
   "scripts": {
     "postinstall": "node scripts/patch-xmcl.js",
+    "version:sync": "node scripts/sync-version.mjs",
     "dev": "pnpm --filter @fledge/desktop dev",
     "build": "pnpm -r run build",
     "lint": "pnpm -r run lint",
