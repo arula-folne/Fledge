@@ -669,5 +669,5 @@
   "updater.noAsset": "このリリースに Windows 用インストーラーが見つかりません",
   "updater.downloadFailed": "インストーラーのダウンロードに失敗しました",
   "updater.downloading": "ダウンロード中…",
-  "updater.applyFailed": "更新の開始に失敗しました",
+  "updater.applyFailed": "更新の開始に失敗しました"
 }
