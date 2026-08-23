@@ -4,11 +4,8 @@ import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   IconPlus,
-  IconPuzzle,
   IconRefresh,
   IconTrash,
-  IconToggleLeft,
-  IconToggleRight,
 } from '@tabler/icons-react'
 import type { ContentCategory, ContentProject, InstalledContent, InstanceProfile } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
@@ -16,6 +13,7 @@ import { RouteErrorBoundary } from '../../components/RouteErrorBoundary'
 import { Button } from '../../components/ui/Button'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { Dialog } from '../../components/ui/Dialog'
+import { Switch } from '../../components/ui/Switch'
 import {
   closeBrowse,
   openBrowse,
@@ -24,6 +22,7 @@ import {
   writeProject,
 } from '../../navigation/libraryDetailSearch'
 import { AddContentModal } from './AddContentModal'
+import { ContentCategoryIcon, ContentCategoryLabel } from './contentCategoryIcons'
 import { useTransferStore } from '../../stores/appStores'
 
 const CATEGORIES: ContentCategory[] = [
@@ -160,13 +159,13 @@ export function ContentTab({ instance }: Props) {
               type="button"
               onClick={() => changeCategory(c)}
               className={[
-                'rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
+                'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
                 category === c
                   ? 'bg-[var(--color-selection)] text-[var(--color-on-selection)]'
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)]',
               ].join(' ')}
             >
-              {t(`content.category.${c}`)}
+              <ContentCategoryLabel category={c} iconSize={16} />
             </button>
           ))}
         </div>
@@ -190,7 +189,7 @@ export function ContentTab({ instance }: Props) {
         <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
       ) : items.length === 0 ? (
         <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-8 text-center">
-          <IconPuzzle size={24} stroke={1.5} className="mx-auto text-[var(--color-text-muted)]" />
+          <ContentCategoryIcon category={category} size={28} className="mx-auto opacity-80" />
           <p className="mt-2 text-sm text-[var(--color-text-muted)]">{t('content.empty')}</p>
           <Button className="mt-3" variant="primary" onClick={openBrowseModal}>
             <IconPlus size={16} stroke={1.75} />
@@ -200,16 +199,20 @@ export function ContentTab({ instance }: Props) {
       ) : (
         <ul className="divide-y divide-[var(--color-border)] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
           {items.map((item) => (
-            <li key={item.id} className="flex flex-wrap items-center gap-2.5 px-3 py-1.5">
+            <li key={item.id} className="flex flex-wrap items-center gap-2.5 px-3 py-2">
               {item.iconUrl ? (
                 <img
                   src={item.iconUrl}
                   alt=""
+                  width={32}
+                  height={32}
+                  loading="lazy"
+                  decoding="async"
                   className="size-8 rounded-[var(--radius-sm)] object-cover"
                 />
               ) : (
-                <div className="flex size-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
-                  <IconPuzzle size={16} stroke={1.6} />
+                <div className="flex size-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)]">
+                  <ContentCategoryIcon category={category} size={16} />
                 </div>
               )}
               <div className="min-w-0 flex-1">
@@ -233,20 +236,12 @@ export function ContentTab({ instance }: Props) {
                   {t('content.update')}
                 </Button>
               ) : null}
-              <button
-                type="button"
-                className="text-[var(--color-text-muted)] hover:text-[var(--color-text)]"
-                title={item.enabled ? t('content.disable') : t('content.enable')}
-                onClick={() =>
-                  toggleMutation.mutate({ id: item.id, enabled: !item.enabled })
-                }
-              >
-                {item.enabled ? (
-                  <IconToggleRight size={22} stroke={1.5} className="text-[var(--color-accent)]" />
-                ) : (
-                  <IconToggleLeft size={22} stroke={1.5} />
-                )}
-              </button>
+              <Switch
+                checked={item.enabled}
+                disabled={toggleMutation.isPending && toggleMutation.variables?.id === item.id}
+                aria-label={item.enabled ? t('content.disable') : t('content.enable')}
+                onChange={(enabled) => toggleMutation.mutate({ id: item.id, enabled })}
+              />
               <Button
                 variant="ghost"
                 className="px-2 text-[var(--color-danger)]"

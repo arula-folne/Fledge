@@ -5,15 +5,20 @@ import {
   type AccountView,
   type BackupEntry,
   type AuthStatus,
+  type AuthStatusEvent,
   type ContentCategory,
+  type ContentCategoryTag,
   type ContentInstallRequest,
+  type ContentLoaderFilter,
   type ContentMediaItem,
   type ContentProjectPage,
   type ContentSearchQuery,
   type ContentSearchResult,
+  type ContentVersion,
   type CreateInstanceInput,
   type InstalledContent,
   type InstanceProfile,
+  type DeviceSpecs,
   type LaunchPhaseEvent,
   type LaunchStateEvent,
   type Loader,
@@ -68,6 +73,11 @@ export type FledgeApi = {
     >
     search: (query: ContentSearchQuery) => Promise<ContentSearchResult>
     getProject: (projectId: string) => Promise<ContentProjectPage>
+    listVersions: (input: {
+      projectId: string
+      gameVersion?: string
+      loaders?: ContentLoaderFilter[]
+    }) => Promise<ContentVersion[]>
     install: (req: ContentInstallRequest) => Promise<InstalledContent>
     listInstalled: (instanceId: string, category?: ContentCategory) => Promise<InstalledContent[]>
     setEnabled: (instanceId: string, entryId: string, enabled: boolean) => Promise<InstalledContent>
@@ -77,6 +87,7 @@ export type FledgeApi = {
       instanceId: string,
       kind: 'screenshots' | 'logs',
     ) => Promise<ContentMediaItem[]>
+    listCategoryTags: () => Promise<ContentCategoryTag[]>
   }
   skins: {
     list: () => Promise<SkinEntry[]>
@@ -85,11 +96,14 @@ export type FledgeApi = {
       model: SkinModel
       bytes: number[]
       originalName: string
+      thumbDataUrl?: string
     }) => Promise<SkinEntry>
     update: (input: { id: string; name?: string; model?: SkinModel }) => Promise<SkinEntry>
     remove: (id: string) => Promise<void>
     select: (input: { skinId: string; model?: SkinModel }) => Promise<Settings>
     getDataUrl: (id: string) => Promise<string | null>
+    getThumb: (id: string, model: SkinModel) => Promise<string | null>
+    saveThumb: (id: string, model: SkinModel, dataUrl: string) => Promise<void>
   }
   auth: {
     login: () => Promise<AccountView>
@@ -138,6 +152,7 @@ export type FledgeApi = {
   }
   app: {
     factoryReset: () => Promise<void>
+    deviceSpecs: () => Promise<DeviceSpecs>
   }
   backup: {
     run: () => Promise<string>
@@ -164,7 +179,7 @@ export type FledgeApi = {
     launchPhase: (cb: (e: LaunchPhaseEvent) => void) => () => void
     launchState: (cb: (e: LaunchStateEvent) => void) => () => void
     logLine: (cb: (e: LogLine) => void) => () => void
-    authStatus: (cb: (e: AuthStatus) => void) => () => void
+    authStatus: (cb: (e: AuthStatusEvent) => void) => () => void
   }
 }
 
@@ -201,6 +216,7 @@ const api: FledgeApi = {
     providers: () => ipcRenderer.invoke(IPC.contentProviders),
     search: (query) => ipcRenderer.invoke(IPC.contentSearch, query),
     getProject: (projectId) => ipcRenderer.invoke(IPC.contentGetProject, projectId),
+    listVersions: (input) => ipcRenderer.invoke(IPC.contentListVersions, input),
     install: (req) => ipcRenderer.invoke(IPC.contentInstall, req),
     listInstalled: (instanceId, category) =>
       ipcRenderer.invoke(IPC.contentListInstalled, instanceId, category),
@@ -211,6 +227,7 @@ const api: FledgeApi = {
     checkUpdates: (instanceId) => ipcRenderer.invoke(IPC.contentCheckUpdates, instanceId),
     listMedia: (instanceId, kind) =>
       ipcRenderer.invoke(IPC.contentListMedia, instanceId, kind),
+    listCategoryTags: () => ipcRenderer.invoke(IPC.contentListCategoryTags),
   },
   skins: {
     list: () => ipcRenderer.invoke(IPC.skinsList),
@@ -219,6 +236,8 @@ const api: FledgeApi = {
     remove: (id) => ipcRenderer.invoke(IPC.skinsRemove, id),
     select: (input) => ipcRenderer.invoke(IPC.skinsSelect, input),
     getDataUrl: (id) => ipcRenderer.invoke(IPC.skinsGetData, id),
+    getThumb: (id, model) => ipcRenderer.invoke(IPC.skinsGetThumb, id, model),
+    saveThumb: (id, model, dataUrl) => ipcRenderer.invoke(IPC.skinsSaveThumb, id, model, dataUrl),
   },
   auth: {
     login: () => ipcRenderer.invoke(IPC.authLogin),
@@ -255,6 +274,7 @@ const api: FledgeApi = {
   },
   app: {
     factoryReset: () => ipcRenderer.invoke(IPC.appFactoryReset),
+    deviceSpecs: () => ipcRenderer.invoke(IPC.appDeviceSpecs),
   },
   backup: {
     run: () => ipcRenderer.invoke(IPC.backupRun),

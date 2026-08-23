@@ -32,7 +32,7 @@ export function HeaderQuickPlay() {
       <button
         type="button"
         className="min-w-0 rounded-[var(--radius-sm)] px-2 py-1 text-left text-sm text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
-        onClick={() => navigate('/library')}
+        onClick={() => navigate('/')}
       >
         {t('header.openLibrary')}
       </button>

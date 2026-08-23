@@ -251,7 +251,7 @@ export class JavaManager {
 
     const { done } = this.queue.enqueue({
       kind: 'java',
-      labelKey: force ? 'settings.java.reinstall' : 'settings.java.install',
+      labelKey: force ? 'transfer.javaReinstall' : 'transfer.java',
       sessionId,
       meta: { major, action: force ? 'reinstall' : 'install' },
       execute: async (ctx) => {
@@ -288,7 +288,7 @@ export class JavaManager {
         await fs.mkdir(this.installDir(major), { recursive: true })
         await fs.writeFile(this.markerPath(major), javaHome, 'utf8')
         this.pathMemo.set(major, javaHome)
-        ctx.report({ current: 1, total: 1, unit: 'count', messageKey: 'settings.java.install' })
+        ctx.report({ current: 1, total: 1, unit: 'count', messageKey: 'settings.java.downloading' })
       },
     })
     await done

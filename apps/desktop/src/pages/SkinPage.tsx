@@ -9,7 +9,9 @@ import { Dialog } from '../components/ui/Dialog'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { TextField } from '../components/ui/TextField'
 import { SkinPreview } from '../components/skin/SkinPreview'
-import { defaultSkinUrl } from '../components/skin/defaultSkinUrls'
+import { SkinCachedThumb, skinThumbQueryKey } from '../components/skin/SkinCachedThumb'
+import { defaultSkinThumbUrl, defaultSkinUrl } from '../components/skin/defaultSkinUrls'
+import { renderSkinThumbDataUrl } from '../components/skin/skinSnapshot'
 
 export default function SkinPage() {
   const { t } = useTranslation()
@@ -46,20 +48,25 @@ export default function SkinPage() {
       model: SkinModel
       bytes: number[]
       originalName: string
+      thumbDataUrl?: string
     }) => fledgeApi.skins.upload(input),
     onSuccess: async (skin) => {
       await fledgeApi.skins.select({ skinId: skin.id, model: skin.model })
       await queryClient.invalidateQueries({ queryKey: ['skins'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
+      await queryClient.invalidateQueries({ queryKey: ['skin-thumb', skin.id] })
     },
   })
 
   const updateMutation = useMutation({
     mutationFn: (input: { id: string; name?: string; model?: SkinModel }) =>
       fledgeApi.skins.update(input),
-    onSuccess: async () => {
+    onSuccess: async (_skin, input) => {
       await queryClient.invalidateQueries({ queryKey: ['skins'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
+      if (input.model) {
+        await queryClient.removeQueries({ queryKey: ['skin-thumb', input.id] })
+      }
     },
   })
 
@@ -69,6 +76,7 @@ export default function SkinPage() {
       await queryClient.invalidateQueries({ queryKey: ['skins'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
       await queryClient.removeQueries({ queryKey: ['skin-data', id] })
+      await queryClient.removeQueries({ queryKey: ['skin-thumb', id] })
     },
   })
 
@@ -154,14 +162,7 @@ export default function SkinPage() {
                   }}
                   onEdit={() => setEditing(skin)}
                 >
-                  <SkinEntryPreview
-                    skin={skin}
-                    pose="full"
-                    width={140}
-                    height={112}
-                    zoom={0.72}
-                    className="h-full w-full"
-                  />
+                  <SkinEntryThumb skin={skin} />
                 </SkinCard>
               )
             })}
@@ -209,14 +210,7 @@ export default function SkinPage() {
                     selectMutation.mutate({ skinId: skin.id, model: skin.model })
                   }}
                 >
-                  <SkinEntryPreview
-                    skin={skin}
-                    pose="full"
-                    width={140}
-                    height={112}
-                    zoom={0.72}
-                    className="h-full w-full"
-                  />
+                  <SkinEntryThumb skin={skin} />
                 </SkinCard>
               )
             })}
@@ -231,11 +225,21 @@ export default function SkinPage() {
         onClose={() => setRegisterOpen(false)}
         onSave={async (file, name, model) => {
           const buffer = new Uint8Array(await file.arrayBuffer())
+          const blobUrl = URL.createObjectURL(file)
+          let thumbDataUrl: string | undefined
+          try {
+            thumbDataUrl = await renderSkinThumbDataUrl(blobUrl, model)
+          } catch (err) {
+            console.error('Skin thumb render failed:', err)
+          } finally {
+            URL.revokeObjectURL(blobUrl)
+          }
           await uploadMutation.mutateAsync({
             name,
             model,
             bytes: Array.from(buffer),
             originalName: file.name,
+            thumbDataUrl,
           })
           setRegisterOpen(false)
         }}
@@ -249,6 +253,18 @@ export default function SkinPage() {
           onClose={() => setEditing(null)}
           onSave={async (name, model) => {
             await updateMutation.mutateAsync({ id: editing.id, name, model })
+            if (model !== editing.model) {
+              const url = await fledgeApi.skins.getDataUrl(editing.id)
+              if (url) {
+                try {
+                  const thumb = await renderSkinThumbDataUrl(url, model)
+                  await fledgeApi.skins.saveThumb(editing.id, model, thumb)
+                  queryClient.setQueryData(skinThumbQueryKey(editing.id, model), thumb)
+                } catch (err) {
+                  console.error('Skin thumb render failed:', err)
+                }
+              }
+            }
             if (selectedId === editing.id) {
               await fledgeApi.skins.select({ skinId: editing.id, model })
               await queryClient.invalidateQueries({ queryKey: ['settings'] })
@@ -348,6 +364,32 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
+function useSkinImageUrl(skin: SkinEntry): string | undefined {
+  const urlQuery = useQuery({
+    queryKey: ['skin-data', skin.id],
+    queryFn: () => fledgeApi.skins.getDataUrl(skin.id),
+    enabled: skin.source === 'upload',
+    staleTime: Infinity,
+  })
+  return skin.source === 'default' ? defaultSkinUrl(skin.id) : (urlQuery.data ?? undefined)
+}
+
+function SkinEntryThumb({ skin }: { skin: SkinEntry }) {
+  const skinUrl = useSkinImageUrl(skin)
+  const bundled = skin.source === 'default' ? defaultSkinThumbUrl(skin.id) : undefined
+  if (bundled) {
+    return <img src={bundled} alt="" className="h-full w-full object-contain" draggable={false} />
+  }
+  return (
+    <SkinCachedThumb
+      skinId={skin.id}
+      model={skin.model}
+      skinUrl={skinUrl}
+      className="h-full w-full"
+    />
+  )
+}
+
 function SkinEntryPreview({
   skin,
   pose,
@@ -367,15 +409,7 @@ function SkinEntryPreview({
   className?: string
   zoom?: number
 }) {
-  const urlQuery = useQuery({
-    queryKey: ['skin-data', skin.id],
-    queryFn: () => fledgeApi.skins.getDataUrl(skin.id),
-    enabled: skin.source === 'upload',
-    staleTime: Infinity,
-  })
-
-  const skinUrl =
-    skin.source === 'default' ? defaultSkinUrl(skin.id) : (urlQuery.data ?? undefined)
+  const skinUrl = useSkinImageUrl(skin)
 
   return (
     <SkinPreview

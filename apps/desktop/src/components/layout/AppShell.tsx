@@ -1,25 +1,25 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   IconHome,
   IconMenu2,
   IconSettings,
   IconShirt,
-  IconStack2,
 } from '@tabler/icons-react'
 import { TextLogo } from '../brand/TextLogo'
 import { AppCredits } from '../brand/AppCredits'
 import { AccountChip } from '../../features/auth/AccountChip'
 import { fledgeApi } from '../../api/fledgeApi'
 import { applyTheme } from '../../styles/theme'
+import i18n from '../../i18n'
 import { TitleBar } from './TitleBar'
 import { TransferProgress } from './TransferProgress'
 import { HeaderQuickPlay } from './HeaderQuickPlay'
 import appIcon from '../../assets/app-icon.png'
 
-const SIDEBAR_COLLAPSED_KEY = 'fledge.navRail'
+const SIDEBAR_COLLAPSED_KEY = 'fledge.sidebarCollapsed'
 
 const navIcon = { size: 20, stroke: 1.7 } as const
 
@@ -39,9 +39,9 @@ export function AppShell() {
   const { t } = useTranslation()
   const [collapsed, setCollapsed] = useState(() => {
     try {
-      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'expanded' ? false : true
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'collapsed'
     } catch {
-      return true
+      return false
     }
   })
   const settingsQuery = useQuery({
@@ -54,6 +54,11 @@ export function AppShell() {
   }, [settingsQuery.data])
 
   useEffect(() => {
+    const locale = settingsQuery.data?.locale
+    if (locale && i18n.language !== locale) void i18n.changeLanguage(locale)
+  }, [settingsQuery.data?.locale])
+
+  useEffect(() => {
     try {
       localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? 'collapsed' : 'expanded')
     } catch {
@@ -64,10 +69,17 @@ export function AppShell() {
   const useOsChrome = settingsQuery.data?.useOsWindowChrome ?? false
   const itemClass = navClass(collapsed)
 
+  useEffect(() => {
+    document.documentElement.style.setProperty('--titlebar-offset', useOsChrome ? '0px' : '2rem')
+  }, [useOsChrome])
+
   return (
     <div className="flex h-full flex-col">
       {!useOsChrome ? <TitleBar /> : null}
-      <div className="flex min-h-0 flex-1">
+      <div
+        className="flex min-h-0 flex-1"
+        style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
+      >
         <aside
           className={[
             'flex shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]/90 py-2 transition-[width]',
@@ -102,15 +114,6 @@ export function AppShell() {
             <NavLink to="/" end className={itemClass} title={t('nav.home')}>
               <IconHome {...navIcon} aria-hidden />
               {collapsed ? null : t('nav.home')}
-            </NavLink>
-            <NavLink
-              to="/library"
-              className={itemClass}
-              end={false}
-              title={t('nav.library')}
-            >
-              <IconStack2 {...navIcon} aria-hidden />
-              {collapsed ? null : t('nav.library')}
             </NavLink>
             <NavLink to="/skin" className={itemClass} title={t('nav.skin')}>
               <IconShirt {...navIcon} aria-hidden />

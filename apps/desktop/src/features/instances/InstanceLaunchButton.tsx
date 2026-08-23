@@ -28,6 +28,7 @@ export function InstanceLaunchButton({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const authStatus = useUiStore((s) => s.authStatus)
+  const setAuthStatus = useUiStore((s) => s.setAuthStatus)
   const byProfileId = useLaunchStore((s) => s.byProfileId)
   const stateFor = useLaunchStore((s) => s.stateFor)
   const focusSessionId = useLaunchStore((s) => s.focusSessionId)
@@ -125,10 +126,12 @@ export function InstanceLaunchButton({
   } else if (authStatus === 'logged_out' || authStatus === 'expired') {
     action = (
       <Button
-        variant="primary"
+        variant="success"
         className={[sizeClass, className].join(' ')}
         onClick={(e) => {
           stop(e)
+          setAuthStatus('logging_in')
+          void queryClient.cancelQueries({ queryKey: ['session'] })
           void fledgeApi.auth.login()
         }}
       >

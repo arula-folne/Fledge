@@ -1,6 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { IdleAnimation, SkinViewer } from 'skinview3d'
 import type { SkinModel } from '@fledge/shared'
+import {
+  applyPreviewLights,
+  applyPreviewPose,
+  enqueueSkinRender,
+  renderSkinSnapshotToCanvas,
+  toSkinViewModel,
+} from './skinSnapshot'
 
 export type SkinPreviewPose = 'bust' | 'full'
 
@@ -13,54 +20,18 @@ type Props = {
   className?: string
   width?: number
   height?: number
-  /** キャラクターの見え方。小さいほど縮小。未指定は 0.92 */
   zoom?: number
 }
 
 const STAGE_BG =
   'radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--color-accent-soft) 75%, transparent), transparent 58%), linear-gradient(180deg, color-mix(in srgb, var(--color-border) 22%, var(--color-surface)), var(--color-bg))'
 
-let renderChain: Promise<unknown> = Promise.resolve()
-function enqueueRender<T>(task: () => Promise<T>): Promise<T> {
-  const run = () => task()
-  const next = renderChain.then(run, run)
-  renderChain = next.then(
-    () => undefined,
-    () => undefined,
-  )
-  return next
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-function toModel(model: SkinModel): 'slim' | 'default' {
-  return model === 'slim' ? 'slim' : 'default'
-}
-
-/** Minecraft Launcher のスキン画面に近い立ち位置 */
-function applyLauncherPose(viewer: SkinViewer): void {
-  viewer.playerObject.rotation.set(0, -Math.PI / 7, 0)
-  viewer.playerObject.skin.head.rotation.set(0, 0, 0)
-  viewer.playerWrapper.rotation.set(0, 0, 0)
-  viewer.playerWrapper.position.set(0, 0, 0)
-  viewer.playerObject.skin.leftLeg.visible = true
-  viewer.playerObject.skin.rightLeg.visible = true
-  viewer.adjustCameraDistance()
-}
-
-function applyLauncherLights(viewer: SkinViewer): void {
-  viewer.globalLight.intensity = 2.6
-  viewer.cameraLight.intensity = 0.55
-}
-
 const INTERACTIVE_ZOOM = 0.88
 
 function resetInteractiveView(viewer: SkinViewer): void {
   viewer.zoom = INTERACTIVE_ZOOM
   viewer.controls.target.set(0, 0, 0)
-  applyLauncherPose(viewer)
+  applyPreviewPose(viewer)
   viewer.resetCameraPose()
   viewer.controls.update()
 }
@@ -87,51 +58,6 @@ function SkinStage({
       {children}
     </div>
   )
-}
-
-async function renderSkinSnapshotToCanvas(
-  target: HTMLCanvasElement,
-  skinUrl: string,
-  model: SkinModel,
-  cssWidth: number,
-  cssHeight: number,
-  zoom: number,
-): Promise<void> {
-  const pixelRatio = Math.min(window.devicePixelRatio || 1, 3)
-  const glCanvas = document.createElement('canvas')
-  const viewer = new SkinViewer({
-    canvas: glCanvas,
-    width: Math.max(1, cssWidth),
-    height: Math.max(1, cssHeight),
-    model: toModel(model),
-    enableControls: false,
-    zoom,
-    fov: 42,
-    pixelRatio,
-    renderPaused: true,
-    preserveDrawingBuffer: true,
-  })
-
-  try {
-    viewer.controls.enabled = false
-    viewer.background = null
-    viewer.renderer.setClearColor(0x000000, 0)
-    applyLauncherLights(viewer)
-    await viewer.loadSkin(skinUrl, { model: toModel(model) })
-    applyLauncherPose(viewer)
-    viewer.zoom = zoom
-    viewer.render()
-    target.width = glCanvas.width
-    target.height = glCanvas.height
-    const ctx = target.getContext('2d')
-    if (!ctx) return
-    ctx.imageSmoothingEnabled = false
-    ctx.clearRect(0, 0, target.width, target.height)
-    ctx.drawImage(glCanvas, 0, 0)
-  } finally {
-    viewer.dispose()
-    await delay(30)
-  }
 }
 
 function SnapshotPreview({
@@ -181,7 +107,7 @@ function SnapshotPreview({
     setReady(false)
     setFailed(false)
 
-    void enqueueRender(async () => {
+    void enqueueSkinRender(async () => {
       if (requestId.current !== id) return
       const dest = canvasRef.current
       if (!dest) return
@@ -245,14 +171,14 @@ function InteractivePreview({
       canvas,
       width: startW,
       height: startH,
-      model: toModel(model),
+      model: toSkinViewModel(model),
       enableControls: true,
       zoom: INTERACTIVE_ZOOM,
       fov: 42,
       pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
     })
     viewerRef.current = viewer
-    applyLauncherLights(viewer)
+    applyPreviewLights(viewer)
 
     viewer.controls.enablePan = false
     viewer.controls.enableZoom = true
@@ -260,7 +186,6 @@ function InteractivePreview({
     viewer.controls.rotateSpeed = 0.5
     viewer.controls.minDistance = 32
     viewer.controls.maxDistance = 110
-    // ホイールクリックは OrbitControls のズームではなく、向き・ズームのリセットに使う
     viewer.controls.mouseButtons.MIDDLE = -1 as never
 
     const onPointerDown = (event: PointerEvent) => {
@@ -278,11 +203,10 @@ function InteractivePreview({
 
     void (async () => {
       try {
-        await viewer.loadSkin(skinUrl, { model: toModel(model) })
+        await viewer.loadSkin(skinUrl, { model: toSkinViewModel(model) })
         if (disposed) return
         const idle = new IdleAnimation()
         idle.speed = 0.8
-        // animation 代入は player の回転を 0 に戻すので、そのあとで斜め立ちを適用する
         viewer.animation = idle
         resetInteractiveView(viewer)
       } catch (err) {

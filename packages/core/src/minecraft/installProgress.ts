@@ -3,11 +3,8 @@ import type { DownloadContext } from '../download/DownloadQueue.js'
 type TrackerEvent = {
   phase: string
   payload?: {
-    progress?: { progress?: number; total?: number; url?: string }
+    progress?: { progress?: number; total?: number }
     count?: number
-    id?: string
-    version?: string
-    path?: string
   }
 }
 
@@ -22,17 +19,6 @@ const PHASE_KEYS: Record<string, string> = {
   postprocess: 'launch.install.processors',
 }
 
-function fileNameFromUrl(url: string | undefined): string | undefined {
-  if (!url) return undefined
-  try {
-    const name = decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).pop() ?? '')
-    return name || undefined
-  } catch {
-    const name = url.split(/[\\/]/).pop()
-    return name || undefined
-  }
-}
-
 /** xmcl installer の tracker を DownloadQueue の進捗表示へつなぐ */
 export function createXmclInstallTracker(ctx: DownloadContext, fallbackKey: string) {
   let latest: TrackerEvent | null = null
@@ -40,9 +26,6 @@ export function createXmclInstallTracker(ctx: DownloadContext, fallbackKey: stri
   const flush = () => {
     const payload = latest?.payload
     const progress = payload?.progress
-    const file =
-      fileNameFromUrl(progress?.url) ??
-      (typeof payload?.path === 'string' ? payload.path.split(/[\\/]/).pop() : undefined)
     const messageKey = (latest?.phase && PHASE_KEYS[latest.phase]) || fallbackKey
     const hasBytes = Boolean(progress && (progress.total ?? 0) > 0)
     const current = hasBytes ? (progress?.progress ?? 0) : 0
@@ -56,11 +39,6 @@ export function createXmclInstallTracker(ctx: DownloadContext, fallbackKey: stri
       total,
       unit: hasBytes ? 'bytes' : 'count',
       messageKey,
-      meta: {
-        ...(file ? { file } : {}),
-        ...(typeof payload?.id === 'string' ? { version: payload.id } : {}),
-        ...(typeof payload?.version === 'string' ? { version: payload.version } : {}),
-      },
     })
   }
 

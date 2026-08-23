@@ -1,7 +1,8 @@
-import { dialog, ipcMain, shell } from 'electron'
+import { dialog, ipcMain, screen, shell } from 'electron'
 import type { BrowserWindow } from 'electron'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import os from 'node:os'
 import {
   CreateInstanceInputSchema,
   IPC,
@@ -12,8 +13,19 @@ import {
   type Settings,
   type SkinModel,
 } from '@fledge/shared'
-import { snapshotMinecraftInitialOptions, factoryReset, type LauncherApp } from '@fledge/core'
+import { snapshotMinecraftDebugOverlay, snapshotMinecraftInitialOptions, factoryReset, type LauncherApp } from '@fledge/core'
 import { applyWindowUiScale } from '../windows/MainWindow'
+
+function decodeThumbDataUrl(dataUrl: string): { bytes: Buffer; ext: 'webp' | 'png' } {
+  if (typeof dataUrl !== 'string') throw new Error('Invalid skin thumb')
+  const webp = 'data:image/webp;base64,'
+  const png = 'data:image/png;base64,'
+  const prefix = dataUrl.startsWith(webp) ? webp : dataUrl.startsWith(png) ? png : null
+  if (!prefix) throw new Error('Invalid skin thumb')
+  const buf = Buffer.from(dataUrl.slice(prefix.length), 'base64')
+  if (buf.length === 0 || buf.length > 400_000) throw new Error('Invalid skin thumb size')
+  return { bytes: buf, ext: prefix === webp ? 'webp' : 'png' }
+}
 
 function send(win: BrowserWindow | null, channel: string, payload: unknown): void {
   if (win && !win.isDestroyed()) win.webContents.send(channel, payload)
@@ -40,7 +52,12 @@ export function registerIpc(
   const touchBackup = () => appCtx.backup.scheduleSync()
 
   appCtx.logger.onLine((line) => send(win(), IPC_EVENTS.logLine, line))
-  appCtx.auth.onStatusChange?.((status) => send(win(), IPC_EVENTS.authStatus, status))
+  appCtx.auth.onStatusChange?.((status, account) => {
+    send(win(), IPC_EVENTS.authStatus, {
+      status,
+      account: account ? enrichAccount(account) : account === null ? null : undefined,
+    })
+  })
 
   ipcMain.handle(IPC.settingsGet, async () => toRendererSettings(await appCtx.settings.get()))
   ipcMain.handle(IPC.settingsSet, async (_e, partial: Partial<Settings>) => {
@@ -105,14 +122,23 @@ export function registerIpc(
   })
   ipcMain.handle(IPC.instancesCreate, async (_e, input: CreateInstanceInput) => {
     const settings = await appCtx.settings.get()
+    const locked = settings.minecraftInitialSettingsLocked
     const profile = await appCtx.instances.create(CreateInstanceInputSchema.parse(input), {
       memoryMaxMb: settings.defaultMemoryMaxMb,
       jvmArgs: settings.defaultJvmArgs,
-      seedMinecraftInitialSettings: true,
-      pendingMinecraftOptions: snapshotMinecraftInitialOptions(
-        settings.minecraftInitialSettings,
-        input.minecraftVersion,
-      ),
+      ...(locked
+        ? {}
+        : {
+            seedMinecraftInitialSettings: true,
+            pendingMinecraftOptions: snapshotMinecraftInitialOptions(
+              settings.minecraftInitialSettings,
+              input.minecraftVersion,
+            ),
+            pendingMinecraftDebugOverlay: snapshotMinecraftDebugOverlay(
+              settings.minecraftInitialSettings,
+              input.minecraftVersion,
+            ),
+          }),
     })
     if (!settings.selectedInstanceId) {
       await appCtx.settings.set({ selectedInstanceId: profile.id })
@@ -168,6 +194,9 @@ export function registerIpc(
   ipcMain.handle(IPC.contentGetProject, async (_e, projectId: string) =>
     appCtx.content.getProject(projectId),
   )
+  ipcMain.handle(IPC.contentListVersions, async (_e, input: unknown) =>
+    appCtx.content.listVersions(input),
+  )
   ipcMain.handle(IPC.contentInstall, async (_e, req: unknown) => {
     const result = await appCtx.content.install(req)
     touchBackup()
@@ -197,6 +226,7 @@ export function registerIpc(
     async (_e, instanceId: string, kind: 'screenshots' | 'logs') =>
       appCtx.content.listMedia(instanceId, kind),
   )
+  ipcMain.handle(IPC.contentListCategoryTags, async () => appCtx.content.listCategoryTags())
 
   ipcMain.handle(IPC.authLogin, async () => {
     const account = await appCtx.auth.login()
@@ -229,7 +259,6 @@ export function registerIpc(
   ipcMain.handle(
     IPC.versionsListMinecraft,
     async (_e, opts?: { includeSnapshots?: boolean; force?: boolean }) => {
-      const settings = await appCtx.settings.get()
       return appCtx.versions.listMinecraftVersions({
         includeSnapshots: opts?.includeSnapshots ?? true,
         force: opts?.force,
@@ -271,7 +300,13 @@ export function registerIpc(
     IPC.skinsUpload,
     async (
       _e,
-      input: { name: string; model: SkinModel; bytes: number[]; originalName: string },
+      input: {
+        name: string
+        model: SkinModel
+        bytes: number[]
+        originalName: string
+        thumbDataUrl?: string
+      },
     ) => {
       const model = SkinModelSchema.parse(input.model)
       const skin = await appCtx.skins.upload({
@@ -279,6 +314,7 @@ export function registerIpc(
         model,
         bytes: Uint8Array.from(input.bytes),
         originalName: input.originalName,
+        thumb: input.thumbDataUrl ? decodeThumbDataUrl(input.thumbDataUrl) : undefined,
       })
       touchBackup()
       return skin
@@ -315,6 +351,17 @@ export function registerIpc(
     const buf = await fs.readFile(filePath)
     return `data:image/png;base64,${buf.toString('base64')}`
   })
+  ipcMain.handle(IPC.skinsGetThumb, async (_e, id: string, model: SkinModel) => {
+    return appCtx.skins.readThumbDataUrl(id, SkinModelSchema.parse(model))
+  })
+  ipcMain.handle(
+    IPC.skinsSaveThumb,
+    async (_e, id: string, model: SkinModel, dataUrl: string) => {
+      const parsedModel = SkinModelSchema.parse(model)
+      const thumb = decodeThumbDataUrl(dataUrl)
+      await appCtx.skins.writeThumb(id, parsedModel, thumb.bytes, thumb.ext)
+    },
+  )
   ipcMain.handle(
     IPC.skinsSelect,
     async (_e, input: { skinId: string; model?: SkinModel }) => {
@@ -338,6 +385,18 @@ export function registerIpc(
   ipcMain.handle(IPC.appFactoryReset, async () => {
     await factoryReset(appCtx)
     hooks?.onFactoryReset?.()
+  })
+
+  ipcMain.handle(IPC.appDeviceSpecs, async () => {
+    const display = screen.getPrimaryDisplay()
+    const area = display.workAreaSize
+    return {
+      totalMemMb: Math.round(os.totalmem() / (1024 * 1024)),
+      cpuCount: os.cpus().length,
+      workAreaWidth: area.width,
+      workAreaHeight: area.height,
+      scaleFactor: display.scaleFactor,
+    }
   })
 
   ipcMain.handle(IPC.backupRun, async () => {

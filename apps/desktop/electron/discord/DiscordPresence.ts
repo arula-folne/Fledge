@@ -144,7 +144,7 @@ export class DiscordPresence {
         statusDisplayType: 0,
         startTimestamp: this.startedAt,
         largeImageKey: 'fledge',
-        largeImageText: BRAND.tagline,
+        largeImageText: BRAND.name,
       })
     } catch (err) {
       this.log.warn(

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { IconRefresh } from '@tabler/icons-react'
+import { IconInfoCircle, IconRefresh } from '@tabler/icons-react'
 import {
   DEFAULT_INSTANCE_ICON_PRESET,
   type CreateInstanceInput,
@@ -12,7 +12,8 @@ import {
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
 import { Dialog } from '../../components/ui/Dialog'
-import { Select } from '../../components/ui/Select'
+import { ListPickDialog, ListPickField } from '../../components/ui/ListPickDialog'
+import { Switch } from '../../components/ui/Switch'
 import { TextField } from '../../components/ui/TextField'
 import { InstanceIcon } from './InstanceIcon'
 import { InstanceIconCustomizeDialog, type InstanceIconFilePick } from './instanceIconPresets'
@@ -31,6 +32,12 @@ type Props = {
 const LOADERS: Loader[] = ['vanilla', 'fabric', 'forge', 'neoforge', 'quilt']
 const CHANNELS: LoaderVersionChannel[] = ['stable', 'latest', 'other']
 
+function formatFetchedAt(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return iso
+  return d.toLocaleString('ja-JP')
+}
+
 export function InstanceWizard({ open, onClose, title }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -45,6 +52,10 @@ export function InstanceWizard({ open, onClose, title }: Props) {
   const [icon, setIcon] = useState<InstanceIconFilePick | null>(null)
   const [iconPreset, setIconPreset] = useState<InstanceIconPreset>(DEFAULT_INSTANCE_ICON_PRESET)
   const [iconOpen, setIconOpen] = useState(false)
+  const [versionPickOpen, setVersionPickOpen] = useState(false)
+  const [loaderPickOpen, setLoaderPickOpen] = useState(false)
+  const [loaderVersionPickOpen, setLoaderVersionPickOpen] = useState(false)
+  const [versionInfoOpen, setVersionInfoOpen] = useState(false)
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
@@ -52,9 +63,10 @@ export function InstanceWizard({ open, onClose, title }: Props) {
   })
 
   const versionsQuery = useQuery({
-    queryKey: ['versions-minecraft', includeSnapshots],
-    queryFn: () => fledgeApi.versions.listMinecraft({ includeSnapshots }),
+    queryKey: ['versions-minecraft'],
+    queryFn: () => fledgeApi.versions.listMinecraft({ includeSnapshots: true }),
     enabled: open,
+    placeholderData: keepPreviousData,
   })
 
   const loadersQuery = useQuery({
@@ -76,6 +88,10 @@ export function InstanceWizard({ open, onClose, title }: Props) {
     setMinecraftVersion('')
     setIncludeSnapshots(false)
     setIconOpen(false)
+    setVersionPickOpen(false)
+    setLoaderPickOpen(false)
+    setLoaderVersionPickOpen(false)
+    setVersionInfoOpen(false)
     setIconPreset(DEFAULT_INSTANCE_ICON_PRESET)
     setIcon((prev) => {
       if (prev) URL.revokeObjectURL(prev.previewUrl)
@@ -121,13 +137,24 @@ export function InstanceWizard({ open, onClose, title }: Props) {
         .map((v) => ({ value: v.id, label: v.id })),
     [versionsQuery.data],
   )
-  const snapshotOptions = useMemo(
-    () =>
-      (versionsQuery.data?.versions ?? [])
-        .filter((v) => v.type === 'snapshot')
-        .map((v) => ({ value: v.id, label: v.id })),
-    [versionsQuery.data],
-  )
+  const versionPickGroups = useMemo(() => {
+    const versions = versionsQuery.data?.versions ?? []
+    const items = versions
+      .filter((v) => includeSnapshots || v.type === 'release')
+      .map((v) => ({
+        value: v.id,
+        label: v.id,
+        suffix:
+          v.type === 'snapshot'
+            ? t('instances.versionGroup.snapshot')
+            : v.type === 'release'
+              ? t('instances.versionGroup.release')
+              : undefined,
+        suffixTone:
+          v.type === 'snapshot' ? 'snapshot' : v.type === 'release' ? 'release' : undefined,
+      }))
+    return items.length ? [{ items }] : []
+  }, [versionsQuery.data, includeSnapshots, t])
   const otherVersionOptions = useMemo(
     () =>
       loaderVersions.map((v) => ({
@@ -164,7 +191,7 @@ export function InstanceWizard({ open, onClose, title }: Props) {
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
       onClose()
-      navigate('/library')
+      navigate('/')
       void fledgeApi.launch.prepare(profile.id).catch(() => {
         // 状態イベントでエラー表示
       })
@@ -214,7 +241,7 @@ export function InstanceWizard({ open, onClose, title }: Props) {
       open={open}
       title={title ?? t('instances.create')}
       onClose={() => {
-        if (iconOpen) return
+        if (iconOpen || versionPickOpen || loaderPickOpen || loaderVersionPickOpen || versionInfoOpen) return
         onClose()
       }}
       footer={footer}
@@ -247,24 +274,27 @@ export function InstanceWizard({ open, onClose, title }: Props) {
               onChange={(e) => setName(e.target.value)}
               maxLength={64}
             />
-            <Select
+            <ListPickField
               label={t('instances.loader')}
-              value={loader}
-              onChange={(e) => {
-                const next = e.target.value as Loader
-                setLoader(next)
-                setLoaderChannel('stable')
-              }}
-              options={LOADERS.map((id) => ({
-                value: id,
-                label: t(`instances.loader.${id}`),
-              }))}
+              valueLabel={t(`instances.loader.${loader}`)}
+              compact
+              onClick={() => setLoaderPickOpen(true)}
             />
           </div>
         </div>
 
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-sm font-medium text-[var(--color-text)]">{t('instances.version')}</h3>
+          <div className="flex min-w-0 items-center gap-1">
+            <h3 className="text-sm font-medium text-[var(--color-text)]">{t('instances.version')}</h3>
+            <button
+              type="button"
+              className="flex size-7 shrink-0 items-center justify-center rounded-full text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
+              aria-label={t('instances.versionInfo.infoAria')}
+              onClick={() => setVersionInfoOpen(true)}
+            >
+              <IconInfoCircle size={16} stroke={1.7} />
+            </button>
+          </div>
           <Button
             type="button"
             variant="ghost"
@@ -294,44 +324,12 @@ export function InstanceWizard({ open, onClose, title }: Props) {
           </div>
         ) : (
           <>
-            <label className="flex items-center gap-2 text-sm text-[var(--color-text-muted)]">
-              <input
-                type="checkbox"
-                checked={includeSnapshots}
-                onChange={(e) => {
-                  setMinecraftVersion('')
-                  setIncludeSnapshots(e.target.checked)
-                }}
-              />
-              {t('instances.includeSnapshots')}
-            </label>
-            <label className="flex flex-col gap-1 text-sm">
-              <span className="text-[var(--color-text-muted)]">{t('instances.version')}</span>
-              <select
-                value={minecraftVersion}
-                onChange={(e) => setMinecraftVersion(e.target.value)}
-                className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 outline-none focus:border-[var(--color-accent)]"
-              >
-                {releaseOptions.length ? (
-                  <optgroup label={t('instances.versionGroup.release')}>
-                    {releaseOptions.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null}
-                {includeSnapshots && snapshotOptions.length ? (
-                  <optgroup label={t('instances.versionGroup.snapshot')}>
-                    {snapshotOptions.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </optgroup>
-                ) : null}
-              </select>
-            </label>
+            <ListPickField
+              valueLabel={minecraftVersion || t('instances.pickVersion')}
+              disabled={versionsQuery.isLoading}
+              compact
+              onClick={() => setVersionPickOpen(true)}
+            />
           </>
         )}
 
@@ -379,11 +377,14 @@ export function InstanceWizard({ open, onClose, title }: Props) {
                 {t('instances.loaderVersionsEmpty')}
               </p>
             ) : loaderChannel === 'other' ? (
-              <Select
+              <ListPickField
                 label={t('instances.loaderVersion')}
-                value={otherLoaderVersion}
-                onChange={(e) => setOtherLoaderVersion(e.target.value)}
-                options={otherVersionOptions}
+                valueLabel={
+                  otherVersionOptions.find((o) => o.value === otherLoaderVersion)?.label ??
+                  otherLoaderVersion
+                }
+                compact
+                onClick={() => setLoaderVersionPickOpen(true)}
               />
             ) : (
               <p className="text-xs text-[var(--color-text-muted)]">
@@ -400,6 +401,95 @@ export function InstanceWizard({ open, onClose, title }: Props) {
         ) : null}
       </div>
       </Dialog>
+      <Dialog
+        open={versionInfoOpen}
+        title={t('instances.versionInfo.title')}
+        size="sm"
+        backdrop="soft"
+        overlayClassName="z-[95]"
+        onClose={() => setVersionInfoOpen(false)}
+        footer={
+          <Button type="button" variant="primary" onClick={() => setVersionInfoOpen(false)}>
+            {t('common.close')}
+          </Button>
+        }
+      >
+        <div className="space-y-3 text-sm">
+          <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
+            {t('instances.versionInfo.hint')}
+          </p>
+          <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
+            {t('instances.versionInfo.refreshHint')}
+          </p>
+          {offline ? (
+            <p className="text-xs text-[var(--color-accent)]">{t('instances.versionsOffline')}</p>
+          ) : null}
+          {versionsQuery.data?.fetchedAt ? (
+            <p className="text-xs text-[var(--color-text)]">
+              {t('instances.versionInfo.fetchedAt', {
+                date: formatFetchedAt(versionsQuery.data.fetchedAt),
+              })}
+            </p>
+          ) : null}
+        </div>
+      </Dialog>
+      <ListPickDialog
+        open={loaderPickOpen}
+        title={t('instances.loader')}
+        value={loader}
+        groups={[
+          {
+            items: LOADERS.map((id) => ({
+              value: id,
+              label: t(`instances.loader.${id}`),
+            })),
+          },
+        ]}
+        onSelect={(next) => {
+          setLoader(next as Loader)
+          setLoaderChannel('stable')
+        }}
+        onClose={() => setLoaderPickOpen(false)}
+      />
+      <ListPickDialog
+        open={versionPickOpen}
+        title={t('instances.version')}
+        value={minecraftVersion}
+        groups={versionPickGroups}
+        empty={t('instances.versionsEmpty')}
+        onSelect={setMinecraftVersion}
+        onClose={() => setVersionPickOpen(false)}
+        header={
+          <label className="flex items-center justify-between gap-2 text-xs text-[var(--color-text)]">
+            <span>{t('instances.includeSnapshots')}</span>
+            <Switch
+              checked={includeSnapshots}
+              aria-label={t('instances.includeSnapshots')}
+              onChange={(next) => {
+                setIncludeSnapshots(next)
+                if (
+                  !next &&
+                  (versionsQuery.data?.versions ?? []).some(
+                    (v) => v.type === 'snapshot' && v.id === minecraftVersion,
+                  )
+                ) {
+                  const firstRelease = releaseOptions[0]?.value
+                  if (firstRelease) setMinecraftVersion(firstRelease)
+                }
+              }}
+            />
+          </label>
+        }
+      />
+      <ListPickDialog
+        open={loaderVersionPickOpen}
+        title={t('instances.loaderVersion')}
+        value={otherLoaderVersion}
+        groups={[{ items: otherVersionOptions }]}
+        empty={t('instances.loaderVersionsEmpty')}
+        onSelect={setOtherLoaderVersion}
+        onClose={() => setLoaderVersionPickOpen(false)}
+      />
       <InstanceIconCustomizeDialog
         open={iconOpen}
         preset={iconPreset}

@@ -1,8 +1,22 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import type { Settings, StartupPage, UiScale } from '@fledge/shared'
-import { DEFAULT_CONCURRENT_DOWNLOADS, DEFAULT_MAX_WRITE_CONCURRENCY } from '@fledge/shared'
+import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react'
+import {
+  IconBrandMinecraft,
+  IconCoffee,
+  IconDeviceGamepad2,
+  IconFolders,
+  IconLibrary,
+  IconPlayerPlay,
+  IconUsers,
+} from '@tabler/icons-react'
+import {
+  DEFAULT_CONCURRENT_DOWNLOADS,
+  DEFAULT_MAX_WRITE_CONCURRENCY,
+  WINDOW_SIZE_PRESETS,
+  type Settings,
+  type UiScale,
+} from '@fledge/shared'
 import { fledgeApi } from '../api/fledgeApi'
 import { Button } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
@@ -16,7 +30,11 @@ import { ThemeModePicker } from '../components/ui/ThemeModePicker'
 import { BackupPanel } from '../components/settings/BackupPanel'
 import { JavaRuntimePanel } from '../components/settings/JavaRuntimePanel'
 import { MinecraftInitialSettingsPanel } from '../components/settings/MinecraftInitialSettingsPanel'
+import { DeviceQuickSettings } from '../components/settings/DeviceQuickSettings'
 import { AppCredits } from '../components/brand/AppCredits'
+import { applyLoggedInAccount, loadSessionQuery, sessionQueryOptions } from '../features/auth/sessionCache'
+import { McFaceAvatar } from '../features/auth/McFaceAvatar'
+import { mcFaceUrl } from '../features/auth/mcFace'
 import { useUiStore } from '../stores/appStores'
 import { applyTheme, defaultThemeColorForMode } from '../styles/theme'
 
@@ -41,7 +59,8 @@ export default function SettingsPage() {
   })
   const sessionQuery = useQuery({
     queryKey: ['session'],
-    queryFn: () => fledgeApi.auth.session(),
+    ...sessionQueryOptions,
+    queryFn: () => loadSessionQuery(queryClient),
   })
   const accountsQuery = useQuery({
     queryKey: ['accounts'],
@@ -109,34 +128,24 @@ export default function SettingsPage() {
 
   const logoutMutation = useMutation({
     mutationFn: (accountId?: string) => fledgeApi.auth.logout(accountId),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['session'] }),
-        queryClient.invalidateQueries({ queryKey: ['accounts'] }),
-      ])
-      const next = await fledgeApi.auth.session()
-      setAuthStatus(next.status)
-    },
   })
 
   const switchAccountMutation = useMutation({
     mutationFn: (accountId: string) => fledgeApi.auth.switch(accountId),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['session'] }),
-        queryClient.invalidateQueries({ queryKey: ['accounts'] }),
-      ])
+    onSuccess: (account) => {
+      applyLoggedInAccount(queryClient, account)
     },
   })
 
   const addAccountMutation = useMutation({
     mutationFn: () => fledgeApi.auth.login(),
-    onSuccess: async () => {
+    onMutate: async () => {
+      setAuthStatus('logging_in')
+      await queryClient.cancelQueries({ queryKey: ['session'] })
+    },
+    onSuccess: (account) => {
       setAuthStatus('logged_in')
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['session'] }),
-        queryClient.invalidateQueries({ queryKey: ['accounts'] }),
-      ])
+      applyLoggedInAccount(queryClient, account)
     },
   })
 
@@ -149,14 +158,38 @@ export default function SettingsPage() {
   const settings = settingsQuery.data
   const paths = pathsQuery.data
 
-  const tabs: Array<{ id: typeof section; label: string }> = [
-    { id: 'display', label: t('settings.section.display') },
-    { id: 'basic', label: t('settings.section.basic') },
-    { id: 'account', label: t('settings.section.account') },
-    { id: 'java', label: t('settings.section.java') },
-    { id: 'resources', label: t('settings.section.resources') },
-    { id: 'privacyCredits', label: t('settings.section.privacyCredits') },
+  type SettingsTab = {
+    id: typeof section
+    label: string
+    Icon: ComponentType<{ size?: number; stroke?: number; className?: string }>
+  }
+
+  const navGroups: Array<{ label?: string; items: SettingsTab[] }> = [
+    {
+      label: t('settings.group.app'),
+      items: [
+        { id: 'app', label: t('settings.section.app'), Icon: IconDeviceGamepad2 },
+      ],
+    },
+    {
+      label: t('settings.group.minecraft'),
+      items: [
+        { id: 'minecraftLaunch', label: t('settings.section.minecraftLaunch'), Icon: IconPlayerPlay },
+        { id: 'minecraftInitial', label: t('settings.section.minecraftInitial'), Icon: IconBrandMinecraft },
+        { id: 'java', label: t('settings.section.java'), Icon: IconCoffee },
+      ],
+    },
+    {
+      label: t('settings.group.other'),
+      items: [
+        { id: 'account', label: t('settings.section.account'), Icon: IconUsers },
+        { id: 'resources', label: t('settings.section.resources'), Icon: IconFolders },
+        { id: 'privacyCredits', label: t('settings.section.privacyCredits'), Icon: IconLibrary },
+      ],
+    },
   ]
+
+  const tabs = navGroups.flatMap((group) => group.items)
 
   if (!settings) {
     return <p className="text-[var(--color-text-muted)]">{t('common.loading')}</p>
@@ -170,32 +203,48 @@ export default function SettingsPage() {
         {t('settings.title')}
       </h1>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[11rem_minmax(0,1fr)] gap-4">
+      <div className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] gap-4">
         <nav
-          className="flex min-h-0 flex-col gap-0.5 self-stretch py-1"
+          className="flex min-h-0 w-max min-w-[12rem] flex-col gap-0.5 self-stretch py-1"
           aria-label={t('settings.title')}
         >
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={[
-                'w-full rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-sm',
-                section === tab.id
-                  ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
-                  : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
-              ].join(' ')}
-              onClick={() => setSection(tab.id)}
-            >
-              {tab.label}
-            </button>
+          {navGroups.map((group, groupIndex) => (
+            <div key={group.label ?? `group-${groupIndex}`} className={groupIndex > 0 ? 'mt-3' : undefined}>
+              {group.label ? (
+                <p className="mb-1 px-2.5 text-[11px] font-medium tracking-wide text-[var(--color-text-muted)]">
+                  {group.label}
+                </p>
+              ) : null}
+              <div className="flex flex-col gap-0.5">
+                {group.items.map((tab) => {
+                  const TabIcon = tab.Icon
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      className={[
+                        'flex w-full items-center gap-2 whitespace-nowrap rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-sm',
+                        section === tab.id
+                          ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
+                          : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
+                      ].join(' ')}
+                      onClick={() => setSection(tab.id)}
+                    >
+                      <TabIcon size={18} stroke={1.7} className="shrink-0" />
+                      <span className="break-keep">{tab.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
           ))}
         </nav>
 
         <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto overflow-x-visible pr-1">
           {currentTab ? (
-            <h2 className="text-lg font-semibold tracking-tight text-[var(--color-text)]">
-              {currentTab.label}
+            <h2 className="flex items-center gap-2 whitespace-nowrap text-lg font-semibold tracking-tight text-[var(--color-text)]">
+              <currentTab.Icon size={22} stroke={1.7} className="shrink-0" />
+              <span className="break-keep">{currentTab.label}</span>
             </h2>
           ) : null}
 
@@ -205,9 +254,9 @@ export default function SettingsPage() {
             </div>
           ) : null}
 
-      {section === 'basic' ? (
+      {section === 'minecraftLaunch' ? (
         <>
-          <Section title={t('settings.block.minecraftLaunch')}>
+          <Section title={t('settings.block.gameWindow')}>
             <Toggle
               label={t('settings.fullscreen')}
               hint={t('settings.fullscreenHint')}
@@ -230,6 +279,8 @@ export default function SettingsPage() {
                 saveMutation.mutate({ gameWindowWidth, gameWindowHeight })
               }
             />
+          </Section>
+          <Section title={t('settings.block.gamePerformance')}>
             <MemorySnapSlider
               label={t('settings.memory')}
               hint={t('settings.memoryHint')}
@@ -250,10 +301,17 @@ export default function SettingsPage() {
               }
             />
           </Section>
-          <Section title={t('settings.block.minecraftInitial')}>
-            <MinecraftInitialSettingsPanel
+        </>
+      ) : null}
+
+      {section === 'minecraftInitial' ? (
+        <MinecraftInitialSettingsPanel
               value={settings.minecraftInitialSettings}
               onChange={(minecraftInitialSettings) => saveMutation.mutate({ minecraftInitialSettings })}
+              locked={settings.minecraftInitialSettingsLocked}
+              onLockedChange={(minecraftInitialSettingsLocked) =>
+                saveMutation.mutate({ minecraftInitialSettingsLocked })
+              }
               labels={{
                 hint: t('settings.minecraftInitial.hint'),
                 reset: t('settings.minecraftInitial.reset'),
@@ -286,44 +344,34 @@ export default function SettingsPage() {
                 unlimited: t('settings.minecraftInitial.unlimited'),
                 chunks: t('settings.minecraftInitial.chunks'),
                 degrees: t('settings.minecraftInitial.degrees'),
+                normal: t('settings.minecraftInitial.normal'),
+                quakePro: t('settings.minecraftInitial.quakePro'),
+                moody: t('settings.minecraftInitial.moody'),
+                bright: t('settings.minecraftInitial.bright'),
               }}
             />
-          </Section>
-        </>
       ) : null}
 
       {section === 'account' ? (
-        <Section title={t('settings.block.account')}>
+        <Section>
           {(() => {
             const account = sessionQuery.data?.account
             const status = sessionQuery.data?.status
             const accounts = accountsQuery.data ?? []
-            const faceUrl =
-              account?.avatarUrl ??
-              (account?.uuid
-                ? `https://mc-heads.net/avatar/${account.uuid.replaceAll('-', '')}/64`
-                : null)
+            const faceUrl = mcFaceUrl(account, 64)
 
             return (
               <div className="space-y-5">
                 {account ? (
                   <div className="space-y-4">
                     <div className="flex flex-wrap items-center gap-4">
-                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-accent-soft)]">
-                        {faceUrl ? (
-                          <img
-                            src={faceUrl}
-                            alt=""
-                            className="h-full w-full"
-                            style={{ imageRendering: 'pixelated' }}
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <div className="flex h-full w-full items-center justify-center text-lg font-semibold text-[var(--color-text)]">
-                            {account.displayName.slice(0, 1)}
-                          </div>
-                        )}
-                      </div>
+                      {faceUrl ? (
+                        <McFaceAvatar src={faceUrl} size={64} radius="md" />
+                      ) : (
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-accent-soft)] text-lg font-semibold text-[var(--color-text)]">
+                          {account.displayName.slice(0, 1)}
+                        </div>
+                      )}
                       <div className="min-w-0 space-y-1">
                         <p className="text-xs text-[var(--color-text-muted)]">
                           {t('settings.account.current')}
@@ -369,21 +417,17 @@ export default function SettingsPage() {
                     <ul className="space-y-2">
                       {accounts.map((a) => {
                         const active = a.id === account?.id
-                        const aFace =
-                          a.avatarUrl ??
-                          `https://mc-heads.net/avatar/${a.uuid.replaceAll('-', '')}/64`
+                        const aFace = mcFaceUrl(a, 40)
                         return (
                           <li
                             key={a.id}
                             className="flex flex-wrap items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-2"
                           >
-                            <img
-                              src={aFace}
-                              alt=""
-                              className="h-10 w-10 rounded border border-[var(--color-border)]"
-                              style={{ imageRendering: 'pixelated' }}
-                              referrerPolicy="no-referrer"
-                            />
+                            {aFace ? (
+                              <McFaceAvatar src={aFace} size={40} radius="md" className="bg-[var(--color-bg)]" />
+                            ) : (
+                              <span className="h-10 w-10 shrink-0 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]" />
+                            )}
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm font-medium text-[var(--color-text)]">
                                 {a.displayName}
@@ -436,49 +480,17 @@ export default function SettingsPage() {
         </Section>
       ) : null}
 
-      {section === 'display' ? (
-        <Section>
-          <StartupPagePicker
-            value={settings.startupPage}
-            onChange={(startupPage) => saveMutation.mutate({ startupPage })}
+      {section === 'app' ? (
+        <>
+          <DeviceQuickSettings
+            settings={settings}
+            onApply={(partial, options) => {
+              if (options?.restartRequired) saveRestartRequiredSetting(partial)
+              else saveMutation.mutate(partial)
+            }}
           />
-          <WindowSizeFields
-            title={t('settings.launcherWindowSize')}
-            hint={t('settings.launcherWindowSizeHint')}
-            width={settings.launcherWindowWidth}
-            height={settings.launcherWindowHeight}
-            minWidth={900}
-            maxWidth={7680}
-            minHeight={600}
-            maxHeight={4320}
-            onCommitWidth={(launcherWindowWidth) => saveMutation.mutate({ launcherWindowWidth })}
-            onCommitHeight={(launcherWindowHeight) => saveMutation.mutate({ launcherWindowHeight })}
-            onCommitSize={(launcherWindowWidth, launcherWindowHeight) =>
-              saveMutation.mutate({ launcherWindowWidth, launcherWindowHeight })
-            }
-          />
-          <UiScalePicker
-            value={settings.uiScale}
-            onChange={(uiScale) => saveMutation.mutate({ uiScale })}
-          />
-          <Toggle
-            label={t('settings.minimizeOnLaunch')}
-            hint={t('settings.minimizeOnLaunchHint')}
-            checked={settings.minimizeOnLaunch}
-            onChange={(minimizeOnLaunch) => saveMutation.mutate({ minimizeOnLaunch })}
-          />
-          <Toggle
-            label={t('settings.discordRichPresence')}
-            hint={t('settings.discordRichPresenceHint')}
-            checked={settings.discordRichPresence}
-            onChange={(discordRichPresence) => saveMutation.mutate({ discordRichPresence })}
-          />
-
-          <div className="space-y-4 pt-5 mt-1 border-t border-[var(--color-border)]">
-            <div>
-              <BlockHeading>{t('settings.block.appearance')}</BlockHeading>
-              <p className="mt-1 text-xs text-[var(--color-text-muted)]">{t('settings.themeModeHint')}</p>
-            </div>
+          <Section title={t('settings.block.theme')}>
+            <p className="text-xs text-[var(--color-text-muted)]">{t('settings.themeModeHint')}</p>
             <ThemeModePicker
               value={settings.themeMode}
               labels={{
@@ -506,6 +518,35 @@ export default function SettingsPage() {
                 onChange={handleThemeColorChange}
               />
             ) : null}
+          </Section>
+
+          <Section title={t('settings.block.display')}>
+            <p className="text-xs text-[var(--color-text-muted)]">{t('settings.displayHint')}</p>
+            <WindowSizeFields
+              title={t('settings.launcherWindowSize')}
+              hint={t('settings.launcherWindowSizeHint')}
+              width={settings.launcherWindowWidth}
+              height={settings.launcherWindowHeight}
+              minWidth={900}
+              maxWidth={7680}
+              minHeight={600}
+              maxHeight={4320}
+              onCommitWidth={(launcherWindowWidth) => saveMutation.mutate({ launcherWindowWidth })}
+              onCommitHeight={(launcherWindowHeight) => saveMutation.mutate({ launcherWindowHeight })}
+              onCommitSize={(launcherWindowWidth, launcherWindowHeight) =>
+                saveMutation.mutate({ launcherWindowWidth, launcherWindowHeight })
+              }
+            />
+            <UiScalePicker
+              value={settings.uiScale}
+              onChange={(uiScale) => saveMutation.mutate({ uiScale })}
+            />
+            <Toggle
+              label={t('settings.useOsWindowChrome')}
+              hint={t('settings.useOsWindowChromeHint')}
+              checked={settings.useOsWindowChrome}
+              onChange={(useOsWindowChrome) => saveRestartRequiredSetting({ useOsWindowChrome })}
+            />
             <Toggle
               label={t('settings.hardwareAcceleration')}
               hint={t('settings.hardwareAccelerationHint')}
@@ -514,47 +555,51 @@ export default function SettingsPage() {
                 saveRestartRequiredSetting({ hardwareAcceleration })
               }
             />
-            <Toggle
-              label={t('settings.useOsWindowChrome')}
-              hint={t('settings.useOsWindowChromeHint')}
-              checked={settings.useOsWindowChrome}
-              onChange={(useOsWindowChrome) => saveRestartRequiredSetting({ useOsWindowChrome })}
-            />
-          </div>
+          </Section>
 
-          <div className="space-y-3 pt-5 mt-1 border-t border-[var(--color-border)]">
-            <BlockHeading>{t('settings.block.reset')}</BlockHeading>
-            <p className="text-xs text-[var(--color-text-muted)]">{t('settings.resetAllHint')}</p>
-            <Button
-              variant="danger"
-              disabled={resetMutation.isPending}
-              onClick={() => setResetConfirmOpen(true)}
-            >
-              {t('settings.resetAll')}
-            </Button>
-          </div>
-        </Section>
+          <Section title={t('settings.section.general')}>
+            <Toggle
+              label={t('settings.minimizeOnLaunch')}
+              hint={t('settings.minimizeOnLaunchHint')}
+              checked={settings.minimizeOnLaunch}
+              onChange={(minimizeOnLaunch) => saveMutation.mutate({ minimizeOnLaunch })}
+            />
+            <Toggle
+              label={t('settings.discordRichPresence')}
+              hint={t('settings.discordRichPresenceHint')}
+              checked={settings.discordRichPresence}
+              onChange={(discordRichPresence) => saveMutation.mutate({ discordRichPresence })}
+            />
+            <div className="space-y-3 border-t border-[var(--color-border)] pt-5">
+              <p className="text-xs text-[var(--color-text-muted)]">{t('settings.resetAllHint')}</p>
+              <Button
+                variant="danger"
+                disabled={resetMutation.isPending}
+                onClick={() => setResetConfirmOpen(true)}
+              >
+                {t('settings.resetAll')}
+              </Button>
+            </div>
+          </Section>
+        </>
       ) : null}
 
       {section === 'privacyCredits' ? (
-        <Section title={t('settings.section.privacyCredits')}>
-          <div className="space-y-2">
-            <BlockHeading>{t('settings.block.privacy')}</BlockHeading>
+        <>
+          <Section title={t('settings.block.privacy')}>
             <p className="whitespace-pre-line text-sm text-[var(--color-text-muted)]">
               {t('settings.privacyNote')}
             </p>
-          </div>
-          <div className="space-y-2 border-t border-[var(--color-border)] pt-5">
-            <BlockHeading>{t('settings.block.credits')}</BlockHeading>
+          </Section>
+          <Section title={t('settings.block.credits')}>
             <AppCredits />
-          </div>
-          <div className="space-y-2 border-t border-[var(--color-border)] pt-5">
-            <BlockHeading>{t('settings.block.about')}</BlockHeading>
+          </Section>
+          <Section title={t('settings.block.about')}>
             <p className="whitespace-pre-line text-sm text-[var(--color-text-muted)]">
               {t('settings.aboutNote')}
             </p>
-          </div>
-        </Section>
+          </Section>
+        </>
       ) : null}
 
       {section === 'java' ? (
@@ -564,86 +609,92 @@ export default function SettingsPage() {
       ) : null}
 
       {section === 'resources' ? (
-        <Section>
-          <div>
-            <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.appDirectory')}</h3>
-            <p className="mt-1 text-xs text-[var(--color-text-muted)]">{t('settings.appDirectoryHint')}</p>
-            <p className="mt-2 mb-2 break-all text-xs text-[var(--color-text-muted)]">
-              {paths?.root}
-            </p>
-            <Button disabled={!paths} onClick={() => paths && void fledgeApi.paths.open(paths.root)}>
-              {t('settings.openAppDirectory')}
-            </Button>
-          </div>
-          <div>
-            <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.clearCache')}</h3>
-            <p className="mt-1 mb-2 text-xs text-[var(--color-text-muted)]">{t('settings.clearCacheHint')}</p>
-            <Button
-              onClick={async () => {
-                await fledgeApi.cache.clear()
-                setMessage(t('settings.cacheCleared'))
-              }}
-            >
-              {t('settings.clearCache')}
-            </Button>
-          </div>
-          <div className="border-t border-[var(--color-border)] pt-5">
-            <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.factoryReset')}</h3>
-            <p className="mt-1 mb-2 text-xs text-[var(--color-text-muted)]">{t('settings.factoryResetHint')}</p>
-            <Button
-              variant="danger"
-              disabled={factoryResetMutation.isPending}
-              onClick={() => setFactoryResetOpen(true)}
-            >
-              {factoryResetMutation.isPending
-                ? t('settings.factoryResetPending')
-                : t('settings.factoryReset')}
-            </Button>
-          </div>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-[var(--color-text)]">{t('settings.concurrentDownloads')}</span>
-            <span className="text-xs text-[var(--color-text-muted)]">
-              {t('settings.concurrentDownloadsHint')}
-            </span>
-            <input
-              type="number"
-              min={1}
-              max={32}
-              value={settings.concurrentDownloads}
-              onChange={(e) =>
-                saveMutation.mutate({
-                  concurrentDownloads: Number(e.target.value) || DEFAULT_CONCURRENT_DOWNLOADS,
-                })
-              }
-              className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-[var(--color-text)]"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            <span className="font-medium text-[var(--color-text)]">{t('settings.maxWriteConcurrency')}</span>
-            <span className="text-xs text-[var(--color-text-muted)]">
-              {t('settings.maxWriteConcurrencyHint')}
-            </span>
-            <input
-              type="number"
-              min={1}
-              max={32}
-              value={settings.maxWriteConcurrency}
-              onChange={(e) =>
-                saveMutation.mutate({
-                  maxWriteConcurrency: Number(e.target.value) || DEFAULT_MAX_WRITE_CONCURRENCY,
-                })
-              }
-              className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-[var(--color-text)]"
-            />
-          </label>
-          <div className="border-t border-[var(--color-border)] pt-5">
+        <>
+          <Section title={t('settings.block.folders')}>
+            <div>
+              <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.appDirectory')}</h3>
+              <p className="mt-1 text-xs text-[var(--color-text-muted)]">{t('settings.appDirectoryHint')}</p>
+              <p className="mt-2 mb-2 break-all text-xs text-[var(--color-text-muted)]">
+                {paths?.root}
+              </p>
+              <Button disabled={!paths} onClick={() => paths && void fledgeApi.paths.open(paths.root)}>
+                {t('settings.openAppDirectory')}
+              </Button>
+            </div>
+          </Section>
+          <Section title={t('settings.block.downloads')}>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-[var(--color-text)]">{t('settings.concurrentDownloads')}</span>
+              <span className="text-xs text-[var(--color-text-muted)]">
+                {t('settings.concurrentDownloadsHint')}
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={32}
+                value={settings.concurrentDownloads}
+                onChange={(e) =>
+                  saveMutation.mutate({
+                    concurrentDownloads: Number(e.target.value) || DEFAULT_CONCURRENT_DOWNLOADS,
+                  })
+                }
+                className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-[var(--color-text)]"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-[var(--color-text)]">{t('settings.maxWriteConcurrency')}</span>
+              <span className="text-xs text-[var(--color-text-muted)]">
+                {t('settings.maxWriteConcurrencyHint')}
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={32}
+                value={settings.maxWriteConcurrency}
+                onChange={(e) =>
+                  saveMutation.mutate({
+                    maxWriteConcurrency: Number(e.target.value) || DEFAULT_MAX_WRITE_CONCURRENCY,
+                  })
+                }
+                className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-[var(--color-text)]"
+              />
+            </label>
+          </Section>
+          <Section>
             <BackupPanel
               settings={settings}
               onSave={(partial) => saveMutation.mutate(partial)}
               onMessage={setMessage}
             />
-          </div>
-        </Section>
+          </Section>
+          <Section title={t('settings.block.maintenance')}>
+            <div>
+              <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.clearCache')}</h3>
+              <p className="mt-1 mb-2 text-xs text-[var(--color-text-muted)]">{t('settings.clearCacheHint')}</p>
+              <Button
+                onClick={async () => {
+                  await fledgeApi.cache.clear()
+                  setMessage(t('settings.cacheCleared'))
+                }}
+              >
+                {t('settings.clearCache')}
+              </Button>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.factoryReset')}</h3>
+              <p className="mt-1 mb-2 text-xs text-[var(--color-text-muted)]">{t('settings.factoryResetHint')}</p>
+              <Button
+                variant="danger"
+                disabled={factoryResetMutation.isPending}
+                onClick={() => setFactoryResetOpen(true)}
+              >
+                {factoryResetMutation.isPending
+                  ? t('settings.factoryResetPending')
+                  : t('settings.factoryReset')}
+              </Button>
+            </div>
+          </Section>
+        </>
       ) : null}
         </div>
       </div>
@@ -705,40 +756,6 @@ function BlockHeading({ children }: { children: React.ReactNode }) {
   return <h2 className="text-base font-semibold tracking-tight text-[var(--color-text)]">{children}</h2>
 }
 
-const STARTUP_PAGE_OPTIONS: StartupPage[] = ['home', 'library']
-
-function StartupPagePicker({
-  value,
-  onChange,
-}: {
-  value: StartupPage
-  onChange: (value: StartupPage) => void
-}) {
-  const { t } = useTranslation()
-  return (
-    <div className="flex items-center justify-between gap-4 text-sm">
-      <span className="min-w-0">
-        <span className="font-medium text-[var(--color-text)]">{t('settings.startupPage')}</span>
-        <span className="mt-1 block text-xs text-[var(--color-text-muted)]">
-          {t('settings.startupPageHint')}
-        </span>
-      </span>
-      <Select
-        className="w-36 shrink-0"
-        value={value}
-        options={STARTUP_PAGE_OPTIONS.map((option) => ({
-          value: option,
-          label: t(`settings.startupPage.${option}`),
-        }))}
-        onChange={(e) => {
-          const next = e.currentTarget.value
-          if (next === 'home' || next === 'library') onChange(next)
-        }}
-      />
-    </div>
-  )
-}
-
 const UI_SCALE_OPTIONS: UiScale[] = ['minimal', 'normal', 'wide']
 
 function UiScalePicker({
@@ -770,14 +787,6 @@ function UiScalePicker({
     </div>
   )
 }
-
-const WINDOW_SIZE_PRESETS = [
-  { id: '720p', width: 1280, height: 720 },
-  { id: '900p', width: 1600, height: 900 },
-  { id: '1080p', width: 1920, height: 1080 },
-  { id: '1440p', width: 2560, height: 1440 },
-  { id: '2160p', width: 3840, height: 2160 },
-] as const
 
 function matchWindowPreset(width: number, height: number) {
   return WINDOW_SIZE_PRESETS.find((p) => p.width === width && p.height === height) ?? null

@@ -221,46 +221,56 @@ export function JavaRuntimePanel({ onMessage }: { onMessage: (msg: string | null
               </div>
             ) : null}
             <div className="flex flex-wrap gap-2">
-              {!installed ? (
-                <IconAction
-                  label={t('settings.java.install')}
-                  hint={t('settings.java.installHint')}
-                  variant="primary"
-                  disabled={installing || uninstalling}
-                  onClick={() => installMutation.mutate(major)}
-                >
-                  <IconDownload {...iconProps} />
-                </IconAction>
-              ) : null}
+              <IconAction
+                label={t('settings.java.install')}
+                hint={
+                  installed
+                    ? t('settings.java.installDisabledHint')
+                    : t('settings.java.installHint')
+                }
+                variant="primary"
+                disabled={installed || installing || uninstalling}
+                onClick={() => installMutation.mutate(major)}
+              >
+                <IconDownload {...iconProps} />
+              </IconAction>
               <IconAction
                 label={t('settings.java.openFolder')}
-                hint={t('settings.java.openFolderHint')}
-                disabled={uninstalling}
+                hint={
+                  installed || removable
+                    ? t('settings.java.openFolderHint')
+                    : t('settings.java.openFolderDisabledHint')
+                }
+                disabled={uninstalling || !(installed || removable)}
                 onClick={() => void fledgeApi.java.openFolder(major)}
               >
                 <IconFolderOpen {...iconProps} />
               </IconAction>
-              {installed ? (
-                <IconAction
-                  label={t('settings.java.verify')}
-                  hint={t('settings.java.verifyHint')}
-                  disabled={installing || verifying || uninstalling}
-                  className="!border-transparent !bg-[#f08a24] !text-white hover:!brightness-105"
-                  onClick={() => verifyMutation.mutate(major)}
-                >
-                  <IconShieldCheck {...iconProps} />
-                </IconAction>
-              ) : null}
-              {installed ? (
-                <IconAction
-                  label={t('settings.java.reinstall')}
-                  hint={t('settings.java.reinstallHint')}
-                  disabled={installing || uninstalling}
-                  onClick={() => reinstallMutation.mutate(major)}
-                >
-                  <IconRefresh {...iconProps} />
-                </IconAction>
-              ) : null}
+              <IconAction
+                label={t('settings.java.verify')}
+                hint={
+                  installed
+                    ? t('settings.java.verifyHint')
+                    : t('settings.java.verifyDisabledHint')
+                }
+                disabled={!installed || installing || verifying || uninstalling}
+                className="!border-transparent !bg-[#f08a24] !text-white hover:!brightness-105"
+                onClick={() => verifyMutation.mutate(major)}
+              >
+                <IconShieldCheck {...iconProps} />
+              </IconAction>
+              <IconAction
+                label={t('settings.java.reinstall')}
+                hint={
+                  installed
+                    ? t('settings.java.reinstallHint')
+                    : t('settings.java.reinstallDisabledHint')
+                }
+                disabled={!installed || installing || uninstalling}
+                onClick={() => reinstallMutation.mutate(major)}
+              >
+                <IconRefresh {...iconProps} />
+              </IconAction>
               <IconAction
                 label={t('settings.java.uninstall')}
                 hint={

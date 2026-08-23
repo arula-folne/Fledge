@@ -93,6 +93,7 @@ export class InstanceStore {
       memoryMaxMb?: number
       jvmArgs?: string[]
       pendingMinecraftOptions?: Record<string, string>
+      pendingMinecraftDebugOverlay?: Record<string, string>
       seedMinecraftInitialSettings?: boolean
     },
   ): Promise<InstanceProfile> {
@@ -120,6 +121,7 @@ export class InstanceStore {
             minecraftInitialSettingsSeeded: true,
             minecraftInitialSettingsApplied: false,
             pendingMinecraftOptions: defaults?.pendingMinecraftOptions ?? {},
+            pendingMinecraftDebugOverlay: defaults?.pendingMinecraftDebugOverlay ?? {},
           }
         : {}),
     }

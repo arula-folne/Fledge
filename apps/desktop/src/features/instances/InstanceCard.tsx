@@ -85,7 +85,7 @@ export const InstanceCard = memo(function InstanceCard({
         }
       }}
       className={[
-        'group flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 transition',
+        'group flex h-full min-w-0 cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 transition',
         'hover:border-[var(--color-accent)]/35 hover:bg-[var(--color-hover)]/50',
         className,
       ].join(' ')}

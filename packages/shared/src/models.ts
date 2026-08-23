@@ -21,6 +21,12 @@ export const AccountViewSchema = z.object({
 })
 export type AccountView = z.infer<typeof AccountViewSchema>
 
+export type AuthStatusEvent = {
+  status: AuthStatus
+  /** 判明していれば即反映。logging_in / refreshing では省略する */
+  account?: AccountView | null
+}
+
 export const LoaderSchema = z.enum(['vanilla', 'fabric', 'forge', 'neoforge', 'quilt'])
 export type Loader = z.infer<typeof LoaderSchema>
 
@@ -91,6 +97,8 @@ export const InstanceProfileSchema = z.object({
   minecraftInitialSettingsApplied: z.boolean().optional(),
   /** 作成時点の「Minecraftデフォルトから変更した項目」だけ（options.txt の key:value） */
   pendingMinecraftOptions: z.record(z.string()).optional(),
+  /** 1.21.9+ のデバッグオーバーレイ（debug.json）。Identifier → visibility */
+  pendingMinecraftDebugOverlay: z.record(z.string()).optional(),
 })
 export type InstanceProfile = z.infer<typeof InstanceProfileSchema>
 
@@ -178,17 +186,26 @@ export type SkinEntry = z.infer<typeof SkinEntrySchema>
 export const MinecraftFpsLimitConditionSchema = z.enum(['afk', 'minimized'])
 export type MinecraftFpsLimitCondition = z.infer<typeof MinecraftFpsLimitConditionSchema>
 
+export const MinecraftFpsTextContrastSchema = z.enum(['none', 'background', 'shadow'])
+export type MinecraftFpsTextContrast = z.infer<typeof MinecraftFpsTextContrastSchema>
+
 /**
  * 新規インスタンスの初回起動専用。null = Minecraft 側のデフォルトを使う（書き込まない）。
  * 値はゲーム内表示に近い単位（FOV は度、音量・明るさは 0–1、感度は 0–1）。
+ * keybinds は `key.attack` → `key.mouse.left`。空ならすべてゲーム側デフォルト。
  */
 export const MinecraftInitialSettingsSchema = z.object({
   lang: z.string().min(1).nullable().default(null),
   showSubtitles: z.boolean().nullable().default(null),
   autoJump: z.boolean().nullable().default(null),
+  bobView: z.boolean().nullable().default(null),
+  operatorItemsTab: z.boolean().nullable().default(null),
   fovDegrees: z.number().min(30).max(110).nullable().default(null),
   masterVolume: z.number().min(0).max(1).nullable().default(null),
   musicVolume: z.number().min(0).max(1).nullable().default(null),
+  weatherVolume: z.number().min(0).max(1).nullable().default(null),
+  recordVolume: z.number().min(0).max(1).nullable().default(null),
+  blockVolume: z.number().min(0).max(1).nullable().default(null),
   maxFps: z.number().int().min(10).max(260).nullable().default(null),
   enableVsync: z.boolean().nullable().default(null),
   inactivityFpsLimit: MinecraftFpsLimitConditionSchema.nullable().default(null),
@@ -197,6 +214,10 @@ export const MinecraftInitialSettingsSchema = z.object({
   renderDistance: z.number().int().min(2).max(32).nullable().default(null),
   simulationDistance: z.number().int().min(5).max(32).nullable().default(null),
   mouseSensitivity: z.number().min(0).max(1).nullable().default(null),
+  showFps: z.boolean().nullable().default(null),
+  fpsExtended: z.boolean().nullable().default(null),
+  fpsTextContrast: MinecraftFpsTextContrastSchema.nullable().default(null),
+  keybinds: z.record(z.string(), z.string()).default({}),
 })
 export type MinecraftInitialSettings = z.infer<typeof MinecraftInitialSettingsSchema>
 
@@ -213,6 +234,11 @@ export const SettingsSchema = z.object({
   defaultMemoryMaxMb: z.number().int().positive().default(2048),
   defaultJvmArgs: z.array(z.string()).default([]),
   minecraftInitialSettings: MinecraftInitialSettingsSchema.default({}),
+  /**
+   * true のとき初期設定は使わず Minecraft デフォルトのまま。
+   * 新規インスタンスは options.txt を書かないので、ゲーム側の初回設定画面が出る。
+   */
+  minecraftInitialSettingsLocked: z.boolean().default(true),
   msaClientId: z.string().optional(),
   showSnapshots: z.boolean().default(false),
 
@@ -521,7 +547,7 @@ export const ContentSearchQuerySchema = z.object({
   provider: ContentProviderIdSchema.default('modrinth'),
   sort: ContentSearchSortSchema.default('relevance'),
   offset: z.number().int().nonnegative().default(0),
-  limit: z.number().int().positive().max(50).default(20),
+  limit: z.number().int().positive().max(50).default(10),
 })
 export type ContentSearchQuery = z.infer<typeof ContentSearchQuerySchema>
 
@@ -615,6 +641,14 @@ export const ContentSearchResultSchema = z.object({
   limit: z.number().positive(),
 })
 export type ContentSearchResult = z.infer<typeof ContentSearchResultSchema>
+
+export const ContentCategoryTagSchema = z.object({
+  name: z.string(),
+  projectType: z.string(),
+  header: z.string(),
+  icon: z.string(),
+})
+export type ContentCategoryTag = z.infer<typeof ContentCategoryTagSchema>
 
 export const ContentInstallRequestSchema = z.object({
   instanceId: z.string().min(1),

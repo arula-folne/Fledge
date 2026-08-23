@@ -23,7 +23,7 @@ export function TitleBar() {
 
   return (
     <header
-      className="flex h-8 shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] select-none"
+      className="relative z-[110] flex h-8 shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] select-none"
       style={{ WebkitAppRegion: 'drag' } as CSSProperties}
     >
       <div className="flex min-w-0 flex-1 items-center gap-2 px-2.5">

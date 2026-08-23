@@ -1,18 +1,18 @@
 import { useCallback, useMemo, useState, type MouseEvent } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { InstanceProfile } from '@fledge/shared'
-import { fledgeApi } from '../api/fledgeApi'
-import { Button } from '../components/ui/Button'
-import { ConfirmDialog } from '../components/ui/ConfirmDialog'
-import { InstanceWizard } from '../features/instances/InstanceWizard'
-import { InstanceCard } from '../features/instances/InstanceCard'
+import { fledgeApi } from '../../api/fledgeApi'
+import { Button } from '../../components/ui/Button'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { InstanceWizard } from './InstanceWizard'
+import { InstanceCard } from './InstanceCard'
 import {
   InstanceContextMenu,
   type InstanceContextMenuState,
-} from '../features/instances/InstanceContextMenu'
-import { useUiStore } from '../stores/appStores'
+} from './InstanceContextMenu'
+import { useUiStore } from '../../stores/appStores'
 
 function sortInstances(items: InstanceProfile[]): InstanceProfile[] {
   return [...items].sort((a, b) => {
@@ -23,7 +23,11 @@ function sortInstances(items: InstanceProfile[]): InstanceProfile[] {
   })
 }
 
-export default function LibraryPage() {
+type Props = {
+  instances: InstanceProfile[]
+}
+
+export function HomeLibrarySection({ instances }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -33,11 +37,6 @@ export default function LibraryPage() {
   const setEditingInstanceId = useUiStore((s) => s.setEditingInstanceId)
   const [menu, setMenu] = useState<InstanceContextMenuState>(null)
   const [pendingDelete, setPendingDelete] = useState<InstanceProfile | null>(null)
-
-  const instancesQuery = useQuery({
-    queryKey: ['instances'],
-    queryFn: () => fledgeApi.instances.list(),
-  })
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.instances.remove(id),
@@ -54,7 +53,7 @@ export default function LibraryPage() {
     },
   })
 
-  const items = useMemo(() => sortInstances(instancesQuery.data ?? []), [instancesQuery.data])
+  const items = useMemo(() => sortInstances(instances), [instances])
   const empty = items.length === 0
   const menuInstance = items.find((item) => item.id === menu?.instanceId) ?? null
 
@@ -65,23 +64,28 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="mb-2 flex shrink-0 items-center justify-between gap-2">
-        <h1 className="text-lg font-semibold">{t('library.title')}</h1>
+    <section className="min-w-0 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-sm font-medium text-[var(--color-text-muted)]">{t('library.title')}</h2>
         <Button variant="primary" onClick={() => setWizardOpen(true)}>
           {t('library.create')}
         </Button>
       </div>
 
       {empty ? (
-        <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]/60 px-4 py-10 text-center">
+        <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]/60 px-4 py-8 text-center">
           <p className="font-medium">{t('library.empty')}</p>
           <p className="mt-1 text-sm text-[var(--color-text-muted)]">{t('library.emptyHint')}</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-1.5">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {items.map((item) => (
-            <InstanceCard key={item.id} instance={item} onContextMenu={openMenu} />
+            <InstanceCard
+              key={item.id}
+              instance={item}
+              className="h-full min-w-0"
+              onContextMenu={openMenu}
+            />
           ))}
         </div>
       )}
@@ -135,6 +139,6 @@ export default function LibraryPage() {
       />
 
       <InstanceWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
-    </div>
+    </section>
   )
 }

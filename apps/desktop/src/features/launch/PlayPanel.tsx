@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { fledgeApi } from '../../api/fledgeApi'
+import { loadSessionQuery, sessionQueryOptions } from '../auth/sessionCache'
 import { Button } from '../../components/ui/Button'
 import { formatProgressMessage } from './formatProgressMessage'
 import { useLaunchStore, useUiStore } from '../../stores/appStores'
@@ -29,9 +30,11 @@ export function PlayPanel() {
     queryKey: ['paths'],
     queryFn: () => fledgeApi.paths.get(),
   })
+  const setAuthStatus = useUiStore((s) => s.setAuthStatus)
   const sessionQuery = useQuery({
     queryKey: ['session'],
-    queryFn: () => fledgeApi.auth.session(),
+    ...sessionQueryOptions,
+    queryFn: () => loadSessionQuery(queryClient),
   })
 
   const selectedId = settingsQuery.data?.selectedInstanceId ?? ''
@@ -68,8 +71,6 @@ export function PlayPanel() {
 
   return (
     <section className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 text-[var(--color-text)]">
-      <p className="mb-2 text-xs tracking-wide text-[var(--color-text-muted)]">{t('app.tagline')}</p>
-
       <div className="flex flex-col gap-3">
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-[var(--color-text-muted)]">{t('home.selectInstance')}</span>
@@ -114,7 +115,14 @@ export function PlayPanel() {
               {t('home.killGame')}
             </Button>
           ) : authStatus === 'logged_out' || authStatus === 'expired' ? (
-            <Button variant="primary" onClick={() => void fledgeApi.auth.login()}>
+            <Button
+              variant="success"
+              onClick={() => {
+                setAuthStatus('logging_in')
+                void queryClient.cancelQueries({ queryKey: ['session'] })
+                void fledgeApi.auth.login()
+              }}
+            >
               {t('auth.login')}
             </Button>
           ) : (

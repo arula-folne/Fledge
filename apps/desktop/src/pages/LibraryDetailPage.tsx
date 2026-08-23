@@ -214,7 +214,7 @@ export default function LibraryDetailPage() {
       setEditingInstanceId(null)
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
-      navigate('/library')
+      navigate('/')
     },
   })
 
@@ -254,7 +254,7 @@ export default function LibraryDetailPage() {
     return (
       <div className="mx-auto max-w-3xl space-y-4">
         <p className="text-[var(--color-text-muted)]">{t('library.notFound')}</p>
-        <Link to="/library" className="text-[var(--color-accent)] hover:underline">
+        <Link to="/" className="text-[var(--color-accent)] hover:underline">
           {t('library.backToList')}
         </Link>
       </div>
@@ -278,7 +278,7 @@ export default function LibraryDetailPage() {
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
       <div className="flex shrink-0 items-center gap-2">
-        <Button variant="ghost" className="px-2" onClick={() => navigate('/library')}>
+        <Button variant="ghost" className="px-2" onClick={() => navigate('/')}>
           <IconArrowLeft size={16} stroke={1.75} />
           {t('library.backToList')}
         </Button>

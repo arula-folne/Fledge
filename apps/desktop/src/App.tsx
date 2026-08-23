@@ -1,15 +1,15 @@
-import { Suspense, lazy, useEffect, useRef } from 'react'
-import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { Suspense, lazy, useEffect } from 'react'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { AppShell } from './components/layout/AppShell'
 import { PrivacyNoticeDialog } from './components/PrivacyNoticeDialog'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { fledgeApi } from './api/fledgeApi'
+import { applyAuthStatusEvent } from './features/auth/sessionCache'
 import { useLaunchStore, useLogStore, useTransferStore, useUiStore } from './stores/appStores'
 
 const HomePage = lazy(() => import('./pages/HomePage'))
-const LibraryPage = lazy(() => import('./pages/LibraryPage'))
 const LibraryDetailPage = lazy(() => import('./pages/LibraryDetailPage'))
 const SkinPage = lazy(() => import('./pages/SkinPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
@@ -46,10 +46,8 @@ function EventBridge() {
         }
       }),
       fledgeApi.on.logLine(appendLog),
-      fledgeApi.on.authStatus((status) => {
-        setAuthStatus(status)
-        void queryClient.invalidateQueries({ queryKey: ['session'] })
-        void queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      fledgeApi.on.authStatus((event) => {
+        applyAuthStatusEvent(queryClient, setAuthStatus, event)
       }),
     ]
     return () => offs.forEach((off) => off())
@@ -58,25 +56,16 @@ function EventBridge() {
   return null
 }
 
-function StartupRedirect() {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const applied = useRef(false)
-  const settingsQuery = useQuery({
-    queryKey: ['settings'],
-    queryFn: () => fledgeApi.settings.get(),
-  })
-
+function DisableNonInputDrag() {
   useEffect(() => {
-    if (applied.current) return
-    const page = settingsQuery.data?.startupPage
-    if (!page) return
-    applied.current = true
-    if (page === 'library' && location.pathname === '/') {
-      navigate('/library', { replace: true })
+    const onDragStart = (e: DragEvent) => {
+      const el = e.target as HTMLElement | null
+      if (el?.closest('input, textarea, [contenteditable="true"]')) return
+      e.preventDefault()
     }
-  }, [settingsQuery.data, location.pathname, navigate])
-
+    document.addEventListener('dragstart', onDragStart)
+    return () => document.removeEventListener('dragstart', onDragStart)
+  }, [])
   return null
 }
 
@@ -86,7 +75,7 @@ export default function App() {
   return (
     <>
       <EventBridge />
-      <StartupRedirect />
+      <DisableNonInputDrag />
       <PrivacyNoticeDialog />
       <Suspense
         fallback={
@@ -103,7 +92,7 @@ export default function App() {
           <Routes>
             <Route element={<AppShell />}>
               <Route index element={<HomePage />} />
-              <Route path="library" element={<LibraryPage />} />
+              <Route path="library" element={<Navigate to="/" replace />} />
               <Route path="library/:instanceId" element={<LibraryDetailPage />} />
               <Route path="skin" element={<SkinPage />} />
               <Route path="settings" element={<SettingsPage />} />

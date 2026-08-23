@@ -1,6 +1,7 @@
-import { app, BrowserWindow, Menu } from 'electron'
+import { app, BrowserWindow, Menu, net, protocol } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { createLauncherApp, Logger, type LauncherApp } from '@fledge/core'
 import { IPC_EVENTS, type LaunchStateEvent } from '@fledge/shared'
 import { MicrosoftAuthProvider } from './auth/MicrosoftAuthProvider'
@@ -36,6 +37,21 @@ function resolveBundledSkinsDir(): string {
   if (app.isPackaged) return path.join(process.resourcesPath, 'skins')
   return path.join(__dirname, '../../resources/skins')
 }
+
+const DEFAULT_SKIN_FILE = /^[a-z]+\.png$/
+
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'fledge-skin',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
+])
 
 async function syncPresenceFromLaunchState(e: LaunchStateEvent): Promise<void> {
   if (!discordPresence || !launcherApp) return
@@ -136,8 +152,11 @@ async function bootstrap(): Promise<void> {
     onFactoryReset: () => {
       allowQuit = true
       void discordPresence?.destroy()
-      app.relaunch()
-      app.quit()
+      setTimeout(() => {
+        // electron-vite 配下で relaunch すると Vite が死んだまま Electron だけが起き、白画面になる
+        if (app.isPackaged) app.relaunch()
+        app.quit()
+      }, 400)
     },
   })
   mainWindow = createMainWindow({
@@ -169,6 +188,14 @@ async function bootstrap(): Promise<void> {
 }
 
 app.whenReady().then(() => {
+  protocol.handle('fledge-skin', (request) => {
+    const name = path.basename(new URL(request.url).pathname)
+    if (!DEFAULT_SKIN_FILE.test(name)) {
+      return new Response('Not found', { status: 404 })
+    }
+    const file = path.join(resolveBundledSkinsDir(), name)
+    return net.fetch(pathToFileURL(file).href)
+  })
   Menu.setApplicationMenu(null)
   void bootstrap().catch((err) => {
     console.error(err)

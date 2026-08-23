@@ -51,6 +51,7 @@ export class SkinStore {
     model: SkinModel
     bytes: Uint8Array
     originalName: string
+    thumb?: { bytes: Uint8Array; ext: 'webp' | 'png' }
   }): Promise<SkinEntry> {
     await fs.mkdir(this.layout.skins, { recursive: true })
     const list = await this.readUploaded()
@@ -69,7 +70,53 @@ export class SkinStore {
     }
     list.push(entry)
     await fs.writeFile(this.metaPath(), JSON.stringify(list, null, 2), 'utf8')
+    if (input.thumb) {
+      await this.writeThumb(id, input.model, input.thumb.bytes, input.thumb.ext)
+    }
     return toUploadEntry(entry)
+  }
+
+  private thumbsDir(): string {
+    return path.join(this.layout.skins, 'thumbs')
+  }
+
+  private thumbFile(id: string, model: SkinModel, ext: 'webp' | 'png'): string {
+    if (!/^[\w-]+$/.test(id)) {
+      throw new Error(`Invalid skin id: ${id}`)
+    }
+    return path.join(this.thumbsDir(), `${id}.${model}.${ext}`)
+  }
+
+  async readThumbDataUrl(id: string, model: SkinModel): Promise<string | null> {
+    for (const [ext, mime] of [
+      ['webp', 'image/webp'],
+      ['png', 'image/png'],
+    ] as const) {
+      try {
+        const buf = await fs.readFile(this.thumbFile(id, model, ext))
+        return `data:${mime};base64,${buf.toString('base64')}`
+      } catch {
+        /* try next */
+      }
+    }
+    return null
+  }
+
+  async writeThumb(
+    id: string,
+    model: SkinModel,
+    bytes: Uint8Array,
+    ext: 'webp' | 'png',
+  ): Promise<void> {
+    await fs.mkdir(this.thumbsDir(), { recursive: true })
+    await fs.writeFile(this.thumbFile(id, model, ext), Buffer.from(bytes))
+  }
+
+  async removeThumbs(id: string): Promise<void> {
+    const files = ['wide', 'slim'].flatMap((model) =>
+      (['webp', 'png'] as const).map((ext) => this.thumbFile(id, model as SkinModel, ext)),
+    )
+    await Promise.all(files.map((file) => fs.rm(file, { force: true })))
   }
 
   async update(
@@ -84,6 +131,7 @@ export class SkinStore {
     }
     if (patch.model !== undefined) {
       target.model = patch.model
+      await this.removeThumbs(id)
     }
     await fs.writeFile(this.metaPath(), JSON.stringify(list, null, 2), 'utf8')
     return toUploadEntry(target)
@@ -96,6 +144,7 @@ export class SkinStore {
     const next = list.filter((s) => s.id !== id)
     await fs.writeFile(this.metaPath(), JSON.stringify(next, null, 2), 'utf8')
     await fs.rm(path.join(this.layout.skins, target.fileName), { force: true })
+    await this.removeThumbs(id)
   }
 
   resolveFilePath(fileName: string): string {

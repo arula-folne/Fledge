@@ -1,6 +1,5 @@
 export const BRAND = {
   name: 'Fledge',
-  tagline: 'Ready to take flight.',
   versionFull: 'Fledge Ver.0.1.0 - Beta',
   versionShort: '0.1.0',
   author: 'folne',
@@ -16,6 +15,15 @@ export const DISCORD_APPLICATION_ID = '1538229017608454205'
 
 /** ユーザーがアップロードして保存できるスキンの上限 */
 export const MAX_UPLOADED_SKINS = 5
+
+/** お知らせの GitHub 正本とキャッシュ設定 */
+export const NEWS = {
+  remoteUrl: 'https://raw.githubusercontent.com/arula-folne/Fledge/main/news/news.ja.json',
+  localeFileName: 'news.ja.json',
+  metaFileName: 'news.meta.json',
+  cacheTtlMs: 60 * 60 * 1000,
+  fetchTimeoutMs: 15_000,
+} as const
 
 export const IPC = {
   settingsGet: 'settings:get',
@@ -56,8 +64,11 @@ export const IPC = {
   skinsRemove: 'skins:remove',
   skinsSelect: 'skins:select',
   skinsGetData: 'skins:get-data',
+  skinsGetThumb: 'skins:get-thumb',
+  skinsSaveThumb: 'skins:save-thumb',
   cacheClear: 'cache:clear',
   appFactoryReset: 'app:factory-reset',
+  appDeviceSpecs: 'app:device-specs',
   backupRun: 'backup:run',
   backupList: 'backup:list',
   backupRestore: 'backup:restore',
@@ -75,6 +86,7 @@ export const IPC = {
   javaOpenFolder: 'java:open-folder',
   contentSearch: 'content:search',
   contentGetProject: 'content:get-project',
+  contentListVersions: 'content:list-versions',
   contentInstall: 'content:install',
   contentListInstalled: 'content:list-installed',
   contentSetEnabled: 'content:set-enabled',
@@ -82,6 +94,7 @@ export const IPC = {
   contentCheckUpdates: 'content:check-updates',
   contentListMedia: 'content:list-media',
   contentProviders: 'content:providers',
+  contentListCategoryTags: 'content:list-category-tags',
 } as const
 
 export const IPC_EVENTS = {

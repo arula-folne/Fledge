@@ -202,7 +202,9 @@ Java メジャー推定の目安（`requiredJavaMajor`）:
 
 ## 13. ニュース・更新
 
-- ニュースはバンドル JSON（`apps/desktop/resources/news.ja.json`）をローカルプロバイダが読む
+- お知らせの正本は GitHub の `news/news.ja.json`。アプリ起動時に取得し `Data/News/` にキャッシュ（約 1 時間）。取得失敗時はキャッシュ → 同梱 JSON → 最小フォールバック
+- 同梱フォールバック: `apps/desktop/resources/news.ja.json`
+- 更新手順: [`news/README.md`](../news/README.md)
 - 自動更新は `NoopUpdater`。UI 上も未実装
 
 ## 14. 外部通信（実装観点）
@@ -216,6 +218,7 @@ Java メジャー推定の目安（`requiredJavaMajor`）:
 | Fabric / Forge / NeoForge / Quilt | ローダー |
 | Eclipse Adoptium | Java |
 | Modrinth API | 検索・導入 |
+| GitHub（`news/news.ja.json`） | お知らせ取得（キャッシュあり） |
 | mc-heads.net | アバターのフォールバック（Microsoft 側 URL があれば優先） |
 | ローカル Discord | RPC がオンのときだけ IPC |
 

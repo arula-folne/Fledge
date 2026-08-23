@@ -4,11 +4,12 @@ import { AuthError, type LaunchCredentials } from '@fledge/core'
 import type { AccountView, AuthStatus } from '@fledge/shared'
 import type { Logger } from '@fledge/core'
 import type { TokenVault } from '../security/tokenVault'
+import { formatMsmcError, minecraftFromXbox, openMicrosoftLoginWindow, xboxFromAuthCode } from './microsoftLogin'
 
 type Prompt = types.Prompt
 type MSToken = types.MSToken
 
-type StatusListener = (status: AuthStatus) => void
+type StatusListener = (status: AuthStatus, account?: AccountView | null) => void
 
 type CachedEntry = {
   minecraft: Minecraft
@@ -49,9 +50,9 @@ export class MicrosoftAuthProvider implements AuthProvider {
     return () => this.listeners.delete(listener)
   }
 
-  private setStatus(status: AuthStatus): void {
+  private setStatus(status: AuthStatus, account?: AccountView | null): void {
     this.status = status
-    for (const l of this.listeners) l(status)
+    for (const l of this.listeners) l(status, account)
   }
 
   async listAccounts(): Promise<AccountView[]> {
@@ -61,11 +62,12 @@ export class MicrosoftAuthProvider implements AuthProvider {
   async switchAccount(accountId: string): Promise<AccountView> {
     const account = await this.vault.setActive(accountId)
     this.activeId = accountId
+    this.setStatus('logged_in', account)
     try {
       await this.refreshIfNeeded(accountId)
-      this.setStatus('logged_in')
+      this.setStatus('logged_in', account)
     } catch {
-      this.setStatus('expired')
+      this.setStatus('expired', account)
     }
     this.logger.info('auth', `Switched active account to ${account.displayName}`)
     return account
@@ -77,24 +79,31 @@ export class MicrosoftAuthProvider implements AuthProvider {
     try {
       applyMsaUiLocale()
       const auth = this.createAuth()
-      const xbox = await auth.launch('electron', {
+      const code = await openMicrosoftLoginWindow(auth, {
         width: 520,
         height: 700,
         title: 'Fledge - Microsoft アカウント',
       })
-      const minecraft = await xbox.getMinecraft()
+      const xbox = await xboxFromAuthCode(auth, code)
+      const minecraft = await minecraftFromXbox(xbox)
       const account = this.toAccountView(minecraft)
       this.cache.set(account.id, { minecraft, xbox })
       this.activeId = account.id
       await this.persist(account.id, xbox, minecraft, account)
-      this.setStatus('logged_in')
+      this.setStatus('logged_in', account)
       this.logger.info('auth', `Logged in as ${account.displayName}`)
       return account
     } catch (err) {
-      const accounts = await this.vault.listAccounts()
-      this.setStatus(accounts.length ? 'logged_in' : 'logged_out')
-      const cancelled = err instanceof Error && /cancel|close|closed/i.test(err.message)
-      this.logger.error('auth', cancelled ? 'Login cancelled' : `Login failed: ${String(err)}`)
+      let remaining: AccountView | null = null
+      try {
+        remaining = await this.vault.readAccount()
+      } catch {
+        remaining = null
+      }
+      this.setStatus(remaining ? 'logged_in' : 'logged_out', remaining)
+      const cancelled = /cancel|close|closed/i.test(formatMsmcError(err))
+      this.logger.error('auth', cancelled ? 'Login cancelled' : `Login failed: ${formatMsmcError(err)}`)
+      if (!cancelled) console.error('Fledge login failed:', err)
       throw new AuthError(
         cancelled ? 'cancelled' : 'failed',
         cancelled ? 'auth.error.cancelled' : 'auth.error.failed',
@@ -106,22 +115,23 @@ export class MicrosoftAuthProvider implements AuthProvider {
   async logout(accountId?: string): Promise<void> {
     const id = accountId ?? this.activeId ?? (await this.vault.getActiveId())
     if (!id) {
-      this.setStatus('logged_out')
+      this.setStatus('logged_out', null)
       return
     }
     this.cache.delete(id)
     await this.vault.removeAccount(id)
     this.activeId = await this.vault.getActiveId()
     if (!this.activeId) {
-      this.setStatus('logged_out')
+      this.setStatus('logged_out', null)
       this.logger.info('auth', 'Logged out (no accounts left)')
       return
     }
+    const remaining = await this.vault.readAccount()
     try {
       await this.refreshIfNeeded(this.activeId)
-      this.setStatus('logged_in')
+      this.setStatus('logged_in', remaining)
     } catch {
-      this.setStatus('expired')
+      this.setStatus('expired', remaining)
     }
     this.logger.info('auth', `Removed account ${id}; active=${this.activeId}`)
   }
@@ -130,18 +140,32 @@ export class MicrosoftAuthProvider implements AuthProvider {
     const account = await this.vault.readAccount()
     if (!account) {
       this.activeId = null
-      this.setStatus('logged_out')
+      if (this.status !== 'logging_in') this.setStatus('logged_out', null)
       return null
     }
     this.activeId = account.id
-    try {
-      await this.refreshIfNeeded(account.id)
-      this.setStatus('logged_in')
-      return account
-    } catch {
-      this.setStatus('expired')
+    if (this.status === 'logging_in') return account
+
+    const cached = this.cache.get(account.id)
+    if (cached?.minecraft.validate()) {
+      if (this.status !== 'logged_in') this.setStatus('logged_in', account)
       return account
     }
+
+    this.setStatus(this.status === 'expired' ? 'expired' : 'logged_in', account)
+    const accountId = account.id
+    void this.refreshIfNeeded(accountId)
+      .then(() => {
+        if (this.status !== 'logging_in' && this.activeId === accountId) {
+          this.setStatus('logged_in', account)
+        }
+      })
+      .catch(() => {
+        if (this.status !== 'logging_in' && this.activeId === accountId) {
+          this.setStatus('expired', account)
+        }
+      })
+    return account
   }
 
   async getLaunchCredentials(accountId?: string): Promise<LaunchCredentials> {
@@ -164,10 +188,11 @@ export class MicrosoftAuthProvider implements AuthProvider {
         throw new AuthError('failed', 'auth.error.failed')
       }
       if (!accountId || accountId === this.activeId) {
-        this.setStatus('logged_in')
+        const active = await this.vault.readAccount()
+        this.setStatus('logged_in', active)
       } else {
         const active = await this.vault.readAccount()
-        this.setStatus(active ? 'logged_in' : 'logged_out')
+        this.setStatus(active ? 'logged_in' : 'logged_out', active)
       }
       return {
         uuid: profile.id,
@@ -177,7 +202,7 @@ export class MicrosoftAuthProvider implements AuthProvider {
       }
     } catch (err) {
       if (err instanceof AuthError) {
-        this.setStatus(err.code === 'not_logged_in' ? 'logged_out' : 'expired')
+        this.setStatus(err.code === 'not_logged_in' ? 'logged_out' : 'expired', err.code === 'not_logged_in' ? null : undefined)
         throw err
       }
       this.setStatus('expired')
@@ -223,7 +248,7 @@ export class MicrosoftAuthProvider implements AuthProvider {
 
     const auth = this.createAuth()
     const xbox = await auth.refresh(secrets.microsoft.refreshToken)
-    const minecraft = await xbox.getMinecraft()
+    const minecraft = await minecraftFromXbox(xbox)
     const account = this.toAccountView(minecraft)
     this.cache.set(accountId, { minecraft, xbox })
     await this.persist(accountId, xbox, minecraft, account)
@@ -245,18 +270,24 @@ export class MicrosoftAuthProvider implements AuthProvider {
     mc: Minecraft,
     account: AccountView,
   ): Promise<void> {
+    const refreshToken = xbox.save()
+    if (!refreshToken) {
+      throw new AuthError('failed', 'auth.error.failed')
+    }
     await this.vault.upsertAccount(account)
     try {
       await this.vault.writeSecrets(accountId, {
         version: 1,
         microsoft: {
           accessToken: mc.mcToken,
-          refreshToken: xbox.save(),
+          refreshToken,
           expiresAt: mc.exp,
         },
       })
-    } catch {
-      throw new AuthError('safe_storage_unavailable', 'auth.error.safeStorage')
+    } catch (err) {
+      await this.vault.removeAccount(accountId).catch(() => undefined)
+      if (err instanceof AuthError) throw err
+      throw new AuthError('safe_storage_unavailable', 'auth.error.safeStorage', { cause: err })
     }
   }
 }

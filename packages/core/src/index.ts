@@ -21,7 +21,9 @@ export type { JavaManagedMajor, JavaRuntimeView, JavaVerifyResult } from './java
 export { MinecraftService } from './minecraft/MinecraftService.js'
 export {
   snapshotMinecraftInitialOptions,
+  snapshotMinecraftDebugOverlay,
   mergeMinecraftOptionsFile,
+  mergeMinecraftDebugOverlayFile,
 } from './minecraft/minecraftInitialOptions.js'
 export { VersionService } from './versions/VersionService.js'
 export type { MinecraftVersionProvider, LoaderVersionProvider } from './versions/VersionProvider.js'

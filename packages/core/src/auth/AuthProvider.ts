@@ -25,5 +25,5 @@ export interface AuthProvider {
     accountId?: string,
     opts?: { force?: boolean; announce?: boolean },
   ): Promise<LaunchCredentials>
-  onStatusChange?(listener: (status: AuthStatus) => void): () => void
+  onStatusChange?(listener: (status: AuthStatus, account?: AccountView | null) => void): () => void
 }

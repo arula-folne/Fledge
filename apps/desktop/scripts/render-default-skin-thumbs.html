@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <script src="../node_modules/skinview3d/bundles/skinview3d.bundle.js"></script>
+    <script>
+      const W = 112
+      const H = 134
+      const ZOOM = 0.72
+
+      function toModel(model) {
+        return model === 'slim' ? 'slim' : 'default'
+      }
+
+      function applyPose(viewer) {
+        viewer.playerObject.rotation.set(0, -Math.PI / 5.5, 0)
+        viewer.playerObject.skin.head.rotation.set(0, 0, 0)
+        viewer.playerWrapper.rotation.set(0, 0, 0)
+        viewer.playerWrapper.position.set(0, 0, 0)
+        viewer.playerObject.skin.leftLeg.visible = true
+        viewer.playerObject.skin.rightLeg.visible = true
+        viewer.adjustCameraDistance()
+      }
+
+      async function renderOne(skinUrl, model) {
+        const glCanvas = document.createElement('canvas')
+        const viewer = new skinview3d.SkinViewer({
+          canvas: glCanvas,
+          width: W,
+          height: H,
+          model: toModel(model),
+          enableControls: false,
+          zoom: ZOOM,
+          fov: 42,
+          pixelRatio: 1,
+          renderPaused: true,
+          preserveDrawingBuffer: true,
+        })
+        try {
+          viewer.controls.enabled = false
+          viewer.background = null
+          viewer.renderer.setClearColor(0x000000, 0)
+          viewer.globalLight.intensity = 2.4
+          viewer.cameraLight.intensity = 0.5
+          await viewer.loadSkin(skinUrl, { model: toModel(model) })
+          applyPose(viewer)
+          viewer.zoom = ZOOM
+          viewer.render()
+          const target = document.createElement('canvas')
+          target.width = glCanvas.width
+          target.height = glCanvas.height
+          const ctx = target.getContext('2d')
+          ctx.drawImage(glCanvas, 0, 0)
+          const png = target.toDataURL('image/png')
+          return png
+        } finally {
+          viewer.dispose()
+        }
+      }
+
+      window.renderDefaultThumbs = async function renderDefaultThumbs(jobs) {
+        const out = []
+        for (const job of jobs) {
+          out.push({ id: job.id, dataUrl: await renderOne(job.url, job.model) })
+        }
+        return out
+      }
+    </script>
+  </body>
+</html>

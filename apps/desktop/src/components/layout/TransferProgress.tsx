@@ -9,6 +9,7 @@ import {
   useUiStore,
   type TransferJob,
 } from '../../stores/appStores'
+import { formatProgressMessage } from '../../features/launch/formatProgressMessage'
 import { isSettingsJavaJob, jobInstanceId, jobPercent } from '../../features/transfers/transferJobs'
 
 function jobLabel(job: TransferJob, t: (key: string, opts?: Record<string, unknown>) => string): string {
@@ -20,20 +21,14 @@ function jobLabel(job: TransferJob, t: (key: string, opts?: Record<string, unkno
       : t('transfer.java', { major })
   }
   if (job.kind === 'content') {
-    const name = job.meta.projectName
-    const file = job.meta.file
-    if (job.messageKey) return t(job.messageKey, { name, file })
+    const name = job.meta.projectName ?? job.meta.name
+    if (job.messageKey) return t(job.messageKey, { name })
     return typeof name === 'string' && name.length > 0
       ? t('transfer.content', { name })
       : t('content.installing')
   }
   if (job.messageKey) {
-    const text = t(job.messageKey, job.meta)
-    const file = job.meta.file
-    if (typeof file === 'string' && file.length > 0 && !text.includes(file)) {
-      return `${text}（${file}）`
-    }
-    return text
+    return formatProgressMessage(t, job.messageKey, job.meta)
   }
   return t('transfer.generic')
 }
@@ -63,7 +58,7 @@ function isOnTargetScreen(
     instanceId ??
     Object.entries(launchProfileIds).find(([, s]) => s.sessionId === job.sessionId)?.[0]
   if (!launchInstanceId) return false
-  if (pathname === '/library') return true
+  if (pathname === '/') return true
   return pathname === `/library/${launchInstanceId}`
 }
 

@@ -11,16 +11,17 @@ import {
   type ContentProjectPage,
   type ContentSearchQuery,
   type ContentSearchResult,
+  type ContentVersion,
   type InstalledContent,
-  type Loader,
+  loaderToContentFilters,
 } from '@fledge/shared'
 import type { DownloadQueue } from '../download/DownloadQueue.js'
 import { fetchBody } from '../download/fetchBody.js'
 import type { InstanceStore } from '../instances/InstanceStore.js'
 import type { Logger } from '../logging/Logger.js'
 import type { ContentProvider, ContentProviderInfo } from './ContentProvider.js'
-import { localizeProjectPage, localizeSearchResult } from './localizeContent.js'
 import { ModrinthProvider } from './ModrinthProvider.js'
+import type { SettingsStore } from '../settings/SettingsStore.js'
 
 const INDEX_DIR = '.fledge'
 const INDEX_FILE = 'content-index.json'
@@ -42,23 +43,6 @@ function categoryDir(category: ContentCategory): string {
   }
 }
 
-function loaderToFilters(loader: Loader): ContentLoaderFilter[] {
-  switch (loader) {
-    case 'fabric':
-      return ['fabric']
-    case 'forge':
-      return ['forge']
-    case 'neoforge':
-      return ['neoforge']
-    case 'quilt':
-      return ['quilt']
-    case 'vanilla':
-      return []
-    default:
-      return []
-  }
-}
-
 export class ContentService {
   private readonly modrinth: ModrinthProvider
   private readonly providers: Map<string, ContentProvider>
@@ -68,8 +52,9 @@ export class ContentService {
     private readonly instances: InstanceStore,
     private readonly queue: DownloadQueue,
     private readonly logger: Logger,
+    settings: SettingsStore,
   ) {
-    this.modrinth = new ModrinthProvider()
+    this.modrinth = new ModrinthProvider(() => settings.get().then((s) => s.locale))
     this.providers = new Map([['modrinth', this.modrinth]])
   }
 
@@ -83,25 +68,33 @@ export class ContentService {
     ]
   }
 
+  async listCategoryTags() {
+    return this.modrinth.listCategoryTags()
+  }
+
   async search(raw: unknown): Promise<ContentSearchResult> {
     const query = ContentSearchQuerySchema.parse(raw)
-    const result = await this.modrinth.search({ ...query, provider: 'modrinth' })
-    try {
-      return await localizeSearchResult(result)
-    } catch {
-      return result
-    }
+    return this.modrinth.search({ ...query, provider: 'modrinth' })
   }
 
   async getProject(projectId: string): Promise<ContentProjectPage> {
     const id = String(projectId ?? '').trim()
     if (!id) throw new Error('Project id required')
-    const page = await this.modrinth.getProject(id)
-    try {
-      return await localizeProjectPage(page)
-    } catch {
-      return page
+    return this.modrinth.getProject(id)
+  }
+
+  async listVersions(raw: unknown): Promise<ContentVersion[]> {
+    const input = raw as {
+      projectId?: string
+      gameVersion?: string
+      loaders?: ContentLoaderFilter[]
     }
+    const id = String(input?.projectId ?? '').trim()
+    if (!id) throw new Error('Project id required')
+    return this.modrinth.listVersions(id, {
+      gameVersion: input.gameVersion?.trim() || undefined,
+      loaders: Array.isArray(input.loaders) ? input.loaders : [],
+    })
   }
 
   async listInstalled(instanceId: string, category?: ContentCategory): Promise<InstalledContent[]> {
@@ -122,7 +115,7 @@ export class ContentService {
     const loaders =
       req.loaders ??
       (req.category === 'mod' || req.category === 'plugin'
-        ? loaderToFilters(profile.loader)
+        ? loaderToContentFilters(profile.loader)
         : [])
     const gameVersion = req.gameVersion ?? profile.minecraftVersion
 
@@ -139,7 +132,23 @@ export class ContentService {
     await fs.mkdir(destDir, { recursive: true })
     const destPath = path.join(destDir, resolved.fileName)
 
-    await this.queue.enqueue({
+    const entry: InstalledContent = {
+      id: randomUUID(),
+      provider: resolved.provider,
+      projectId: resolved.projectId,
+      versionId: resolved.versionId,
+      slug: resolved.slug,
+      name: resolved.name,
+      versionNumber: resolved.versionNumber,
+      category: resolved.category,
+      fileName: resolved.fileName,
+      iconUrl: resolved.iconUrl,
+      enabled: true,
+      installedAt: new Date().toISOString(),
+      updateAvailable: false,
+    }
+
+    const { done } = this.queue.enqueue({
       kind: 'content',
       labelKey: 'content.downloading',
       priority: 5,
@@ -170,11 +179,33 @@ export class ContentService {
         }
         await fs.writeFile(destPath, buf)
         ctx.report({ current: buf.length, total: buf.length, unit: 'bytes' })
+        await this.finalizeInstalledContent(req.instanceId, instanceDir, resolved, entry)
       },
-    }).done
+    })
 
-    return this.withIndexLock(req.instanceId, async () => {
-      const index = await this.readIndex(req.instanceId)
+    void done.catch((err) => {
+      this.logger.error('downloader', `Content install failed: ${String(err)}`)
+      void fs.unlink(destPath).catch(() => {
+        /* ignore partial file */
+      })
+    })
+
+    return entry
+  }
+
+  private async finalizeInstalledContent(
+    instanceId: string,
+    instanceDir: string,
+    resolved: {
+      provider: InstalledContent['provider']
+      projectId: string
+      category: InstalledContent['category']
+      fileName: string
+    },
+    entry: InstalledContent,
+  ): Promise<void> {
+    await this.withIndexLock(instanceId, async () => {
+      const index = await this.readIndex(instanceId)
       const previous = index.items.filter(
         (i) => i.provider === resolved.provider && i.projectId === resolved.projectId,
       )
@@ -186,28 +217,12 @@ export class ContentService {
         index.items = index.items.filter((i) => i.id !== old.id)
       }
 
-      const entry: InstalledContent = {
-        id: randomUUID(),
-        provider: resolved.provider,
-        projectId: resolved.projectId,
-        versionId: resolved.versionId,
-        slug: resolved.slug,
-        name: resolved.name,
-        versionNumber: resolved.versionNumber,
-        category: resolved.category,
-        fileName: resolved.fileName,
-        iconUrl: resolved.iconUrl,
-        enabled: true,
-        installedAt: new Date().toISOString(),
-        updateAvailable: false,
-      }
       index.items.push(entry)
-      await this.writeIndex(req.instanceId, index)
+      await this.writeIndex(instanceId, index)
       this.logger.info(
         'downloader',
-        `Installed ${entry.name}@${entry.versionNumber} → ${req.instanceId}`,
+        `Installed ${entry.name}@${entry.versionNumber} → ${instanceId}`,
       )
-      return entry
     })
   }
 
@@ -250,7 +265,7 @@ export class ContentService {
     const profile = await this.instances.get(instanceId)
     if (!profile) throw new Error(`Instance not found: ${instanceId}`)
     const index = await this.readIndex(instanceId)
-    const loaders = loaderToFilters(profile.loader)
+    const loaders = loaderToContentFilters(profile.loader)
 
     for (const entry of index.items) {
       const provider = this.providers.get(entry.provider)
@@ -311,7 +326,7 @@ export class ContentService {
       query: '',
       category,
       gameVersion: profile.minecraftVersion,
-      loaders: category === 'mod' || category === 'plugin' ? loaderToFilters(profile.loader) : [],
+      loaders: category === 'mod' || category === 'plugin' ? loaderToContentFilters(profile.loader) : [],
       provider: 'modrinth',
       offset: 0,
       limit: 20,

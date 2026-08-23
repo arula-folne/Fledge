@@ -6,6 +6,7 @@ import type {
   ContentSearchQuery,
   ContentSearchResult,
   ContentSourceId,
+  ContentVersion,
   InstalledContent,
 } from '@fledge/shared'
 
@@ -40,6 +41,10 @@ export interface ContentProvider {
   readonly id: ContentSourceId
   search(query: ContentSearchQuery): Promise<ContentSearchResult>
   getProject(projectId: string): Promise<ContentProjectPage>
+  listVersions?(
+    projectId: string,
+    opts?: { gameVersion?: string; loaders?: ContentLoaderFilter[] },
+  ): Promise<ContentVersion[]>
   resolveInstall(input: {
     projectId: string
     category: ContentCategory

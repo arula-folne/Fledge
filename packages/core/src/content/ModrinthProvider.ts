@@ -1,5 +1,6 @@
 import type {
   ContentCategory,
+  ContentCategoryTag,
   ContentLoaderFilter,
   ContentProject,
   ContentProjectDetail,
@@ -67,11 +68,6 @@ type MrProject = {
   donation_urls?: Array<{ id?: string; platform?: string; url?: string }>
   license?: { id?: string | null; name?: string | null; url?: string | null } | null
   gallery?: Array<{ url: string; title?: string | null; featured?: boolean }>
-}
-
-type MrMember = {
-  role?: string
-  user?: { username?: string; name?: string; avatar_url?: string | null }
 }
 
 type MrVersion = {
@@ -147,7 +143,7 @@ function hitToProject(hit: MrHit): ContentProject | null {
     clientSide: hit.client_side,
     serverSide: hit.server_side,
     categories: cats,
-    gameVersions: hit.versions ?? [],
+    gameVersions: [],
     loaders: loadersFromCats(cats),
     projectType,
   }
@@ -165,6 +161,7 @@ function projectToDetail(
   const gallery = (p.gallery ?? [])
     .slice()
     .sort((a, b) => Number(Boolean(b.featured)) - Number(Boolean(a.featured)))
+    .slice(0, 8)
     .map((g) => ({ url: g.url, title: g.title ?? undefined, featured: Boolean(g.featured) }))
   const author = members[0]?.username
   return {
@@ -185,7 +182,7 @@ function projectToDetail(
     gameVersions: p.game_versions ?? [],
     loaders,
     projectType,
-    body: p.body ?? '',
+    body: (p.body ?? '').slice(0, 12_000),
     publishedAt: p.published,
     licenseId: p.license?.id ?? undefined,
     licenseName: p.license?.name ?? undefined,
@@ -213,12 +210,26 @@ function mapVersion(v: MrVersion): ContentVersion {
     datePublished: v.date_published,
     downloads: v.downloads ?? 0,
     versionType: v.version_type,
-    changelog: v.changelog ?? undefined,
   }
 }
 
 function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+/** Fledge の locale を Modrinth API の Accept-Language にする。本文翻訳は返らないが、対応時に備える。 */
+function acceptLanguageFromLocale(locale: string): string {
+  const raw = locale.trim().replace(/_/g, '-') || 'en'
+  const [langRaw, ...rest] = raw.split('-')
+  const lang = (langRaw ?? 'en').toLowerCase()
+  const region = rest.join('-')
+  const primary = region
+    ? `${lang}-${region.length === 2 ? region.toUpperCase() : region}`
+    : lang
+  const parts = [primary]
+  if (region && primary.toLowerCase() !== lang) parts.push(`${lang};q=0.9`)
+  if (!lang.startsWith('en')) parts.push('en;q=0.8')
+  return parts.join(',')
 }
 
 function rateLimitDelayMs(res: Response): number {
@@ -262,7 +273,7 @@ async function mrFetch<T>(
       signal,
       headers: {
         Accept: 'application/json',
-        'Accept-Language': 'ja,en;q=0.8',
+        'Accept-Language': 'en;q=0.8',
         'User-Agent': UA,
         ...(init?.headers ?? {}),
       },
@@ -307,8 +318,38 @@ function pickPrimaryFile(version: MrVersion): MrVersion['files'][number] {
   return files.find((f) => f.primary) ?? files[0]!
 }
 
+type MrCategoryTag = {
+  icon: string
+  name: string
+  project_type: string
+  header: string
+}
+
+function mapCategoryTag(raw: MrCategoryTag): ContentCategoryTag {
+  return {
+    name: raw.name,
+    projectType: raw.project_type,
+    header: raw.header,
+    icon: raw.icon ?? '',
+  }
+}
+
 export class ModrinthProvider implements ContentProvider {
   readonly id = 'modrinth' as const
+  private categoryTagsCache: ContentCategoryTag[] | null = null
+
+  constructor(private readonly getLocale: () => Promise<string> = async () => 'ja') {}
+
+  private async api<T>(path: string, init?: RequestInit): Promise<T> {
+    const locale = await this.getLocale().catch(() => 'ja')
+    return mrFetch<T>(path, {
+      ...init,
+      headers: {
+        'Accept-Language': acceptLanguageFromLocale(locale),
+        ...(init?.headers ?? {}),
+      },
+    })
+  }
 
   async search(query: ContentSearchQuery): Promise<ContentSearchResult> {
     const facets: string[][] = [[`project_type:${TYPE_MAP[query.category]}`]]
@@ -334,7 +375,7 @@ export class ModrinthProvider implements ContentProvider {
     })
     if (query.query?.trim()) params.set('query', query.query.trim())
 
-    const data = await mrFetch<{ hits?: MrHit[]; total_hits?: number }>(`/search?${params}`)
+    const data = await this.api<{ hits?: MrHit[]; total_hits?: number }>(`/search?${params}`)
     const hits = (data.hits ?? []).map(hitToProject).filter((p): p is ContentProject => Boolean(p))
     return {
       hits,
@@ -345,30 +386,31 @@ export class ModrinthProvider implements ContentProvider {
   }
 
   async getProject(projectId: string): Promise<ContentProjectPage> {
-    const id = encodeURIComponent(projectId)
-    const [raw, versions, members] = await Promise.all([
-      mrFetch<MrProject>(`/project/${id}`),
-      mrFetch<MrVersion[]>(`/project/${id}/version`),
-      mrFetch<MrMember[]>(`/project/${id}/members`).catch(() => [] as MrMember[]),
-    ])
-    const team = members
-      .map((m) => ({
-        username: m.user?.username ?? m.user?.name ?? '',
-        role: m.role,
-        avatarUrl: m.user?.avatar_url ?? undefined,
-      }))
-      .filter((m) => m.username)
-    const ownerIdx = team.findIndex((m) => m.role === 'Owner' || m.role === 'owner')
-    if (ownerIdx > 0) {
-      const [owner] = team.splice(ownerIdx, 1)
-      if (owner) team.unshift(owner)
-    }
-    const project = projectToDetail(raw, team)
-    if (!project) throw new Error('Unsupported Modrinth project type')
-    return {
-      project,
-      versions: (versions ?? []).map(mapVersion),
-    }
+    const raw = await this.api<MrProject>(`/project/${encodeURIComponent(projectId)}`)
+    const project = projectToDetail(raw, [])
+    if (!project) throw new Error('Unsupported project type')
+    return { project, versions: [] }
+  }
+
+  async listVersions(
+    projectId: string,
+    opts?: { gameVersion?: string; loaders?: ContentLoaderFilter[] },
+  ): Promise<ContentVersion[]> {
+    const params = new URLSearchParams()
+    if (opts?.gameVersion) params.set('game_versions', JSON.stringify([opts.gameVersion]))
+    if (opts?.loaders?.length) params.set('loaders', JSON.stringify(opts.loaders))
+    const qs = params.toString()
+    const versions = await this.api<MrVersion[]>(
+      `/project/${encodeURIComponent(projectId)}/version${qs ? `?${qs}` : ''}`,
+    )
+    return (versions ?? []).slice(0, 40).map(mapVersion)
+  }
+
+  async listCategoryTags(): Promise<ContentCategoryTag[]> {
+    if (this.categoryTagsCache) return this.categoryTagsCache
+    const raw = await this.api<MrCategoryTag[]>('/tag/category')
+    this.categoryTagsCache = (raw ?? []).map(mapCategoryTag)
+    return this.categoryTagsCache
   }
 
   async resolveInstall(input: {
@@ -381,7 +423,7 @@ export class ModrinthProvider implements ContentProvider {
     let version: MrVersion | undefined
 
     if (input.versionId) {
-      version = await mrFetch<MrVersion>(`/version/${encodeURIComponent(input.versionId)}`)
+      version = await this.api<MrVersion>(`/version/${encodeURIComponent(input.versionId)}`)
     } else {
       const params = new URLSearchParams()
       if (input.gameVersion) {
@@ -391,7 +433,7 @@ export class ModrinthProvider implements ContentProvider {
         params.set('loaders', JSON.stringify(input.loaders))
       }
       const qs = params.toString()
-      const versions = await mrFetch<MrVersion[]>(
+      const versions = await this.api<MrVersion[]>(
         `/project/${encodeURIComponent(input.projectId)}/version${qs ? `?${qs}` : ''}`,
       )
       version = versions[0]
@@ -401,7 +443,7 @@ export class ModrinthProvider implements ContentProvider {
     const file = pickPrimaryFile(version)
     if (!file) throw new Error('No downloadable file on Modrinth version')
 
-    const project = await mrFetch<{
+    const project = await this.api<{
       id: string
       slug: string
       title: string

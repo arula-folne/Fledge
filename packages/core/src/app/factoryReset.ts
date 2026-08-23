@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises'
-import { ensurePathLayout } from './paths.js'
 import type { LauncherApp } from './createLauncherApp.js'
 
 async function rmRetry(target: string, attempts = 5): Promise<void> {
@@ -17,8 +16,9 @@ async function rmRetry(target: string, attempts = 5): Promise<void> {
 }
 
 /**
- * Data/ と Instances/ を削除し、空のディレクトリと既定設定を作り直す。
- * 呼び出し側でアプリ再起動すること。
+ * Data/ と Instances/ を削除する。空フォルダの作り直しは再起動後の
+ * `ensurePathLayout` に任せる（終了中プロセスが Windows でフォルダを掴んだまま
+ * 再作成すると、終了時に消えてログイン保存が失敗する）。
  */
 export async function factoryReset(app: LauncherApp): Promise<void> {
   app.backup.cancelPending()
@@ -31,11 +31,9 @@ export async function factoryReset(app: LauncherApp): Promise<void> {
     /* ignore */
   }
 
-  await new Promise((resolve) => setTimeout(resolve, 400))
+  await new Promise((resolve) => setTimeout(resolve, 600))
 
   await rmRetry(app.paths.data)
   await rmRetry(app.paths.instances)
-  await ensurePathLayout(app.paths)
-  await app.settings.reset()
   app.logger.info('system', 'Factory reset completed')
 }

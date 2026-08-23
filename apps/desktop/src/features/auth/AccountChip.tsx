@@ -2,16 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useId, useRef, useState } from 'react'
 import { fledgeApi } from '../../api/fledgeApi'
+import { applyLoggedInAccount, loadSessionQuery, sessionQueryOptions } from './sessionCache'
 import { useUiStore } from '../../stores/appStores'
 import { Button } from '../../components/ui/Button'
-
-function faceOf(account: { avatarUrl?: string; uuid: string; displayName: string } | null | undefined) {
-  if (!account) return null
-  return (
-    account.avatarUrl ??
-    (account.uuid ? `https://mc-heads.net/avatar/${account.uuid.replaceAll('-', '')}/64` : null)
-  )
-}
+import { McFaceAvatar } from './McFaceAvatar'
+import { mcFaceUrl } from './mcFace'
 
 export function AccountChip() {
   const { t } = useTranslation()
@@ -24,9 +19,12 @@ export function AccountChip() {
 
   const sessionQuery = useQuery({
     queryKey: ['session'],
+    ...sessionQueryOptions,
     queryFn: async () => {
-      const result = await fledgeApi.auth.session()
-      setAuthStatus(result.status)
+      const result = await loadSessionQuery(queryClient)
+      if (useUiStore.getState().authStatus !== 'logging_in') {
+        setAuthStatus(result.status)
+      }
       return result
     },
   })
@@ -38,35 +36,32 @@ export function AccountChip() {
 
   const loginMutation = useMutation({
     mutationFn: () => fledgeApi.auth.login(),
-    onMutate: () => setAuthStatus('logging_in'),
-    onSuccess: async () => {
-      setAuthStatus('logged_in')
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['session'] }),
-        queryClient.invalidateQueries({ queryKey: ['accounts'] }),
-      ])
+    onMutate: async () => {
+      setAuthStatus('logging_in')
+      await queryClient.cancelQueries({ queryKey: ['session'] })
     },
-    onError: () => setAuthStatus('logged_out'),
+    onSuccess: (account) => {
+      setAuthStatus('logged_in')
+      applyLoggedInAccount(queryClient, account)
+    },
+    onError: () => {
+      if (useUiStore.getState().authStatus === 'logging_in') {
+        setAuthStatus(sessionQuery.data?.account ? 'logged_in' : 'logged_out')
+      }
+    },
   })
 
   const switchMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.auth.switch(id),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['session'] }),
-        queryClient.invalidateQueries({ queryKey: ['accounts'] }),
-      ])
+    onSuccess: (account) => {
+      applyLoggedInAccount(queryClient, account)
     },
   })
 
   const logoutMutation = useMutation({
     mutationFn: (id?: string) => fledgeApi.auth.logout(id),
-    onSuccess: async () => {
+    onSuccess: () => {
       setOpen(false)
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ['session'] }),
-        queryClient.invalidateQueries({ queryKey: ['accounts'] }),
-      ])
     },
   })
 
@@ -88,7 +83,16 @@ export function AccountChip() {
 
   const account = sessionQuery.data?.account
   const accounts = accountsQuery.data ?? []
-  const faceUrl = faceOf(account)
+  const faceUrl = mcFaceUrl(account, 32)
+  const popupFaceUrl = mcFaceUrl(account, 48)
+  const secondaryLine =
+    authStatus === 'expired' ? (
+      <div className="text-xs leading-tight text-[var(--color-danger)]">{t('auth.reloginRequired')}</div>
+    ) : accounts.length > 1 ? (
+      <div className="text-xs leading-tight text-[var(--color-text-muted)]">
+        {t('auth.accountCount', { count: accounts.length })}
+      </div>
+    ) : null
 
   const chipLabel =
     authStatus === 'logging_in'
@@ -122,31 +126,17 @@ export function AccountChip() {
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
       >
-        <div className="text-right text-sm leading-tight">
-          <div className="font-medium text-[var(--color-text)]">{chipLabel}</div>
-          {authStatus === 'expired' ? (
-            <div className="text-xs text-[var(--color-danger)]">{t('auth.reloginRequired')}</div>
-          ) : accounts.length > 1 ? (
-            <div className="text-xs text-[var(--color-text-muted)]">
-              {t('auth.accountCount', { count: accounts.length })}
-            </div>
-          ) : null}
+        <div className="flex h-8 min-w-0 flex-col justify-center text-right text-sm">
+          <div className="truncate font-medium leading-none text-[var(--color-text)]">{chipLabel}</div>
+          {secondaryLine}
         </div>
-        <div className="h-8 w-8 shrink-0 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-accent-soft)]">
-          {faceUrl ? (
-            <img
-              src={faceUrl}
-              alt=""
-              className="h-full w-full"
-              style={{ imageRendering: 'pixelated' }}
-              referrerPolicy="no-referrer"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-xs text-white/90">
-              {(account?.displayName ?? '?').slice(0, 1)}
-            </div>
-          )}
-        </div>
+        {faceUrl ? (
+          <McFaceAvatar src={faceUrl} size={32} />
+        ) : (
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-accent-soft)] text-xs text-[var(--color-text-muted)]">
+            {(account?.displayName ?? '?').slice(0, 1)}
+          </div>
+        )}
       </button>
 
       {open ? (
@@ -157,21 +147,13 @@ export function AccountChip() {
           className="absolute right-0 top-[calc(100%+8px)] z-[100] w-72 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-lg"
         >
           <div className="flex items-center gap-3">
-            <div className="h-12 w-12 shrink-0 overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-accent-soft)]">
-              {faceUrl ? (
-                <img
-                  src={faceUrl}
-                  alt=""
-                  className="h-full w-full"
-                  style={{ imageRendering: 'pixelated' }}
-                  referrerPolicy="no-referrer"
-                />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-[var(--color-text)]">
-                  {(account?.displayName ?? '?').slice(0, 1)}
-                </div>
-              )}
-            </div>
+            {popupFaceUrl ? (
+              <McFaceAvatar src={popupFaceUrl} size={48} radius="md" />
+            ) : (
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-accent-soft)] text-sm font-semibold text-[var(--color-text)]">
+                {(account?.displayName ?? '?').slice(0, 1)}
+              </div>
+            )}
             <div className="min-w-0 space-y-1">
               <p className="truncate text-sm font-semibold text-[var(--color-text)]">
                 {account?.displayName ?? t('auth.status.loggedOut')}
@@ -193,7 +175,7 @@ export function AccountChip() {
               <ul className="max-h-40 space-y-1 overflow-auto">
                 {accounts.map((a) => {
                   const active = a.id === account?.id
-                  const aFace = faceOf(a)
+                  const aFace = mcFaceUrl(a, 28)
                   return (
                     <li key={a.id}>
                       <button
@@ -207,17 +189,11 @@ export function AccountChip() {
                         ].join(' ')}
                         onClick={() => switchMutation.mutate(a.id)}
                       >
-                        <span className="h-7 w-7 shrink-0 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)]">
-                          {aFace ? (
-                            <img
-                              src={aFace}
-                              alt=""
-                              className="h-full w-full"
-                              style={{ imageRendering: 'pixelated' }}
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : null}
-                        </span>
+                        {aFace ? (
+                          <McFaceAvatar src={aFace} size={28} className="bg-[var(--color-bg)]" />
+                        ) : (
+                          <span className="h-7 w-7 shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)]" />
+                        )}
                         <span className="min-w-0 flex-1 truncate">{a.displayName}</span>
                         {active ? (
                           <span className="text-[10px] font-semibold">{t('auth.active')}</span>

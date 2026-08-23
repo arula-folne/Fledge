@@ -12,15 +12,17 @@ type Props = {
   scrollable?: boolean
   /** 副題（日付など） */
   subtitle?: string
-  size?: 'sm' | 'md' | 'lg' | 'full'
-  /** 背景のぼかし強度（カラーピッカー等は soft） */
-  backdrop?: 'default' | 'soft'
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'full'
+  /** 背景のぼかし強度（lighter は背面の文字がうっすら見える） */
+  backdrop?: 'default' | 'soft' | 'lighter'
   /** false のとき Esc / 背景 / × で閉じない（確認ダイアログ向け） */
   dismissible?: boolean
   /** 重ね表示用（確認ダイアログはより手前）。z-index はここだけ指定する */
   overlayClassName?: string
   /** 内容量に関係なく高さを固定する（作成ダイアログなど） */
   fixedHeight?: boolean
+  /** 見出し・余白・フッターを小さくする */
+  compact?: boolean
 }
 
 /**
@@ -39,20 +41,25 @@ export function Dialog({
   dismissible = true,
   overlayClassName = 'z-[80]',
   fixedHeight = false,
+  compact = false,
 }: Props) {
   const { t } = useTranslation()
   const full = size === 'full'
   const backdropClass =
-    backdrop === 'soft'
-      ? 'bg-black/25 backdrop-blur-sm'
-      : 'bg-black/45 backdrop-blur-md'
+    backdrop === 'lighter'
+      ? 'bg-black/5 backdrop-blur-[2px]'
+      : backdrop === 'soft'
+        ? 'bg-black/25 backdrop-blur-sm'
+        : 'bg-black/45 backdrop-blur-md'
   const sizeClass = full
     ? 'h-full max-h-none max-w-none rounded-none border-0 shadow-none'
-    : size === 'sm'
-      ? 'max-w-sm'
-      : size === 'lg'
-        ? 'max-w-2xl'
-        : 'max-w-lg'
+    : size === 'xs'
+      ? 'max-w-xs'
+      : size === 'sm'
+        ? 'max-w-sm'
+        : size === 'lg'
+          ? 'max-w-2xl'
+          : 'max-w-lg'
   const titleId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
   const fill = full || scrollable || fixedHeight
@@ -90,7 +97,7 @@ export function Dialog({
   return (
     <div
       className={[
-        'fixed inset-0 flex',
+        'fixed inset-x-0 bottom-0 top-[var(--titlebar-offset,0px)] flex',
         full ? 'items-stretch p-0' : 'items-center justify-center p-4',
         overlayClassName,
       ]
@@ -127,13 +134,25 @@ export function Dialog({
         <div
           className={[
             'flex shrink-0 items-center justify-between gap-3 border-b border-[var(--color-border)]',
-            size === 'sm' ? 'px-3.5 py-2.5' : full ? 'px-4 py-2' : 'px-5 py-4',
+            compact
+              ? 'px-3 py-2'
+              : size === 'sm'
+                ? 'px-3.5 py-2.5'
+                : full
+                  ? 'px-6 py-3.5'
+                  : 'px-5 py-4',
           ].join(' ')}
         >
           <div className="min-w-0">
             <h2
               id={titleId}
-              className={size === 'sm' || full ? 'text-sm font-semibold' : 'text-base font-semibold'}
+              className={
+                compact || size === 'xs'
+                  ? 'text-xs font-semibold'
+                  : size === 'sm'
+                    ? 'text-sm font-semibold'
+                    : 'text-base font-semibold'
+              }
             >
               {title}
             </h2>
@@ -145,10 +164,13 @@ export function Dialog({
             <button
               type="button"
               aria-label={t('common.close')}
-              className="inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
+              className={[
+                'inline-flex shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
+                compact ? 'size-7' : 'size-9',
+              ].join(' ')}
               onClick={onClose}
             >
-              <IconX size={22} stroke={1.75} />
+              <IconX size={compact ? 18 : 22} stroke={1.75} />
             </button>
           ) : null}
         </div>
@@ -158,17 +180,30 @@ export function Dialog({
               ? [
                   'min-h-0 flex-1',
                   full ? 'flex flex-col overflow-hidden' : 'overflow-y-auto',
-                  size === 'sm' ? 'px-3.5 py-3' : full ? 'px-4 py-2.5' : 'px-5 py-4',
+                  compact
+                    ? 'px-3 py-2'
+                    : size === 'sm'
+                      ? 'px-3.5 py-3'
+                      : full
+                        ? 'px-6 py-4'
+                        : 'px-5 py-4',
                 ].join(' ')
-              : size === 'sm'
-                ? 'px-3.5 py-3'
-                : 'px-5 py-4'
+              : compact
+                ? 'px-3 py-2'
+                : size === 'sm'
+                  ? 'px-3.5 py-3'
+                  : 'px-5 py-4'
           }
         >
           {children}
         </div>
         {footer ? (
-          <div className="flex shrink-0 justify-end gap-2 border-t border-[var(--color-border)] px-5 py-3">
+          <div
+            className={[
+              'flex shrink-0 justify-end gap-2 border-t border-[var(--color-border)]',
+              compact ? 'px-3 py-2' : 'px-5 py-3',
+            ].join(' ')}
+          >
             {footer}
           </div>
         ) : null}

@@ -8,6 +8,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
+    "thumbs:skins": "electron ./scripts/render-default-skin-thumbs.mjs",
     "typecheck": "tsc -p tsconfig.node.json --noEmit && tsc -p tsconfig.web.json --noEmit",
     "lint": "eslint src electron --max-warnings 0",
     "pack": "electron-builder --dir",
@@ -62,6 +63,14 @@
       {
         "from": "resources/icon.ico",
         "to": "icon.ico"
+      },
+      {
+        "from": "resources/microsoft-login.png",
+        "to": "microsoft-login.png"
+      },
+      {
+        "from": "resources/microsoft-login.ico",
+        "to": "microsoft-login.ico"
       },
       {
         "from": "resources/skins",

@@ -9,3 +9,4 @@ export const resources = {
 export type MessageKey = keyof typeof ja
 
 export { ja }
+export { modrinthCategoryLabel, resolveModrinthLocale } from './modrinth/tagLocales'

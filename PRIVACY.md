@@ -1,6 +1,6 @@
 # プライバシーポリシー（Privacy Policy）
 
-最終更新: 2026-08-17
+最終更新: 2026-08-23
 
 本ポリシーは、Minecraft ランチャー **Fledge**（以下「本アプリ」）が取り扱う情報について説明します。Fledge は個人・OSS プロジェクト（[arula-folne/Fledge](https://github.com/arula-folne/Fledge)）です。**現時点では** Fledge 運営の解析サーバーや広告 SDK はありません。
 
@@ -71,6 +71,7 @@ Microsoft 側の取り扱いは、Microsoft のプライバシーに関する声
 | Fabric / Forge / NeoForge | ローダー導入時 | 通常のダウンロードリクエスト | MOD ローダーの取得 |
 | Eclipse Adoptium（Temurin） | Java 不足時 | 通常のダウンロードリクエスト | Java ランタイムの取得 |
 | [Modrinth](https://modrinth.com) | コンテンツ検索・インストール時 | 検索語、対象バージョンなど API に必要なパラメータ | Mod 等の検索と配布ファイルの取得 |
+| [GitHub](https://github.com)（Fledge リポジトリ） | ホーム画面のお知らせ取得時 | 通常の HTTPS 取得リクエスト | お知らせ JSON の取得（約 1 時間ごと。端末にキャッシュ） |
 | [mc-heads.net](https://mc-heads.net) | アバター表示のフォールバック時 | Minecraft UUID | 顔アイコンの表示（Microsoft 側の画像 URL があればそちらを優先） |
 | ローカルの Discord デスクトップアプリ | **設定で Discord Rich Presence がオンのときだけ** | 下記「Discord」参照 | プレイ状態の表示 |
 

@@ -10,7 +10,6 @@ function formatNewsDate(iso: string): string {
   try {
     return new Intl.DateTimeFormat('ja', {
       dateStyle: 'long',
-      timeStyle: 'short',
     }).format(new Date(iso))
   } catch {
     return iso
@@ -23,6 +22,8 @@ export function NewsList({ compact = false }: { compact?: boolean }) {
   const newsQuery = useQuery({
     queryKey: ['news'],
     queryFn: () => fledgeApi.news.list(),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: true,
   })
 
   const items = newsQuery.data ?? []
@@ -30,7 +31,9 @@ export function NewsList({ compact = false }: { compact?: boolean }) {
   return (
     <section className="min-w-0">
       <h2 className="mb-2 text-xs font-medium text-[var(--color-text-muted)]">{t('news.title')}</h2>
-      {!items.length ? (
+      {newsQuery.isPending && !items.length ? (
+        <p className="text-sm text-[var(--color-text-muted)]">{t('news.loading')}</p>
+      ) : !items.length ? (
         <p className="text-sm text-[var(--color-text-muted)]">{t('news.empty')}</p>
       ) : (
         <ul className={compact ? 'flex flex-col gap-1.5' : 'grid gap-2 sm:grid-cols-2'}>

@@ -13,6 +13,7 @@ import type { JavaManager } from '../java/JavaManager.js'
 import type { Logger } from '../logging/Logger.js'
 import type { MinecraftService } from '../minecraft/MinecraftService.js'
 import {
+  mergeMinecraftDebugOverlayFile,
   mergeMinecraftOptionsFile,
 } from '../minecraft/minecraftInitialOptions.js'
 import type { SettingsStore } from '../settings/SettingsStore.js'
@@ -283,9 +284,11 @@ export class LaunchOrchestrator {
       if (profile.minecraftInitialSettingsSeeded && !profile.minecraftInitialSettingsApplied) {
         try {
           await mergeMinecraftOptionsFile(instanceDir, profile.pendingMinecraftOptions ?? {})
+          await mergeMinecraftDebugOverlayFile(instanceDir, profile.pendingMinecraftDebugOverlay ?? {})
           await this.deps.instances.update(profileId, {
             minecraftInitialSettingsApplied: true,
             pendingMinecraftOptions: {},
+            pendingMinecraftDebugOverlay: {},
           })
         } catch (err) {
           this.deps.logger.warn(

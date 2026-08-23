@@ -141,8 +141,9 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
 }))
 
 export type SettingsSection =
-  | 'basic'
-  | 'display'
+  | 'app'
+  | 'minecraftLaunch'
+  | 'minecraftInitial'
   | 'account'
   | 'java'
   | 'resources'
@@ -179,7 +180,7 @@ export const useUiStore = create<UiStore>((set) => ({
   setInstanceWizardOpen: (instanceWizardOpen) => set({ instanceWizardOpen }),
   editingInstanceId: null,
   setEditingInstanceId: (editingInstanceId) => set({ editingInstanceId }),
-  settingsSection: 'display',
+  settingsSection: 'app',
   setSettingsSection: (settingsSection) => set({ settingsSection }),
   libraryFocus: null,
   setLibraryFocus: (libraryFocus) =>

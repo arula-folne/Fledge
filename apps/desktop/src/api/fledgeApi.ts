@@ -1,14 +1,19 @@
 import type {
   AccountView,
   AuthStatus,
+  AuthStatusEvent,
   BackupEntry,
   ContentCategory,
+  ContentCategoryTag,
   ContentInstallRequest,
+  ContentLoaderFilter,
   ContentMediaItem,
   ContentProjectPage,
   ContentSearchQuery,
   ContentSearchResult,
+  ContentVersion,
   CreateInstanceInput,
+  DeviceSpecs,
   InstalledContent,
   InstanceProfile,
   LaunchPhaseEvent,
@@ -65,6 +70,11 @@ export type FledgeApi = {
     >
     search: (query: ContentSearchQuery) => Promise<ContentSearchResult>
     getProject: (projectId: string) => Promise<ContentProjectPage>
+    listVersions: (input: {
+      projectId: string
+      gameVersion?: string
+      loaders?: ContentLoaderFilter[]
+    }) => Promise<ContentVersion[]>
     install: (req: ContentInstallRequest) => Promise<InstalledContent>
     listInstalled: (instanceId: string, category?: ContentCategory) => Promise<InstalledContent[]>
     setEnabled: (instanceId: string, entryId: string, enabled: boolean) => Promise<InstalledContent>
@@ -74,6 +84,7 @@ export type FledgeApi = {
       instanceId: string,
       kind: 'screenshots' | 'logs',
     ) => Promise<ContentMediaItem[]>
+    listCategoryTags: () => Promise<ContentCategoryTag[]>
   }
   skins: {
     list: () => Promise<SkinEntry[]>
@@ -82,11 +93,14 @@ export type FledgeApi = {
       model: SkinModel
       bytes: number[]
       originalName: string
+      thumbDataUrl?: string
     }) => Promise<SkinEntry>
     update: (input: { id: string; name?: string; model?: SkinModel }) => Promise<SkinEntry>
     remove: (id: string) => Promise<void>
     select: (input: { skinId: string; model?: SkinModel }) => Promise<Settings>
     getDataUrl: (id: string) => Promise<string | null>
+    getThumb: (id: string, model: SkinModel) => Promise<string | null>
+    saveThumb: (id: string, model: SkinModel, dataUrl: string) => Promise<void>
   }
   auth: {
     login: () => Promise<AccountView>
@@ -135,6 +149,7 @@ export type FledgeApi = {
   }
   app: {
     factoryReset: () => Promise<void>
+    deviceSpecs: () => Promise<DeviceSpecs>
   }
   backup: {
     run: () => Promise<string>
@@ -161,7 +176,7 @@ export type FledgeApi = {
     launchPhase: (cb: (e: LaunchPhaseEvent) => void) => () => void
     launchState: (cb: (e: LaunchStateEvent) => void) => () => void
     logLine: (cb: (e: LogLine) => void) => () => void
-    authStatus: (cb: (e: AuthStatus) => void) => () => void
+    authStatus: (cb: (e: AuthStatusEvent) => void) => () => void
   }
 }
 

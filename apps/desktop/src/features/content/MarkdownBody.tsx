@@ -20,6 +20,7 @@ function safeUrl(raw: string): string | null {
 
 function markdownToHtml(md: string): string {
   let s = escapeHtml(md.replace(/\r\n/g, '\n'))
+  let images = 0
   s = s.replace(/```[\w-]*\n([\s\S]*?)```/g, (_m, code: string) => `<pre><code>${code}</code></pre>`)
   s = s.replace(/^#### (.+)$/gm, '<h4>$1</h4>')
   s = s.replace(/^### (.+)$/gm, '<h3>$1</h3>')
@@ -27,7 +28,10 @@ function markdownToHtml(md: string): string {
   s = s.replace(/^# (.+)$/gm, '<h1>$1</h1>')
   s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_m, alt: string, href: string) => {
     const url = safeUrl(href)
-    return url ? `<img src="${url}" alt="${alt}" />` : alt
+    if (!url) return alt
+    images += 1
+    if (images > 3) return alt
+    return `<img src="${url}" alt="${alt}" loading="lazy" decoding="async" />`
   })
   s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, label: string, href: string) => {
     const url = safeUrl(href)
@@ -52,7 +56,7 @@ export function MarkdownBody({ text }: { text: string }) {
   if (!text.trim()) return null
   return (
     <div
-      className="modrinth-md text-sm leading-relaxed text-[var(--color-text)]"
+      className="content-md text-sm leading-relaxed text-[var(--color-text)]"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   )
