@@ -325,6 +325,29 @@ function pickPrimaryFile(version: MrVersion): MrVersion['files'][number] {
   return files.find((f) => f.primary) ?? files[0]!
 }
 
+function toResolvedFile(
+  project: MrProjectMeta,
+  version: MrVersion,
+  category: ContentCategory,
+): ResolvedContentFile {
+  const file = pickPrimaryFile(version)
+  if (!file) throw new Error('No downloadable file on Modrinth version')
+  return {
+    provider: 'modrinth',
+    projectId: project.id,
+    versionId: version.id,
+    slug: project.slug,
+    name: project.title,
+    versionNumber: version.version_number,
+    category,
+    fileName: file.filename,
+    downloadUrl: file.url,
+    iconUrl: project.icon_url ?? null,
+    sha1: file.hashes?.sha1,
+    size: file.size,
+  }
+}
+
 function contentError(messageKey: string, message: string, detail?: Record<string, string>): Error {
   const err = new Error(message)
   Object.assign(err, { messageKey, detail })
@@ -515,23 +538,8 @@ export class ModrinthProvider implements ContentProvider {
           await walk(depProjectId, 'mod', depVersionId, depth + 1)
         }
 
-        const file = pickPrimaryFile(version)
-        if (!file) throw new Error('No downloadable file on Modrinth version')
-
-        chosen.set(projectId, {
-          provider: 'modrinth',
-          projectId: project.id,
-          versionId: version.id,
-          slug: project.slug,
-          name: project.title,
-          versionNumber: version.version_number,
-          category: resolvedCategory,
-          fileName: file.filename,
-          downloadUrl: file.url,
-          iconUrl: project.icon_url ?? null,
-          sha1: file.hashes?.sha1,
-          size: file.size,
-        })
+        const fileResolved = toResolvedFile(project, version, resolvedCategory)
+        chosen.set(projectId, fileResolved)
       } finally {
         visiting.delete(projectId)
       }
