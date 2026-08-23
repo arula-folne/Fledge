@@ -83,6 +83,12 @@ type MrVersion = {
   downloads?: number
   version_type?: 'release' | 'beta' | 'alpha'
   changelog?: string | null
+  dependencies?: Array<{
+    version_id?: string | null
+    project_id?: string | null
+    file_name?: string | null
+    dependency_type: 'required' | 'optional' | 'incompatible' | 'embedded'
+  }>
   files: Array<{
     url: string
     filename: string
@@ -319,6 +325,43 @@ function pickPrimaryFile(version: MrVersion): MrVersion['files'][number] {
   return files.find((f) => f.primary) ?? files[0]!
 }
 
+function toResolvedFile(
+  project: MrProjectMeta,
+  version: MrVersion,
+  category: ContentCategory,
+): ResolvedContentFile {
+  const file = pickPrimaryFile(version)
+  if (!file) throw new Error('No downloadable file on Modrinth version')
+  return {
+    provider: 'modrinth',
+    projectId: project.id,
+    versionId: version.id,
+    slug: project.slug,
+    name: project.title,
+    versionNumber: version.version_number,
+    category,
+    fileName: file.filename,
+    downloadUrl: file.url,
+    iconUrl: project.icon_url ?? null,
+    sha1: file.hashes?.sha1,
+    size: file.size,
+  }
+}
+
+function contentError(messageKey: string, message: string, detail?: Record<string, string>): Error {
+  const err = new Error(message)
+  Object.assign(err, { messageKey, detail })
+  return err
+}
+
+type MrProjectMeta = {
+  id: string
+  slug: string
+  title: string
+  icon_url?: string | null
+  project_type?: string
+}
+
 type MrCategoryTag = {
   icon: string
   name: string
@@ -334,6 +377,8 @@ function mapCategoryTag(raw: MrCategoryTag): ContentCategoryTag {
     icon: raw.icon ?? '',
   }
 }
+
+const MAX_DEPENDENCY_DEPTH = 24
 
 export class ModrinthProvider implements ContentProvider {
   readonly id = 'modrinth' as const
@@ -421,50 +466,133 @@ export class ModrinthProvider implements ContentProvider {
     gameVersion?: string
     loaders?: ContentLoaderFilter[]
   }): Promise<ResolvedContentFile> {
-    let version: MrVersion | undefined
+    const files = await this.resolveInstallSet(input)
+    const primary = files[files.length - 1]
+    if (!primary) throw new Error('Compatible version not found on Modrinth')
+    return primary
+  }
 
-    if (input.versionId) {
-      version = await this.api<MrVersion>(`/version/${encodeURIComponent(input.versionId)}`)
-    } else {
-      const params = new URLSearchParams()
-      if (input.gameVersion) {
-        params.set('game_versions', JSON.stringify([input.gameVersion]))
+  async resolveInstallSet(input: {
+    projectId: string
+    category: ContentCategory
+    versionId?: string
+    gameVersion?: string
+    loaders?: ContentLoaderFilter[]
+    installed?: ReadonlyMap<string, string>
+  }): Promise<ResolvedContentFile[]> {
+    const chosen = new Map<string, ResolvedContentFile>()
+    const visiting = new Set<string>()
+    const pinned = new Set<string>()
+    const incompat = new Map<string, string>()
+    let rootProjectId: string | null = null
+
+    const walk = async (
+      projectRef: string,
+      category: ContentCategory,
+      versionId: string | undefined,
+      depth: number,
+    ): Promise<void> => {
+      if (depth > MAX_DEPENDENCY_DEPTH) {
+        throw contentError(
+          'content.error.dependencyTooDeep',
+          '依存関係が深すぎるため解決できませんでした',
+        )
       }
-      if (input.loaders?.length) {
-        params.set('loaders', JSON.stringify(input.loaders))
+
+      const version = await this.fetchVersion(projectRef, versionId, input.gameVersion, input.loaders)
+      const projectId = version.project_id
+      if (!projectId) throw new Error('Modrinth version missing project_id')
+
+      if (visiting.has(projectId)) return
+      const existing = chosen.get(projectId)
+      if (existing) {
+        if (existing.versionId === version.id) return
+        if (!versionId) return
+        if (pinned.has(projectId)) {
+          throw contentError(
+            'content.error.dependencyConflict',
+            `依存関係で要求されるバージョンが衝突しています: ${existing.name}`,
+            { name: existing.name },
+          )
+        }
+        // 未ピン留めの版を、依存が指定する version_id に合わせる（Sodium 最新→Iris 指定版など）
+        chosen.delete(projectId)
       }
-      const qs = params.toString()
-      const versions = await this.api<MrVersion[]>(
-        `/project/${encodeURIComponent(input.projectId)}/version${qs ? `?${qs}` : ''}`,
+      if (versionId) pinned.add(projectId)
+
+      visiting.add(projectId)
+      try {
+        const project = await this.api<MrProjectMeta>(`/project/${encodeURIComponent(projectId)}`)
+        if (depth === 0) rootProjectId = project.id
+        const resolvedCategory = mapCategory(project.project_type ?? '') ?? category
+
+        for (const dep of version.dependencies ?? []) {
+          const depProjectId = dep.project_id?.trim()
+          if (!depProjectId) continue
+          if (dep.dependency_type === 'incompatible') {
+            incompat.set(depProjectId, project.title)
+            continue
+          }
+          if (dep.dependency_type !== 'required') continue
+          const depVersionId = dep.version_id?.trim() || undefined
+          await walk(depProjectId, 'mod', depVersionId, depth + 1)
+        }
+
+        const fileResolved = toResolvedFile(project, version, resolvedCategory)
+        chosen.set(projectId, fileResolved)
+      } finally {
+        visiting.delete(projectId)
+      }
+    }
+
+    await walk(input.projectId, input.category, input.versionId, 0)
+
+    for (const [badId, byName] of incompat) {
+      if (chosen.has(badId) || input.installed?.has(badId)) {
+        const bad = chosen.get(badId)
+        throw contentError(
+          'content.error.dependencyIncompatible',
+          `${byName} は ${bad?.name ?? badId} と併用できません`,
+          { name: byName, other: bad?.name ?? badId },
+        )
+      }
+    }
+
+    const files = [...chosen.values()]
+    if (!rootProjectId || files.length === 0) {
+      throw new Error('Compatible version not found on Modrinth')
+    }
+    // Map 挿入順は依存→本体。念のため本体を末尾へ。
+    const primary = files.find((f) => f.projectId === rootProjectId)
+    if (!primary) return files
+    return [...files.filter((f) => f.projectId !== rootProjectId), primary]
+  }
+
+  private async fetchVersion(
+    projectId: string,
+    versionId: string | undefined,
+    gameVersion: string | undefined,
+    loaders: ContentLoaderFilter[] | undefined,
+  ): Promise<MrVersion> {
+    if (versionId) {
+      return this.api<MrVersion>(`/version/${encodeURIComponent(versionId)}`)
+    }
+    const params = new URLSearchParams()
+    if (gameVersion) params.set('game_versions', JSON.stringify([gameVersion]))
+    if (loaders?.length) params.set('loaders', JSON.stringify(loaders))
+    const qs = params.toString()
+    const versions = await this.api<MrVersion[]>(
+      `/project/${encodeURIComponent(projectId)}/version${qs ? `?${qs}` : ''}`,
+    )
+    const version = versions[0]
+    if (!version) {
+      throw contentError(
+        'content.error.compatibleVersionNotFound',
+        `対応するバージョンが見つかりません: ${projectId}`,
+        { projectId },
       )
-      version = versions[0]
     }
-
-    if (!version) throw new Error('Compatible version not found on Modrinth')
-    const file = pickPrimaryFile(version)
-    if (!file) throw new Error('No downloadable file on Modrinth version')
-
-    const project = await this.api<{
-      id: string
-      slug: string
-      title: string
-      icon_url?: string | null
-    }>(`/project/${encodeURIComponent(input.projectId)}`)
-
-    return {
-      provider: 'modrinth',
-      projectId: project.id,
-      versionId: version.id,
-      slug: project.slug,
-      name: project.title,
-      versionNumber: version.version_number,
-      category: input.category,
-      fileName: file.filename,
-      downloadUrl: file.url,
-      iconUrl: project.icon_url ?? null,
-      sha1: file.hashes?.sha1,
-      size: file.size,
-    }
+    return version
   }
 
   async findUpdate(

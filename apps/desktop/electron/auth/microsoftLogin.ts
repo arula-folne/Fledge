@@ -118,21 +118,7 @@ type McStore = {
   items?: Array<{ name?: string }>
 }
 
-export async function xboxFromAuthCode(auth: Auth, code: string): Promise<Xbox> {
-  const token = auth.token
-  const body = new URLSearchParams({
-    client_id: token.client_id,
-    code,
-    grant_type: 'authorization_code',
-    redirect_uri: token.redirect,
-  })
-  if (token.clientSecret) body.set('client_secret', token.clientSecret)
-
-  const ms = await fetchJson('https://login.live.com/oauth20_token.srf', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
-  })
+async function xboxFromMsToken(auth: Auth, ms: JsonResult): Promise<Xbox> {
   const accessToken = typeof ms.json.access_token === 'string' ? ms.json.access_token : ''
   const refreshToken = typeof ms.json.refresh_token === 'string' ? ms.json.refresh_token : ''
   if (!ms.ok || !accessToken || !refreshToken) {
@@ -156,15 +142,58 @@ export async function xboxFromAuthCode(auth: Auth, code: string): Promise<Xbox> 
     throw Object.assign(new Error('error.auth.xboxLive'), { status: xboxLive.status })
   }
 
-  return new Xbox(auth, {
-    token_type: String(ms.json.token_type ?? 'bearer'),
-    expires_in: Number(ms.json.expires_in ?? 3600),
-    scope: String(ms.json.scope ?? ''),
-    access_token: accessToken,
+  return new Xbox(
+    auth,
+    {
+      token_type: String(ms.json.token_type ?? 'bearer'),
+      expires_in: Number(ms.json.expires_in ?? 3600),
+      scope: String(ms.json.scope ?? ''),
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      user_id: String(ms.json.user_id ?? ''),
+      foci: String(ms.json.foci ?? ''),
+    },
+    xboxLive.json as unknown as types.XblAuthToken,
+  )
+}
+
+export async function xboxFromAuthCode(auth: Auth, code: string): Promise<Xbox> {
+  const token = auth.token
+  const body = new URLSearchParams({
+    client_id: token.client_id,
+    code,
+    grant_type: 'authorization_code',
+    redirect_uri: token.redirect,
+  })
+  if (token.clientSecret) body.set('client_secret', token.clientSecret)
+
+  const ms = await fetchJson('https://login.live.com/oauth20_token.srf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  })
+  return xboxFromMsToken(auth, ms)
+}
+
+/**
+ * msmc の Auth.refresh は node-fetch 依存で、製品版 Electron では失敗・ハングすることがある。
+ * ランタイムの fetch でリフレッシュトークンを交換する。
+ */
+export async function xboxFromRefreshToken(auth: Auth, refreshToken: string): Promise<Xbox> {
+  const token = auth.token
+  const body = new URLSearchParams({
+    client_id: token.client_id,
     refresh_token: refreshToken,
-    user_id: String(ms.json.user_id ?? ''),
-    foci: String(ms.json.foci ?? ''),
-  }, xboxLive.json as unknown as types.XblAuthToken)
+    grant_type: 'refresh_token',
+  })
+  if (token.clientSecret) body.set('client_secret', token.clientSecret)
+
+  const ms = await fetchJson('https://login.live.com/oauth20_token.srf', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body.toString(),
+  })
+  return xboxFromMsToken(auth, ms)
 }
 
 async function minecraftIdentityToken(xbox: Xbox): Promise<string> {

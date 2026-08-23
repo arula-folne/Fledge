@@ -120,20 +120,71 @@ export class ContentService {
         : [])
     const gameVersion = req.gameVersion ?? profile.minecraftVersion
 
-    const resolved = await provider.resolveInstall({
-      projectId: req.projectId,
-      category: req.category,
-      versionId: req.versionId,
-      gameVersion,
-      loaders,
-    })
+    const index = await this.readIndex(req.instanceId)
+    const installed = new Map(index.items.map((item) => [item.projectId, item.versionId]))
 
+    const files =
+      provider.resolveInstallSet != null
+        ? await provider.resolveInstallSet({
+            projectId: req.projectId,
+            category: req.category,
+            versionId: req.versionId,
+            gameVersion,
+            loaders,
+            installed,
+          })
+        : [
+            await provider.resolveInstall({
+              projectId: req.projectId,
+              category: req.category,
+              versionId: req.versionId,
+              gameVersion,
+              loaders,
+            }),
+          ]
+
+    if (files.length === 0) throw new Error('Compatible version not found on Modrinth')
+    const primary = files[files.length - 1]!
     const instanceDir = this.instances.instanceDir(req.instanceId)
-    const destDir = path.join(instanceDir, categoryDir(resolved.category))
-    await fs.mkdir(destDir, { recursive: true })
-    const destPath = path.join(destDir, resolved.fileName)
+    const installedByProject = new Map(index.items.map((item) => [item.projectId, item]))
 
-    const entry: InstalledContent = {
+    let primaryEntry: InstalledContent | null = null
+    for (const resolved of files) {
+      const current = installedByProject.get(resolved.projectId)
+      if (current?.versionId === resolved.versionId) {
+        if (resolved.projectId === primary.projectId) primaryEntry = current
+        continue
+      }
+      const entry = await this.enqueueContentDownload(req.instanceId, instanceDir, resolved)
+      if (resolved.projectId === primary.projectId) primaryEntry = entry
+    }
+
+    if (files.length > 1) {
+      const depNames = files
+        .slice(0, -1)
+        .map((f) => `${f.name}@${f.versionNumber}`)
+        .join(', ')
+      this.logger.info(
+        'downloader',
+        `Resolved Modrinth dependencies for ${primary.name}: ${depNames || '(none)'}`,
+      )
+    }
+
+    return primaryEntry ?? this.toInstalledEntry(primary)
+  }
+
+  private toInstalledEntry(resolved: {
+    provider: InstalledContent['provider']
+    projectId: string
+    versionId: string
+    slug: string
+    name: string
+    versionNumber: string
+    category: InstalledContent['category']
+    fileName: string
+    iconUrl: string | null
+  }): InstalledContent {
+    return {
       id: randomUUID(),
       provider: resolved.provider,
       projectId: resolved.projectId,
@@ -148,14 +199,37 @@ export class ContentService {
       installedAt: new Date().toISOString(),
       updateAvailable: false,
     }
+  }
+
+  private async enqueueContentDownload(
+    instanceId: string,
+    instanceDir: string,
+    resolved: {
+      provider: InstalledContent['provider']
+      projectId: string
+      versionId: string
+      slug: string
+      name: string
+      versionNumber: string
+      category: InstalledContent['category']
+      fileName: string
+      downloadUrl: string
+      iconUrl: string | null
+      sha1?: string
+    },
+  ): Promise<InstalledContent> {
+    const destDir = path.join(instanceDir, categoryDir(resolved.category))
+    await fs.mkdir(destDir, { recursive: true })
+    const destPath = path.join(destDir, resolved.fileName)
+    const entry = this.toInstalledEntry(resolved)
 
     const { done } = this.queue.enqueue({
       kind: 'content',
       labelKey: 'content.downloading',
       priority: 5,
-      sessionId: `content-${req.instanceId}-${resolved.projectId}`,
+      sessionId: `content-${instanceId}-${resolved.projectId}`,
       meta: {
-        instanceId: req.instanceId,
+        instanceId,
         projectId: resolved.projectId,
         projectName: resolved.name,
         category: resolved.category,
@@ -180,7 +254,7 @@ export class ContentService {
         }
         await fs.writeFile(destPath, buf)
         ctx.report({ current: buf.length, total: buf.length, unit: 'bytes' })
-        await this.finalizeInstalledContent(req.instanceId, instanceDir, resolved, entry)
+        await this.finalizeInstalledContent(instanceId, instanceDir, resolved, entry)
       },
     })
 

@@ -4,7 +4,13 @@ import { AuthError, type LaunchCredentials } from '@fledge/core'
 import type { AccountView, AuthStatus } from '@fledge/shared'
 import type { Logger } from '@fledge/core'
 import type { TokenVault } from '../security/tokenVault'
-import { formatMsmcError, minecraftFromXbox, openMicrosoftLoginWindow, xboxFromAuthCode } from './microsoftLogin'
+import {
+  formatMsmcError,
+  minecraftFromXbox,
+  openMicrosoftLoginWindow,
+  xboxFromAuthCode,
+  xboxFromRefreshToken,
+} from './microsoftLogin'
 
 type Prompt = types.Prompt
 type MSToken = types.MSToken
@@ -34,6 +40,10 @@ export class MicrosoftAuthProvider implements AuthProvider {
   private listeners = new Set<StatusListener>()
   private cache = new Map<string, CachedEntry>()
   private activeId: string | null = null
+  /** 進行中 / 完了済みの更新世代。古い fire-and-forget 更新が成功ログインを上書きしない */
+  private refreshEpoch = new Map<string, number>()
+  /** アカウントごとの更新直列化（リフレッシュトークンの単回利用競合を防ぐ） */
+  private refreshChains = new Map<string, Promise<unknown>>()
 
   constructor(
     private readonly vault: TokenVault,
@@ -55,6 +65,29 @@ export class MicrosoftAuthProvider implements AuthProvider {
     for (const l of this.listeners) l(status, account)
   }
 
+  private bumpRefreshEpoch(accountId: string): number {
+    const next = (this.refreshEpoch.get(accountId) ?? 0) + 1
+    this.refreshEpoch.set(accountId, next)
+    return next
+  }
+
+  private currentEpoch(accountId: string): number {
+    return this.refreshEpoch.get(accountId) ?? 0
+  }
+
+  private runRefreshExclusive<T>(accountId: string, op: () => Promise<T>): Promise<T> {
+    const prev = this.refreshChains.get(accountId) ?? Promise.resolve()
+    const next = prev.then(op, op)
+    this.refreshChains.set(
+      accountId,
+      next.then(
+        () => undefined,
+        () => undefined,
+      ),
+    )
+    return next
+  }
+
   async listAccounts(): Promise<AccountView[]> {
     return this.vault.listAccounts()
   }
@@ -63,11 +96,16 @@ export class MicrosoftAuthProvider implements AuthProvider {
     const account = await this.vault.setActive(accountId)
     this.activeId = accountId
     this.setStatus('logged_in', account)
+    const epoch = this.bumpRefreshEpoch(accountId)
     try {
       await this.refreshIfNeeded(accountId)
-      this.setStatus('logged_in', account)
+      if (this.currentEpoch(accountId) === epoch && this.activeId === accountId) {
+        this.setStatus('logged_in', account)
+      }
     } catch {
-      this.setStatus('expired', account)
+      if (this.currentEpoch(accountId) === epoch && this.activeId === accountId) {
+        this.setStatus('expired', account)
+      }
     }
     this.logger.info('auth', `Switched active account to ${account.displayName}`)
     return account
@@ -87,9 +125,13 @@ export class MicrosoftAuthProvider implements AuthProvider {
       const xbox = await xboxFromAuthCode(auth, code)
       const minecraft = await minecraftFromXbox(xbox)
       const account = this.toAccountView(minecraft)
-      this.cache.set(account.id, { minecraft, xbox })
-      this.activeId = account.id
-      await this.persist(account.id, xbox, minecraft, account)
+      await this.runRefreshExclusive(account.id, async () => {
+        // ログイン完了前に走っていた更新失敗が、直後の logged_in を expired に戻さないように無効化
+        this.bumpRefreshEpoch(account.id)
+        this.cache.set(account.id, { minecraft, xbox })
+        this.activeId = account.id
+        await this.persist(account.id, xbox, minecraft, account)
+      })
       this.setStatus('logged_in', account)
       this.logger.info('auth', `Logged in as ${account.displayName}`)
       return account
@@ -119,6 +161,7 @@ export class MicrosoftAuthProvider implements AuthProvider {
       return
     }
     this.cache.delete(id)
+    this.bumpRefreshEpoch(id)
     await this.vault.removeAccount(id)
     this.activeId = await this.vault.getActiveId()
     if (!this.activeId) {
@@ -127,11 +170,16 @@ export class MicrosoftAuthProvider implements AuthProvider {
       return
     }
     const remaining = await this.vault.readAccount()
+    const epoch = this.bumpRefreshEpoch(this.activeId)
     try {
       await this.refreshIfNeeded(this.activeId)
-      this.setStatus('logged_in', remaining)
+      if (this.currentEpoch(this.activeId) === epoch) {
+        this.setStatus('logged_in', remaining)
+      }
     } catch {
-      this.setStatus('expired', remaining)
+      if (this.currentEpoch(this.activeId) === epoch) {
+        this.setStatus('expired', remaining)
+      }
     }
     this.logger.info('auth', `Removed account ${id}; active=${this.activeId}`)
   }
@@ -154,14 +202,23 @@ export class MicrosoftAuthProvider implements AuthProvider {
 
     this.setStatus(this.status === 'expired' ? 'expired' : 'logged_in', account)
     const accountId = account.id
+    const epoch = this.currentEpoch(accountId)
     void this.refreshIfNeeded(accountId)
       .then(() => {
-        if (this.status !== 'logging_in' && this.activeId === accountId) {
+        if (
+          this.status !== 'logging_in' &&
+          this.activeId === accountId &&
+          this.currentEpoch(accountId) === epoch
+        ) {
           this.setStatus('logged_in', account)
         }
       })
       .catch(() => {
-        if (this.status !== 'logging_in' && this.activeId === accountId) {
+        if (
+          this.status !== 'logging_in' &&
+          this.activeId === accountId &&
+          this.currentEpoch(accountId) === epoch
+        ) {
           this.setStatus('expired', account)
         }
       })
@@ -181,18 +238,22 @@ export class MicrosoftAuthProvider implements AuthProvider {
       throw new AuthError('not_logged_in', 'auth.error.notLoggedIn')
     }
     if (opts?.announce) this.setStatus('refreshing')
+    const epoch = this.currentEpoch(id)
     try {
       const mc = await this.refreshIfNeeded(id, opts?.force === true)
       const profile = mc.profile
       if (!profile?.id || !profile.name) {
         throw new AuthError('failed', 'auth.error.failed')
       }
-      if (!accountId || accountId === this.activeId) {
-        const active = await this.vault.readAccount()
-        this.setStatus('logged_in', active)
-      } else {
-        const active = await this.vault.readAccount()
-        this.setStatus(active ? 'logged_in' : 'logged_out', active)
+      // ログイン等で世代が進んだ場合は、古い更新結果でステータスを上書きしない
+      if (this.currentEpoch(id) === epoch) {
+        if (!accountId || accountId === this.activeId) {
+          const active = await this.vault.readAccount()
+          this.setStatus('logged_in', active)
+        } else {
+          const active = await this.vault.readAccount()
+          this.setStatus(active ? 'logged_in' : 'logged_out', active)
+        }
       }
       return {
         uuid: profile.id,
@@ -201,8 +262,16 @@ export class MicrosoftAuthProvider implements AuthProvider {
         userType: 'msa',
       }
     } catch (err) {
+      if (this.currentEpoch(id) !== epoch) {
+        throw err instanceof AuthError
+          ? err
+          : new AuthError('refresh_failed', 'auth.error.refreshFailed', { cause: err })
+      }
       if (err instanceof AuthError) {
-        this.setStatus(err.code === 'not_logged_in' ? 'logged_out' : 'expired', err.code === 'not_logged_in' ? null : undefined)
+        this.setStatus(
+          err.code === 'not_logged_in' ? 'logged_out' : 'expired',
+          err.code === 'not_logged_in' ? null : undefined,
+        )
         throw err
       }
       this.setStatus('expired')
@@ -225,30 +294,42 @@ export class MicrosoftAuthProvider implements AuthProvider {
   }
 
   private async refreshIfNeeded(accountId: string, force = false): Promise<Minecraft> {
+    return this.runRefreshExclusive(accountId, () => this.refreshIfNeededUnlocked(accountId, force))
+  }
+
+  private async refreshIfNeededUnlocked(accountId: string, force = false): Promise<Minecraft> {
+    return this.refreshOnce(accountId, force, true)
+  }
+
+  private async refreshOnce(
+    accountId: string,
+    force: boolean,
+    allowRetry: boolean,
+  ): Promise<Minecraft> {
     const cached = this.cache.get(accountId)
     if (!force && cached?.minecraft.validate()) {
       return cached.minecraft
     }
-    if (cached?.minecraft) {
-      try {
-        const refreshed = await cached.minecraft.refresh(true)
-        this.cache.set(accountId, { minecraft: refreshed, xbox: cached.xbox })
-        const account = this.toAccountView(refreshed)
-        await this.persist(accountId, cached.xbox, refreshed, account)
-        return refreshed
-      } catch {
-        /* fall through */
-      }
-    }
 
+    const epochAtStart = this.currentEpoch(accountId)
     const secrets = await this.vault.readSecrets(accountId)
     if (!secrets?.microsoft.refreshToken) {
       throw new AuthError('not_logged_in', 'auth.error.notLoggedIn')
     }
 
     const auth = this.createAuth()
-    const xbox = await auth.refresh(secrets.microsoft.refreshToken)
+    // msmc Auth.refresh / Xbox.getMinecraft は node-fetch 依存のため製品版で不安定。
+    // ログイン時と同じネイティブ fetch 経路で更新する。
+    const xbox = await xboxFromRefreshToken(auth, secrets.microsoft.refreshToken)
     const minecraft = await minecraftFromXbox(xbox)
+
+    if (this.currentEpoch(accountId) !== epochAtStart) {
+      const newer = this.cache.get(accountId)
+      if (!force && newer?.minecraft.validate()) return newer.minecraft
+      if (allowRetry) return this.refreshOnce(accountId, force, false)
+      if (newer) return newer.minecraft
+    }
+
     const account = this.toAccountView(minecraft)
     this.cache.set(accountId, { minecraft, xbox })
     await this.persist(accountId, xbox, minecraft, account)
