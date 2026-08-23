@@ -28,6 +28,24 @@ export function MinecraftKeybindsDialog({ open, value, onChange, onClose }: Prop
     if (!open) setListeningId(null)
   }, [open])
 
+  // Chromium はマウス4/5を履歴の戻る/進むに割り当てる。割当て画面では無効化し、キー入力として使えるようにする。
+  useEffect(() => {
+    if (!open) return
+    const blockBrowserNav = (e: MouseEvent) => {
+      if (e.button !== 3 && e.button !== 4) return
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    window.addEventListener('mousedown', blockBrowserNav, true)
+    window.addEventListener('mouseup', blockBrowserNav, true)
+    window.addEventListener('auxclick', blockBrowserNav, true)
+    return () => {
+      window.removeEventListener('mousedown', blockBrowserNav, true)
+      window.removeEventListener('mouseup', blockBrowserNav, true)
+      window.removeEventListener('auxclick', blockBrowserNav, true)
+    }
+  }, [open])
+
   useEffect(() => {
     if (!listeningId) return
 
@@ -52,6 +70,14 @@ export function MinecraftKeybindsDialog({ open, value, onChange, onClose }: Prop
     }
 
     const onMouse = (e: MouseEvent) => {
+      const code = mouseButtonToMcKey(e.button)
+      // マウス4/5は行外でも割当て対象（戻るナビ抑制と両立）
+      if (e.button === 3 || e.button === 4) {
+        e.preventDefault()
+        e.stopPropagation()
+        if (code) finish(code)
+        return
+      }
       const target = e.target as HTMLElement
       if (!target.closest('[data-keybind-row]')) {
         setListeningId(null)
@@ -60,7 +86,6 @@ export function MinecraftKeybindsDialog({ open, value, onChange, onClose }: Prop
       if (target.closest('[data-keybind-ignore]')) return
       e.preventDefault()
       e.stopPropagation()
-      const code = mouseButtonToMcKey(e.button)
       if (code) finish(code)
     }
 
