@@ -26,7 +26,7 @@ function toggleValue<T>(list: T[], value: T): T[] {
 
 const rowClass = (active: boolean) =>
   [
-    'flex w-full items-center rounded px-1.5 py-0.5 text-left text-[11px] leading-tight transition-colors',
+    'flex w-full items-center rounded px-2 py-1 text-left text-[0.95em] leading-snug transition-colors',
     active
       ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
       : 'text-[var(--color-text)] hover:bg-[var(--color-hover)]',
@@ -50,7 +50,7 @@ function FilterBlock({
         compact ? 'shrink-0' : 'min-h-0 flex-1',
       ].join(' ')}
     >
-      <h4 className="mb-1 shrink-0 text-[10px] font-semibold tracking-wide text-[var(--color-text-muted)]">
+      <h4 className="mb-1 shrink-0 text-[0.85em] font-semibold tracking-wide text-[var(--color-text-muted)]">
         {title}
       </h4>
       {extra}
@@ -83,15 +83,25 @@ export function ContentBrowseFilters({
   }, [versionOptions, versionQuery])
 
   return (
-    <aside className="flex min-h-0 w-52 shrink-0 flex-col gap-1.5 overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 p-2">
-      <div className="flex h-6 shrink-0 items-center justify-between gap-1">
-        <h3 className="flex items-center gap-1 text-xs font-semibold text-[var(--color-text)]">
-          <IconAdjustmentsHorizontal size={14} stroke={1.7} className="text-[var(--color-text-muted)]" aria-hidden />
+    <aside
+      className={[
+        '@container/filter flex min-h-0 w-[25%] min-w-44 max-w-72 shrink-0 flex-col gap-1 overflow-hidden',
+        'rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 p-2',
+        'text-[clamp(11px,3cqi,14px)] [container-type:inline-size]',
+      ].join(' ')}
+    >
+      <div className="flex shrink-0 items-center justify-between gap-1 py-0.5">
+        <h3 className="flex items-center gap-1 text-[1.05em] font-semibold leading-none text-[var(--color-text)]">
+          <IconAdjustmentsHorizontal
+            stroke={1.7}
+            className="size-[1.15em] shrink-0 text-[var(--color-text-muted)]"
+            aria-hidden
+          />
           {t('content.filter.title')}
         </h3>
         <button
           type="button"
-          className="rounded px-1.5 py-0.5 text-[10px] text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
+          className="rounded px-1 py-0.5 text-[0.9em] leading-none text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
           onClick={onReset}
         >
           {t('content.filter.reset')}
@@ -103,15 +113,14 @@ export function ContentBrowseFilters({
         extra={
           <div className="relative mb-1 shrink-0">
             <IconSearch
-              size={12}
               stroke={1.75}
-              className="pointer-events-none absolute left-1.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+              className="pointer-events-none absolute left-1.5 top-1/2 size-[1em] -translate-y-1/2 text-[var(--color-text-muted)]"
             />
             <input
               value={versionQuery}
               onChange={(e) => setVersionQuery(e.target.value)}
               placeholder={t('content.filter.versionSearch')}
-              className="w-full rounded border border-[var(--color-border)] bg-[var(--color-input)] py-1 pl-6 pr-1.5 text-[11px] outline-none focus:border-[var(--color-accent)]"
+              className="w-full rounded border border-[var(--color-border)] bg-[var(--color-input)] py-1 pl-[1.75em] pr-1.5 text-[0.95em] outline-none focus:border-[var(--color-accent)]"
             />
           </div>
         }
@@ -130,7 +139,7 @@ export function ContentBrowseFilters({
             >
               <span className="min-w-0 truncate">{id}</span>
               {current ? (
-                <span className="ml-auto shrink-0 pl-1 text-[9px] text-[var(--color-text-muted)]">
+                <span className="ml-auto shrink-0 pl-1 text-[0.8em] text-[var(--color-text-muted)]">
                   {t('content.filter.instanceVersion')}
                 </span>
               ) : null}
@@ -148,7 +157,7 @@ export function ContentBrowseFilters({
                 <label key={loader} className={`${rowClass(checked)} cursor-pointer`}>
                   <input
                     type="checkbox"
-                    className="mr-1 size-3"
+                    className="mr-1 size-[1.05em] shrink-0"
                     checked={checked}
                     onChange={() => onLoaders(toggleValue(loaders, loader))}
                   />
@@ -167,11 +176,11 @@ export function ContentBrowseFilters({
             <label key={tag} className={`${rowClass(checked)} cursor-pointer gap-1`}>
               <input
                 type="checkbox"
-                className="mr-1 size-3 shrink-0"
+                className="mr-1 size-[1.05em] shrink-0"
                 checked={checked}
                 onChange={() => onTags(toggleValue(tags, tag))}
               />
-              <TagIcon icon={iconByTag.get(tag)} />
+              <TagIcon icon={iconByTag.get(tag)} className="[&_svg]:size-[1.05em]" />
               <span className="min-w-0 truncate">{tagLabel(tag, i18n.language)}</span>
             </label>
           )

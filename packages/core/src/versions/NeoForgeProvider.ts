@@ -16,7 +16,7 @@ export class NeoForgeProvider implements LoaderVersionProvider {
     if (!prefix) return []
 
     const res = await fetch(this.metadataUrl, {
-      headers: { 'User-Agent': 'Fledge/0.1.0 (neoforge-versions)' },
+      headers: { 'User-Agent': 'Fledge/0.1.1 (neoforge-versions)' },
     })
     if (!res.ok) throw new Error(`NeoForge metadata HTTP ${res.status}`)
     const xml = await res.text()

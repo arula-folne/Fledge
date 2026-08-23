@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { IconArrowLeft, IconExternalLink } from '@tabler/icons-react'
+import { IconArrowLeft, IconChevronLeft, IconChevronRight, IconExternalLink } from '@tabler/icons-react'
 import type {
   ContentCategory,
   ContentLoaderFilter,
@@ -11,6 +12,7 @@ import type {
   InstanceProfile,
 } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
+import { Button } from '../../components/ui/Button'
 import { formatJaCount } from '../../utils/formatJaCount'
 import { ContentInstallButton, ContentVersionInstallButton } from './ContentInstallButton'
 import { MarkdownBody } from './MarkdownBody'
@@ -58,7 +60,7 @@ export function ContentProjectView({
   const [tab, setTab] = useState<TabId>('description')
   const [versionId, setVersionId] = useState<string | null>(null)
   const [compatOnly, setCompatOnly] = useState(true)
-  const [galleryOpen, setGalleryOpen] = useState<string | null>(null)
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null)
 
   const pageQuery = useQuery({
     queryKey: ['content-project', hit.id],
@@ -108,7 +110,7 @@ export function ContentProjectView({
           onClick={onBack}
         >
           <IconArrowLeft size={14} stroke={1.75} />
-          {t('content.backToSearch')}
+          {t('common.back')}
         </button>
         <a
           href={sourceUrl}
@@ -139,7 +141,9 @@ export function ContentProjectView({
           {project.author ? (
             <p className="mt-0.5 text-xs text-[var(--color-text-muted)]">{project.author}</p>
           ) : null}
-          <p className="mt-1 line-clamp-2 text-sm text-[var(--color-text-muted)]">{project.description}</p>
+          <p className="mt-1 line-clamp-2 break-words text-sm leading-relaxed text-[var(--color-text-muted)]">
+            {project.description}
+          </p>
           <p className="mt-1 text-[11px] tabular-nums text-[var(--color-text-muted)]">
             {t('content.downloadsCount', { n: formatJaCount(project.downloads) })}
           </p>
@@ -186,15 +190,21 @@ export function ContentProjectView({
             </div>
           )
         ) : tab === 'gallery' ? (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {gallery.map((g) => (
-              <button key={g.url} type="button" onClick={() => setGalleryOpen(g.url)}>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            {gallery.map((g, index) => (
+              <button
+                key={g.url}
+                type="button"
+                className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-border)] transition-colors hover:border-[var(--color-accent)]/40"
+                aria-label={g.title ?? t('content.gallery.openImage', { n: index + 1 })}
+                onClick={() => setGalleryIndex(index)}
+              >
                 <img
                   src={g.url}
                   alt={g.title ?? ''}
                   loading="lazy"
                   decoding="async"
-                  className="h-28 w-full rounded-[var(--radius-sm)] object-cover"
+                  className="block h-auto w-full"
                 />
               </button>
             ))}
@@ -223,16 +233,106 @@ export function ContentProjectView({
         )}
       </div>
 
-      {galleryOpen ? (
-        <button
-          type="button"
-          className="fixed inset-x-0 bottom-0 top-[var(--titlebar-offset,0px)] z-[80] flex items-center justify-center bg-black/70 p-6"
-          onClick={() => setGalleryOpen(null)}
-        >
-          <img src={galleryOpen} alt="" className="max-h-full max-w-full object-contain" />
-        </button>
+      {galleryIndex !== null && gallery[galleryIndex] ? (
+        <GalleryLightbox
+          items={gallery}
+          index={galleryIndex}
+          onClose={() => setGalleryIndex(null)}
+          onChange={setGalleryIndex}
+        />
       ) : null}
     </div>
+  )
+}
+
+type GalleryItem = { url: string; title?: string; featured?: boolean }
+
+function GalleryLightbox({
+  items,
+  index,
+  onClose,
+  onChange,
+}: {
+  items: GalleryItem[]
+  index: number
+  onClose: () => void
+  onChange: (index: number) => void
+}) {
+  const { t } = useTranslation()
+  const item = items[index]
+  const hasPrev = index > 0
+  const hasNext = index < items.length - 1
+
+  const goPrev = useCallback(() => {
+    if (hasPrev) onChange(index - 1)
+  }, [hasPrev, index, onChange])
+
+  const goNext = useCallback(() => {
+    if (hasNext) onChange(index + 1)
+  }, [hasNext, index, onChange])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        onClose()
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault()
+        goPrev()
+      } else if (e.key === 'ArrowRight') {
+        e.preventDefault()
+        goNext()
+      }
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [onClose, goPrev, goNext])
+
+  if (!item) return null
+
+  return createPortal(
+    <div className="fixed inset-x-0 bottom-0 top-[var(--titlebar-offset,0px)] z-[100] flex flex-col bg-black/85">
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center overflow-auto pb-16 pt-[2vh]"
+        onClick={onClose}
+        role="presentation"
+      >
+        <img
+          src={item.url}
+          alt={item.title ?? ''}
+          decoding="async"
+          className="h-auto max-h-none w-auto max-w-none object-none"
+          onClick={(e) => e.stopPropagation()}
+        />
+      </div>
+      <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center justify-center gap-3 border-t border-white/10 bg-black/75 px-4 py-3 backdrop-blur-sm">
+        <Button
+          type="button"
+          variant="secondary"
+          className="border-white/15 bg-white/10 text-white hover:bg-white/20"
+          disabled={!hasPrev}
+          onClick={goPrev}
+        >
+          <IconChevronLeft size={16} stroke={1.75} />
+          {t('content.gallery.prev')}
+        </Button>
+        <span className="min-w-[4.5rem] text-center text-sm tabular-nums text-white/80">
+          {t('content.gallery.position', { current: index + 1, total: items.length })}
+        </span>
+        <Button
+          type="button"
+          variant="secondary"
+          className="border-white/15 bg-white/10 text-white hover:bg-white/20"
+          disabled={!hasNext}
+          onClick={goNext}
+        >
+          {t('content.gallery.next')}
+          <IconChevronRight size={16} stroke={1.75} />
+        </Button>
+      </div>
+    </div>,
+    document.body,
   )
 }
 

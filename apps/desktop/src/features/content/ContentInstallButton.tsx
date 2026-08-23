@@ -12,11 +12,11 @@ type Props = {
 }
 
 const sizeClass = {
-  md: 'h-9 min-w-[9rem] whitespace-nowrap px-3 text-sm',
-  sm: 'min-w-[9rem] whitespace-nowrap px-3 py-2 text-sm',
+  md: 'h-9 min-w-[10rem] whitespace-nowrap px-3 text-sm',
+  sm: 'min-w-[9.5rem] whitespace-nowrap px-2.5 py-1.5 text-sm',
 } as const
 
-const versionSizeClass = 'min-w-[8.25rem] whitespace-nowrap px-3 py-1 text-xs'
+const versionSizeClass = 'min-w-[9rem] whitespace-nowrap px-2.5 py-1 text-xs'
 
 function InstallIcon({ installed }: { installed: boolean }) {
   return (
@@ -56,10 +56,10 @@ function InstallLabel({
   const labelClass = compact ? 'text-xs' : 'text-sm'
 
   return (
-    <span className={['relative block flex-1 whitespace-nowrap text-center', labelClass].join(' ')}>
+    <span className={['grid shrink-0 whitespace-nowrap text-center', labelClass].join(' ')}>
       <span
         className={[
-          'block transition-[opacity,transform]',
+          'col-start-1 row-start-1 transition-[opacity,transform]',
           EASE,
           installed ? 'pointer-events-none -translate-y-0.5 scale-95 opacity-0' : 'translate-y-0 scale-100 opacity-100',
         ].join(' ')}
@@ -68,7 +68,7 @@ function InstallLabel({
       </span>
       <span
         className={[
-          'absolute inset-0 flex items-center justify-center transition-[opacity,transform]',
+          'col-start-1 row-start-1 transition-[opacity,transform]',
           EASE,
           installed ? 'translate-y-0 scale-100 opacity-100' : 'pointer-events-none translate-y-0.5 scale-95 opacity-0',
         ].join(' ')}
@@ -97,7 +97,7 @@ export function ContentInstallButton({
       aria-label={installed ? t('content.installed') : t('content.install')}
       aria-live="polite"
       className={[
-        'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border font-medium',
+        'inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-sm)] border font-medium',
         'transition-[background-color,border-color,color,opacity,box-shadow,transform]',
         EASE,
         'active:scale-[0.98] disabled:cursor-default disabled:active:scale-100',
@@ -131,7 +131,7 @@ export function ContentVersionInstallButton({
       aria-label={installed ? t('content.installed') : t('content.install')}
       aria-live="polite"
       className={[
-        'inline-flex shrink-0 items-center justify-center gap-1.5 rounded-[var(--radius-sm)] border font-medium',
+        'inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-sm)] border font-medium',
         'transition-[background-color,border-color,color,opacity,transform]',
         EASE,
         'active:scale-[0.98] disabled:cursor-default disabled:active:scale-100',

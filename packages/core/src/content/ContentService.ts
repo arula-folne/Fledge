@@ -162,7 +162,7 @@ export class ContentService {
       execute: async (ctx) => {
         const buf = await fetchBody(resolved.downloadUrl, {
           signal: ctx.signal,
-          headers: { 'User-Agent': 'Fledge/0.1.0 (content-download)' },
+          headers: { 'User-Agent': 'Fledge/0.1.1 (content-download)' },
           onProgress: (current, total) => {
             ctx.report({
               current,

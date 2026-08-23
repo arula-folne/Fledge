@@ -84,7 +84,7 @@ function TabButton({
       type="button"
       onClick={onClick}
       className={[
-        'rounded-full px-2.5 py-1 text-sm font-medium transition-colors',
+        'rounded-full px-2 py-0.5 text-xs font-medium transition-colors',
         active
           ? 'bg-[var(--color-selection)] text-[var(--color-on-selection)]'
           : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
@@ -276,42 +276,43 @@ export default function LibraryDetailPage() {
   ]
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
-      <div className="flex shrink-0 items-center gap-2">
-        <Button variant="ghost" className="px-2" onClick={() => navigate('/')}>
+    <div className="flex h-full min-h-0 flex-col gap-2">
+      <header className="flex shrink-0 flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5">
+        <Button
+          variant="ghost"
+          className="shrink-0 px-1.5 py-1"
+          title={t('library.backToList')}
+          onClick={() => navigate('/')}
+        >
           <IconArrowLeft size={16} stroke={1.75} />
-          {t('library.backToList')}
         </Button>
-      </div>
-
-      <header className="flex flex-wrap items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5">
         <InstanceIcon
           instance={instance}
           preset={settingsOpen ? draft.iconPreset : undefined}
-          size="md"
+          size="sm"
         />
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-semibold">{instance.name}</h1>
-          <p className="truncate text-xs text-[var(--color-text-muted)]">
+          <h1 className="truncate text-sm font-semibold leading-tight">{instance.name}</h1>
+          <p className="truncate text-[11px] leading-tight text-[var(--color-text-muted)]">
             {instance.minecraftVersion} · {formatLoaderLabel(instance.loader, t)}
             {' · '}
-            {t('instances.lastPlayed')}: {formatLastPlayed(instance.lastPlayedAt, t)}
+            {formatLastPlayed(instance.lastPlayedAt, t)}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-1">
           <InstanceLaunchButton instanceId={instance.id} />
           <Button
             variant="secondary"
-            className="px-2"
+            className="px-1.5 py-1"
             title={t('library.tab.settings')}
             onClick={() => setEditingInstanceId(instance.id)}
           >
-            <IconSettings size={18} stroke={1.75} />
+            <IconSettings size={16} stroke={1.75} />
           </Button>
         </div>
       </header>
 
-      <nav className="flex shrink-0 flex-wrap gap-1">
+      <nav className="flex shrink-0 flex-wrap gap-0.5">
         {tabs.map((item) => (
           <TabButton
             key={item.id}
@@ -322,7 +323,12 @@ export default function LibraryDetailPage() {
         ))}
       </nav>
 
-      <div className="min-h-0 flex-1 overflow-auto">
+      <div
+        className={[
+          'min-h-0 flex-1',
+          tab === 'content' ? 'overflow-hidden' : 'overflow-auto',
+        ].join(' ')}
+      >
       {tab === 'content' ? (
         <Suspense
           fallback={<p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>}
@@ -333,7 +339,9 @@ export default function LibraryDetailPage() {
             description={t('content.panelErrorBody')}
             retryLabel={t('common.retry')}
           >
-            <ContentTab instance={instance} />
+            <div className="h-full min-h-0">
+              <ContentTab instance={instance} />
+            </div>
           </RouteErrorBoundary>
         </Suspense>
       ) : null}

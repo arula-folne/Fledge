@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { IconSearch } from '@tabler/icons-react'
 import {
@@ -33,14 +33,56 @@ const CATEGORIES: ContentCategory[] = ['mod', 'resourcepack', 'datapack', 'shade
 const SORTS: ContentSearchSort[] = ['relevance', 'downloads', 'follows', 'newest', 'updated']
 
 const selectClass =
-  'rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-2.5 py-1.5 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]'
+  'rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-2 py-1 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]'
+
+function buildContentSearchInput(input: {
+  category: ContentCategory
+  debouncedQuery: string
+  gameVersion: string
+  loaders: ContentLoaderFilter[]
+  tags: string[]
+  sort: ContentSearchSort
+  page: number
+  pageSize: number
+}): ContentSearchQuery {
+  return {
+    query: input.debouncedQuery,
+    category: input.category,
+    gameVersion: input.gameVersion.trim() || undefined,
+    loaders: input.category === 'mod' || input.category === 'plugin' ? input.loaders : [],
+    tags: input.tags,
+    environments: [],
+    provider: 'modrinth',
+    sort: input.sort,
+    offset: (input.page - 1) * input.pageSize,
+    limit: input.pageSize,
+  }
+}
+
+function keepSearchDataForSameCategory<T>(
+  previousData: T | undefined,
+  previousQuery: { queryKey: readonly unknown[] } | undefined,
+  category: ContentCategory,
+): T | undefined {
+  const prev = previousQuery?.queryKey[1] as ContentSearchQuery | undefined
+  return prev?.category === category ? previousData : undefined
+}
+
+function keepInstalledDataForInstance<T>(
+  previousData: T | undefined,
+  previousQuery: { queryKey: readonly unknown[] } | undefined,
+  instanceId: string,
+): T | undefined {
+  const [key, id] = previousQuery?.queryKey ?? []
+  return key === 'content-installed' && id === instanceId ? previousData : undefined
+}
 
 type Props = {
   open: boolean
+  /** 検索 UI を表示するモード（browse=1）。false のときはインストール済み詳細のみ */
+  browseMode?: boolean
   onClose: () => void
   instance: InstanceProfile
-  category: ContentCategory
-  onCategoryChange: (category: ContentCategory) => void
   projectId: string | null
   onSelectProject: (hit: ContentProject) => void
   onBackFromProject: () => void
@@ -49,10 +91,9 @@ type Props = {
 
 export function AddContentModal({
   open,
+  browseMode = true,
   onClose,
   instance,
-  category,
-  onCategoryChange,
   projectId,
   onSelectProject,
   onBackFromProject,
@@ -60,7 +101,8 @@ export function AddContentModal({
 }: Props) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const wasOpenRef = useRef(false)
+  const wasBrowseOpenRef = useRef(false)
+  const [searchCategory, setSearchCategory] = useState<ContentCategory>('mod')
   const [query, setQuery] = useState('')
   const [gameVersion, setGameVersion] = useState(instance.minecraftVersion)
   const [loaders, setLoaders] = useState<ContentLoaderFilter[]>(() =>
@@ -89,17 +131,18 @@ export function AddContentModal({
     }
     return ids
   }, [jobs, instance.id])
-  const tagIcons = useModrinthTagIcons(category)
+  const tagIcons = useModrinthTagIcons(searchCategory)
 
   const versionsQuery = useQuery({
     queryKey: ['versions-minecraft', false],
     queryFn: () => fledgeApi.versions.listMinecraft({ includeSnapshots: false }),
-    enabled: open,
+    enabled: open && browseMode,
     staleTime: 10 * 60_000,
   })
 
   useEffect(() => {
-    if (open && !wasOpenRef.current) {
+    if (open && browseMode && !wasBrowseOpenRef.current) {
+      setSearchCategory('mod')
       setGameVersion(instance.minecraftVersion)
       setLoaders(loaderToContentFilters(instance.loader))
       setTags([])
@@ -111,8 +154,8 @@ export function AddContentModal({
       setError(null)
       reset()
     }
-    wasOpenRef.current = open
-  }, [open, instance.id, instance.minecraftVersion, instance.loader, reset])
+    wasBrowseOpenRef.current = open && browseMode
+  }, [open, browseMode, instance.id, instance.minecraftVersion, instance.loader, reset])
 
   useEffect(() => {
     const id = window.setTimeout(() => setDebouncedQuery(query.trim()), 400)
@@ -121,11 +164,48 @@ export function AddContentModal({
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedQuery, category, gameVersion, loaders, tags, sort, pageSize])
+  }, [debouncedQuery, searchCategory, gameVersion, loaders, tags, sort, pageSize])
 
   useEffect(() => {
     setTags([])
-  }, [category])
+  }, [searchCategory])
+
+  const prefetchCategorySearch = useCallback(
+    (cat: ContentCategory, searchTags: string[] = []) => {
+      const input = buildContentSearchInput({
+        category: cat,
+        debouncedQuery,
+        gameVersion,
+        loaders,
+        tags: searchTags,
+        sort,
+        page: 1,
+        pageSize,
+      })
+      return queryClient.prefetchQuery({
+        queryKey: ['content-search', input],
+        queryFn: () => fledgeApi.content.search(input),
+        staleTime: 30_000,
+      })
+    },
+    [debouncedQuery, gameVersion, loaders, sort, pageSize, queryClient],
+  )
+
+  useEffect(() => {
+    if (!open) return
+    void queryClient.prefetchQuery({
+      queryKey: ['content-installed', instance.id, 'all'],
+      queryFn: () => fledgeApi.content.listInstalled(instance.id),
+      staleTime: 30_000,
+    })
+  }, [open, instance.id, queryClient])
+
+  useEffect(() => {
+    if (!open || !browseMode || projectId) return
+    for (const cat of CATEGORIES) {
+      void prefetchCategorySearch(cat, cat === searchCategory ? tags : [])
+    }
+  }, [open, browseMode, projectId, searchCategory, tags, prefetchCategorySearch])
 
   const versionOptions = useMemo(() => {
     const ids = (versionsQuery.data?.versions ?? []).map((v) => v.id)
@@ -133,36 +213,37 @@ export function AddContentModal({
   }, [versionsQuery.data?.versions, instance.minecraftVersion])
 
   const searchInput: ContentSearchQuery = useMemo(
-    () => ({
-      query: debouncedQuery,
-      category,
-      gameVersion: gameVersion.trim() || undefined,
-      loaders: category === 'mod' || category === 'plugin' ? loaders : [],
-      tags,
-      environments: [],
-      provider: 'modrinth',
-      sort,
-      offset: (page - 1) * pageSize,
-      limit: pageSize,
-    }),
-    [debouncedQuery, category, gameVersion, loaders, tags, sort, page, pageSize],
+    () =>
+      buildContentSearchInput({
+        category: searchCategory,
+        debouncedQuery,
+        gameVersion,
+        loaders,
+        tags,
+        sort,
+        page,
+        pageSize,
+      }),
+    [debouncedQuery, searchCategory, gameVersion, loaders, tags, sort, page, pageSize],
   )
 
   const searchQuery = useQuery({
     queryKey: ['content-search', searchInput],
     queryFn: () => fledgeApi.content.search(searchInput),
-    enabled: open,
-    placeholderData: keepPreviousData,
+    enabled: open && browseMode && !projectId,
+    placeholderData: (previousData, previousQuery) =>
+      keepSearchDataForSameCategory(previousData, previousQuery, searchCategory),
     staleTime: 30_000,
     retry: 2,
     retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 5_000),
   })
 
   const installedQuery = useQuery({
-    queryKey: ['content-installed', instance.id, category],
-    queryFn: () => fledgeApi.content.listInstalled(instance.id, category),
+    queryKey: ['content-installed', instance.id, 'all'],
+    queryFn: () => fledgeApi.content.listInstalled(instance.id),
     enabled: open,
-    placeholderData: keepPreviousData,
+    placeholderData: (previousData, previousQuery) =>
+      keepInstalledDataForInstance(previousData, previousQuery, instance.id),
   })
 
   const installedProjectIds = useMemo(
@@ -216,10 +297,10 @@ export function AddContentModal({
         instanceId: instance.id,
         provider: 'modrinth',
         projectId: input.id,
-        category,
+        category: searchCategory,
         versionId: input.versionId,
         gameVersion: gameVersion.trim() || undefined,
-        loaders: category === 'mod' || category === 'plugin' ? loaders : [],
+        loaders: searchCategory === 'mod' || searchCategory === 'plugin' ? loaders : [],
       }),
     onError: (err, input) => {
       unmark(input.id)
@@ -268,15 +349,19 @@ export function AddContentModal({
   const selected = selectedFromHits ?? projectQuery.data?.project ?? null
   const total = searchQuery.data?.total ?? 0
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
-  const typeLabel = t(`content.category.${category}`)
+  const typeLabel = t(`content.category.${searchCategory}`)
+  const dialogTitle =
+    selected?.name ??
+    (browseMode ? t('content.browseTitle') : projectId ? t('content.detailTitle') : t('content.browseTitle'))
 
   return (
     <Dialog
       open={open}
-      title={t('content.browseTitle')}
+      title={dialogTitle}
       subtitle={`${instance.name} · ${instance.minecraftVersion} · ${instance.loader}`}
       onClose={onClose}
       size="full"
+      compact
     >
       {projectId ? (
         selected ? (
@@ -302,10 +387,10 @@ export function AddContentModal({
           <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
         )
       ) : (
-        <div className="flex min-h-0 flex-1 gap-4">
+        <div className="flex min-h-0 flex-1 gap-2">
           <ContentBrowseFilters
             instance={instance}
-            category={category}
+            category={searchCategory}
             gameVersion={gameVersion}
             loaders={loaders}
             tags={tags}
@@ -319,123 +404,133 @@ export function AddContentModal({
               setTags([])
             }}
           />
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
-          <div className="flex shrink-0 flex-wrap gap-1.5">
-            {CATEGORIES.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => onCategoryChange(c)}
-                className={[
-                  'inline-flex items-center rounded-[var(--radius-sm)] px-3 py-2 text-sm font-medium transition-colors',
-                  category === c
-                    ? 'bg-[var(--color-selection)] text-[var(--color-on-selection)]'
-                    : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)]',
-                ].join(' ')}
-              >
-                <ContentCategoryLabel category={c} iconSize={16} />
-              </button>
-            ))}
-          </div>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+              {CATEGORIES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onMouseEnter={() => void prefetchCategorySearch(c, c === searchCategory ? tags : [])}
+                  onFocus={() => void prefetchCategorySearch(c, c === searchCategory ? tags : [])}
+                  onClick={() => {
+                    if (c === searchCategory) return
+                    setTags([])
+                    setSearchCategory(c)
+                  }}
+                  className={[
+                    'inline-flex items-center rounded-full px-2.5 py-1 text-sm font-medium transition-colors',
+                    searchCategory === c
+                      ? 'bg-[var(--color-selection)] text-[var(--color-on-selection)]'
+                      : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)]',
+                  ].join(' ')}
+                >
+                  <ContentCategoryLabel category={c} iconSize={15} />
+                </button>
+              ))}
+            </div>
 
-          <div className="relative shrink-0">
-            <IconSearch
-              size={18}
-              stroke={1.75}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
-            />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={
-                total > 0
-                  ? t('content.searchPlaceholderCount', {
-                      total: total.toLocaleString('ja-JP'),
-                      type: typeLabel,
-                    })
-                  : t('content.searchPlaceholder', { type: typeLabel })
-              }
-              className="w-full rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] py-2.5 pl-11 pr-4 text-sm outline-none focus:border-[var(--color-accent)]"
-            />
-          </div>
+            <div className="flex shrink-0 flex-wrap items-center gap-2">
+              <div className="relative min-w-[14rem] flex-1">
+                <IconSearch
+                  size={16}
+                  stroke={1.75}
+                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+                />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder={
+                    total > 0
+                      ? t('content.searchPlaceholderCount', {
+                          total: total.toLocaleString('ja-JP'),
+                          type: typeLabel,
+                        })
+                      : t('content.searchPlaceholder', { type: typeLabel })
+                  }
+                  className="w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] py-1.5 pl-9 pr-3 text-sm outline-none focus:border-[var(--color-accent)]"
+                />
+              </div>
+              <label className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+                {t('content.sort.label')}
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as ContentSearchSort)}
+                  className={selectClass}
+                >
+                  {SORTS.map((s) => (
+                    <option key={s} value={s}>
+                      {t(`content.sort.${s}`)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+                {t('content.showCount')}
+                <select
+                  value={pageSize}
+                  onChange={(e) => setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number])}
+                  className={selectClass}
+                >
+                  {PAGE_SIZES.map((n) => (
+                    <option key={n} value={n}>
+                      {n}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {total > 0 ? (
+                <span className="text-sm tabular-nums text-[var(--color-text-muted)]">
+                  {t('content.resultCount', { total: total.toLocaleString('ja-JP') })}
+                </span>
+              ) : null}
+              <div className="ml-auto">
+                <PageNav page={page} pageCount={pageCount} onChange={setPage} />
+              </div>
+            </div>
 
-          <div className="flex min-h-10 shrink-0 flex-wrap items-center gap-3">
-            <label className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-              {t('content.sort.label')}
-              <select
-                value={sort}
-                onChange={(e) => setSort(e.target.value as ContentSearchSort)}
-                className={selectClass}
-              >
-                {SORTS.map((s) => (
-                  <option key={s} value={s}>
-                    {t(`content.sort.${s}`)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-              {t('content.showCount')}
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number])}
-                className={selectClass}
-              >
-                {PAGE_SIZES.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {total > 0 ? (
-              <span className="text-sm text-[var(--color-text-muted)]">
-                {t('content.resultCount', { total: total.toLocaleString('ja-JP') })}
-              </span>
+            {error ? (
+              <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2.5 py-1.5 text-sm text-[var(--color-danger)]">
+                {error}
+              </p>
             ) : null}
-            <div className="ml-auto">
-              <PageNav page={page} pageCount={pageCount} onChange={setPage} />
-            </div>
-          </div>
+            {searchErrorMessage ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2.5 py-1.5 text-sm text-[var(--color-danger)]">
+                <p className="min-w-0 flex-1">{searchErrorMessage}</p>
+                <button
+                  type="button"
+                  className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-2.5 py-1 text-sm font-medium text-[var(--color-on-accent)]"
+                  onClick={() => void searchQuery.refetch()}
+                >
+                  {t('common.retry')}
+                </button>
+              </div>
+            ) : null}
 
-          {error ? (
-            <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-3 py-2 text-sm text-[var(--color-danger)]">
-              {error}
-            </p>
-          ) : null}
-          {searchErrorMessage ? (
-            <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-3 py-2 text-sm text-[var(--color-danger)]">
-              <p className="min-w-0 flex-1">{searchErrorMessage}</p>
-              <button
-                type="button"
-                className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent)] px-3 py-1.5 text-sm font-medium text-[var(--color-on-accent)]"
-                onClick={() => void searchQuery.refetch()}
-              >
-                {t('common.retry')}
-              </button>
+            <div
+              className={[
+                'min-h-0 flex-1 overflow-y-auto transition-opacity',
+                searchQuery.isFetching && !searchQuery.isPending ? 'opacity-80' : '',
+              ].join(' ')}
+            >
+              {searchQuery.isPending && !searchQuery.data ? (
+                <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
+              ) : searchQuery.isError && hits.length === 0 ? null : hits.length === 0 ? (
+                <p className="text-sm text-[var(--color-text-muted)]">{t('content.noResults')}</p>
+              ) : (
+                <ul className="divide-y divide-[var(--color-border)] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
+                  {hits.map((hit) => (
+                    <SearchHitRow
+                      key={`${hit.provider}:${hit.id}`}
+                      hit={hit}
+                      installed={resolveInstalled(hit.id)}
+                      tagIcons={tagIcons}
+                      onOpen={() => onSelectProject(hit)}
+                      onInstall={() => requestInstall({ id: hit.id })}
+                    />
+                  ))}
+                </ul>
+              )}
             </div>
-          ) : null}
-
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {searchQuery.isPending && !searchQuery.data ? (
-              <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
-            ) : searchQuery.isError && hits.length === 0 ? null : hits.length === 0 ? (
-              <p className="text-sm text-[var(--color-text-muted)]">{t('content.noResults')}</p>
-            ) : (
-              <ul className="divide-y divide-[var(--color-border)] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
-                {hits.map((hit) => (
-                  <SearchHitRow
-                    key={`${hit.provider}:${hit.id}`}
-                    hit={hit}
-                    installed={resolveInstalled(hit.id)}
-                    tagIcons={tagIcons}
-                    onOpen={() => onSelectProject(hit)}
-                    onInstall={() => requestInstall({ id: hit.id })}
-                  />
-                ))}
-              </ul>
-            )}
-          </div>
           </div>
         </div>
       )}
@@ -458,10 +553,10 @@ function SearchHitRow({
 }) {
   return (
     <li>
-      <div className="flex items-center gap-3 px-3.5 py-2.5">
+      <div className="flex items-start gap-3 px-3.5 py-3">
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-center gap-3 text-left"
+          className="flex min-w-0 flex-1 items-start gap-3 text-left"
           onClick={onOpen}
         >
           {hit.iconUrl ? (
@@ -479,23 +574,31 @@ function SearchHitRow({
           )}
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-baseline gap-2">
-              <span className="truncate text-sm font-medium">{hit.name}</span>
+              <span className="truncate text-base font-medium leading-snug">{hit.name}</span>
               {hit.author ? (
-                <span className="truncate text-xs text-[var(--color-text-muted)]">{hit.author}</span>
+                <span className="truncate text-sm text-[var(--color-text-muted)]">{hit.author}</span>
               ) : null}
-              <span className="ml-auto shrink-0 text-xs tabular-nums text-[var(--color-text-muted)]">
+              <span className="ml-auto shrink-0 text-sm tabular-nums text-[var(--color-text-muted)]">
                 {formatJaCount(hit.downloads)}
               </span>
             </div>
-            <p className="truncate text-xs text-[var(--color-text-muted)]">{hit.description}</p>
-            <ProjectTagRow
-              categories={hit.displayCategories ?? []}
-              loaders={hit.loaders ?? []}
-              tagIcons={tagIcons}
-            />
+            {hit.description ? (
+              <p className="mt-0.5 line-clamp-2 break-words text-sm leading-relaxed text-[var(--color-text-muted)]">
+                {hit.description}
+              </p>
+            ) : null}
+            <div className="mt-0.5">
+              <ProjectTagRow
+                categories={hit.displayCategories ?? []}
+                loaders={hit.loaders ?? []}
+                tagIcons={tagIcons}
+              />
+            </div>
           </div>
         </button>
-        <ContentInstallButton size="sm" installed={installed} installing={false} onInstall={onInstall} />
+        <div className="shrink-0 self-center">
+          <ContentInstallButton size="sm" installed={installed} installing={false} onInstall={onInstall} />
+        </div>
       </div>
     </li>
   )

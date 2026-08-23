@@ -108,7 +108,7 @@ export class LocalJsonNewsProvider implements NewsProvider {
         redirect: 'follow',
         headers: {
           Accept: 'application/json',
-          'User-Agent': 'Fledge/0.1.0 (news-fetcher)',
+          'User-Agent': 'Fledge/0.1.1 (news-fetcher)',
         },
       })
       if (!res.ok) throw new Error(`News fetch failed: HTTP ${res.status}`)

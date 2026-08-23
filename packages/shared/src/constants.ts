@@ -1,7 +1,7 @@
 export const BRAND = {
   name: 'Fledge',
-  versionFull: 'Fledge Ver.0.1.0 - Beta',
-  versionShort: '0.1.0',
+  versionFull: 'Fledge Ver.0.1.1 - Beta',
+  versionShort: '0.1.1',
   author: 'folne',
   developedBy: 'Developed by folne',
 } as const

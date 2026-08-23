@@ -223,7 +223,7 @@ export function ProjectTagRow({
   )
   if (!shownLoaders.length && !tags.length) return null
   return (
-    <p className="truncate text-xs text-[var(--color-text-muted)]">
+    <p className="truncate text-sm text-[var(--color-text-muted)]">
       <LoaderInlineList loaders={shownLoaders} />
       {shownLoaders.length && tags.length ? (
         <span className="text-[var(--color-text-muted)]"> · </span>
@@ -232,7 +232,7 @@ export function ProjectTagRow({
         <Fragment key={tag}>
           {index > 0 ? <span className="text-[var(--color-text-muted)]"> · </span> : null}
           <span className="inline-flex items-center gap-0.5">
-            <TagIcon icon={tagIcons?.get(tag)} className="[&_svg]:size-3" />
+            <TagIcon icon={tagIcons?.get(tag)} className="[&_svg]:size-3.5" />
             {tagLabel(tag, i18n.language)}
           </span>
         </Fragment>

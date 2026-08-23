@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   IconBraces,
+  IconLayoutGrid,
   IconPalette,
   IconPlug,
   IconPuzzle,
@@ -56,9 +57,24 @@ export function ContentCategoryLabel({
 }) {
   const { t } = useTranslation()
   return (
-    <span className="inline-flex items-center gap-1.5">
+    <span className="inline-flex items-center gap-1">
       <ContentCategoryIcon category={category} size={iconSize} />
       {t(`content.category.${category}`)}
+    </span>
+  )
+}
+
+export function ContentFilterAllLabel({ iconSize = 14 }: { iconSize?: number }) {
+  const { t } = useTranslation()
+  return (
+    <span className="inline-flex items-center gap-1">
+      <IconLayoutGrid
+        size={iconSize}
+        stroke={1.75}
+        className="shrink-0 text-[var(--color-text-muted)]"
+        aria-hidden
+      />
+      {t('content.category.all')}
     </span>
   )
 }

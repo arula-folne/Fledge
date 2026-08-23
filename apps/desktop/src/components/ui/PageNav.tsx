@@ -30,7 +30,7 @@ function pageItems(current: number, total: number): Array<number | 'gap'> {
 }
 
 const btn =
-  'rounded-[var(--radius-sm)] px-2.5 py-1.5 text-xs leading-none transition-colors disabled:opacity-40'
+  'rounded-[var(--radius-sm)] px-2 py-1 text-sm leading-none transition-colors disabled:opacity-40'
 
 export function PageNav({ page, pageCount, onChange }: Props) {
   const { t } = useTranslation()
@@ -64,7 +64,7 @@ export function PageNav({ page, pageCount, onChange }: Props) {
             aria-label={t('content.pageAria', { page: item })}
             className={[
               btn,
-              'min-w-8 tabular-nums',
+              'min-w-6 tabular-nums',
               item === current
                 ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
                 : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',

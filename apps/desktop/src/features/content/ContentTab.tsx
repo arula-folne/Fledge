@@ -2,11 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import {
-  IconPlus,
-  IconRefresh,
-  IconTrash,
-} from '@tabler/icons-react'
+import { IconLayoutGrid, IconPlus, IconRefresh, IconTrash } from '@tabler/icons-react'
 import type { ContentCategory, ContentProject, InstalledContent, InstanceProfile } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
 import { RouteErrorBoundary } from '../../components/RouteErrorBoundary'
@@ -16,13 +12,20 @@ import { Dialog } from '../../components/ui/Dialog'
 import { Switch } from '../../components/ui/Switch'
 import {
   closeBrowse,
+  closeProject,
+  type ContentListFilter,
   openBrowse,
-  parseContentCategory,
-  writeContentCategory,
+  openProject,
+  parseContentFilter,
+  writeContentFilter,
   writeProject,
 } from '../../navigation/libraryDetailSearch'
 import { AddContentModal } from './AddContentModal'
-import { ContentCategoryIcon, ContentCategoryLabel } from './contentCategoryIcons'
+import {
+  ContentCategoryIcon,
+  ContentCategoryLabel,
+  ContentFilterAllLabel,
+} from './contentCategoryIcons'
 import { useTransferStore } from '../../stores/appStores'
 
 const CATEGORIES: ContentCategory[] = [
@@ -44,20 +47,21 @@ export function ContentTab({ instance }: Props) {
   const queryClient = useQueryClient()
   const [removeTarget, setRemoveTarget] = useState<InstalledContent | null>(null)
 
-  const category = parseContentCategory(searchParams.get('category'))
+  const listFilter = parseContentFilter(searchParams.get('category'))
   const browseOpen = searchParams.get('browse') === '1'
   const projectId = searchParams.get('project')
+  const contentModalOpen = browseOpen || Boolean(projectId)
 
-  const changeCategory = useCallback(
-    (next: ContentCategory) => {
-      if (next === category) return
+  const changeFilter = useCallback(
+    (next: ContentListFilter) => {
+      if (next === listFilter) return
       setSearchParams((prev) => {
         const params = new URLSearchParams(prev)
-        writeContentCategory(params, next)
+        writeContentFilter(params, next)
         return params
       })
     },
-    [category, setSearchParams],
+    [listFilter, setSearchParams],
   )
 
   const openBrowseModal = useCallback(() => {
@@ -90,13 +94,39 @@ export function ContentTab({ instance }: Props) {
     [setSearchParams],
   )
 
+  const openInstalledProject = useCallback(
+    (item: InstalledContent) => {
+      setSearchParams((prev) => {
+        const params = new URLSearchParams(prev)
+        openProject(params, item.slug || item.projectId)
+        return params
+      })
+    },
+    [setSearchParams],
+  )
+
   const backFromProject = useCallback(() => {
-    navigate(-1)
-  }, [navigate])
+    if (browseOpen) {
+      navigate(-1)
+      return
+    }
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev)
+        closeProject(params)
+        return params
+      },
+      { replace: true },
+    )
+  }, [browseOpen, navigate, setSearchParams])
 
   const installedQuery = useQuery({
-    queryKey: ['content-installed', instance.id, category],
-    queryFn: () => fledgeApi.content.listInstalled(instance.id, category),
+    queryKey: ['content-installed', instance.id, listFilter],
+    queryFn: () =>
+      fledgeApi.content.listInstalled(
+        instance.id,
+        listFilter === 'all' ? undefined : listFilter,
+      ),
     placeholderData: keepPreviousData,
   })
 
@@ -150,36 +180,50 @@ export function ContentTab({ instance }: Props) {
   }, [jobs, instance.id])
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1">
+    <div className="flex h-full min-h-0 flex-col gap-1.5">
+      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+        <div className="flex min-w-0 flex-1 flex-wrap gap-0.5">
+          <button
+            type="button"
+            onClick={() => changeFilter('all')}
+            className={[
+              'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors',
+              listFilter === 'all'
+                ? 'bg-[var(--color-selection)] text-[var(--color-on-selection)]'
+                : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)]',
+            ].join(' ')}
+          >
+            <ContentFilterAllLabel iconSize={13} />
+          </button>
           {CATEGORIES.map((c) => (
             <button
               key={c}
               type="button"
-              onClick={() => changeCategory(c)}
+              onClick={() => changeFilter(c)}
               className={[
-                'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium transition-colors',
-                category === c
+                'inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors',
+                listFilter === c
                   ? 'bg-[var(--color-selection)] text-[var(--color-on-selection)]'
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)]',
               ].join(' ')}
             >
-              <ContentCategoryLabel category={c} iconSize={16} />
+              <ContentCategoryLabel category={c} iconSize={13} />
             </button>
           ))}
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex shrink-0 flex-wrap gap-1">
           <Button
             variant="secondary"
+            className="px-2 py-1 text-xs"
             disabled={updatesMutation.isPending}
+            title={t('content.checkUpdates')}
             onClick={() => updatesMutation.mutate()}
           >
-            <IconRefresh size={16} stroke={1.75} />
+            <IconRefresh size={14} stroke={1.75} />
             {t('content.checkUpdates')}
           </Button>
-          <Button variant="primary" onClick={openBrowseModal}>
-            <IconPlus size={16} stroke={1.75} />
+          <Button variant="primary" className="px-2.5 py-1 text-xs" onClick={openBrowseModal}>
+            <IconPlus size={14} stroke={1.75} />
             {t('content.add')}
           </Button>
         </div>
@@ -188,48 +232,68 @@ export function ContentTab({ instance }: Props) {
       {installedQuery.isPending && !installedQuery.data ? (
         <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
       ) : items.length === 0 ? (
-        <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-4 py-8 text-center">
-          <ContentCategoryIcon category={category} size={28} className="mx-auto opacity-80" />
-          <p className="mt-2 text-sm text-[var(--color-text-muted)]">{t('content.empty')}</p>
-          <Button className="mt-3" variant="primary" onClick={openBrowseModal}>
-            <IconPlus size={16} stroke={1.75} />
+        <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] px-3 py-6 text-center">
+          {listFilter === 'all' ? (
+            <IconLayoutGrid size={22} className="mx-auto opacity-80 text-[var(--color-text-muted)]" />
+          ) : (
+            <ContentCategoryIcon category={listFilter} size={22} className="mx-auto opacity-80" />
+          )}
+          <p className="mt-1.5 text-xs text-[var(--color-text-muted)]">
+            {listFilter === 'all' ? t('content.empty') : t('content.emptyFiltered')}
+          </p>
+          <Button className="mt-2 px-2.5 py-1 text-xs" variant="primary" onClick={openBrowseModal}>
+            <IconPlus size={14} stroke={1.75} />
             {t('content.add')}
           </Button>
         </div>
       ) : (
-        <ul className="divide-y divide-[var(--color-border)] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
+        <ul className="min-h-0 flex-1 divide-y divide-[var(--color-border)] overflow-y-auto rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
           {items.map((item) => (
-            <li key={item.id} className="flex flex-wrap items-center gap-2.5 px-3 py-2">
-              {item.iconUrl ? (
-                <img
-                  src={item.iconUrl}
-                  alt=""
-                  width={32}
-                  height={32}
-                  loading="lazy"
-                  decoding="async"
-                  className="size-8 rounded-[var(--radius-sm)] object-cover"
-                />
-              ) : (
-                <div className="flex size-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)]">
-                  <ContentCategoryIcon category={category} size={16} />
+            <li key={item.id} className="flex items-center gap-3 px-3 py-2">
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-center gap-3 text-left transition-colors hover:bg-[var(--color-hover)]/60 -mx-1 rounded-[var(--radius-sm)] px-1 py-0.5"
+                aria-label={t('content.openDetail', { name: item.name })}
+                onClick={() => openInstalledProject(item)}
+              >
+                {item.iconUrl ? (
+                  <img
+                    src={item.iconUrl}
+                    alt=""
+                    width={40}
+                    height={40}
+                    loading="lazy"
+                    decoding="async"
+                    className="size-10 shrink-0 rounded-[var(--radius-sm)] object-cover"
+                  />
+                ) : (
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)]">
+                    <ContentCategoryIcon category={item.category} size={18} />
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium leading-snug">{item.name}</div>
+                  <div className="truncate text-xs leading-snug text-[var(--color-text-muted)]">
+                    {listFilter === 'all' ? (
+                      <>
+                        {t(`content.category.${item.category}`)}
+                        {' · '}
+                      </>
+                    ) : null}
+                    {item.versionNumber}
+                    {item.updateAvailable && item.latestVersionNumber
+                      ? ` → ${item.latestVersionNumber}`
+                      : ''}
+                    {' · '}
+                    {item.provider}
+                    {!item.enabled ? ` · ${t('content.disabled')}` : ''}
+                  </div>
                 </div>
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium">{item.name}</div>
-                <div className="text-[11px] text-[var(--color-text-muted)]">
-                  {item.versionNumber}
-                  {item.updateAvailable && item.latestVersionNumber
-                    ? ` → ${item.latestVersionNumber}`
-                    : ''}
-                  {' · '}
-                  {item.provider}
-                  {!item.enabled ? ` · ${t('content.disabled')}` : ''}
-                </div>
-              </div>
+              </button>
               {item.updateAvailable ? (
                 <Button
                   variant="secondary"
+                  className="px-2.5 py-1 text-xs"
                   disabled={installingProjectIds.has(item.projectId)}
                   onClick={() => updateMutation.mutate(item)}
                 >
@@ -244,10 +308,12 @@ export function ContentTab({ instance }: Props) {
               />
               <Button
                 variant="ghost"
-                className="px-2 text-[var(--color-danger)]"
+                className="size-9 shrink-0 px-0 text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10"
+                title={t('content.remove')}
+                aria-label={t('content.remove')}
                 onClick={() => setRemoveTarget(item)}
               >
-                <IconTrash size={16} stroke={1.75} />
+                <IconTrash size={24} stroke={1.75} />
               </Button>
             </li>
           ))}
@@ -255,9 +321,9 @@ export function ContentTab({ instance }: Props) {
       )}
 
       <RouteErrorBoundary
-        resetKeys={[browseOpen, category, projectId ?? '']}
+        resetKeys={[browseOpen, listFilter, projectId ?? '']}
         fallback={({ reset }) =>
-          browseOpen ? (
+          contentModalOpen ? (
             <Dialog
               open
               title={t('content.browseErrorTitle')}
@@ -281,11 +347,10 @@ export function ContentTab({ instance }: Props) {
         }
       >
         <AddContentModal
-          open={browseOpen}
+          open={contentModalOpen}
+          browseMode={browseOpen}
           onClose={closeBrowseModal}
           instance={instance}
-          category={category}
-          onCategoryChange={changeCategory}
           projectId={projectId}
           onSelectProject={selectProject}
           onBackFromProject={backFromProject}
