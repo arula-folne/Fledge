@@ -1,4 +1,4 @@
-; Fledge modern installer UI
+; Fledge modern installer UI (Modrinth-inspired: clean, compact, one clear CTA)
 !include "nsDialogs.nsh"
 !include "LogicLib.nsh"
 !include "WinMessages.nsh"
@@ -9,17 +9,18 @@
   Var FledgeDesktopCheck
   Var FledgeDesktopEnabled
   Var FledgeLaunchCheck
+  Var FledgeDialog
 !endif
 
 !macro customHeader
   !ifndef MUI_BGCOLOR
-    !define MUI_BGCOLOR F7F9FC
+    !define MUI_BGCOLOR F8FAFC
   !endif
   !ifndef MUI_TEXTCOLOR
-    !define MUI_TEXTCOLOR 1A2332
+    !define MUI_TEXTCOLOR 0F172A
   !endif
   !ifndef MUI_INSTFILESPAGE_COLORS
-    !define MUI_INSTFILESPAGE_COLORS "1A2332|F7F9FC"
+    !define MUI_INSTFILESPAGE_COLORS "0F172A|F8FAFC"
   !endif
   !define MUI_FONT "Segoe UI"
   !define MUI_FONTSIZE 10
@@ -52,39 +53,59 @@
   Page custom FledgeOptionsPage FledgeOptionsLeave
 !macroend
 
+; 同意チェックで「次へ」を有効化する（未同意では進めない）
+Function FledgeTermsCheckChange
+  ${NSD_GetState} $FledgeTermsCheck $0
+  GetDlgItem $1 $HWNDPARENT 1
+  ${If} $0 == ${BST_CHECKED}
+    EnableWindow $1 1
+  ${Else}
+    EnableWindow $1 0
+  ${EndIf}
+FunctionEnd
+
 Function FledgeTermsPage
   nsDialogs::Create 1018
-  Pop $0
-  ${If} $0 == error
+  Pop $FledgeDialog
+  ${If} $FledgeDialog == error
     Abort
   ${EndIf}
-  SetCtlColors $0 1A2332 F7F9FC
+  SetCtlColors $FledgeDialog 0F172A F8FAFC
 
-  ${NSD_CreateLabel} 0 0 100% 22u "Fledge をインストール"
+  ; --- 見出し ---
+  ${NSD_CreateLabel} 0 0 100% 20u "Fledge へようこそ"
   Pop $1
-  CreateFont $2 "Segoe UI" 18 600
+  CreateFont $2 "Segoe UI" 16 600
   SendMessage $1 ${WM_SETFONT} $2 0
-  SetCtlColors $1 1A2332 F7F9FC
+  SetCtlColors $1 0F172A F8FAFC
 
-  ${NSD_CreateLabel} 0 27u 100% 18u "軽量で使いやすい Minecraft ランチャー"
+  ${NSD_CreateLabel} 0 22u 100% 14u "軽量でシンプルな Minecraft ランチャー"
   Pop $1
-  SetCtlColors $1 64748B F7F9FC
+  SetCtlColors $1 64748B F8FAFC
 
-  ${NSD_CreateText} 0 52u 100% 94u "利用規約の要点$\r$\n$\r$\n・Fledge は非公式の Minecraft ランチャーです。$\r$\n・Minecraft、Microsoft、導入する Mod の各規約を守って利用してください。$\r$\n・セーブデータ、設定、Mod の管理は利用者の責任です。$\r$\n・本アプリは現状有姿で提供され、データ損失等を保証しません。"
+  ; --- 利用規約カード（高さを抑え、同意チェックが必ず見えるようにする） ---
+  ${NSD_CreateLabel} 0 44u 100% 12u "利用規約"
   Pop $1
-  SendMessage $1 ${EM_SETREADONLY} 1 0
-  SetCtlColors $1 334155 FFFFFF
+  CreateFont $2 "Segoe UI" 10 600
+  SendMessage $1 ${WM_SETFONT} $2 0
+  SetCtlColors $1 0F172A F8FAFC
 
-  ${NSD_CreateLink} 0 151u 100% 14u "利用規約の全文をブラウザーで確認"
+  ${NSD_CreateLabel} 0 58u 100% 36u "・非公式の Minecraft ランチャーです$\r$\n・Minecraft / Microsoft / Mod 各規約を守ってください$\r$\n・セーブや設定の管理は利用者の責任です（現状有姿）"
+  Pop $1
+  SetCtlColors $1 334155 F8FAFC
+
+  ${NSD_CreateLink} 0 98u 100% 12u "利用規約の全文をブラウザーで開く"
   Pop $1
   ${NSD_OnClick} $1 FledgeOpenTerms
 
-  ${NSD_CreateCheckbox} 0 171u 100% 18u "利用規約を確認し、同意します"
+  ; Checkbox に SetCtlColors するとテーマ下で押せなくなることがあるため付けない
+  ${NSD_CreateCheckbox} 0 118u 100% 16u "利用規約を確認し、同意します"
   Pop $FledgeTermsCheck
-  SetCtlColors $FledgeTermsCheck 1A2332 F7F9FC
+  ${NSD_OnClick} $FledgeTermsCheck FledgeTermsCheckChange
 
   GetDlgItem $0 $HWNDPARENT 1
   SendMessage $0 ${WM_SETTEXT} 0 "STR:次へ"
+  EnableWindow $0 0
   nsDialogs::Show
 FunctionEnd
 
@@ -95,52 +116,54 @@ FunctionEnd
 Function FledgeTermsLeave
   ${NSD_GetState} $FledgeTermsCheck $0
   ${If} $0 != ${BST_CHECKED}
-    MessageBox MB_OK|MB_ICONEXCLAMATION "インストールを続けるには、利用規約への同意が必要です。"
+    MessageBox MB_OK|MB_ICONEXCLAMATION "インストールを続けるには、下の「利用規約を確認し、同意します」にチェックを入れてください。"
     Abort
   ${EndIf}
 FunctionEnd
 
 Function FledgeOptionsPage
   nsDialogs::Create 1018
-  Pop $0
-  ${If} $0 == error
+  Pop $FledgeDialog
+  ${If} $FledgeDialog == error
     Abort
   ${EndIf}
-  SetCtlColors $0 1A2332 F7F9FC
+  SetCtlColors $FledgeDialog 0F172A F8FAFC
 
-  ${NSD_CreateLabel} 0 0 100% 22u "インストール設定"
+  ${NSD_CreateLabel} 0 0 100% 20u "インストール設定"
   Pop $1
-  CreateFont $2 "Segoe UI" 18 600
+  CreateFont $2 "Segoe UI" 16 600
   SendMessage $1 ${WM_SETFONT} $2 0
-  SetCtlColors $1 1A2332 F7F9FC
+  SetCtlColors $1 0F172A F8FAFC
 
-  ${NSD_CreateLabel} 0 28u 100% 17u "保存場所とショートカットを選択してください。"
+  ${NSD_CreateLabel} 0 22u 100% 14u "保存場所とショートカットを選べます"
   Pop $1
-  SetCtlColors $1 64748B F7F9FC
+  SetCtlColors $1 64748B F8FAFC
 
-  ${NSD_CreateLabel} 0 58u 100% 15u "インストール場所"
+  ${NSD_CreateLabel} 0 46u 100% 12u "インストール場所"
   Pop $1
-  SetCtlColors $1 334155 F7F9FC
+  CreateFont $2 "Segoe UI" 9 600
+  SendMessage $1 ${WM_SETFONT} $2 0
+  SetCtlColors $1 334155 F8FAFC
 
-  ${NSD_CreateDirRequest} 0 76u 78% 16u "$INSTDIR"
+  ${NSD_CreateDirRequest} 0 60u 76% 14u "$INSTDIR"
   Pop $FledgeInstallDir
-  ${NSD_CreateBrowseButton} 81% 76u 19% 16u "参照…"
+  ${NSD_CreateBrowseButton} 78% 60u 22% 14u "参照"
   Pop $1
   ${NSD_OnClick} $1 FledgeBrowseInstallDir
 
-  ${NSD_CreateCheckbox} 0 115u 100% 18u "デスクトップに Fledge のアイコンを表示する"
+  ${NSD_CreateCheckbox} 0 88u 100% 16u "デスクトップにショートカットを作成する"
   Pop $FledgeDesktopCheck
   ${If} $FledgeDesktopEnabled == "1"
     ${NSD_Check} $FledgeDesktopCheck
   ${EndIf}
-  SetCtlColors $FledgeDesktopCheck 1A2332 F7F9FC
 
-  ${NSD_CreateLabel} 0 142u 100% 35u "Fledge は現在のユーザーにのみインストールされます。管理者権限は必要ありません。"
+  ${NSD_CreateLabel} 0 112u 100% 24u "現在のユーザーにのみインストールされます。管理者権限は不要です。"
   Pop $1
-  SetCtlColors $1 64748B F7F9FC
+  SetCtlColors $1 64748B F8FAFC
 
   GetDlgItem $0 $HWNDPARENT 1
   SendMessage $0 ${WM_SETTEXT} 0 "STR:インストール"
+  EnableWindow $0 1
   nsDialogs::Show
 FunctionEnd
 
@@ -198,29 +221,29 @@ FunctionEnd
 
 Function FledgeFinishPage
   nsDialogs::Create 1018
-  Pop $0
-  ${If} $0 == error
+  Pop $FledgeDialog
+  ${If} $FledgeDialog == error
     Abort
   ${EndIf}
-  SetCtlColors $0 1A2332 F7F9FC
+  SetCtlColors $FledgeDialog 0F172A F8FAFC
 
-  ${NSD_CreateLabel} 0 15u 100% 28u "インストールが完了しました"
+  ${NSD_CreateLabel} 0 8u 100% 22u "準備完了"
   Pop $1
-  CreateFont $2 "Segoe UI" 19 600
+  CreateFont $2 "Segoe UI" 16 600
   SendMessage $1 ${WM_SETFONT} $2 0
-  SetCtlColors $1 1A2332 F7F9FC
+  SetCtlColors $1 0F172A F8FAFC
 
-  ${NSD_CreateLabel} 0 54u 100% 40u "Fledge をすぐに起動できます。$\r$\n設定はあとからアプリ内で変更できます。"
+  ${NSD_CreateLabel} 0 36u 100% 28u "Fledge のインストールが完了しました。$\r$\n設定はあとからアプリ内で変更できます。"
   Pop $1
-  SetCtlColors $1 64748B F7F9FC
+  SetCtlColors $1 64748B F8FAFC
 
-  ${NSD_CreateCheckbox} 0 112u 100% 20u "インストーラーを閉じたあと Fledge を起動する"
+  ${NSD_CreateCheckbox} 0 78u 100% 16u "閉じたあと Fledge を起動する"
   Pop $FledgeLaunchCheck
   ${NSD_Check} $FledgeLaunchCheck
-  SetCtlColors $FledgeLaunchCheck 1A2332 F7F9FC
 
   GetDlgItem $0 $HWNDPARENT 1
   SendMessage $0 ${WM_SETTEXT} 0 "STR:完了"
+  EnableWindow $0 1
   GetDlgItem $0 $HWNDPARENT 3
   ShowWindow $0 ${SW_HIDE}
   nsDialogs::Show
