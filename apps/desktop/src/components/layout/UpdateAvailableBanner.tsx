@@ -35,7 +35,8 @@ export function UpdateAvailableBanner() {
   const result = updateQuery.data
   if (result?.status !== 'available' || !result.nextVersion) return null
 
-  const currentVersion = result.currentVersion ?? APP_VERSION
+  // 表示の「現在」はキャッシュではなく実行中バイナリの版を使う
+  const currentVersion = APP_VERSION
   const nextVersion = result.nextVersion
 
   const openDialog = () => {

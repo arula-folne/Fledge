@@ -1,0 +1,70 @@
+name: Release Installer
+
+# v* タグを push すると Windows 用 NSIS インストーラーをビルドし、
+# 対応する GitHub Release に添付する。
+# 手元ビルドの取り違え（portable 版の誤配布など）を防ぐための正規経路。
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build workspace packages
+        run: |
+          pnpm --filter @fledge/shared build
+          pnpm --filter @fledge/i18n build
+          pnpm --filter @fledge/core build
+
+      - name: Build desktop app
+        run: pnpm --filter @fledge/desktop build
+
+      - name: Package NSIS installer
+        run: pnpm --filter @fledge/desktop exec electron-builder --win nsis
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify artifact is an installer (not portable)
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem apps/desktop/release/Fledge-Setup-*.exe | Select-Object -First 1
+          if (-not $exe) { throw 'Installer not found' }
+          # NSIS インストーラーにはアンインストーラーが同梱される。portable ビルドには無い
+          $listing = & 7z l $exe.FullName | Out-String
+          if ($listing -notmatch 'Uninstall') {
+            throw "Artifact does not contain an uninstaller - looks like a portable build: $($exe.Name)"
+          }
+          Write-Host "OK: $($exe.Name) is an NSIS installer"
+
+      - name: Upload installer to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem apps/desktop/release/Fledge-Setup-*.exe | Select-Object -First 1
+          gh release upload "${{ github.ref_name }}" $exe.FullName --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: apps/desktop/release/Fledge-Setup-*.exe

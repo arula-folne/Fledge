@@ -42,6 +42,12 @@ pnpm dev
 | `pnpm --filter @fledge/desktop pack` | electron-builder `--dir` |
 | `pnpm --filter @fledge/desktop dist` | NSIS など配布物 |
 
+## リリース配布物
+
+配布するのは **NSIS インストーラー**（`Fledge-Setup-<version>.exe`）だけです。portable ターゲットは配布しません（展開して直接起動するだけでインストールされず、自動更新も壊れます）。
+
+正規の経路は GitHub Actions です。`v*` タグを push すると `.github/workflows/release.yml` が NSIS をビルドし、アンインストーラー同梱を検証したうえで Release に添付します。手元でビルドした exe を直接アップロードしないでください。
+
 ## `@xmcl` のエントリ修正
 
 npm 上の `@xmcl/core` / `@xmcl/installer` は `main` がソースを指していることがあります。  
