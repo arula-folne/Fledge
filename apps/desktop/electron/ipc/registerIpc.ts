@@ -315,12 +315,18 @@ export function registerIpc(
     await appCtx.updater.clearCache()
 
     // /S = サイレント、/D = 今動いている exe と同じ場所へ上書き（必ず最後・引用符なし）
-    const child = spawn(stagedInstaller, ['/S', `/D=${installDir}`], {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
+    await new Promise<void>((resolve, reject) => {
+      const child = spawn(stagedInstaller, ['/S', `/D=${installDir}`], {
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: true,
+      })
+      child.once('error', (err) => reject(err))
+      child.once('spawn', () => {
+        child.unref()
+        resolve()
+      })
     })
-    child.unref()
 
     // 実行中のままだと Fledge.exe がロックされ旧版のまま残る
     hooks?.onQuitForUpdate?.()
