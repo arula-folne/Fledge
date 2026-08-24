@@ -27,7 +27,7 @@ export default function HomePage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:grid-rows-[minmax(0,1fr)]">
-      <div className="flex min-h-0 min-w-0 shrink-0 flex-col gap-5 overflow-hidden lg:h-full lg:min-h-0 lg:shrink-0">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-hidden lg:h-full">
         <section className="min-w-0 shrink-0">
           {featured ? (
             <div className="space-y-3">

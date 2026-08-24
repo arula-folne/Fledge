@@ -58,7 +58,7 @@ type InternalJob = DownloadJob & {
 const DEFAULT_CONCURRENCY = 8
 
 export class DownloadQueue {
-  readonly concurrency: number
+  private _concurrency: number
   private queued: InternalJob[] = []
   private active = new Map<string, InternalJob>()
 
@@ -66,12 +66,36 @@ export class DownloadQueue {
     private readonly emitProgress: ProgressEmitter,
     concurrency = DEFAULT_CONCURRENCY,
   ) {
-    this.concurrency = Math.max(1, concurrency)
+    this._concurrency = Math.max(1, Math.min(32, concurrency))
+  }
+
+  get concurrency(): number {
+    return this._concurrency
+  }
+
+  /** 設定変更などから同時実行数を更新する */
+  setConcurrency(concurrency: number): void {
+    this._concurrency = Math.max(1, Math.min(32, Math.round(concurrency)))
+    this.pump()
   }
 
   getSnapshot(): DownloadJob[] {
     const jobs = [...this.active.values(), ...this.queued]
-    return jobs.map(({ execute: _e, abort: _a, resolve: _r, reject: _j, lastEmitAt: _l, ...job }) => job)
+    return jobs.map((job) => ({
+      id: job.id,
+      kind: job.kind,
+      labelKey: job.labelKey,
+      status: job.status,
+      priority: job.priority,
+      sessionId: job.sessionId,
+      createdAt: job.createdAt,
+      startedAt: job.startedAt,
+      finishedAt: job.finishedAt,
+      progress: { ...job.progress },
+      errorCode: job.errorCode,
+      errorMessageKey: job.errorMessageKey,
+      meta: job.meta ? { ...job.meta } : undefined,
+    }))
   }
 
   enqueue(input: EnqueueInput): { jobId: string; done: Promise<void> } {
@@ -155,7 +179,7 @@ export class DownloadQueue {
   }
 
   private pump(): void {
-    while (this.active.size < this.concurrency && this.queued.length > 0) {
+    while (this.active.size < this._concurrency && this.queued.length > 0) {
       const job = this.queued.shift()
       if (!job) return
       this.active.set(job.id, job)

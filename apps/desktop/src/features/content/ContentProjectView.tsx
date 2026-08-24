@@ -27,6 +27,7 @@ function formatDate(iso?: string): string | null {
 
 const PROJECT_PATH: Record<ContentCategory, string> = {
   mod: 'mod',
+  modpack: 'modpack',
   resourcepack: 'resourcepack',
   shader: 'shader',
   datapack: 'datapack',
@@ -37,29 +38,34 @@ type TabId = 'description' | 'gallery' | 'versions'
 
 type Props = {
   hit: ContentProject
-  instance: InstanceProfile
+  /** 既存インスタンスへの導入時。createMode では省略可 */
+  instance?: InstanceProfile
   gameVersion: string
   loaders: ContentLoaderFilter[]
   installed?: boolean
   installedVersionId?: string
+  creating?: boolean
+  /** true のとき「インスタンスを作成」 */
+  createMode?: boolean
   onBack: () => void
   onInstall: (versionId?: string) => void
 }
 
 export function ContentProjectView({
   hit,
-  instance,
   gameVersion,
   loaders,
   installed = false,
   installedVersionId,
+  creating = false,
+  createMode = false,
   onBack,
   onInstall,
 }: Props) {
   const { t } = useTranslation()
   const [tab, setTab] = useState<TabId>('description')
   const [versionId, setVersionId] = useState<string | null>(null)
-  const [compatOnly, setCompatOnly] = useState(true)
+  const [compatOnly, setCompatOnly] = useState(Boolean(gameVersion.trim()))
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null)
 
   const pageQuery = useQuery({
@@ -74,9 +80,13 @@ export function ContentProjectView({
       fledgeApi.content.listVersions({
         projectId: hit.id,
         gameVersion: compatOnly ? gameVersion.trim() || undefined : undefined,
-        loaders: compatOnly && (hit.projectType === 'mod' || hit.projectType === 'plugin') ? loaders : [],
+        loaders:
+          compatOnly &&
+          (hit.projectType === 'mod' || hit.projectType === 'plugin' || hit.projectType === 'modpack')
+            ? loaders
+            : [],
       }),
-    enabled: tab === 'versions',
+    enabled: true,
     staleTime: 60_000,
   })
 
@@ -149,11 +159,16 @@ export function ContentProjectView({
           </p>
         </div>
         <ContentInstallButton
-          installing={false}
-          installed={installed}
+          installing={creating}
+          installed={createMode ? false : installed}
+          disabled={versionsQuery.isPending || versions.length === 0}
+          mode={createMode ? 'create' : 'install'}
           onInstall={() => onInstall(selectedId)}
         />
       </header>
+      {createMode ? (
+        <p className="shrink-0 text-xs text-[var(--color-text-muted)]">{t('content.createInstanceHint')}</p>
+      ) : null}
 
       <nav className="flex shrink-0 gap-1 border-b border-[var(--color-border)]">
         {tabs
@@ -214,7 +229,9 @@ export function ContentProjectView({
             versions={versions}
             selectedId={selectedId}
             compatOnly={compatOnly}
-            installedVersionId={installedVersionId}
+            installedVersionId={createMode ? undefined : installedVersionId}
+            creating={creating}
+            createMode={createMode}
             loading={versionsQuery.isPending}
             error={
               versionsQuery.isError
@@ -417,6 +434,8 @@ function VersionsPanel({
   selectedId,
   compatOnly,
   installedVersionId,
+  creating,
+  createMode,
   loading,
   error,
   onCompatOnly,
@@ -427,6 +446,8 @@ function VersionsPanel({
   selectedId?: string
   compatOnly: boolean
   installedVersionId?: string
+  creating?: boolean
+  createMode?: boolean
   loading: boolean
   error: string | null
   onCompatOnly: (v: boolean) => void
@@ -478,7 +499,9 @@ function VersionsPanel({
                   </div>
                 </button>
                 <ContentVersionInstallButton
-                  installed={installedVersionId === v.id}
+                  installed={!createMode && installedVersionId === v.id}
+                  installing={creating}
+                  mode={createMode ? 'create' : 'install'}
                   onInstall={() => onInstall(v.id)}
                 />
               </li>

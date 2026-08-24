@@ -8,7 +8,8 @@ import { useModrinthTagIcons } from './useModrinthTagIcons'
 const LOADERS: ContentLoaderFilter[] = ['fabric', 'forge', 'neoforge', 'quilt']
 
 type Props = {
-  instance: InstanceProfile
+  /** 省略時はインスタンス版バッジを出さない（閲覧画面） */
+  instance?: InstanceProfile
   category: ContentCategory
   gameVersion: string
   loaders: ContentLoaderFilter[]
@@ -73,7 +74,7 @@ export function ContentBrowseFilters({
 }: Props) {
   const { t, i18n } = useTranslation()
   const [versionQuery, setVersionQuery] = useState('')
-  const showLoaders = category === 'mod' || category === 'plugin'
+  const showLoaders = category === 'mod' || category === 'plugin' || category === 'modpack'
   const availableTags = useMemo(() => filterTagsForCategory(category), [category])
   const iconByTag = useModrinthTagIcons(category)
   const filteredVersions = useMemo(() => {
@@ -129,7 +130,7 @@ export function ContentBrowseFilters({
           {t('content.filter.anyVersion')}
         </button>
         {filteredVersions.map((id) => {
-          const current = id === instance.minecraftVersion
+          const current = instance ? id === instance.minecraftVersion : false
           return (
             <button
               key={id}

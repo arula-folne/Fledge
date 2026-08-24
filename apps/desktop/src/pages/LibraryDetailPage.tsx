@@ -208,6 +208,14 @@ export default function LibraryDetailPage() {
     },
   })
 
+  const exportMutation = useMutation({
+    mutationFn: (id: string) => fledgeApi.content.exportMrpack(id),
+    onSuccess: (savedPath) => {
+      if (savedPath) setMessage(t('instances.exported'))
+    },
+    onError: (err) => setMessage(err instanceof Error ? err.message : String(err)),
+  })
+
   const removeMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.instances.remove(id),
     onSuccess: async () => {
@@ -250,6 +258,18 @@ export default function LibraryDetailPage() {
     return <div className="text-[var(--color-text-muted)]">{t('common.loading')}</div>
   }
 
+  if (instanceQuery.isError) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4">
+        <h2 className="text-lg font-semibold">{t('common.loadErrorTitle')}</h2>
+        <p className="text-[var(--color-text-muted)]">{t('common.loadErrorBody')}</p>
+        <Button type="button" onClick={() => void instanceQuery.refetch()}>
+          {t('common.retry')}
+        </Button>
+      </div>
+    )
+  }
+
   if (!instance || !draft) {
     return (
       <div className="mx-auto max-w-3xl space-y-4">
@@ -276,24 +296,26 @@ export default function LibraryDetailPage() {
   ]
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2">
-      <header className="flex shrink-0 flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5">
+    <div className="flex h-full min-h-0 flex-col gap-3">
+      <header className="flex min-h-24 shrink-0 flex-wrap items-center gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
         <Button
           variant="ghost"
-          className="shrink-0 px-1.5 py-1"
+          className="shrink-0 px-2 py-2"
           title={t('library.backToList')}
           onClick={() => navigate('/')}
         >
-          <IconArrowLeft size={16} stroke={1.75} />
+          <IconArrowLeft size={18} stroke={1.75} />
         </Button>
         <InstanceIcon
           instance={instance}
           preset={settingsOpen ? draft.iconPreset : undefined}
-          size="sm"
+          size="lg"
         />
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate text-sm font-semibold leading-tight">{instance.name}</h1>
-          <p className="truncate text-[11px] leading-tight text-[var(--color-text-muted)]">
+        <div className="min-w-[12rem] flex-1 py-0.5">
+          <h1 className="break-words text-xl font-semibold leading-normal text-[var(--color-text)]">
+            {instance.name}
+          </h1>
+          <p className="mt-1 flex flex-wrap items-center gap-x-1 text-sm leading-relaxed text-[var(--color-text-muted)]">
             {instance.minecraftVersion} · {formatLoaderLabel(instance.loader, t)}
             {' · '}
             {formatLastPlayed(instance.lastPlayedAt, t)}
@@ -302,12 +324,13 @@ export default function LibraryDetailPage() {
         <div className="flex shrink-0 items-center gap-1">
           <InstanceLaunchButton instanceId={instance.id} />
           <Button
-            variant="secondary"
-            className="px-1.5 py-1"
+            variant="ghost"
+            className="size-12 rounded-full p-0"
             title={t('library.tab.settings')}
+            aria-label={t('library.tab.settings')}
             onClick={() => setEditingInstanceId(instance.id)}
           >
-            <IconSettings size={16} stroke={1.75} />
+            <IconSettings size={30} stroke={1.65} />
           </Button>
         </div>
       </header>
@@ -525,9 +548,13 @@ export default function LibraryDetailPage() {
             onChange={(e) => setDraft({ ...draft, jvmArgs: e.target.value })}
           />
           <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] pt-4">
-            <Button variant="secondary" onClick={() => setMessage(t('library.exportSoon'))}>
+            <Button
+              variant="secondary"
+              disabled={exportMutation.isPending}
+              onClick={() => exportMutation.mutate(instance.id)}
+            >
               <IconPackageExport size={16} stroke={1.75} />
-              {t('instances.export')}
+              {exportMutation.isPending ? t('instances.exporting') : t('instances.export')}
             </Button>
             <Button
               variant="secondary"

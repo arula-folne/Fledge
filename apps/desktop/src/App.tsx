@@ -11,6 +11,7 @@ import { applyAuthStatusEvent } from './features/auth/sessionCache'
 import { useLaunchStore, useLogStore, useTransferStore, useUiStore } from './stores/appStores'
 
 const HomePage = lazy(() => import('./pages/HomePage'))
+const BrowsePage = lazy(() => import('./pages/BrowsePage'))
 const LibraryDetailPage = lazy(() => import('./pages/LibraryDetailPage'))
 const SkinPage = lazy(() => import('./pages/SkinPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
@@ -49,6 +50,9 @@ function EventBridge() {
       fledgeApi.on.logLine(appendLog),
       fledgeApi.on.authStatus((event) => {
         applyAuthStatusEvent(queryClient, setAuthStatus, event)
+      }),
+      fledgeApi.on.newsUpdated((items) => {
+        queryClient.setQueryData(['news'], items)
       }),
     ]
     return () => offs.forEach((off) => off())
@@ -94,6 +98,7 @@ export default function App() {
           <Routes>
             <Route element={<AppShell />}>
               <Route index element={<HomePage />} />
+              <Route path="browse" element={<BrowsePage />} />
               <Route path="library" element={<Navigate to="/" replace />} />
               <Route path="library/:instanceId" element={<LibraryDetailPage />} />
               <Route path="skin" element={<SkinPage />} />

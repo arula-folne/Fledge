@@ -5,6 +5,7 @@ import { fledgeApi } from '../../api/fledgeApi'
 
 const PROJECT_TYPE: Record<ContentCategory, string> = {
   mod: 'mod',
+  modpack: 'modpack',
   resourcepack: 'resourcepack',
   shader: 'shader',
   datapack: 'datapack',

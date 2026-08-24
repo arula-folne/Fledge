@@ -6,9 +6,12 @@ const EASE = 'duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]'
 type Props = {
   installing: boolean
   installed?: boolean
+  disabled?: boolean
   onInstall: () => void
   size?: 'md' | 'sm'
   className?: string
+  /** install=既存インスタンスへ導入 / create=新規インスタンス作成 */
+  mode?: 'install' | 'create'
 }
 
 const sizeClass = {
@@ -47,13 +50,18 @@ function InstallLabel({
   installed,
   installing,
   compact,
+  mode,
 }: {
   installed: boolean
   installing: boolean
   compact?: boolean
+  mode: 'install' | 'create'
 }) {
   const { t } = useTranslation()
   const labelClass = compact ? 'text-xs' : 'text-sm'
+  const idleLabel = mode === 'create' ? t('content.createInstance') : t('content.install')
+  const busyLabel = mode === 'create' ? t('content.creatingInstance') : t('content.installing')
+  const doneLabel = mode === 'create' ? t('content.createInstance') : t('content.installed')
 
   return (
     <span className={['grid shrink-0 whitespace-nowrap text-center', labelClass].join(' ')}>
@@ -64,7 +72,7 @@ function InstallLabel({
           installed ? 'pointer-events-none -translate-y-0.5 scale-95 opacity-0' : 'translate-y-0 scale-100 opacity-100',
         ].join(' ')}
       >
-        {installing ? t('content.installing') : t('content.install')}
+        {installing ? busyLabel : idleLabel}
       </span>
       <span
         className={[
@@ -73,28 +81,36 @@ function InstallLabel({
           installed ? 'translate-y-0 scale-100 opacity-100' : 'pointer-events-none translate-y-0.5 scale-95 opacity-0',
         ].join(' ')}
       >
-        {t('content.installed')}
+        {doneLabel}
       </span>
     </span>
   )
 }
 
-/** コンテンツのインストールボタン。押下後は滑らかに「インストール済み」へ切り替わる。 */
+/** コンテンツのインストール / インスタンス作成ボタン */
 export function ContentInstallButton({
   installing,
   installed = false,
+  disabled = false,
   onInstall,
   size = 'md',
   className = '',
+  mode = 'install',
 }: Props) {
   const { t } = useTranslation()
   const dim = size === 'sm' ? sizeClass.sm : sizeClass.md
+  const aria =
+    mode === 'create'
+      ? t('content.createInstance')
+      : installed
+        ? t('content.installed')
+        : t('content.install')
 
   return (
     <button
       type="button"
-      disabled={installed || installing}
-      aria-label={installed ? t('content.installed') : t('content.install')}
+      disabled={disabled || installed || installing}
+      aria-label={aria}
       aria-live="polite"
       className={[
         'inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-sm)] border font-medium',
@@ -107,10 +123,10 @@ export function ContentInstallButton({
         dim,
         className,
       ].join(' ')}
-      onClick={installed ? undefined : onInstall}
+      onClick={disabled || installed ? undefined : onInstall}
     >
       <InstallIcon installed={installed} />
-      <InstallLabel installed={installed} installing={installing} />
+      <InstallLabel installed={installed} installing={installing} mode={mode} />
     </button>
   )
 }
@@ -118,17 +134,27 @@ export function ContentInstallButton({
 export function ContentVersionInstallButton({
   installed = false,
   onInstall,
+  mode = 'install',
+  installing = false,
 }: {
   installed?: boolean
   onInstall: () => void
+  mode?: 'install' | 'create'
+  installing?: boolean
 }) {
   const { t } = useTranslation()
+  const aria =
+    mode === 'create'
+      ? t('content.createInstance')
+      : installed
+        ? t('content.installed')
+        : t('content.install')
 
   return (
     <button
       type="button"
-      disabled={installed}
-      aria-label={installed ? t('content.installed') : t('content.install')}
+      disabled={installed || installing}
+      aria-label={aria}
       aria-live="polite"
       className={[
         'inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-sm)] border font-medium',
@@ -137,13 +163,13 @@ export function ContentVersionInstallButton({
         'active:scale-[0.98] disabled:cursor-default disabled:active:scale-100',
         installed
           ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] opacity-80'
-          : 'border-transparent bg-[rgb(152,196,216)] text-[rgb(36,78,102)] hover:brightness-105',
+          : 'border-transparent bg-[rgb(152,196,216)] text-[rgb(36,78,102)] hover:brightness-105 disabled:opacity-50',
         versionSizeClass,
       ].join(' ')}
-      onClick={installed ? undefined : onInstall}
+      onClick={installed || installing ? undefined : onInstall}
     >
       <InstallIcon installed={installed} />
-      <InstallLabel installed={installed} installing={false} compact />
+      <InstallLabel installed={installed} installing={installing} compact mode={mode} />
     </button>
   )
 }

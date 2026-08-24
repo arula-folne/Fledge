@@ -3,7 +3,7 @@ const TITLE_TAG_RE = /^【([^】]+)】\s*(.*)$/
 export function parseNewsTitle(title: string): { category: string | null; label: string } {
   const match = title.match(TITLE_TAG_RE)
   if (!match) return { category: null, label: title }
-  return { category: match[1], label: match[2] || title }
+  return { category: match[1] ?? null, label: match[2] || title }
 }
 
 export function newsCategoryClass(category: string): string {

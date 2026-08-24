@@ -33,25 +33,41 @@ async function readNewsFile(file: string): Promise<NewsItem[] | null> {
   }
 }
 
+function fingerprint(items: NewsItem[]): string {
+  return items.map((item) => `${item.id}:${item.publishedAt}:${item.title}`).join('|')
+}
+
 export class LocalJsonNewsProvider implements NewsProvider {
-  private refreshTail: Promise<void> | null = null
+  private refreshTail: Promise<NewsItem[] | null> | null = null
+  private lastFingerprint = ''
 
   constructor(
     private readonly layout: PathLayout,
     private readonly bundledPath?: string,
     private readonly remoteUrl: string = NEWS.remoteUrl,
+    private readonly onUpdated?: (items: NewsItem[]) => void,
   ) {}
 
   async list(): Promise<NewsItem[]> {
-    await this.refreshIfNeeded()
+    const local = await this.readLocal()
+    this.lastFingerprint ||= fingerprint(local)
+    const remote = this.refreshRemote()
+    // 可能なら今回の呼び出しでリモートを待ち、古いキャッシュだけを返さない
+    const raced = await Promise.race([
+      remote,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4_000)),
+    ])
+    if (raced?.length) return raced
+    return local
+  }
+
+  private async readLocal(): Promise<NewsItem[]> {
     const cached = await readNewsFile(this.cachePath())
     if (cached?.length) return cached
-
     if (this.bundledPath) {
       const bundled = await readNewsFile(this.bundledPath)
       if (bundled?.length) return bundled
     }
-
     return FALLBACK_NEWS
   }
 
@@ -80,37 +96,45 @@ export class LocalJsonNewsProvider implements NewsProvider {
     return Number.isFinite(age) && age >= 0 && age < NEWS.cacheTtlMs
   }
 
-  private async refreshIfNeeded(): Promise<void> {
-    // インストール直後の軽量起動ではリモート取得をスキップ（同梱 JSON / キャッシュのみ）
-    if (process.env.FLEDGE_LIGHT_START === '1') return
+  private refreshRemote(): Promise<NewsItem[] | null> {
+    if (this.refreshTail) return this.refreshTail
 
-    const meta = await this.readMeta()
-    if (this.isCacheFresh(meta)) return
+    this.refreshTail = (async () => {
+      const meta = await this.readMeta()
+      if (this.isCacheFresh(meta)) {
+        return readNewsFile(this.cachePath())
+      }
+      try {
+        const items = await this.fetchRemoteAndCache()
+        const next = fingerprint(items)
+        if (next !== this.lastFingerprint) {
+          this.lastFingerprint = next
+          this.onUpdated?.(items)
+        }
+        return items
+      } catch {
+        return null
+      }
+    })().finally(() => {
+      this.refreshTail = null
+    })
 
-    if (this.refreshTail) {
-      await this.refreshTail
-      return
-    }
-
-    this.refreshTail = this.fetchRemoteAndCache()
-      .catch(() => undefined)
-      .finally(() => {
-        this.refreshTail = null
-      })
-
-    await this.refreshTail
+    return this.refreshTail
   }
 
-  private async fetchRemoteAndCache(): Promise<void> {
+  private async fetchRemoteAndCache(): Promise<NewsItem[]> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), NEWS.fetchTimeoutMs)
+    const url = `${this.remoteUrl}${this.remoteUrl.includes('?') ? '&' : '?'}t=${Date.now()}`
 
     try {
-      const res = await fetch(this.remoteUrl, {
+      const res = await fetch(url, {
         signal: controller.signal,
         redirect: 'follow',
         headers: {
           Accept: 'application/json',
+          'Cache-Control': 'no-cache',
+          Pragma: 'no-cache',
           'User-Agent': fledgeUserAgent('news-fetcher'),
         },
       })
@@ -124,6 +148,7 @@ export class LocalJsonNewsProvider implements NewsProvider {
         `${JSON.stringify({ fetchedAt: new Date().toISOString() } satisfies NewsMeta, null, 2)}\n`,
         'utf8',
       )
+      return items
     } finally {
       clearTimeout(timer)
     }

@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.1.6b",
+    "title": "【バージョンアップ】Fledge Ver.0.1.6b",
+    "body": "**Fledge Ver.0.1.6b** を公開しました。\n\n## 主な変更\n\n- Modrinth の閲覧画面を追加し、Modpack / Mod からインスタンスを作成できるようにしました\n- ローカルの `.mrpack` 読み込み、構成のみの複製、標準 `.mrpack` エクスポートに対応しました\n- インストーラーをモダンな画面に刷新（利用規約、インストール場所、デスクトップアイコン、完了後の起動）\n- 配布ファイル名を固定の `Fledge-Setup.exe` にしました（中身は Ver.0.1.6b）\n- アプリ内更新後の再起動、コンテンツ導入まわりの不具合、プレリリース版の更新検出を修正しました\n\n> 引き続きベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-24T14:20:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.1.6b"
+  },
+  {
     "id": "v0.1.5a",
     "title": "【バージョンアップ】Fledge Ver.0.1.5a",
     "body": "**Fledge Ver.0.1.5a** を公開しました。\n\n## 主な変更\n\n- インストーラーを常に現在のユーザー向けに固定（インストール先ユーザーの選択を廃止）\n- インストーラー画面を Fledge / folne ブランドの見た目に更新\n- 「インストールして Fledge を開く」時の起動を軽量化（インストール完了直後の重い処理を抑制）\n- 設定からアプリを完全にアンインストールできるように改善\n\n> 不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

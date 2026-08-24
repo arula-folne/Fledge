@@ -9,12 +9,14 @@ const PROFILE_URL = 'https://api.minecraftservices.com/minecraft/profile'
  *
  * プロフィール上は即時更新されるが、起動中の Minecraft クライアントは
  * 自分の見た目をセッション中キャッシュするため、入り直しだけでは変わらないことがある。
+ *
+ * @returns 公式プロフィール上のアクティブスキン URL（取得できた場合）
  */
 export async function uploadMinecraftSkin(
   accessToken: string,
   png: Uint8Array,
   variant: 'classic' | 'slim',
-): Promise<void> {
+): Promise<{ skinUrl?: string }> {
   const bytes = png instanceof Uint8Array ? png : new Uint8Array(png)
   const form = new FormData()
   form.append('variant', variant)
@@ -45,7 +47,7 @@ export async function uploadMinecraftSkin(
     )
   }
 
-  // CDN / プロフィール反映の確認（失敗してもアップロード自体は成功扱い）
+  // プロフィール反映確認（失敗してもアップロード自体は成功扱い）
   try {
     const profileRes = await fetch(PROFILE_URL, {
       headers: {
@@ -59,11 +61,10 @@ export async function uploadMinecraftSkin(
         skins?: Array<{ id?: string; state?: string; url?: string }>
       }
       const active = json.skins?.find((s) => s.state === 'ACTIVE')
-      if (!active?.url) {
-        // プロフィールにアクティブスキンが見えない場合でも POST は成功している
-      }
+      if (active?.url) return { skinUrl: active.url }
     }
   } catch {
     /* ignore verify errors */
   }
+  return {}
 }

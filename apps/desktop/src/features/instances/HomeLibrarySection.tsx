@@ -6,7 +6,7 @@ import type { InstanceProfile } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import { InstanceWizard } from './InstanceWizard'
+import { InstanceCreationFlow } from './InstanceCreationFlow'
 import { InstanceCard } from './InstanceCard'
 import {
   InstanceContextMenu,
@@ -48,8 +48,10 @@ export function HomeLibrarySection({ instances }: Props) {
 
   const duplicateMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.instances.duplicate(id),
-    onSuccess: async () => {
+    onSuccess: async (created) => {
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
+      setLibraryFocus({ instanceId: created.id, tab: 'content' })
+      navigate(`/library/${created.id}`)
     },
   })
 
@@ -64,8 +66,8 @@ export function HomeLibrarySection({ instances }: Props) {
   }
 
   return (
-    <section className="min-w-0 space-y-2">
-      <div className="flex items-center justify-between gap-2">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+      <div className="flex shrink-0 items-center justify-between gap-2">
         <h2 className="text-sm font-medium text-[var(--color-text-muted)]">{t('library.title')}</h2>
         <Button variant="primary" onClick={() => setWizardOpen(true)}>
           {t('library.create')}
@@ -78,15 +80,17 @@ export function HomeLibrarySection({ instances }: Props) {
           <p className="mt-1 text-sm text-[var(--color-text-muted)]">{t('library.emptyHint')}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {items.map((item) => (
-            <InstanceCard
-              key={item.id}
-              instance={item}
-              className="h-full min-w-0"
-              onContextMenu={openMenu}
-            />
-          ))}
+        <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {items.map((item) => (
+              <InstanceCard
+                key={item.id}
+                instance={item}
+                className="h-full min-w-0"
+                onContextMenu={openMenu}
+              />
+            ))}
+          </div>
         </div>
       )}
 
@@ -138,7 +142,7 @@ export function HomeLibrarySection({ instances }: Props) {
         }}
       />
 
-      <InstanceWizard open={wizardOpen} onClose={() => setWizardOpen(false)} />
+      <InstanceCreationFlow open={wizardOpen} onClose={() => setWizardOpen(false)} />
     </section>
   )
 }

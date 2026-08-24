@@ -17,9 +17,9 @@ export class SkinApplier {
     private readonly logger: Logger,
   ) {}
 
-  async applySelected(accountId: string): Promise<void> {
+  async applySelected(accountId: string): Promise<string | undefined> {
     const settings = await this.settings.get()
-    await this.apply(settings.selectedSkinId, settings.skinModel, accountId)
+    return this.apply(settings.selectedSkinId, settings.skinModel, accountId)
   }
 
   async apply(
@@ -27,7 +27,7 @@ export class SkinApplier {
     model: SkinModel,
     accountId: string,
     opts?: { forceCredentials?: boolean },
-  ): Promise<void> {
+  ): Promise<string | undefined> {
     const png = await this.skins.readPngBytes(skinId)
     if (!png) {
       throw new Error('スキン画像が見つかりません')
@@ -37,10 +37,15 @@ export class SkinApplier {
       const creds = await this.auth.ensureCredentials(accountId, {
         force: opts?.forceCredentials === true,
       })
-      await uploadMinecraftSkin(creds.accessToken, png, model === 'slim' ? 'slim' : 'classic')
+      const result = await uploadMinecraftSkin(
+        creds.accessToken,
+        png,
+        model === 'slim' ? 'slim' : 'classic',
+      )
       this.logger.info('auth', `Applied skin ${skinId} to Minecraft profile`)
+      return result.skinUrl
     } catch (err) {
-      if (err instanceof AuthError && err.code === 'not_logged_in') return
+      if (err instanceof AuthError && err.code === 'not_logged_in') return undefined
       throw err
     }
   }

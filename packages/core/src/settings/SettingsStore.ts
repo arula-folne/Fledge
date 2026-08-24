@@ -94,6 +94,9 @@ export class SettingsStore {
       windowHeight: _h,
       ...persist
     } = settings
+    void _f
+    void _w
+    void _h
     await fs.writeFile(this.filePath(), JSON.stringify(persist, null, 2), 'utf8')
   }
 }

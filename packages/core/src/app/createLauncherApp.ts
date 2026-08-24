@@ -13,7 +13,7 @@ import { SettingsStore } from '../settings/SettingsStore.js'
 import { SkinStore } from '../skins/SkinStore.js'
 import { NoopUpdater } from '../updater/NoopUpdater.js'
 import type { Updater } from '../updater/Updater.js'
-import type { ProgressEvent } from '@fledge/shared'
+import type { ProgressEvent, NewsItem } from '@fledge/shared'
 import { BackupService } from '../backup/BackupService.js'
 import { SessionJoinProxy } from '../auth/SessionJoinProxy.js'
 import { SkinApplier } from '../skins/SkinApplier.js'
@@ -47,6 +47,7 @@ export type CreateLauncherAppOptions = {
   newsBundledPath?: string
   defaultSkinsDir?: string
   onProgress?: (e: ProgressEvent) => void
+  onNews?: (items: NewsItem[]) => void
   updater?: Updater
 }
 
@@ -56,9 +57,10 @@ export async function createLauncherApp(options: CreateLauncherAppOptions): Prom
 
   const logger = options.logger ?? new Logger()
   const settings = new SettingsStore(paths)
+  const initialSettings = await settings.get()
   const instances = new InstanceStore(paths)
   const skins = new SkinStore(paths, options.defaultSkinsDir)
-  const news = new LocalJsonNewsProvider(paths, options.newsBundledPath)
+  const news = new LocalJsonNewsProvider(paths, options.newsBundledPath, undefined, options.onNews)
   const updater = options.updater ?? new NoopUpdater()
   const sessionProxy = new SessionJoinProxy(options.auth, logger)
   const skinApplier = new SkinApplier(skins, settings, options.auth, logger)
@@ -66,12 +68,21 @@ export async function createLauncherApp(options: CreateLauncherAppOptions): Prom
   const queue = new DownloadQueue((e) => {
     options.onProgress?.(e)
     options.events.emitProgress(e)
-  })
+  }, initialSettings.concurrentDownloads)
+
+  const originalSettingsSet = settings.set.bind(settings)
+  settings.set = async (partial) => {
+    const next = await originalSettingsSet(partial)
+    if (Object.prototype.hasOwnProperty.call(partial, 'concurrentDownloads')) {
+      queue.setConcurrency(next.concurrentDownloads)
+    }
+    return next
+  }
 
   const java = new JavaManager(paths, queue, logger)
   const minecraft = new MinecraftService(paths, queue, logger)
   const versions = new VersionService(paths, logger)
-  const content = new ContentService(instances, queue, logger, settings)
+  const content = new ContentService(instances, queue, logger, settings, versions)
   const launch = new LaunchOrchestrator({
     auth: options.auth,
     instances,

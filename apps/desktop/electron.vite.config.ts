@@ -6,12 +6,28 @@ import tailwindcss from '@tailwindcss/vite'
 /** ランタイムデータ（JDK 等）を Vite のファイル監視から除外して EBUSY を防ぐ */
 const watchIgnored = ['**/.fledge-root/**', '**/.fledge-root']
 
+const workspaceSrc = [
+  resolve('../../packages/core/src'),
+  resolve('../../packages/shared/src'),
+]
+
+/** メインは Vite の root 外パッケージを監視しないことがあるため明示する */
+function watchWorkspacePackages() {
+  return {
+    name: 'watch-workspace-packages',
+    buildStart(this: { addWatchFile: (id: string) => void }) {
+      for (const dir of workspaceSrc) this.addWatchFile(dir)
+    },
+  }
+}
+
 export default defineConfig({
   main: {
     plugins: [
       externalizeDepsPlugin({
         exclude: ['@fledge/core', '@fledge/shared'],
       }),
+      watchWorkspacePackages(),
     ],
     build: {
       rollupOptions: {

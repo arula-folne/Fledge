@@ -8,6 +8,7 @@ import {
   type AuthStatusEvent,
   type ContentCategory,
   type ContentCategoryTag,
+  type ContentCreateInstanceRequest,
   type ContentInstallRequest,
   type ContentLoaderFilter,
   type ContentMediaItem,
@@ -88,6 +89,9 @@ export type FledgeApi = {
       kind: 'screenshots' | 'logs',
     ) => Promise<ContentMediaItem[]>
     listCategoryTags: () => Promise<ContentCategoryTag[]>
+    createInstance: (req: ContentCreateInstanceRequest) => Promise<InstanceProfile>
+    importMrpack: () => Promise<InstanceProfile | null>
+    exportMrpack: (instanceId: string) => Promise<string | null>
   }
   skins: {
     list: () => Promise<SkinEntry[]>
@@ -183,6 +187,7 @@ export type FledgeApi = {
     launchState: (cb: (e: LaunchStateEvent) => void) => () => void
     logLine: (cb: (e: LogLine) => void) => () => void
     authStatus: (cb: (e: AuthStatusEvent) => void) => () => void
+    newsUpdated: (cb: (items: NewsItem[]) => void) => () => void
   }
 }
 
@@ -231,6 +236,9 @@ const api: FledgeApi = {
     listMedia: (instanceId, kind) =>
       ipcRenderer.invoke(IPC.contentListMedia, instanceId, kind),
     listCategoryTags: () => ipcRenderer.invoke(IPC.contentListCategoryTags),
+    createInstance: (req) => ipcRenderer.invoke(IPC.contentCreateInstance, req),
+    importMrpack: () => ipcRenderer.invoke(IPC.contentImportMrpack),
+    exportMrpack: (instanceId) => ipcRenderer.invoke(IPC.contentExportMrpack, instanceId),
   },
   skins: {
     list: () => ipcRenderer.invoke(IPC.skinsList),
@@ -308,6 +316,7 @@ const api: FledgeApi = {
     launchState: (cb) => subscribe(IPC_EVENTS.launchState, cb),
     logLine: (cb) => subscribe(IPC_EVENTS.logLine, cb),
     authStatus: (cb) => subscribe(IPC_EVENTS.authStatus, cb),
+    newsUpdated: (cb) => subscribe(IPC_EVENTS.newsUpdated, cb),
   },
 }
 

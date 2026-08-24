@@ -12,7 +12,11 @@ import {
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
 import { Dialog } from '../../components/ui/Dialog'
-import { ListPickDialog, ListPickField } from '../../components/ui/ListPickDialog'
+import {
+  ListPickDialog,
+  ListPickField,
+  type ListPickGroup,
+} from '../../components/ui/ListPickDialog'
 import { Switch } from '../../components/ui/Switch'
 import { TextField } from '../../components/ui/TextField'
 import { InstanceIcon } from './InstanceIcon'
@@ -26,6 +30,7 @@ import {
 type Props = {
   open: boolean
   onClose: () => void
+  onBack?: () => void
   title?: string
 }
 
@@ -38,7 +43,7 @@ function formatFetchedAt(iso: string): string {
   return d.toLocaleString('ja-JP')
 }
 
-export function InstanceWizard({ open, onClose, title }: Props) {
+export function InstanceWizard({ open, onClose, onBack, title }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -107,7 +112,7 @@ export function InstanceWizard({ open, onClose, title }: Props) {
 
   useEffect(() => {
     const releases = (versionsQuery.data?.versions ?? []).filter((v) => v.type === 'release')
-    const first = releases[0]?.id ?? versionsQuery.data?.versions?.[0]?.id
+    const first = releases[0]?.id
     if (first && !minecraftVersion) setMinecraftVersion(first)
   }, [versionsQuery.data, minecraftVersion])
 
@@ -137,7 +142,7 @@ export function InstanceWizard({ open, onClose, title }: Props) {
         .map((v) => ({ value: v.id, label: v.id })),
     [versionsQuery.data],
   )
-  const versionPickGroups = useMemo(() => {
+  const versionPickGroups = useMemo<ListPickGroup[]>(() => {
     const versions = versionsQuery.data?.versions ?? []
     const items = versions
       .filter((v) => includeSnapshots || v.type === 'release')
@@ -151,7 +156,11 @@ export function InstanceWizard({ open, onClose, title }: Props) {
               ? t('instances.versionGroup.release')
               : undefined,
         suffixTone:
-          v.type === 'snapshot' ? 'snapshot' : v.type === 'release' ? 'release' : undefined,
+          v.type === 'snapshot'
+            ? ('snapshot' as const)
+            : v.type === 'release'
+              ? ('release' as const)
+              : undefined,
       }))
     return items.length ? [{ items }] : []
   }, [versionsQuery.data, includeSnapshots, t])
@@ -191,7 +200,7 @@ export function InstanceWizard({ open, onClose, title }: Props) {
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
       onClose()
-      navigate('/')
+      navigate(`/library/${profile.id}`)
       void fledgeApi.launch.prepare(profile.id).catch(() => {
         // 状態イベントでエラー表示
       })
@@ -208,8 +217,8 @@ export function InstanceWizard({ open, onClose, title }: Props) {
 
   const footer = (
     <>
-      <Button type="button" onClick={onClose}>
-        {t('instances.cancel')}
+      <Button type="button" onClick={onBack ?? onClose}>
+        {onBack ? t('common.back') : t('instances.cancel')}
       </Button>
       <Button
         type="button"
@@ -241,9 +250,17 @@ export function InstanceWizard({ open, onClose, title }: Props) {
       open={open}
       title={title ?? t('instances.create')}
       onClose={() => {
-        if (iconOpen || versionPickOpen || loaderPickOpen || loaderVersionPickOpen || versionInfoOpen) return
+        if (
+          createMutation.isPending ||
+          iconOpen ||
+          versionPickOpen ||
+          loaderPickOpen ||
+          loaderVersionPickOpen ||
+          versionInfoOpen
+        ) return
         onClose()
       }}
+      dismissible={!createMutation.isPending}
       footer={footer}
       size="lg"
       scrollable
@@ -397,7 +414,11 @@ export function InstanceWizard({ open, onClose, title }: Props) {
         ) : null}
 
         {createMutation.isError ? (
-          <p className="text-sm text-[var(--color-danger)]">{t('launch.error.generic')}</p>
+          <p className="text-sm text-[var(--color-danger)]">
+            {createMutation.error instanceof Error
+              ? createMutation.error.message
+              : t('launch.error.generic')}
+          </p>
         ) : null}
       </div>
       </Dialog>

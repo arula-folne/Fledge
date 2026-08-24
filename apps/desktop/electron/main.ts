@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createLauncherApp, GithubReleaseUpdater, Logger, NoopUpdater, resolvePathLayout, type LauncherApp } from '@fledge/core'
-import { IPC_EVENTS, type LaunchStateEvent } from '@fledge/shared'
+import { IPC_EVENTS, type LaunchStateEvent, type NewsItem } from '@fledge/shared'
 import { MicrosoftAuthProvider } from './auth/MicrosoftAuthProvider'
 import { DiscordPresence } from './discord/DiscordPresence'
 import { defaultEnvCandidatePaths, loadFledgeEnvFiles } from './env/loadEnv'
@@ -189,6 +189,11 @@ async function bootstrap(): Promise<void> {
     events: events as never,
     newsBundledPath: path.join(app.getAppPath(), 'resources', 'news.ja.json'),
     defaultSkinsDir: resolveBundledSkinsDir(),
+    onNews: (items: NewsItem[]) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(IPC_EVENTS.newsUpdated, items)
+      }
+    },
     updater: app.isPackaged
       ? new GithubReleaseUpdater(resolvePathLayout(root))
       : new NoopUpdater(),

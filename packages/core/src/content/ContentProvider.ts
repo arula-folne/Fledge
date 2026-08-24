@@ -23,6 +23,7 @@ export type ResolvedContentFile = {
   downloadUrl: string
   iconUrl: string | null
   sha1?: string
+  sha512?: string
   size?: number
 }
 

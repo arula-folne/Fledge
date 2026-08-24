@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import {
   IconBraces,
   IconLayoutGrid,
+  IconPackages,
   IconPalette,
   IconPlug,
   IconPuzzle,
@@ -14,6 +15,7 @@ type TablerIcon = ComponentType<{ size?: number; stroke?: number; className?: st
 
 export const CONTENT_CATEGORY_ICONS: Record<ContentCategory, TablerIcon> = {
   mod: IconPuzzle,
+  modpack: IconPackages,
   resourcepack: IconPalette,
   shader: IconSparkles,
   datapack: IconBraces,
@@ -22,6 +24,7 @@ export const CONTENT_CATEGORY_ICONS: Record<ContentCategory, TablerIcon> = {
 
 const CONTENT_CATEGORY_COLORS: Record<ContentCategory, string> = {
   mod: 'text-[var(--color-category-mod)]',
+  modpack: 'text-[var(--color-category-modpack)]',
   resourcepack: 'text-[var(--color-category-resourcepack)]',
   shader: 'text-[var(--color-category-shader)]',
   datapack: 'text-[var(--color-category-datapack)]',

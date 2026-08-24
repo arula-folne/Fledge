@@ -57,7 +57,7 @@ pnpm dev
 
 ## リリース配布物
 
-配布するのは **NSIS インストーラー**（`Fledge-Setup-<version>.exe`）だけです。portable ターゲットは配布しません（展開して直接起動するだけでインストールされず、自動更新も壊れます）。
+配布するのは **NSIS インストーラー**（`Fledge-Setup.exe`）だけです。portable ターゲットは配布しません（展開して直接起動するだけでインストールされず、自動更新も壊れます）。
 
 正規の経路は GitHub Actions です。`v*` タグを push すると `.github/workflows/release.yml` が NSIS をビルドし、アンインストーラー同梱を検証したうえで Release に添付します。手元でビルドした exe を直接アップロードしないでください。
 

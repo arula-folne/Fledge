@@ -39,6 +39,7 @@ export default function SkinPage() {
     mutationFn: (input: { skinId: string; model?: SkinModel }) => fledgeApi.skins.select(input),
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
+      await queryClient.invalidateQueries({ queryKey: ['account-face'] })
     },
   })
 
@@ -55,6 +56,7 @@ export default function SkinPage() {
       await queryClient.invalidateQueries({ queryKey: ['skins'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
       await queryClient.invalidateQueries({ queryKey: ['skin-thumb', skin.id] })
+      await queryClient.invalidateQueries({ queryKey: ['account-face'] })
     },
   })
 
@@ -64,6 +66,7 @@ export default function SkinPage() {
     onSuccess: async (_skin, input) => {
       await queryClient.invalidateQueries({ queryKey: ['skins'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
+      await queryClient.invalidateQueries({ queryKey: ['account-face'] })
       if (input.model) {
         await queryClient.removeQueries({ queryKey: ['skin-thumb', input.id] })
       }
@@ -75,6 +78,7 @@ export default function SkinPage() {
     onSuccess: async (_void, id) => {
       await queryClient.invalidateQueries({ queryKey: ['skins'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
+      await queryClient.invalidateQueries({ queryKey: ['account-face'] })
       await queryClient.removeQueries({ queryKey: ['skin-data', id] })
       await queryClient.removeQueries({ queryKey: ['skin-thumb', id] })
     },

@@ -98,7 +98,7 @@ export function ContentTab({ instance }: Props) {
     (item: InstalledContent) => {
       setSearchParams((prev) => {
         const params = new URLSearchParams(prev)
-        openProject(params, item.slug || item.projectId)
+        openProject(params, item.projectId)
         return params
       })
     },
@@ -313,7 +313,7 @@ export function ContentTab({ instance }: Props) {
                 aria-label={t('content.remove')}
                 onClick={() => setRemoveTarget(item)}
               >
-                <IconTrash size={28} stroke={1.75} aria-hidden />
+                <IconTrash size={24} stroke={1.25} aria-hidden />
               </button>
             </li>
           ))}

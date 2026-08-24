@@ -9,6 +9,7 @@ import {
   IPC,
   IPC_EVENTS,
   APP_VERSION,
+  InstanceProfileSchema,
   SettingsSchema,
   SkinModelSchema,
   type CreateInstanceInput,
@@ -156,7 +157,10 @@ export function registerIpc(
     return profile
   })
   ipcMain.handle(IPC.instancesUpdate, async (_e, id: string, partial: unknown) => {
-    const updated = await appCtx.instances.update(id, partial as never)
+    const update = InstanceProfileSchema.partial()
+      .omit({ id: true, createdAt: true, updatedAt: true })
+      .parse(partial)
+    const updated = await appCtx.instances.update(id, update)
     touchBackup()
     return updated
   })
@@ -223,9 +227,8 @@ export function registerIpc(
     },
   )
   ipcMain.handle(IPC.contentRemove, async (_e, instanceId: string, entryId: string) => {
-    const result = await appCtx.content.remove(instanceId, entryId)
+    await appCtx.content.remove(instanceId, entryId)
     touchBackup()
-    return result
   })
   ipcMain.handle(IPC.contentCheckUpdates, async (_e, instanceId: string) =>
     appCtx.content.checkUpdates(instanceId),
@@ -236,6 +239,43 @@ export function registerIpc(
       appCtx.content.listMedia(instanceId, kind),
   )
   ipcMain.handle(IPC.contentListCategoryTags, async () => appCtx.content.listCategoryTags())
+  ipcMain.handle(IPC.contentCreateInstance, async (_e, req: unknown) => {
+    const profile = await appCtx.content.createInstanceFromProject(req)
+    touchBackup()
+    return profile
+  })
+  ipcMain.handle(IPC.contentImportMrpack, async () => {
+    const result = await dialog.showOpenDialog(win() ?? undefined!, {
+      title: 'mrpack からインスタンスを作成',
+      properties: ['openFile'],
+      filters: [{ name: 'Modrinth Modpack', extensions: ['mrpack'] }],
+    })
+    const filePath = result.filePaths[0]
+    if (result.canceled || !filePath) return null
+    const profile = await appCtx.content.importMrpackFromFile(filePath)
+    touchBackup()
+    return profile
+  })
+  ipcMain.handle(IPC.contentExportMrpack, async (_e, instanceId: string) => {
+    const profile = await appCtx.instances.get(instanceId)
+    if (!profile) throw new Error(`Instance not found: ${instanceId}`)
+    const safeName =
+      [...profile.name.replace(/[<>:"/\\|?*]/g, '_')]
+        .map((char) => (char.charCodeAt(0) < 32 ? '_' : char))
+        .join('')
+        .trim() || 'modpack'
+    const result = await dialog.showSaveDialog(win() ?? undefined!, {
+      title: 'mrpack としてエクスポート',
+      defaultPath: `${safeName}.mrpack`,
+      filters: [{ name: 'Modrinth Modpack', extensions: ['mrpack'] }],
+    })
+    if (result.canceled || !result.filePath) return null
+    const destination = result.filePath.toLowerCase().endsWith('.mrpack')
+      ? result.filePath
+      : `${result.filePath}.mrpack`
+    await appCtx.content.exportMrpack(instanceId, destination)
+    return destination
+  })
 
   ipcMain.handle(IPC.authLogin, async () => {
     const account = await appCtx.auth.login()
@@ -322,13 +362,17 @@ export function registerIpc(
     await fs.copyFile(installerPath, stagedInstaller)
     await appCtx.updater.clearCache()
 
-    // /S = サイレント、/D = 今動いている exe と同じ場所へ上書き（必ず最後・引用符なし）
+    // electron-builder の更新契約に合わせる。/D は必ず最後・引用符なし。
     await new Promise<void>((resolve, reject) => {
-      const child = spawn(stagedInstaller, ['/S', `/D=${installDir}`], {
+      const child = spawn(
+        stagedInstaller,
+        ['--updated', '/S', '--force-run', `/D=${installDir}`],
+        {
         detached: true,
         stdio: 'ignore',
         windowsHide: true,
-      })
+        },
+      )
       child.once('error', (err) => reject(err))
       child.once('spawn', () => {
         child.unref()
@@ -389,12 +433,9 @@ export function registerIpc(
     touchBackup()
   })
   ipcMain.handle(IPC.skinsGetData, async (_e, id: string) => {
-    const skins = await appCtx.skins.list()
-    const skin = skins.find((s) => s.id === id)
-    if (!skin?.fileName) return null
-    const filePath = appCtx.skins.resolveFilePath(skin.fileName)
-    const buf = await fs.readFile(filePath)
-    return `data:image/png;base64,${buf.toString('base64')}`
+    const buf = await appCtx.skins.readPngBytes(id)
+    if (!buf) return null
+    return `data:image/png;base64,${Buffer.from(buf).toString('base64')}`
   })
   ipcMain.handle(IPC.skinsGetThumb, async (_e, id: string, model: SkinModel) => {
     return appCtx.skins.readThumbDataUrl(id, SkinModelSchema.parse(model))
@@ -569,9 +610,9 @@ async function applySkinToPlayableAccounts(
     if (active) ids.push(active.id)
   }
   for (const accountId of ids) {
-    // 起動中はトークンを強制更新してからアップロード（入り直し／再起動で確実に新スキンになる）
+    // ユーザー操作・起動中どちらもトークンを強制更新してから送る（反映漏れを減らす）
     await appCtx.skinApplier.apply(skinId, model, accountId, {
-      forceCredentials: gameRunning,
+      forceCredentials: true,
     })
   }
 }

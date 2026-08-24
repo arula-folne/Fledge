@@ -14,12 +14,15 @@ import type { Updater } from './Updater.js'
 type GithubReleaseAsset = {
   name: string
   browser_download_url: string
+  size?: number
 }
 
 type GithubRelease = {
   tag_name: string
   html_url: string
   assets: GithubReleaseAsset[]
+  draft?: boolean
+  prerelease?: boolean
 }
 
 type UpdaterCache = {
@@ -30,6 +33,7 @@ type UpdaterCache = {
 type PendingInstaller = {
   downloadUrl: string
   fileName: string
+  expectedSize?: number
 }
 
 function findWindowsInstaller(assets: GithubReleaseAsset[]): GithubReleaseAsset | null {
@@ -136,6 +140,11 @@ export class GithubReleaseUpdater implements Updater {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
       const bytes = Buffer.from(await res.arrayBuffer())
+      if (this.pending.expectedSize != null && bytes.byteLength !== this.pending.expectedSize) {
+        throw new Error(
+          `Installer size mismatch: expected ${this.pending.expectedSize}, got ${bytes.byteLength}`,
+        )
+      }
       await fs.writeFile(target, bytes)
       return target
     } catch {
@@ -157,7 +166,11 @@ export class GithubReleaseUpdater implements Updater {
   private syncPending(result: UpdateCheckResult): void {
     if (result.status === 'available' && result.downloadUrl) {
       const fileName = path.basename(new URL(result.downloadUrl).pathname)
-      this.pending = { downloadUrl: result.downloadUrl, fileName }
+      this.pending = {
+        downloadUrl: result.downloadUrl,
+        fileName,
+        expectedSize: result.downloadSize,
+      }
     } else {
       this.pending = null
     }
@@ -225,6 +238,7 @@ export class GithubReleaseUpdater implements Updater {
       currentVersion,
       nextVersion,
       downloadUrl: asset.browser_download_url,
+      downloadSize: asset.size,
       releaseUrl: release.html_url,
     }
     this.syncPending(result)
@@ -237,16 +251,33 @@ export class GithubReleaseUpdater implements Updater {
     const timer = setTimeout(() => controller.abort(), UPDATER.fetchTimeoutMs)
 
     try {
-      const res = await fetch(UPDATER.latestReleaseUrl, {
+      const includePrereleases = /(?:a|b|rc)$/i.test(APP_VERSION)
+      const res = await fetch(
+        includePrereleases ? UPDATER.releasesUrl : UPDATER.latestReleaseUrl,
+        {
         signal: controller.signal,
         redirect: 'follow',
         headers: {
           Accept: 'application/vnd.github+json',
           'User-Agent': fledgeUserAgent('updater-check'),
         },
-      })
+        },
+      )
       if (!res.ok) throw new Error(`Release fetch failed: HTTP ${res.status}`)
-      return (await res.json()) as GithubRelease
+      const payload = (await res.json()) as GithubRelease | GithubRelease[]
+      if (!Array.isArray(payload)) return payload
+
+      const releases = payload
+        .filter((release) => !release.draft)
+        .sort((a, b) =>
+          compareVersions(
+            normalizeReleaseVersion(b.tag_name),
+            normalizeReleaseVersion(a.tag_name),
+          ),
+        )
+      const latest = releases[0]
+      if (!latest) throw new Error('No eligible GitHub release found')
+      return latest
     } finally {
       clearTimeout(timer)
     }

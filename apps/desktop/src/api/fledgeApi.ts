@@ -5,6 +5,7 @@ import type {
   BackupEntry,
   ContentCategory,
   ContentCategoryTag,
+  ContentCreateInstanceRequest,
   ContentInstallRequest,
   ContentLoaderFilter,
   ContentMediaItem,
@@ -85,6 +86,9 @@ export type FledgeApi = {
       kind: 'screenshots' | 'logs',
     ) => Promise<ContentMediaItem[]>
     listCategoryTags: () => Promise<ContentCategoryTag[]>
+    createInstance: (req: ContentCreateInstanceRequest) => Promise<InstanceProfile>
+    importMrpack: () => Promise<InstanceProfile | null>
+    exportMrpack: (instanceId: string) => Promise<string | null>
   }
   skins: {
     list: () => Promise<SkinEntry[]>
@@ -180,6 +184,7 @@ export type FledgeApi = {
     launchState: (cb: (e: LaunchStateEvent) => void) => () => void
     logLine: (cb: (e: LogLine) => void) => () => void
     authStatus: (cb: (e: AuthStatusEvent) => void) => () => void
+    newsUpdated: (cb: (items: NewsItem[]) => void) => () => void
   }
 }
 

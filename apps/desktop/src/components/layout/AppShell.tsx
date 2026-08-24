@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   IconHome,
   IconMenu2,
+  IconPackages,
   IconSettings,
   IconShirt,
 } from '@tabler/icons-react'
@@ -17,7 +18,6 @@ import { applyTheme } from '../../styles/theme'
 import i18n from '../../i18n'
 import { TitleBar } from './TitleBar'
 import { TransferProgress } from './TransferProgress'
-import { HeaderQuickPlay } from './HeaderQuickPlay'
 import { UpdateAvailableBanner } from './UpdateAvailableBanner'
 import appIcon from '../../assets/app-icon.png'
 
@@ -117,6 +117,10 @@ export function AppShell() {
               <IconHome {...navIcon} aria-hidden />
               {collapsed ? null : t('nav.home')}
             </NavLink>
+            <NavLink to="/browse" className={itemClass} title={t('nav.browse')}>
+              <IconPackages {...navIcon} aria-hidden />
+              {collapsed ? null : t('nav.browse')}
+            </NavLink>
             <NavLink to="/skin" className={itemClass} title={t('nav.skin')}>
               <IconShirt {...navIcon} aria-hidden />
               {collapsed ? null : t('nav.skin')}
@@ -132,7 +136,6 @@ export function AppShell() {
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="relative z-20 flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]/70 px-3 py-1.5">
-            <HeaderQuickPlay />
             <TransferProgress />
             <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
               <UpdateAvailableBanner />

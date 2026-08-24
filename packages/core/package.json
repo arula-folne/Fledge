@@ -1,6 +1,6 @@
 {
   "name": "@fledge/core",
-  "version": "0.1.5-a",
+  "version": "0.1.6-b",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -20,6 +20,7 @@
     "@fledge/shared": "workspace:*",
     "@xmcl/core": "2.16.0",
     "@xmcl/installer": "6.3.1",
+    "fflate": "^0.8.3",
     "zod": "^3.24.2"
   },
   "devDependencies": {

@@ -289,6 +289,7 @@ function choicePillFromPointer(
   if (items.length === 0) return null
   if (items.length === 1) {
     const only = items[0]
+    if (!only) return null
     return {
       left: only.left,
       top: only.top,
@@ -305,6 +306,7 @@ function choicePillFromPointer(
   for (let i = 0; i < items.length - 1; i += 1) {
     const a = items[i]
     const b = items[i + 1]
+    if (!a || !b) continue
     const abx = b.cx - a.cx
     const aby = b.cy - a.cy
     const len2 = abx * abx + aby * aby || 1
@@ -317,6 +319,7 @@ function choicePillFromPointer(
 
   const a = items[best.from]
   const b = items[best.to]
+  if (!a || !b) return null
   return {
     left: lerp(a.left, b.left, best.t),
     top: lerp(a.top, b.top, best.t),
@@ -422,7 +425,11 @@ function NullableBoolRow({
 }) {
   const buttonRefs = useRef<Partial<Record<keyof typeof BOOL_PILL, HTMLButtonElement | null>>>({})
   const [localValue, setLocalValue] = useState(value)
-  const [pill, setPill] = useState({ left: 2, width: 0, color: BOOL_PILL.default.bg })
+  const [pill, setPill] = useState<{ left: number; width: number; color: string }>({
+    left: 2,
+    width: 0,
+    color: BOOL_PILL.default.bg,
+  })
   const options: Array<{
     id: keyof typeof BOOL_PILL
     text: string
@@ -452,11 +459,12 @@ function NullableBoolRow({
 
   const snapPill = (index: number) => {
     const button = buttons()[index]
-    if (!button) return
+    const option = options[index]
+    if (!button || !option) return
     setPill({
       left: button.offsetLeft,
       width: button.offsetWidth,
-      color: BOOL_PILL[options[index].id].bg,
+      color: BOOL_PILL[option.id].bg,
     })
   }
 
@@ -465,6 +473,7 @@ function NullableBoolRow({
     if (!layout) return
     const from = options[layout.from]
     const to = options[layout.to]
+    if (!from || !to) return
     setPill({
       left: layout.left,
       width: layout.width,
@@ -850,7 +859,11 @@ function ChoiceList({
 
   useLayoutEffect(() => {
     const index = options.findIndex((item) => item.value === localValue)
-    const button = buttonRefs.current[index < 0 ? 0 : index]
+    if (index < 0) {
+      setPill((current) => ({ ...current, width: 0, height: 0 }))
+      return
+    }
+    const button = buttonRefs.current[index]
     if (!button) return
     setPill({
       left: button.offsetLeft,
@@ -863,7 +876,11 @@ function ChoiceList({
   useEffect(() => {
     if (draggingRef.current) return
     const index = options.findIndex((item) => item.value === localValue)
-    const button = buttonRefs.current[index < 0 ? 0 : index]
+    if (index < 0) {
+      setPill((current) => ({ ...current, width: 0, height: 0 }))
+      return
+    }
+    const button = buttonRefs.current[index]
     if (!button) return
     setPill({
       left: button.offsetLeft,

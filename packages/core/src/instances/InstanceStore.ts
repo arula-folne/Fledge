@@ -229,9 +229,16 @@ export class InstanceStore {
   }
 
   private async copyInstanceContents(from: string, to: string): Promise<void> {
+    const excludedUserData = new Set([
+      'saves',
+      'logs',
+      'screenshots',
+      'crash-reports',
+      'backups',
+    ])
     const entries = await fs.readdir(from, { withFileTypes: true })
     for (const entry of entries) {
-      if (entry.name === 'profile.json') continue
+      if (entry.name === 'profile.json' || excludedUserData.has(entry.name.toLowerCase())) continue
       const src = path.join(from, entry.name)
       const dest = path.join(to, entry.name)
       await fs.cp(src, dest, { recursive: true })

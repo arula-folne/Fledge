@@ -25,8 +25,9 @@ export const NEWS = {
   remoteUrl: 'https://raw.githubusercontent.com/arula-folne/Fledge/main/news/news.ja.json',
   localeFileName: 'news.ja.json',
   metaFileName: 'news.meta.json',
-  cacheTtlMs: 60 * 60 * 1000,
-  fetchTimeoutMs: 15_000,
+  /** 短い TTL。GitHub 上の更新をすぐ拾う（連打は in-flight でまとめる） */
+  cacheTtlMs: 20_000,
+  fetchTimeoutMs: 8_000,
 } as const
 
 /** GitHub Releases からの自動更新 */
@@ -35,10 +36,12 @@ export const UPDATER = {
   repo: 'Fledge',
   /** GET /repos/{owner}/{repo}/releases/latest */
   latestReleaseUrl: 'https://api.github.com/repos/arula-folne/Fledge/releases/latest',
+  /** プレリリース利用者向け。draft を除いてクライアント側で最新版を選ぶ。 */
+  releasesUrl: 'https://api.github.com/repos/arula-folne/Fledge/releases?per_page=20',
   cacheTtlMs: 30 * 60 * 1000,
   fetchTimeoutMs: 15_000,
-  /** electron-builder の artifactName と一致させる（0.1.4-a のようなプレリリースも許可） */
-  installerNamePattern: /^Fledge-Setup-[\d.]+(?:-[0-9a-z.]+)?\.exe$/i,
+  /** electron-builder の固定 artifactName と一致させる */
+  installerNamePattern: /^Fledge-Setup\.exe$/i,
   installerFallbackPattern: /\.exe$/i,
 } as const
 
@@ -115,6 +118,9 @@ export const IPC = {
   contentListMedia: 'content:list-media',
   contentProviders: 'content:providers',
   contentListCategoryTags: 'content:list-category-tags',
+  contentCreateInstance: 'content:create-instance',
+  contentImportMrpack: 'content:import-mrpack',
+  contentExportMrpack: 'content:export-mrpack',
 } as const
 
 export const IPC_EVENTS = {
@@ -123,4 +129,5 @@ export const IPC_EVENTS = {
   launchState: 'event:launch-state',
   logLine: 'event:log-line',
   authStatus: 'event:auth-status',
+  newsUpdated: 'event:news-updated',
 } as const

@@ -474,6 +474,7 @@ export const UpdateCheckResultSchema = z.object({
   currentVersion: z.string().optional(),
   nextVersion: z.string().optional(),
   downloadUrl: z.string().url().optional(),
+  downloadSize: z.number().int().nonnegative().optional(),
   releaseUrl: z.string().url().optional(),
 })
 export type UpdateCheckResult = z.infer<typeof UpdateCheckResultSchema>
@@ -503,6 +504,7 @@ export type JavaVerifyResult = z.infer<typeof JavaVerifyResultSchema>
 /** コンテンツ種別（インスタンス配下のカテゴリ） */
 export const ContentCategorySchema = z.enum([
   'mod',
+  'modpack',
   'resourcepack',
   'shader',
   'datapack',
@@ -665,6 +667,18 @@ export const ContentInstallRequestSchema = z.object({
 })
 export type ContentInstallRequest = z.infer<typeof ContentInstallRequestSchema>
 
+/** 閲覧画面から Mod / Modpack 等でインスタンスを新規作成 */
+export const ContentCreateInstanceRequestSchema = z.object({
+  provider: ContentSourceIdSchema.default('modrinth'),
+  projectId: z.string().min(1),
+  category: ContentCategorySchema,
+  versionId: z.string().optional(),
+  gameVersion: z.string().optional(),
+  loaders: z.array(ContentLoaderFilterSchema).optional(),
+  instanceName: z.string().min(1).max(64).optional(),
+})
+export type ContentCreateInstanceRequest = z.infer<typeof ContentCreateInstanceRequestSchema>
+
 export const InstalledContentSchema = z.object({
   id: z.string(),
   provider: ContentSourceIdSchema,
@@ -676,6 +690,19 @@ export const InstalledContentSchema = z.object({
   category: ContentCategorySchema,
   fileName: z.string(),
   iconUrl: z.string().nullable().optional(),
+  /** mrpack 再エクスポート用の配布情報（旧 index との互換のため optional） */
+  downloadUrl: z.string().url().optional(),
+  sha1: z.string().optional(),
+  sha512: z.string().optional(),
+  fileSize: z.number().int().nonnegative().optional(),
+  env: z
+    .object({
+      client: z.enum(['required', 'optional', 'unsupported']).optional(),
+      server: z.enum(['required', 'optional', 'unsupported']).optional(),
+    })
+    .optional(),
+  /** Modrinth の正式な名前・slug・画像を取得済みか */
+  projectMetadataResolved: z.boolean().optional(),
   enabled: z.boolean(),
   installedAt: z.string(),
   updateAvailable: z.boolean().optional(),

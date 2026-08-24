@@ -8,6 +8,7 @@ import { useUiStore } from '../../stores/appStores'
 import { Button } from '../../components/ui/Button'
 import { McFaceAvatar } from './McFaceAvatar'
 import { mcFaceUrl } from './mcFace'
+import { cropSkinFaceDataUrl } from './skinFace'
 
 export function AccountChip() {
   const { t } = useTranslation()
@@ -33,6 +34,33 @@ export function AccountChip() {
   const accountsQuery = useQuery({
     queryKey: ['accounts'],
     queryFn: () => fledgeApi.auth.list(),
+  })
+
+  const settingsQuery = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => fledgeApi.settings.get(),
+  })
+  const selectedSkinId = settingsQuery.data?.selectedSkinId
+
+  const chipFaceQuery = useQuery({
+    queryKey: ['account-face', selectedSkinId, 32],
+    enabled: Boolean(selectedSkinId),
+    staleTime: Infinity,
+    queryFn: async () => {
+      const dataUrl = await fledgeApi.skins.getDataUrl(selectedSkinId!)
+      if (!dataUrl) return null
+      return cropSkinFaceDataUrl(dataUrl, 32)
+    },
+  })
+  const popupFaceQuery = useQuery({
+    queryKey: ['account-face', selectedSkinId, 48],
+    enabled: Boolean(selectedSkinId) && open,
+    staleTime: Infinity,
+    queryFn: async () => {
+      const dataUrl = await fledgeApi.skins.getDataUrl(selectedSkinId!)
+      if (!dataUrl) return null
+      return cropSkinFaceDataUrl(dataUrl, 48)
+    },
   })
 
   const switchMutation = useMutation({
@@ -67,8 +95,8 @@ export function AccountChip() {
 
   const account = sessionQuery.data?.account
   const accounts = accountsQuery.data ?? []
-  const faceUrl = mcFaceUrl(account, 32)
-  const popupFaceUrl = mcFaceUrl(account, 48)
+  const faceUrl = chipFaceQuery.data ?? mcFaceUrl(account, 32)
+  const popupFaceUrl = popupFaceQuery.data ?? chipFaceQuery.data ?? mcFaceUrl(account, 48)
   const secondaryLine =
     authStatus === 'expired' ? (
       <div className="text-xs leading-tight text-[var(--color-danger)]">{t('auth.reloginRequired')}</div>

@@ -20,6 +20,7 @@ const MAX_TRANSIENT_RETRIES = 1
 
 const TYPE_MAP: Record<ContentCategory, string> = {
   mod: 'mod',
+  modpack: 'modpack',
   resourcepack: 'resourcepack',
   shader: 'shader',
   datapack: 'datapack',
@@ -94,7 +95,7 @@ type MrVersion = {
     filename: string
     primary: boolean
     size: number
-    hashes?: { sha1?: string }
+    hashes?: { sha1?: string; sha512?: string }
   }>
 }
 
@@ -102,6 +103,8 @@ function mapCategory(projectType: string): ContentCategory | null {
   switch (projectType) {
     case 'mod':
       return 'mod'
+    case 'modpack':
+      return 'modpack'
     case 'resourcepack':
       return 'resourcepack'
     case 'shader':
@@ -344,6 +347,7 @@ function toResolvedFile(
     downloadUrl: file.url,
     iconUrl: project.icon_url ?? null,
     sha1: file.hashes?.sha1,
+    sha512: file.hashes?.sha512,
     size: file.size,
   }
 }
@@ -383,18 +387,77 @@ const MAX_DEPENDENCY_DEPTH = 24
 export class ModrinthProvider implements ContentProvider {
   readonly id = 'modrinth' as const
   private categoryTagsCache: ContentCategoryTag[] | null = null
+  private localeCache: string | null = null
 
   constructor(private readonly getLocale: () => Promise<string> = async () => 'ja') {}
 
   private async api<T>(path: string, init?: RequestInit): Promise<T> {
-    const locale = await this.getLocale().catch(() => 'ja')
+    if (!this.localeCache) {
+      this.localeCache = await this.getLocale().catch(() => 'ja')
+    }
     return mrFetch<T>(path, {
       ...init,
       headers: {
-        'Accept-Language': acceptLanguageFromLocale(locale),
+        'Accept-Language': acceptLanguageFromLocale(this.localeCache),
         ...(init?.headers ?? {}),
       },
     })
+  }
+
+  /** 解決セッション中だけ使う locale を更新 */
+  private async refreshLocale(): Promise<void> {
+    this.localeCache = await this.getLocale().catch(() => 'ja')
+  }
+
+  private async fetchProjectsByIds(ids: string[]): Promise<Map<string, MrProjectMeta>> {
+    const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+    const out = new Map<string, MrProjectMeta>()
+    if (unique.length === 0) return out
+
+    // Modrinth: GET /projects?ids=["a","b"]
+    const CHUNK = 50
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const chunk = unique.slice(i, i + CHUNK)
+      const params = new URLSearchParams({ ids: JSON.stringify(chunk) })
+      const list = await this.api<MrProjectMeta[]>(`/projects?${params}`)
+      for (const p of list ?? []) {
+        if (p?.id) out.set(p.id, p)
+      }
+    }
+    return out
+  }
+
+  async getProjectMetadata(
+    ids: string[],
+  ): Promise<Map<string, { slug: string; name: string; iconUrl: string | null }>> {
+    const projects = await this.fetchProjectsByIds(ids)
+    return new Map(
+      [...projects.entries()].map(([id, project]) => [
+        id,
+        {
+          slug: project.slug,
+          name: project.title,
+          iconUrl: project.icon_url ?? null,
+        },
+      ]),
+    )
+  }
+
+  private async fetchVersionsByIds(ids: string[]): Promise<Map<string, MrVersion>> {
+    const unique = [...new Set(ids.map((id) => id.trim()).filter(Boolean))]
+    const out = new Map<string, MrVersion>()
+    if (unique.length === 0) return out
+
+    const CHUNK = 50
+    for (let i = 0; i < unique.length; i += CHUNK) {
+      const chunk = unique.slice(i, i + CHUNK)
+      const params = new URLSearchParams({ ids: JSON.stringify(chunk) })
+      const list = await this.api<MrVersion[]>(`/versions?${params}`)
+      for (const v of list ?? []) {
+        if (v?.id) out.set(v.id, v)
+      }
+    }
+    return out
   }
 
   async search(query: ContentSearchQuery): Promise<ContentSearchResult> {
@@ -480,11 +543,53 @@ export class ModrinthProvider implements ContentProvider {
     loaders?: ContentLoaderFilter[]
     installed?: ReadonlyMap<string, string>
   }): Promise<ResolvedContentFile[]> {
+    await this.refreshLocale()
+
+    // mrpack はパック内に依存を持つ。API 上の required 依存は辿らない
+    if (input.category === 'modpack') {
+      const version = await this.fetchVersion(
+        input.projectId,
+        input.versionId,
+        input.gameVersion,
+        input.loaders,
+      )
+      const meta = await this.api<MrProjectMeta>(
+        `/project/${encodeURIComponent(version.project_id || input.projectId)}`,
+      )
+      return [toResolvedFile(meta, version, 'modpack')]
+    }
+
     const chosen = new Map<string, ResolvedContentFile>()
-    const visiting = new Set<string>()
     const pinned = new Set<string>()
     const incompat = new Map<string, string>()
+    const projectCache = new Map<string, MrProjectMeta>()
+    const versionByIdCache = new Map<string, MrVersion>()
+    /** projectId → 進行中の walk（同一プロジェクトの重複解決を共有） */
+    const inflight = new Map<string, Promise<void>>()
     let rootProjectId: string | null = null
+
+    const ensureProjects = async (ids: string[]): Promise<void> => {
+      const missing = ids.filter((id) => id && !projectCache.has(id))
+      if (missing.length === 0) return
+      const fetched = await this.fetchProjectsByIds(missing)
+      for (const [id, meta] of fetched) projectCache.set(id, meta)
+    }
+
+    const fetchVersionCached = async (
+      projectRef: string,
+      versionId: string | undefined,
+    ): Promise<MrVersion> => {
+      if (versionId) {
+        const hit = versionByIdCache.get(versionId)
+        if (hit) return hit
+        const bulk = await this.fetchVersionsByIds([versionId])
+        for (const [id, v] of bulk) versionByIdCache.set(id, v)
+        const version = versionByIdCache.get(versionId)
+        if (version) return version
+        return this.fetchVersion(projectRef, versionId, input.gameVersion, input.loaders)
+      }
+      return this.fetchVersion(projectRef, undefined, input.gameVersion, input.loaders)
+    }
 
     const walk = async (
       projectRef: string,
@@ -499,15 +604,19 @@ export class ModrinthProvider implements ContentProvider {
         )
       }
 
-      const version = await this.fetchVersion(projectRef, versionId, input.gameVersion, input.loaders)
+      const version = await fetchVersionCached(projectRef, versionId)
+      if (version.id) versionByIdCache.set(version.id, version)
       const projectId = version.project_id
       if (!projectId) throw new Error('Modrinth version missing project_id')
 
-      if (visiting.has(projectId)) return
-      const existing = chosen.get(projectId)
-      if (existing) {
-        if (existing.versionId === version.id) return
-        if (!versionId) return
+      const joinExisting = async (): Promise<boolean> => {
+        const existingJob = inflight.get(projectId)
+        if (!existingJob) return false
+        await existingJob
+        const existing = chosen.get(projectId)
+        if (!existing) return false
+        if (existing.versionId === version.id) return true
+        if (!versionId) return true
         if (pinned.has(projectId)) {
           throw contentError(
             'content.error.dependencyConflict',
@@ -515,33 +624,98 @@ export class ModrinthProvider implements ContentProvider {
             { name: existing.name },
           )
         }
-        // 未ピン留めの版を、依存が指定する version_id に合わせる（Sodium 最新→Iris 指定版など）
-        chosen.delete(projectId)
+        // 未ピン留め → 差し替えのため false（再実行）
+        return false
       }
-      if (versionId) pinned.add(projectId)
 
-      visiting.add(projectId)
-      try {
-        const project = await this.api<MrProjectMeta>(`/project/${encodeURIComponent(projectId)}`)
-        if (depth === 0) rootProjectId = project.id
-        const resolvedCategory = mapCategory(project.project_type ?? '') ?? category
+      if (await joinExisting()) return
 
+      const run = async (): Promise<void> => {
+        const existing = chosen.get(projectId)
+        if (existing) {
+          if (existing.versionId === version.id) return
+          if (!versionId) return
+          if (pinned.has(projectId)) {
+            throw contentError(
+              'content.error.dependencyConflict',
+              `依存関係で要求されるバージョンが衝突しています: ${existing.name}`,
+              { name: existing.name },
+            )
+          }
+          chosen.delete(projectId)
+        }
+        if (versionId) pinned.add(projectId)
+
+        const requiredDeps: Array<{ projectId: string; versionId?: string }> = []
+        const pendingIncompat: string[] = []
         for (const dep of version.dependencies ?? []) {
           const depProjectId = dep.project_id?.trim()
           if (!depProjectId) continue
           if (dep.dependency_type === 'incompatible') {
-            incompat.set(depProjectId, project.title)
+            pendingIncompat.push(depProjectId)
             continue
           }
           if (dep.dependency_type !== 'required') continue
-          const depVersionId = dep.version_id?.trim() || undefined
-          await walk(depProjectId, 'mod', depVersionId, depth + 1)
+          requiredDeps.push({
+            projectId: depProjectId,
+            versionId: dep.version_id?.trim() || undefined,
+          })
         }
 
-        const fileResolved = toResolvedFile(project, version, resolvedCategory)
-        chosen.set(projectId, fileResolved)
-      } finally {
-        visiting.delete(projectId)
+        await ensureProjects([projectId, ...requiredDeps.map((d) => d.projectId), ...pendingIncompat])
+        const depVersionIds = requiredDeps
+          .map((d) => d.versionId)
+          .filter((id): id is string => Boolean(id && !versionByIdCache.has(id)))
+        if (depVersionIds.length > 0) {
+          const bulk = await this.fetchVersionsByIds(depVersionIds)
+          for (const [id, v] of bulk) versionByIdCache.set(id, v)
+        }
+
+        if (!projectCache.has(projectId)) {
+          const solo = await this.api<MrProjectMeta>(`/project/${encodeURIComponent(projectId)}`)
+          projectCache.set(projectId, solo)
+        }
+        const meta = projectCache.get(projectId)!
+        if (depth === 0) rootProjectId = meta.id
+        const resolvedCategory = mapCategory(meta.project_type ?? '') ?? category
+
+        for (const badId of pendingIncompat) {
+          incompat.set(badId, meta.title)
+        }
+
+        if (requiredDeps.length > 0) {
+          await Promise.all(
+            requiredDeps.map((dep) => walk(dep.projectId, 'mod', dep.versionId, depth + 1)),
+          )
+        }
+
+        chosen.set(projectId, toResolvedFile(meta, version, resolvedCategory))
+      }
+
+      let job = inflight.get(projectId)
+      if (!job) {
+        job = run().finally(() => {
+          if (inflight.get(projectId) === job) inflight.delete(projectId)
+        })
+        inflight.set(projectId, job)
+      }
+      await job
+
+      // 共有ジョブ完了後にピン留め差し替えが必要ならもう一度
+      const after = chosen.get(projectId)
+      if (
+        versionId &&
+        after &&
+        after.versionId !== version.id &&
+        !pinned.has(projectId)
+      ) {
+        await walk(projectRef, category, versionId, depth)
+      } else if (versionId && after && after.versionId !== version.id && pinned.has(projectId)) {
+        throw contentError(
+          'content.error.dependencyConflict',
+          `依存関係で要求されるバージョンが衝突しています: ${after.name}`,
+          { name: after.name },
+        )
       }
     }
 
@@ -562,7 +736,6 @@ export class ModrinthProvider implements ContentProvider {
     if (!rootProjectId || files.length === 0) {
       throw new Error('Compatible version not found on Modrinth')
     }
-    // Map 挿入順は依存→本体。念のため本体を末尾へ。
     const primary = files.find((f) => f.projectId === rootProjectId)
     if (!primary) return files
     return [...files.filter((f) => f.projectId !== rootProjectId), primary]
@@ -600,14 +773,14 @@ export class ModrinthProvider implements ContentProvider {
     opts: { gameVersion?: string; loaders?: ContentLoaderFilter[] },
   ): Promise<{ versionId: string; versionNumber: string } | null> {
     try {
-      const resolved = await this.resolveInstall({
-        projectId: entry.projectId,
-        category: entry.category,
+      // 依存ツリー全体は見ず、当該プロジェクトの最新互換版だけ見る（高速）
+      const versions = await this.listVersions(entry.projectId, {
         gameVersion: opts.gameVersion,
         loaders: opts.loaders,
       })
-      if (resolved.versionId === entry.versionId) return null
-      return { versionId: resolved.versionId, versionNumber: resolved.versionNumber }
+      const latest = versions[0]
+      if (!latest || latest.id === entry.versionId) return null
+      return { versionId: latest.id, versionNumber: latest.versionNumber }
     } catch {
       return null
     }
