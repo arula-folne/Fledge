@@ -150,6 +150,7 @@ export type FledgeApi = {
   }
   app: {
     factoryReset: () => Promise<void>
+    uninstall: () => Promise<void>
     relaunch: () => Promise<void>
     deviceSpecs: () => Promise<DeviceSpecs>
   }

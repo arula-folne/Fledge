@@ -48,6 +48,7 @@ export default function SettingsPage() {
   const [restartNoticeOpen, setRestartNoticeOpen] = useState(false)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
   const [factoryResetOpen, setFactoryResetOpen] = useState(false)
+  const [uninstallOpen, setUninstallOpen] = useState(false)
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
@@ -123,6 +124,22 @@ export default function SettingsPage() {
     },
     onError: (err) => {
       setMessage(err instanceof Error ? err.message : String(err))
+    },
+  })
+
+  const uninstallMutation = useMutation({
+    mutationFn: async () => {
+      try {
+        localStorage.clear()
+      } catch {
+        /* ignore */
+      }
+      await fledgeApi.app.uninstall()
+    },
+    onError: (err) => {
+      const key = err instanceof Error ? err.message : String(err)
+      setMessage(key.startsWith('settings.') ? t(key) : t('settings.uninstallFailed'))
+      setUninstallOpen(false)
     },
   })
 
@@ -297,13 +314,9 @@ export default function SettingsPage() {
       ) : null}
 
       {section === 'minecraftInitial' ? (
-        <MinecraftInitialSettingsPanel
+          <MinecraftInitialSettingsPanel
               value={settings.minecraftInitialSettings}
               onChange={(minecraftInitialSettings) => saveMutation.mutate({ minecraftInitialSettings })}
-              locked={settings.minecraftInitialSettingsLocked}
-              onLockedChange={(minecraftInitialSettingsLocked) =>
-                saveMutation.mutate({ minecraftInitialSettingsLocked })
-              }
               labels={{
                 hint: t('settings.minecraftInitial.hint'),
                 reset: t('settings.minecraftInitial.reset'),
@@ -677,12 +690,25 @@ export default function SettingsPage() {
               <p className="mt-1 mb-2 text-xs text-[var(--color-text-muted)]">{t('settings.factoryResetHint')}</p>
               <Button
                 variant="danger"
-                disabled={factoryResetMutation.isPending}
+                disabled={factoryResetMutation.isPending || uninstallMutation.isPending}
                 onClick={() => setFactoryResetOpen(true)}
               >
                 {factoryResetMutation.isPending
                   ? t('settings.factoryResetPending')
                   : t('settings.factoryReset')}
+              </Button>
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.uninstall')}</h3>
+              <p className="mt-1 mb-2 text-xs text-[var(--color-text-muted)]">{t('settings.uninstallHint')}</p>
+              <Button
+                variant="danger"
+                disabled={factoryResetMutation.isPending || uninstallMutation.isPending}
+                onClick={() => setUninstallOpen(true)}
+              >
+                {uninstallMutation.isPending
+                  ? t('settings.uninstallPending')
+                  : t('settings.uninstall')}
               </Button>
             </div>
           </Section>
@@ -740,6 +766,19 @@ export default function SettingsPage() {
         }}
         onConfirm={() => {
           factoryResetMutation.mutate()
+        }}
+      />
+      <ConfirmDialog
+        open={uninstallOpen}
+        title={t('settings.uninstallConfirm')}
+        body={t('settings.uninstallConfirmBody')}
+        confirmLabel={t('settings.uninstall')}
+        pending={uninstallMutation.isPending}
+        onCancel={() => {
+          if (!uninstallMutation.isPending) setUninstallOpen(false)
+        }}
+        onConfirm={() => {
+          uninstallMutation.mutate()
         }}
       />
     </div>

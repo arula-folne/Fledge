@@ -135,6 +135,11 @@ export function snapshotMinecraftInitialOptions(
     put(`key_${id}`, code)
   }
 
+  // カスタム設定を書くときは初回アクセシビリティ画面を出さない（出ると通常起動と同じに見える）
+  if (Object.keys(out).length > 0 && versionAtLeast(minecraftVersion, { major: 1, minor: 19, patch: 4 })) {
+    out.onboardAccessibility = 'false'
+  }
+
   return out
 }
 

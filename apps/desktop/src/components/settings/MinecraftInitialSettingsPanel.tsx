@@ -25,8 +25,6 @@ import {
   IconLanguage,
   IconLayersIntersect,
   IconLayoutBoard,
-  IconLock,
-  IconLockOpen,
   IconMouse,
   IconMusic,
   IconNumbers,
@@ -47,8 +45,6 @@ import { MinecraftKeybindsDialog } from './MinecraftKeybindsDialog'
 type Props = {
   value: MinecraftInitialSettings
   onChange: (next: MinecraftInitialSettings) => void
-  locked: boolean
-  onLockedChange: (locked: boolean) => void
   labels: {
     hint: string
     reset: string
@@ -957,7 +953,7 @@ function Group({
   )
 }
 
-export function MinecraftInitialSettingsPanel({ value, onChange, locked, onLockedChange, labels }: Props) {
+export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props) {
   const { t } = useTranslation()
   const current = { ...EMPTY_MINECRAFT_INITIAL_SETTINGS, ...value, keybinds: value.keybinds ?? {} }
   const patch = (partial: Partial<MinecraftInitialSettings>) =>
@@ -966,39 +962,6 @@ export function MinecraftInitialSettingsPanel({ value, onChange, locked, onLocke
 
   return (
     <div className="space-y-4">
-      <div className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0 space-y-1.5">
-            <h3 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[var(--color-text)]">
-              {locked ? (
-                <IconLock size={18} stroke={1.7} className="shrink-0 text-[var(--color-text-muted)]" aria-hidden />
-              ) : (
-                <IconLockOpen size={18} stroke={1.7} className="shrink-0 text-[var(--color-text-muted)]" aria-hidden />
-              )}
-              {locked
-                ? t('settings.minecraftInitial.lock.lockedTitle')
-                : t('settings.minecraftInitial.lock.unlockedTitle')}
-            </h3>
-            <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">
-              {locked
-                ? t('settings.minecraftInitial.lock.lockedBody')
-                : t('settings.minecraftInitial.lock.unlockedBody')}
-            </p>
-          </div>
-          <Button
-            type="button"
-            variant={locked ? 'primary' : 'secondary'}
-            onClick={() => onLockedChange(!locked)}
-          >
-            {locked
-              ? t('settings.minecraftInitial.lock.unlock')
-              : t('settings.minecraftInitial.lock.lock')}
-          </Button>
-        </div>
-      </div>
-
-      {locked ? null : (
-        <>
       <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">{labels.hint}</p>
 
       <Group title={labels.game} icon={IconDeviceGamepad2}>
@@ -1290,8 +1253,6 @@ export function MinecraftInitialSettingsPanel({ value, onChange, locked, onLocke
         onChange={(keybinds) => patch({ keybinds })}
         onClose={() => setKeybindsOpen(false)}
       />
-        </>
-      )}
     </div>
   )
 }

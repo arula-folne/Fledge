@@ -235,10 +235,9 @@ export const SettingsSchema = z.object({
   defaultJvmArgs: z.array(z.string()).default([]),
   minecraftInitialSettings: MinecraftInitialSettingsSchema.default({}),
   /**
-   * true のとき初期設定は使わず Minecraft デフォルトのまま。
-   * 新規インスタンスは options.txt を書かないので、ゲーム側の初回設定画面が出る。
+   * @deprecated ロック機能は廃止。読み込み互換のため残す（無視される）。
    */
-  minecraftInitialSettingsLocked: z.boolean().default(true),
+  minecraftInitialSettingsLocked: z.boolean().optional(),
   msaClientId: z.string().optional(),
   showSnapshots: z.boolean().default(false),
 

@@ -26,9 +26,9 @@ export default function HomePage() {
   const featured = instances.find((i) => i.id === featuredId) ?? instances[0] ?? null
 
   return (
-    <div className="grid h-full min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_18rem]">
-      <div className="min-w-0 space-y-5">
-        <section className="min-w-0">
+    <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:grid-rows-[minmax(0,1fr)]">
+      <div className="flex min-h-0 min-w-0 shrink-0 flex-col gap-5 overflow-hidden lg:h-full lg:min-h-0 lg:shrink-0">
+        <section className="min-w-0 shrink-0">
           {featured ? (
             <div className="space-y-3">
               <h2 className="text-sm font-medium text-[var(--color-text-muted)]">{t('home.lastPlayed')}</h2>
@@ -45,7 +45,9 @@ export default function HomePage() {
         <HomeLibrarySection instances={instances} />
       </div>
 
-      <NewsList compact />
+      <div className="min-h-0 min-w-0 flex-1 overflow-hidden lg:h-full">
+        <NewsList compact />
+      </div>
     </div>
   )
 }

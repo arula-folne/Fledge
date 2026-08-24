@@ -22,13 +22,21 @@ export class SkinApplier {
     await this.apply(settings.selectedSkinId, settings.skinModel, accountId)
   }
 
-  async apply(skinId: string, model: SkinModel, accountId: string): Promise<void> {
+  async apply(
+    skinId: string,
+    model: SkinModel,
+    accountId: string,
+    opts?: { forceCredentials?: boolean },
+  ): Promise<void> {
     const png = await this.skins.readPngBytes(skinId)
     if (!png) {
       throw new Error('スキン画像が見つかりません')
     }
     try {
-      const creds = await this.auth.ensureCredentials(accountId)
+      // 起動中はゲームとトークンを共用するため、必要なら強制更新してから API を叩く
+      const creds = await this.auth.ensureCredentials(accountId, {
+        force: opts?.forceCredentials === true,
+      })
       await uploadMinecraftSkin(creds.accessToken, png, model === 'slim' ? 'slim' : 'classic')
       this.logger.info('auth', `Applied skin ${skinId} to Minecraft profile`)
     } catch (err) {

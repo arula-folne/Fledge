@@ -283,8 +283,18 @@ export class LaunchOrchestrator {
 
       if (profile.minecraftInitialSettingsSeeded && !profile.minecraftInitialSettingsApplied) {
         try {
-          await mergeMinecraftOptionsFile(instanceDir, profile.pendingMinecraftOptions ?? {})
-          await mergeMinecraftDebugOverlayFile(instanceDir, profile.pendingMinecraftDebugOverlay ?? {})
+          const options = { ...(profile.pendingMinecraftOptions ?? {}) }
+          const overlay = { ...(profile.pendingMinecraftDebugOverlay ?? {}) }
+          // デバッグオーバーレイだけ指定した場合も options.txt が無いと初回画面が出る
+          if (
+            Object.keys(overlay).length > 0 &&
+            !('onboardAccessibility' in options) &&
+            Object.keys(options).length === 0
+          ) {
+            options.onboardAccessibility = 'false'
+          }
+          await mergeMinecraftOptionsFile(instanceDir, options)
+          await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
           await this.deps.instances.update(profileId, {
             minecraftInitialSettingsApplied: true,
             pendingMinecraftOptions: {},

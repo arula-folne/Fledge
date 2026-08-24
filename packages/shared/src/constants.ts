@@ -86,6 +86,7 @@ export const IPC = {
   skinsSaveThumb: 'skins:save-thumb',
   cacheClear: 'cache:clear',
   appFactoryReset: 'app:factory-reset',
+  appUninstall: 'app:uninstall',
   appRelaunch: 'app:relaunch',
   appDeviceSpecs: 'app:device-specs',
   backupRun: 'backup:run',

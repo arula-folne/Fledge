@@ -8,6 +8,7 @@ import {
   CreateInstanceInputSchema,
   IPC,
   IPC_EVENTS,
+  APP_VERSION,
   SettingsSchema,
   SkinModelSchema,
   type CreateInstanceInput,
@@ -16,6 +17,11 @@ import {
 } from '@fledge/shared'
 import { snapshotMinecraftDebugOverlay, snapshotMinecraftInitialOptions, factoryReset, type LauncherApp } from '@fledge/core'
 import { applyWindowUiScale } from '../windows/MainWindow'
+import { isLightStart } from '../startup/lightStart'
+import {
+  resolvePackagedInstallRoot,
+  scheduleCompleteUninstall,
+} from '../uninstall/scheduleCompleteUninstall'
 
 function decodeThumbDataUrl(dataUrl: string): { bytes: Buffer; ext: 'webp' | 'png' } {
   if (typeof dataUrl !== 'string') throw new Error('Invalid skin thumb')
@@ -52,6 +58,8 @@ export function registerIpc(
     onRelaunch?: () => void
     /** インストーラー起動後に終了（relaunch しない）。NSIS が新版を起動する */
     onQuitForUpdate?: () => void
+    /** アンインストール用スクリプト起動後に終了（relaunch しない） */
+    onUninstall?: () => void
   },
 ): void {
   const win = () => getWindow()
@@ -128,23 +136,18 @@ export function registerIpc(
   })
   ipcMain.handle(IPC.instancesCreate, async (_e, input: CreateInstanceInput) => {
     const settings = await appCtx.settings.get()
-    const locked = settings.minecraftInitialSettingsLocked
     const profile = await appCtx.instances.create(CreateInstanceInputSchema.parse(input), {
       memoryMaxMb: settings.defaultMemoryMaxMb,
       jvmArgs: settings.defaultJvmArgs,
-      ...(locked
-        ? {}
-        : {
-            seedMinecraftInitialSettings: true,
-            pendingMinecraftOptions: snapshotMinecraftInitialOptions(
-              settings.minecraftInitialSettings,
-              input.minecraftVersion,
-            ),
-            pendingMinecraftDebugOverlay: snapshotMinecraftDebugOverlay(
-              settings.minecraftInitialSettings,
-              input.minecraftVersion,
-            ),
-          }),
+      seedMinecraftInitialSettings: true,
+      pendingMinecraftOptions: snapshotMinecraftInitialOptions(
+        settings.minecraftInitialSettings,
+        input.minecraftVersion,
+      ),
+      pendingMinecraftDebugOverlay: snapshotMinecraftDebugOverlay(
+        settings.minecraftInitialSettings,
+        input.minecraftVersion,
+      ),
     })
     if (!settings.selectedInstanceId) {
       await appCtx.settings.set({ selectedInstanceId: profile.id })
@@ -299,7 +302,12 @@ export function registerIpc(
 
   ipcMain.handle(IPC.newsList, async () => appCtx.news.list())
   ipcMain.handle(IPC.logsRecent, async () => appCtx.logger.getRecent())
-  ipcMain.handle(IPC.updaterCheck, async () => appCtx.updater.check())
+  ipcMain.handle(IPC.updaterCheck, async () => {
+    if (isLightStart()) {
+      return { status: 'up-to-date' as const, currentVersion: APP_VERSION }
+    }
+    return appCtx.updater.check()
+  })
   ipcMain.handle(IPC.updaterApply, async () => {
     if (!app.isPackaged) {
       throw new Error('updater.noop')
@@ -424,6 +432,26 @@ export function registerIpc(
     hooks?.onFactoryReset?.()
   })
 
+  ipcMain.handle(IPC.appUninstall, async () => {
+    if (!app.isPackaged) {
+      throw new Error('settings.uninstallDevOnly')
+    }
+
+    appCtx.backup.cancelPending()
+    appCtx.queue.cancelAll()
+    appCtx.launch.stopAll()
+    appCtx.java.clearMemo()
+    try {
+      await appCtx.sessionProxy.stop()
+    } catch {
+      /* ignore */
+    }
+    await new Promise((resolve) => setTimeout(resolve, 600))
+
+    await scheduleCompleteUninstall(resolvePackagedInstallRoot())
+    hooks?.onUninstall?.()
+  })
+
   ipcMain.handle(IPC.appRelaunch, async () => {
     hooks?.onRelaunch?.()
   })
@@ -535,12 +563,16 @@ async function applySkinToPlayableAccounts(
     .filter((s) => ['preparing', 'launching', 'running'].includes(s.state))
     .map((s) => s.accountId)
   const ids = [...new Set(running)]
-  if (ids.length === 0) {
+  const gameRunning = ids.length > 0
+  if (!gameRunning) {
     const active = await appCtx.auth.getSession()
     if (active) ids.push(active.id)
   }
   for (const accountId of ids) {
-    await appCtx.skinApplier.apply(skinId, model, accountId)
+    // 起動中はトークンを強制更新してからアップロード（入り直し／再起動で確実に新スキンになる）
+    await appCtx.skinApplier.apply(skinId, model, accountId, {
+      forceCredentials: gameRunning,
+    })
   }
 }
 

@@ -9,7 +9,10 @@ import { DiscordPresence } from './discord/DiscordPresence'
 import { defaultEnvCandidatePaths, loadFledgeEnvFiles } from './env/loadEnv'
 import { registerIpc } from './ipc/registerIpc'
 import { TokenVault } from './security/tokenVault'
+import { applyLightStartEnv, isLightStart } from './startup/lightStart'
 import { createMainWindow, resolveFledgeRoot } from './windows/MainWindow'
+
+applyLightStartEnv()
 
 let mainWindow: BrowserWindow | null = null
 let launcherApp: LauncherApp | null = null
@@ -193,7 +196,15 @@ async function bootstrap(): Promise<void> {
 
   const settings = await launcherApp.settings.get()
   cachedClientId = settings.msaClientId
-  await presence.setEnabled(settings.discordRichPresence)
+  const lightStart = isLightStart()
+  if (lightStart) {
+    // インストール直後は Discord 接続を後回しにしてウィンドウ表示を優先
+    setTimeout(() => {
+      void presence.setEnabled(settings.discordRichPresence)
+    }, 12_000)
+  } else {
+    await presence.setEnabled(settings.discordRichPresence)
+  }
 
   const originalSet = launcherApp.settings.set.bind(launcherApp.settings)
   launcherApp.settings.set = async (partial) => {
@@ -216,6 +227,9 @@ async function bootstrap(): Promise<void> {
       // ロック解除のため少し待ってから終了。relaunch はせず NSIS に任せる
       void scheduleAppExit({ relaunch: false, delayMs: 500 })
     },
+    onUninstall: () => {
+      void scheduleAppExit({ relaunch: false, skipBackupFlush: true, delayMs: 400 })
+    },
   })
   mainWindow = createMainWindow({
     width: settings.launcherWindowWidth,
@@ -223,11 +237,11 @@ async function bootstrap(): Promise<void> {
     frame: settings.useOsWindowChrome,
     uiScale: settings.uiScale,
   })
-  logger.info('system', `Fledge root: ${root}`)
-  if (settings.backupSyncEnabled) launcherApp.backup.scheduleSync()
+  logger.info('system', `Fledge root: ${root}${lightStart ? ' (light start)' : ''}`)
+  if (!lightStart && settings.backupSyncEnabled) launcherApp.backup.scheduleSync()
 
   const warmupId = settings.lastPlayedInstanceId ?? settings.selectedInstanceId
-  if (warmupId) {
+  if (!lightStart && warmupId) {
     void launcherApp.launch.warmup(warmupId).catch((err) => {
       logger.warn(
         'launcher',

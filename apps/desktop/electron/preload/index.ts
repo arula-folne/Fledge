@@ -153,6 +153,7 @@ export type FledgeApi = {
   }
   app: {
     factoryReset: () => Promise<void>
+    uninstall: () => Promise<void>
     relaunch: () => Promise<void>
     deviceSpecs: () => Promise<DeviceSpecs>
   }
@@ -277,6 +278,7 @@ const api: FledgeApi = {
   },
   app: {
     factoryReset: () => ipcRenderer.invoke(IPC.appFactoryReset),
+    uninstall: () => ipcRenderer.invoke(IPC.appUninstall),
     relaunch: () => ipcRenderer.invoke(IPC.appRelaunch),
     deviceSpecs: () => ipcRenderer.invoke(IPC.appDeviceSpecs),
   },

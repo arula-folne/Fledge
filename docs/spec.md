@@ -12,7 +12,7 @@ GitHub リポジトリ向けの実装仕様です。アプリ紹介・機能の�
 ## 1. 位置づけ
 
 Fledge は Minecraft Java Edition 用の非公式デスクトップランチャーです。  
-バージョン **0.1.4a（Alpha）**。製品 ID は `net.folne.fledge`。  
+バージョン **Ver.0.1.5a**。製品 ID は `net.folne.fledge`。  
 **対応環境は Windows 11 のみ**です。
 
 方針:
@@ -147,7 +147,8 @@ Java メジャー推定の目安（`requiredJavaMajor`）:
 ## 8. Minecraft 初期設定
 
 設定の `minecraftInitialSettings` は **新規インスタンスの初回起動専用** です。  
-`null` の項目はゲーム側デフォルトのまま（`options.txt` に書かない）。
+`null`（UI の「Minecraftデフォルト」）の項目はゲーム側デフォルトのまま（`options.txt` に書かない）。  
+変更した項目がある場合は初回起動前に `options.txt` へ書き込み、あわせて `onboardAccessibility:false` でゲーム側の初回画面を抑止します。
 
 対象例: 言語、字幕、オートジャンプ、FOV、音量、最大 FPS、垂直同期、GUI スケール、明るさ、描画／演算距離、マウス感度。
 
@@ -175,7 +176,7 @@ Java メジャー推定の目安（`requiredJavaMajor`）:
 - 同梱デフォルト: Steve、Alex、Ari、Efe、Kai、Makena、Noor、Sunny、Zuri
 - ユーザーアップロードは最大 5 件（`MAX_UPLOADED_SKINS`）
 - モデルは wide / slim。プレビューはレンダラーの `skinview3d`
-- 適用は Mojang のスキン API（`SkinApplier`）。ゲーム内反映はワールド／サーバーへの再入場が必要、という案内を UI に出す
+- 適用は Mojang のスキン API（`SkinApplier`）。プロフィールは即時更新されるが、クライアントは自分の見た目をセッション中キャッシュするため、確実な反映にはゲーム再起動が必要な場合がある（UI で案内）
 
 ## 11. バックアップ
 
@@ -229,6 +230,9 @@ Java メジャー推定の目安（`requiredJavaMajor`）:
 `electron-builder`、NSIS。ワンクリックインストーラではない（インストール先変更可、デスクトップショートカット作成）。
 
 `extraResources`: `icon.png` / `icon.ico`、同梱スキン。
+
+アンインストール時は `Data/` と `Instances/` も含めインストールフォルダごと削除する（`build/installer.nsh`）。  
+設定 → リソース管理からアプリ内アンインストールも可能（終了後に NSIS アンインストーラー／フォルダ削除を実行）。
 
 ## 16. 既知のギャップ（Beta）
 

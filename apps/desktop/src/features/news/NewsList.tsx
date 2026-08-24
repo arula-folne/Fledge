@@ -35,18 +35,32 @@ export function NewsList({ compact = false }: { compact?: boolean }) {
   )
 
   return (
-    <section className="min-w-0">
-      <h2 className="mb-2 text-xs font-medium text-[var(--color-text-muted)]">{t('news.title')}</h2>
+    <section
+      className={
+        compact
+          ? 'flex h-full min-h-0 min-w-0 flex-col'
+          : 'min-w-0'
+      }
+    >
+      <h2 className="mb-2 shrink-0 text-xs font-medium text-[var(--color-text-muted)]">
+        {t('news.title')}
+      </h2>
       {newsQuery.isPending && !items.length ? (
         <p className="text-sm text-[var(--color-text-muted)]">{t('news.loading')}</p>
       ) : !items.length ? (
         <p className="text-sm text-[var(--color-text-muted)]">{t('news.empty')}</p>
       ) : (
-        <ul className={compact ? 'flex flex-col gap-1.5' : 'grid gap-2 sm:grid-cols-2'}>
+        <ul
+          className={
+            compact
+              ? 'flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-0.5'
+              : 'grid gap-2 sm:grid-cols-2'
+          }
+        >
           {items.map((item) => {
             const { category, label } = parseNewsTitle(item.title)
             return (
-              <li key={item.id}>
+              <li key={item.id} className={compact ? 'shrink-0' : undefined}>
                 <button
                   type="button"
                   className="flex h-full w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-left transition hover:border-[var(--color-accent)]/30 hover:bg-[var(--color-hover)]/60"

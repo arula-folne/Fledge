@@ -1,7 +1,17 @@
 type Segment = {
   num: number
-  /** 英字サフィックス。空文字は正式版（どの英字よりも新しい扱い） */
+  /** 英字サフィックス。空文字は製品版（どのプレリリースよりも新しい） */
   suffix: string
+}
+
+/** プレリリース順位: a < b < rc < （製品版） */
+function suffixRank(suffix: string): number {
+  if (suffix === '') return 4
+  if (suffix === 'a') return 1
+  if (suffix === 'b') return 2
+  if (suffix === 'rc') return 3
+  // 未知のサフィックスはアルファ寄りに倒す
+  return 0
 }
 
 /** 先頭の `v` / `Ver.` を除き、`.` と `-` で分割する */
@@ -13,8 +23,8 @@ function parseSegments(version: string): Segment[] {
     const num = m?.[1] ? Number.parseInt(m[1], 10) : 0
     const suffix = (m?.[2] ?? '').toLowerCase()
     const prev = segments[segments.length - 1]
-    // 純英字パート（0.1.4-a / 0.1.4-alpha）は直前の数値のサフィックスとして扱い、
-    // 0.1.4a と同一視する
+    // 純英字パート（0.1.4-a / 0.1.4-rc）は直前の数値のサフィックスとして扱い、
+    // 0.1.4a / 0.1.4rc と同一視する
     if (m && !m[1] && suffix && prev && prev.suffix === '') {
       prev.suffix = suffix
       continue
@@ -31,7 +41,7 @@ export function parseVersionSegments(version: string): number[] {
 
 /**
  * a が b より古いとき -1、同じ 0、新しいとき 1。
- * `0.1.4a` のような英字サフィックスはプレリリース扱い（0.1.4a < 0.1.4b < 0.1.4）。
+ * 例: 0.1.4a < 0.1.4b < 0.1.4rc < 0.1.4
  */
 export function compareVersions(a: string, b: string): -1 | 0 | 1 {
   const pa = parseSegments(a)
@@ -43,9 +53,9 @@ export function compareVersions(a: string, b: string): -1 | 0 | 1 {
     if (da.num < db.num) return -1
     if (da.num > db.num) return 1
     if (da.suffix !== db.suffix) {
-      // サフィックスなし（正式版）が最も新しい
-      if (da.suffix === '') return 1
-      if (db.suffix === '') return -1
+      const ra = suffixRank(da.suffix)
+      const rb = suffixRank(db.suffix)
+      if (ra !== rb) return ra < rb ? -1 : 1
       return da.suffix < db.suffix ? -1 : 1
     }
   }

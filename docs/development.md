@@ -30,6 +30,19 @@ pnpm dev
 
 開発時のデータルートは `apps/desktop/.fledge-root/` です（gitignore 済み）。本番の `Fledge.exe` 横配置とは場所だけが違います。
 
+## バージョン表記
+
+正本は `packages/shared/src/version.ts` の `APP_VERSION` です。表示は常に `Ver.` 付きです。
+
+| 区分 | `APP_VERSION` | 表示例 |
+|------|---------------|--------|
+| アルファ版 | `0.0.0a` | Ver.0.0.0a |
+| ベータ版 | `0.0.0b` | Ver.0.0.0b |
+| 正式版候補版 | `0.0.0rc` | Ver.0.0.0rc |
+| 製品版 | `0.0.0` | Ver.0.0.0 |
+
+変更後は `pnpm version:sync` で package.json / README / spec を同期します（npm semver 用に `0.1.4a` → `0.1.4-a` へ変換されます）。
+
 ## よく使うスクリプト
 
 | コマンド | 内容 |

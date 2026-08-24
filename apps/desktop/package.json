@@ -1,6 +1,6 @@
 {
   "name": "@fledge/desktop",
-  "version": "0.1.4-a",
+  "version": "0.1.5-a",
   "private": true,
   "description": "Fledge desktop application",
   "main": "./out/main/index.js",
@@ -48,6 +48,7 @@
   "build": {
     "appId": "net.folne.fledge",
     "productName": "Fledge",
+    "npmRebuild": false,
     "directories": {
       "output": "release",
       "buildResources": "build"
@@ -85,13 +86,19 @@
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "runAfterFinish": true,
-      "deleteAppDataOnUninstall": false,
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico",
-      "installerHeaderIcon": "build/icon.ico"
+      "deleteAppDataOnUninstall": true,
+      "include": "installer.nsh",
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "installerHeaderIcon": "icon.ico",
+      "installerHeader": "installerHeader.bmp",
+      "installerSidebar": "installerSidebar.bmp",
+      "uninstallerSidebar": "installerSidebar.bmp"
     },
     "artifactName": "Fledge-Setup-${version}.${ext}"
   }

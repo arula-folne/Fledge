@@ -61,9 +61,10 @@ jobs:
           $exe = Get-ChildItem apps/desktop/release/Fledge-Setup-*.exe | Select-Object -First 1
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            # 英字サフィックス付き（v0.1.4a など）はプレリリースとして作成
-            $prerelease = if ($tag -match '[a-z]$') { '--prerelease' } else { $null }
-            gh release create $tag --title "Fledge Ver.$($tag.TrimStart('v'))" --generate-notes $prerelease
+            # a / b / rc 接尾辞付きはプレリリース（製品版 v0.1.4 のみ正式）
+            $ver = $tag.TrimStart('v')
+            $prerelease = if ($ver -match '(a|b|rc)$') { '--prerelease' } else { $null }
+            gh release create $tag --title "Fledge Ver.$ver" --generate-notes $prerelease
           }
           gh release upload $tag $exe.FullName --clobber
         env:

@@ -81,6 +81,9 @@ export class LocalJsonNewsProvider implements NewsProvider {
   }
 
   private async refreshIfNeeded(): Promise<void> {
+    // インストール直後の軽量起動ではリモート取得をスキップ（同梱 JSON / キャッシュのみ）
+    if (process.env.FLEDGE_LIGHT_START === '1') return
+
     const meta = await this.readMeta()
     if (this.isCacheFresh(meta)) return
 
