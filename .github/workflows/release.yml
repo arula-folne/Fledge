@@ -76,13 +76,21 @@ jobs:
             } else {
               gh release create $tag --title $title --generate-notes --latest
             }
+            if ($LASTEXITCODE -ne 0) { throw 'gh release create failed' }
           } else {
-            gh release edit $tag --title $title --prerelease=false --latest
+            # タグ再作成などで draft 化していても公開状態へ戻す。
+            # draft / prerelease のままでは --latest を指定できないため段階的に実行する
+            gh release edit $tag --draft=false --prerelease=false --title $title
+            if ($LASTEXITCODE -ne 0) { throw 'gh release edit failed' }
             if (Test-Path $notesFile) {
               gh release edit $tag --notes-file $notesFile
+              if ($LASTEXITCODE -ne 0) { throw 'gh release notes update failed' }
             }
+            gh release edit $tag --latest
+            if ($LASTEXITCODE -ne 0) { throw 'gh release set latest failed' }
           }
           gh release upload $tag $exe.FullName --clobber
+          if ($LASTEXITCODE -ne 0) { throw 'gh release upload failed' }
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
