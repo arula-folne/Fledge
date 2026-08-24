@@ -42,6 +42,34 @@ function findWindowsInstaller(assets: GithubReleaseAsset[]): GithubReleaseAsset 
 }
 
 /**
+ * キャッシュ結果を実行中バイナリの APP_VERSION に合わせて解釈する。
+ * すでに次版以上なら up-to-date。currentVersion 不一致なら再取得させる。
+ */
+export function reconcileCachedUpdateResult(
+  cached: UpdateCheckResult,
+  currentVersion: string,
+): UpdateCheckResult | null {
+  if (cached.nextVersion && compareVersions(currentVersion, cached.nextVersion) >= 0) {
+    return {
+      status: 'up-to-date',
+      currentVersion,
+      nextVersion: cached.nextVersion,
+      releaseUrl: cached.releaseUrl,
+    }
+  }
+
+  if (cached.currentVersion && cached.currentVersion !== currentVersion) {
+    return null
+  }
+
+  if (cached.status === 'available' || cached.status === 'up-to-date') {
+    return { ...cached, currentVersion }
+  }
+
+  return cached
+}
+
+/**
  * GitHub Releases の latest を参照し、新しいインストーラーがあれば更新を案内する。
  */
 export class GithubReleaseUpdater implements Updater {
@@ -53,8 +81,14 @@ export class GithubReleaseUpdater implements Updater {
   async check(): Promise<UpdateCheckResult> {
     const cached = await this.readCache()
     if (cached && this.isCacheFresh(cached.fetchedAt)) {
-      this.syncPending(cached.result)
-      return cached.result
+      const reconciled = reconcileCachedUpdateResult(cached.result, APP_VERSION)
+      if (reconciled) {
+        if (reconciled.status !== cached.result.status || reconciled.currentVersion !== cached.result.currentVersion) {
+          await this.writeCache(reconciled)
+        }
+        this.syncPending(reconciled)
+        return reconciled
+      }
     }
 
     if (this.refreshTail) return this.refreshTail
@@ -62,8 +96,11 @@ export class GithubReleaseUpdater implements Updater {
     this.refreshTail = this.fetchAndResolve()
       .catch(async () => {
         if (cached) {
-          this.syncPending(cached.result)
-          return cached.result
+          const reconciled = reconcileCachedUpdateResult(cached.result, APP_VERSION)
+          if (reconciled) {
+            this.syncPending(reconciled)
+            return reconciled
+          }
         }
         return { status: 'unavailable', messageKey: 'updater.fetchFailed' } satisfies UpdateCheckResult
       })
@@ -105,6 +142,15 @@ export class GithubReleaseUpdater implements Updater {
       throw new Error('updater.downloadFailed')
     } finally {
       clearTimeout(timer)
+    }
+  }
+
+  async clearCache(): Promise<void> {
+    this.pending = null
+    try {
+      await fs.unlink(this.cachePath())
+    } catch {
+      /* missing is fine */
     }
   }
 

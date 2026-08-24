@@ -9,4 +9,6 @@ export class NoopUpdater implements Updater {
   async downloadInstaller(): Promise<string> {
     throw new Error('updater.noop')
   }
+
+  async clearCache(): Promise<void> {}
 }

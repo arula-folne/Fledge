@@ -1,5 +1,6 @@
-import { dialog, ipcMain, screen, shell } from 'electron'
+import { app, dialog, ipcMain, screen, shell } from 'electron'
 import type { BrowserWindow } from 'electron'
+import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
@@ -46,7 +47,12 @@ function toRendererSettings(settings: Settings): Settings {
 export function registerIpc(
   appCtx: LauncherApp,
   getWindow: () => BrowserWindow | null,
-  hooks?: { onFactoryReset?: () => void; onRelaunch?: () => void },
+  hooks?: {
+    onFactoryReset?: () => void
+    onRelaunch?: () => void
+    /** インストーラー起動後に終了（relaunch しない）。NSIS が新版を起動する */
+    onQuitForUpdate?: () => void
+  },
 ): void {
   const win = () => getWindow()
   const touchBackup = () => appCtx.backup.scheduleSync()
@@ -295,9 +301,29 @@ export function registerIpc(
   ipcMain.handle(IPC.logsRecent, async () => appCtx.logger.getRecent())
   ipcMain.handle(IPC.updaterCheck, async () => appCtx.updater.check())
   ipcMain.handle(IPC.updaterApply, async () => {
+    if (!app.isPackaged) {
+      throw new Error('updater.noop')
+    }
+
     const installerPath = await appCtx.updater.downloadInstaller()
-    const err = await shell.openPath(installerPath)
-    if (err) throw new Error(err)
+    const installDir = path.dirname(app.getPath('exe'))
+
+    // インストールツリー内だと上書き中に消えるため、OS 一時領域へ退避する
+    const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fledge-update-'))
+    const stagedInstaller = path.join(stagingDir, path.basename(installerPath))
+    await fs.copyFile(installerPath, stagedInstaller)
+    await appCtx.updater.clearCache()
+
+    // /S = サイレント、/D = 今動いている exe と同じ場所へ上書き（必ず最後・引用符なし）
+    const child = spawn(stagedInstaller, ['/S', `/D=${installDir}`], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+    })
+    child.unref()
+
+    // 実行中のままだと Fledge.exe がロックされ旧版のまま残る
+    hooks?.onQuitForUpdate?.()
   })
 
   ipcMain.handle(IPC.skinsList, async () => appCtx.skins.list())

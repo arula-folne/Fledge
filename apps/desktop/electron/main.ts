@@ -23,14 +23,16 @@ function getWindow(): BrowserWindow | null {
 }
 
 /**
- * アプリを終了し、インストール版では同じ exe を起動し直す。
- * 開発版 (electron-vite) は Vite 無しの Electron だけが起きるため終了のみ。
+ * アプリを終了する。必要なら同じ exe を起動し直す。
+ * 開発版 (electron-vite) は Vite 無しの Electron だけが起きるため relaunch しない。
  */
-async function scheduleAppRelaunch(options?: {
+async function scheduleAppExit(options?: {
   /** 完全リセット後は Data が消えているのでバックアップ flush を省略 */
   skipBackupFlush?: boolean
-  /** ファイルハンドル解放待ち（完全リセット後など） */
+  /** ファイルハンドル解放待ち（完全リセット後・更新適用後など） */
   delayMs?: number
+  /** true なら終了後に同じ exe を起動（更新適用時は false: NSIS が新版を起動） */
+  relaunch?: boolean
 }): Promise<void> {
   if (relaunchScheduled) return
   relaunchScheduled = true
@@ -59,10 +61,18 @@ async function scheduleAppRelaunch(options?: {
     }
   }
 
-  if (app.isPackaged) {
+  if (options?.relaunch !== false && app.isPackaged) {
     app.relaunch({ execPath: process.execPath })
   }
   app.quit()
+}
+
+/** 設定リセット等: 終了して同じ exe を起動し直す */
+async function scheduleAppRelaunch(options?: {
+  skipBackupFlush?: boolean
+  delayMs?: number
+}): Promise<void> {
+  await scheduleAppExit({ ...options, relaunch: true })
 }
 
 /** settings.json を同期読み（app.ready 前の HA 切替用。失敗時は既定 ON） */
@@ -201,6 +211,10 @@ async function bootstrap(): Promise<void> {
     },
     onRelaunch: () => {
       void scheduleAppRelaunch()
+    },
+    onQuitForUpdate: () => {
+      // ロック解除のため少し待ってから終了。relaunch はせず NSIS に任せる
+      void scheduleAppExit({ relaunch: false, delayMs: 500 })
     },
   })
   mainWindow = createMainWindow({

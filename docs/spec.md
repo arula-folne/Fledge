@@ -1,6 +1,6 @@
 # Fledge 技術仕様
 
-最終更新: 2026-08-17
+最終更新: 2026-08-24
 
 GitHub リポジトリ向けの実装仕様です。アプリ紹介・機能のアピールは [README](../README.md) を先に読んでください。  
 開発手順は [development.md](./development.md) です。
@@ -205,7 +205,7 @@ Java メジャー推定の目安（`requiredJavaMajor`）:
 - お知らせの正本は GitHub の `news/news.ja.json`。アプリ起動時に取得し `Data/News/` にキャッシュ（約 1 時間）。取得失敗時はキャッシュ → 同梱 JSON → 最小フォールバック
 - 同梱フォールバック: `apps/desktop/resources/news.ja.json`
 - 更新手順: [`news/README.md`](../news/README.md)
-- 自動更新は `NoopUpdater`。UI 上も未実装
+- 更新: 製品版は `GithubReleaseUpdater` が GitHub Releases の latest を確認。適用時は現行インストール先へ NSIS サイレント上書きし、アプリを終了してインストーラーに再起動を任せる（開発版は `NoopUpdater`）
 
 ## 14. 外部通信（実装観点）
 
@@ -234,7 +234,6 @@ Java メジャー推定の目安（`requiredJavaMajor`）:
 
 README の製品説明と実装の差です。
 
-- 自動更新なし
 - CurseForge なし（Modrinth のみ）
 - インスタンスのエクスポートは未実装
 - 作成後の Minecraft バージョン変更は未対応（UI 上リードオンリー）
