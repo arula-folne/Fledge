@@ -32,6 +32,31 @@ function applyMsaUiLocale(locale: string = MSA_UI_LOCALE): void {
   }
 }
 
+/** microsoftLogin.ts の原因マーカー → ユーザー向け i18n キー */
+const LOGIN_FAILURE_KEYS: Array<[marker: string, code: 'failed' | 'minecraft_not_owned', key: string]> = [
+  ['error.auth.xsts.noXboxAccount', 'failed', 'auth.error.noXboxAccount'],
+  ['error.auth.xsts.childAccount', 'failed', 'auth.error.childAccount'],
+  ['error.auth.xsts.adultVerification', 'failed', 'auth.error.adultVerification'],
+  ['error.auth.xsts.region', 'failed', 'auth.error.region'],
+  ['error.auth.xsts', 'failed', 'auth.error.xbox'],
+  ['error.auth.xboxLive', 'failed', 'auth.error.xbox'],
+  ['error.auth.minecraft.notOwned', 'minecraft_not_owned', 'auth.error.notOwned'],
+  ['error.auth.minecraft.profile', 'failed', 'auth.error.noProfile'],
+  ['error.auth.minecraft.login', 'failed', 'auth.error.mcLogin'],
+  ['error.auth.microsoft', 'failed', 'auth.error.microsoft'],
+]
+
+function loginFailureInfo(err: unknown): ['failed' | 'minecraft_not_owned', string] {
+  const message = err instanceof Error ? err.message : String(err)
+  for (const [marker, code, key] of LOGIN_FAILURE_KEYS) {
+    if (message.includes(marker)) return [code, key]
+  }
+  if (err instanceof Error && (err.name === 'AbortError' || /fetch failed/i.test(message))) {
+    return ['failed', 'auth.error.network']
+  }
+  return ['failed', 'auth.error.failed']
+}
+
 /**
  * msmc を閉じ込めた Microsoft 認証実装（複数アカウント対応）。
  */
@@ -143,14 +168,15 @@ export class MicrosoftAuthProvider implements AuthProvider {
         remaining = null
       }
       this.setStatus(remaining ? 'logged_in' : 'logged_out', remaining)
-      const cancelled = /cancel|close|closed/i.test(formatMsmcError(err))
-      this.logger.error('auth', cancelled ? 'Login cancelled' : `Login failed: ${formatMsmcError(err)}`)
+      const detail = formatMsmcError(err)
+      const cancelled = /cancel|close|closed/i.test(detail)
+      this.logger.error('auth', cancelled ? 'Login cancelled' : `Login failed: ${detail}`)
       if (!cancelled) console.error('Fledge login failed:', err)
-      throw new AuthError(
-        cancelled ? 'cancelled' : 'failed',
-        cancelled ? 'auth.error.cancelled' : 'auth.error.failed',
-        { cause: err },
-      )
+      if (err instanceof AuthError) throw err
+      if (cancelled) {
+        throw new AuthError('cancelled', 'auth.error.cancelled', { cause: err })
+      }
+      throw new AuthError(...loginFailureInfo(err), { cause: err })
     }
   }
 

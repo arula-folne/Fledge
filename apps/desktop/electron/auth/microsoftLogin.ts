@@ -196,6 +196,25 @@ export async function xboxFromRefreshToken(auth: Auth, refreshToken: string): Pr
   return xboxFromMsToken(auth, ms)
 }
 
+/** XSTS の XErr → ユーザーが対処できる原因コード */
+function xstsErrorMessage(xerr: unknown): string {
+  switch (Number(xerr)) {
+    case 2148916233:
+      // Microsoft アカウントに Xbox プロフィールがない
+      return 'error.auth.xsts.noXboxAccount'
+    case 2148916235:
+      return 'error.auth.xsts.region'
+    case 2148916236:
+    case 2148916237:
+      return 'error.auth.xsts.adultVerification'
+    case 2148916238:
+      // 未成年アカウント（ファミリーグループへの追加が必要）
+      return 'error.auth.xsts.childAccount'
+    default:
+      return 'error.auth.xsts'
+  }
+}
+
 async function minecraftIdentityToken(xbox: Xbox): Promise<string> {
   const userToken = xbox.xblToken?.Token
   if (!userToken) throw new Error('error.auth.xboxLive')
@@ -212,7 +231,10 @@ async function minecraftIdentityToken(xbox: Xbox): Promise<string> {
   const uhs = claims?.xui?.[0]?.uhs
   const token = typeof xsts.json.Token === 'string' ? xsts.json.Token : ''
   if (!xsts.ok || !uhs || !token) {
-    throw Object.assign(new Error('error.auth.xsts'), { status: xsts.status })
+    throw Object.assign(new Error(xstsErrorMessage(xsts.json.XErr)), {
+      status: xsts.status,
+      xerr: xsts.json.XErr,
+    })
   }
   return `XBL3.0 x=${uhs};${token}`
 }
@@ -256,7 +278,8 @@ export async function minecraftFromXbox(xbox: Xbox): Promise<Minecraft> {
   const names = ((entitlements.json as McStore).items ?? []).map((item) => item.name ?? '')
   const owned = names.includes('game_minecraft') || names.includes('product_minecraft')
   if (!owned) {
-    throw Object.assign(new Error('error.auth.minecraft.profile'), { status: profileRes.status })
+    // 所有していない（Java 版のライセンスなし / Game Pass 未加入）
+    throw Object.assign(new Error('error.auth.minecraft.notOwned'), { status: profileRes.status })
   }
 
   const username = typeof login.json.username === 'string' ? login.json.username : id
