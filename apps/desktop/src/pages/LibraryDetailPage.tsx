@@ -321,7 +321,7 @@ export default function LibraryDetailPage() {
             {formatLastPlayed(instance.lastPlayedAt, t)}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="relative z-10 flex shrink-0 items-center gap-1 overflow-visible">
           <InstanceLaunchButton instanceId={instance.id} />
           <Button
             variant="ghost"

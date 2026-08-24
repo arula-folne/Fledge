@@ -36,6 +36,7 @@ import { applyLoggedInAccount, loadSessionQuery, sessionQueryOptions } from '../
 import { startLogin } from '../features/auth/loginAction'
 import { McFaceAvatar } from '../features/auth/McFaceAvatar'
 import { mcFaceUrl } from '../features/auth/mcFace'
+import { cropSkinFaceDataUrl } from '../features/auth/skinFace'
 import { useUiStore } from '../stores/appStores'
 import { applyTheme, defaultThemeColorForMode } from '../styles/theme'
 
@@ -66,6 +67,27 @@ export default function SettingsPage() {
     queryKey: ['accounts'],
     queryFn: () => fledgeApi.auth.list(),
     enabled: section === 'account',
+  })
+  const selectedSkinId = settingsQuery.data?.selectedSkinId
+  const accountFaceQuery = useQuery({
+    queryKey: ['account-face', selectedSkinId, 64],
+    enabled: section === 'account' && Boolean(selectedSkinId),
+    staleTime: Infinity,
+    queryFn: async () => {
+      const dataUrl = await fledgeApi.skins.getDataUrl(selectedSkinId!)
+      if (!dataUrl) return null
+      return cropSkinFaceDataUrl(dataUrl, 64)
+    },
+  })
+  const accountListFaceQuery = useQuery({
+    queryKey: ['account-face', selectedSkinId, 40],
+    enabled: section === 'account' && Boolean(selectedSkinId),
+    staleTime: Infinity,
+    queryFn: async () => {
+      const dataUrl = await fledgeApi.skins.getDataUrl(selectedSkinId!)
+      if (!dataUrl) return null
+      return cropSkinFaceDataUrl(dataUrl, 40)
+    },
   })
 
   const saveMutation = useMutation({
@@ -346,7 +368,7 @@ export default function SettingsPage() {
             const account = sessionQuery.data?.account
             const status = sessionQuery.data?.status
             const accounts = accountsQuery.data ?? []
-            const faceUrl = mcFaceUrl(account, 64)
+            const faceUrl = accountFaceQuery.data ?? mcFaceUrl(account, 64)
 
             return (
               <div className="space-y-5">
@@ -405,7 +427,9 @@ export default function SettingsPage() {
                     <ul className="space-y-2">
                       {accounts.map((a) => {
                         const active = a.id === account?.id
-                        const aFace = mcFaceUrl(a, 40)
+                        const aFace = active
+                          ? (accountListFaceQuery.data ?? mcFaceUrl(a, 40))
+                          : mcFaceUrl(a, 40)
                         return (
                           <li
                             key={a.id}

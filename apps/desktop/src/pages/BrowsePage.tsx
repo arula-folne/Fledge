@@ -483,6 +483,12 @@ export default function BrowsePage() {
               </ul>
             )}
           </div>
+
+          {pageCount > 1 ? (
+            <div className="flex shrink-0 justify-end border-t border-[var(--color-border)] pt-2">
+              <PageNav page={page} pageCount={pageCount} onChange={setPage} />
+            </div>
+          ) : null}
         </div>
       </div>
       {versionDialog}

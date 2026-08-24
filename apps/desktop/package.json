@@ -1,6 +1,6 @@
 {
   "name": "@fledge/desktop",
-  "version": "0.1.7-b",
+  "version": "0.1.8-a",
   "private": true,
   "description": "Fledge desktop application",
   "main": "./out/main/index.js",
@@ -92,6 +92,7 @@
       "createDesktopShortcut": true,
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": true,
+      "uninstallDisplayName": "Fledge",
       "license": "build/license.txt",
       "include": "installer.nsh",
       "installerIcon": "icon.ico",

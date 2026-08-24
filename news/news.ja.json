@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.1.8a",
+    "title": "【バージョンアップ】Fledge Ver.0.1.8a",
+    "body": "**Fledge Ver.0.1.8a** を公開しました。\n\n## 主な変更\n\n- アプリ設定の Minecraft 初期設定が新規インスタンスに正しく反映されるようにしました（初回 Welcome 画面の抑制を含む）\n- インスタンス詳細で起動失敗しても起動ボタンの位置が動かないようにしました\n- コンテンツ検索の下部にもページ送りを追加し、インストールボタンを大きくしました\n- 設定のアカウントアイコンがスキン変更に合わせてすぐ更新されるようにしました\n- Windows のアンインストール一覧の表示名を「Fledge」に統一しました\n\n> 引き続きベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-24T15:20:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.1.8a"
+  },
+  {
     "id": "v0.1.7b",
     "title": "【バージョンアップ】Fledge Ver.0.1.7b",
     "body": "**Fledge Ver.0.1.7b** を公開しました。\n\n## 主な変更\n\n- インストーラーを標準の文字ベース画面に戻しました（歪みやすい大きな画像は廃止し、左上の Fledge アイコンのみ）\n- インストール先フォルダを選べるようにし、選択した場所へ正しく配置されるようにしました\n\n> 引き続きベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

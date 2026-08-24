@@ -272,6 +272,7 @@ export default function SkinPage() {
             if (selectedId === editing.id) {
               await fledgeApi.skins.select({ skinId: editing.id, model })
               await queryClient.invalidateQueries({ queryKey: ['settings'] })
+              await queryClient.invalidateQueries({ queryKey: ['account-face'] })
             }
             setEditing(null)
           }}

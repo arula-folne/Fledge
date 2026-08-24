@@ -15,11 +15,11 @@ type Props = {
 }
 
 const sizeClass = {
-  md: 'h-9 min-w-[10rem] whitespace-nowrap px-3 text-sm',
-  sm: 'min-w-[9.5rem] whitespace-nowrap px-2.5 py-1.5 text-sm',
+  md: 'h-11 min-w-[10rem] whitespace-nowrap px-3 text-sm',
+  sm: 'h-10 min-w-[9.5rem] whitespace-nowrap px-2.5 text-sm',
 } as const
 
-const versionSizeClass = 'min-w-[9rem] whitespace-nowrap px-2.5 py-1 text-xs'
+const versionSizeClass = 'h-9 min-w-[9rem] whitespace-nowrap px-2.5 text-xs'
 
 function InstallIcon({ installed }: { installed: boolean }) {
   return (

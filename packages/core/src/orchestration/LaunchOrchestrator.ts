@@ -285,12 +285,8 @@ export class LaunchOrchestrator {
         try {
           const options = { ...(profile.pendingMinecraftOptions ?? {}) }
           const overlay = { ...(profile.pendingMinecraftDebugOverlay ?? {}) }
-          // デバッグオーバーレイだけ指定した場合も options.txt が無いと初回画面が出る
-          if (
-            Object.keys(overlay).length > 0 &&
-            !('onboardAccessibility' in options) &&
-            Object.keys(options).length === 0
-          ) {
+          // pending が空でも options.txt を作り、Welcome / アクセシビリティ初回画面を抑止する
+          if (!('onboardAccessibility' in options)) {
             options.onboardAccessibility = 'false'
           }
           await mergeMinecraftOptionsFile(instanceDir, options)
