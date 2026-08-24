@@ -16,7 +16,7 @@
   "header.updateAvailableHint": "クリックしてアップデート内容を確認",
   "header.updatePromptTitle": "新しいアップデートがあります",
   "header.updatePromptVersion": "Ver.{{from}} → Ver.{{to}}",
-  "header.updatePromptConfirm": "更新しますか？",
+  "header.updatePromptConfirm": "更新しますか？完了後にアプリが再起動します。",
   "header.updateYes": "はい",
   "header.updateNo": "いいえ",
   "home.lastPlayed": "最後にプレイしたインスタンス",
