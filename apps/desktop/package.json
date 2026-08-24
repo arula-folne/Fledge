@@ -1,6 +1,6 @@
 {
   "name": "@fledge/desktop",
-  "version": "0.1.7-a",
+  "version": "0.1.7-b",
   "private": true,
   "description": "Fledge desktop application",
   "main": "./out/main/index.js",
@@ -88,17 +88,15 @@
       "oneClick": false,
       "perMachine": false,
       "allowElevation": false,
-      "allowToChangeInstallationDirectory": false,
+      "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": true,
+      "license": "build/license.txt",
       "include": "installer.nsh",
       "installerIcon": "icon.ico",
       "uninstallerIcon": "icon.ico",
-      "installerHeaderIcon": "icon.ico",
-      "installerHeader": "installerHeader.bmp",
-      "installerSidebar": "installerSidebar.bmp",
-      "uninstallerSidebar": "installerSidebar.bmp"
+      "installerHeaderIcon": "icon.ico"
     },
     "artifactName": "Fledge-Setup.exe"
   }

@@ -16,7 +16,7 @@
  * 2. リポジトリルートで `pnpm version:sync` を実行
  * 3. お知らせ（news/news.ja.json）にリリース条目を手動追加
  */
-export const APP_VERSION = '0.1.7a' as const
+export const APP_VERSION = '0.1.7b' as const
 
 /** UI 表示用（`Ver.X.X.X[a|b|rc]`） */
 export const APP_VERSION_LABEL = `Ver.${APP_VERSION}` as const

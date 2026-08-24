@@ -1,6 +1,6 @@
 {
   "name": "@fledge/core",
-  "version": "0.1.7-a",
+  "version": "0.1.7-b",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",

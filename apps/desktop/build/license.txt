@@ -1,0 +1,28 @@
+Fledge 利用規約（インストーラー用要約）
+
+最終更新: 2026-08-24
+
+本アプリをインストール・利用することで、本規約に同意したものとみなします。
+全文: https://github.com/arula-folne/Fledge/blob/main/TERMS.md
+
+1. 本アプリについて
+Fledge は非公式の Minecraft ランチャーです。Mojang / Microsoft 等の公式製品ではありません。
+ソースコードは GNU GPL-3.0 のもと公開しています。
+
+2. 利用できる人
+- 自分の責任で利用できる方
+- Windows 11 で利用する方
+- Minecraft および Microsoft の各規約を守れる方
+
+3. 利用者の責任
+- Minecraft EULA および Microsoft のサービス規約を守ること
+- 不正改造・チート等の規約違反用途に使わないこと
+- 導入する Mod 等のライセンスを守ること
+- セーブデータ・設定・Mod の管理は利用者の責任であること
+
+4. 免責
+本アプリは現状有姿で提供され、データ損失・起動失敗等について保証しません。
+
+5. 詳細
+プライバシーポリシー: https://github.com/arula-folne/Fledge/blob/main/PRIVACY.md
+利用規約全文: https://github.com/arula-folne/Fledge/blob/main/TERMS.md
