@@ -33,6 +33,7 @@ import { MinecraftInitialSettingsPanel } from '../components/settings/MinecraftI
 import { DeviceQuickSettings } from '../components/settings/DeviceQuickSettings'
 import { AppCredits } from '../components/brand/AppCredits'
 import { applyLoggedInAccount, loadSessionQuery, sessionQueryOptions } from '../features/auth/sessionCache'
+import { startLogin } from '../features/auth/loginAction'
 import { McFaceAvatar } from '../features/auth/McFaceAvatar'
 import { mcFaceUrl } from '../features/auth/mcFace'
 import { useUiStore } from '../stores/appStores'
@@ -41,7 +42,6 @@ import { applyTheme, defaultThemeColorForMode } from '../styles/theme'
 export default function SettingsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const setAuthStatus = useUiStore((s) => s.setAuthStatus)
   const section = useUiStore((s) => s.settingsSection)
   const setSection = useUiStore((s) => s.setSettingsSection)
   const [message, setMessage] = useState<string | null>(null)
@@ -138,15 +138,7 @@ export default function SettingsPage() {
   })
 
   const addAccountMutation = useMutation({
-    mutationFn: () => fledgeApi.auth.login(),
-    onMutate: async () => {
-      setAuthStatus('logging_in')
-      await queryClient.cancelQueries({ queryKey: ['session'] })
-    },
-    onSuccess: (account) => {
-      setAuthStatus('logged_in')
-      applyLoggedInAccount(queryClient, account)
-    },
+    mutationFn: () => startLogin(queryClient),
   })
 
   const saveRestartRequiredSetting = (partial: Partial<Settings>) => {

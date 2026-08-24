@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { fledgeApi } from '../../api/fledgeApi'
 import { loadSessionQuery, sessionQueryOptions } from '../auth/sessionCache'
+import { startLogin } from '../auth/loginAction'
 import { Button } from '../../components/ui/Button'
 import { formatProgressMessage } from './formatProgressMessage'
 import { useLaunchStore, useUiStore } from '../../stores/appStores'
@@ -30,7 +31,6 @@ export function PlayPanel() {
     queryKey: ['paths'],
     queryFn: () => fledgeApi.paths.get(),
   })
-  const setAuthStatus = useUiStore((s) => s.setAuthStatus)
   const sessionQuery = useQuery({
     queryKey: ['session'],
     ...sessionQueryOptions,
@@ -115,14 +115,7 @@ export function PlayPanel() {
               {t('home.killGame')}
             </Button>
           ) : authStatus === 'logged_out' || authStatus === 'expired' ? (
-            <Button
-              variant="success"
-              onClick={() => {
-                setAuthStatus('logging_in')
-                void queryClient.cancelQueries({ queryKey: ['session'] })
-                void fledgeApi.auth.login()
-              }}
-            >
+            <Button variant="success" onClick={() => void startLogin(queryClient)}>
               {t('auth.login')}
             </Button>
           ) : (

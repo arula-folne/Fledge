@@ -4,6 +4,7 @@ import { IconPlayerPlay, IconPlayerStop, IconX } from '@tabler/icons-react'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
 import { formatProgressMessage } from '../launch/formatProgressMessage'
+import { startLogin } from '../auth/loginAction'
 import { useLaunchStore, useUiStore } from '../../stores/appStores'
 
 type Props = {
@@ -28,7 +29,6 @@ export function InstanceLaunchButton({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const authStatus = useUiStore((s) => s.authStatus)
-  const setAuthStatus = useUiStore((s) => s.setAuthStatus)
   const byProfileId = useLaunchStore((s) => s.byProfileId)
   const stateFor = useLaunchStore((s) => s.stateFor)
   const focusSessionId = useLaunchStore((s) => s.focusSessionId)
@@ -130,9 +130,7 @@ export function InstanceLaunchButton({
         className={[sizeClass, className].join(' ')}
         onClick={(e) => {
           stop(e)
-          setAuthStatus('logging_in')
-          void queryClient.cancelQueries({ queryKey: ['session'] })
-          void fledgeApi.auth.login()
+          void startLogin(queryClient)
         }}
       >
         {size === 'sm' ? t('auth.loginShort') : t('auth.login')}
