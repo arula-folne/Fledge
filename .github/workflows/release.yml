@@ -58,8 +58,15 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
+          $tag = "${{ github.ref_name }}"
           $exe = Get-ChildItem apps/desktop/release/Fledge-Setup-*.exe | Select-Object -First 1
-          gh release upload "${{ github.ref_name }}" $exe.FullName --clobber
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            # 英字サフィックス付き（v0.1.4a など）はプレリリースとして作成
+            $prerelease = if ($tag -match '[a-z]$') { '--prerelease' } else { $null }
+            gh release create $tag --title "Fledge Ver.$($tag.TrimStart('v'))" --generate-notes $prerelease
+          }
+          gh release upload $tag $exe.FullName --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
