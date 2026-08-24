@@ -38,9 +38,8 @@ jobs:
         run: pnpm --filter @fledge/desktop build
 
       - name: Package NSIS installer
-        run: pnpm --filter @fledge/desktop exec electron-builder --win nsis
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        # publish は自前の gh release upload で行う（electron-builder の自動 publish は使わない）
+        run: pnpm --filter @fledge/desktop exec electron-builder --win nsis --publish never
 
       - name: Verify artifact is an installer (not portable)
         shell: pwsh
