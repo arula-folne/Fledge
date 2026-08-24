@@ -53,17 +53,34 @@ jobs:
           }
           Write-Host "OK: $($exe.Name) is an NSIS installer"
 
-      - name: Upload installer to release
+      - name: Publish release with installer
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
+        # アプリ内更新通知は GitHub の releases/latest（プレリリース除外）を参照するため、
+        # 配布するリリースは常に latest（プレリリースなし）として公開する。
+        # リリースノートは .github/release-notes/<tag>.md があればそれを使う。
         run: |
           $tag = "${{ github.ref_name }}"
           $exe = Get-ChildItem apps/desktop/release/Fledge-Setup-*.exe | Select-Object -First 1
+
+          $src = Get-Content packages/shared/src/version.ts -Raw
+          $version = [regex]::Match($src, "APP_VERSION = '([^']+)'").Groups[1].Value
+          $channel = [regex]::Match($src, "APP_CHANNEL = '([^']+)'").Groups[1].Value
+          $title = "Fledge Ver.$version - $channel"
+          $notesFile = ".github/release-notes/$tag.md"
+
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            # 英字サフィックス付き（v0.1.4a など）はプレリリースとして作成
-            $prerelease = if ($tag -match '[a-z]$') { '--prerelease' } else { $null }
-            gh release create $tag --title "Fledge Ver.$($tag.TrimStart('v'))" --generate-notes $prerelease
+            if (Test-Path $notesFile) {
+              gh release create $tag --title $title --notes-file $notesFile --latest
+            } else {
+              gh release create $tag --title $title --generate-notes --latest
+            }
+          } else {
+            gh release edit $tag --title $title --prerelease=false --latest
+            if (Test-Path $notesFile) {
+              gh release edit $tag --notes-file $notesFile
+            }
           }
           gh release upload $tag $exe.FullName --clobber
         env:
