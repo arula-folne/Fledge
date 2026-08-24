@@ -37,8 +37,8 @@ export const UPDATER = {
   latestReleaseUrl: 'https://api.github.com/repos/arula-folne/Fledge/releases/latest',
   cacheTtlMs: 30 * 60 * 1000,
   fetchTimeoutMs: 15_000,
-  /** electron-builder の artifactName と一致させる */
-  installerNamePattern: /^Fledge-Setup-[\d.]+\.exe$/i,
+  /** electron-builder の artifactName と一致させる（0.1.4-a のようなプレリリースも許可） */
+  installerNamePattern: /^Fledge-Setup-[\d.]+(?:-[0-9a-z.]+)?\.exe$/i,
   installerFallbackPattern: /\.exe$/i,
 } as const
 
