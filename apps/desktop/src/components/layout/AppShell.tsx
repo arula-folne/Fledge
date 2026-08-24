@@ -11,6 +11,7 @@ import {
 import { TextLogo } from '../brand/TextLogo'
 import { AppCredits } from '../brand/AppCredits'
 import { AccountChip } from '../../features/auth/AccountChip'
+import { LoginErrorDialog } from '../../features/auth/LoginErrorDialog'
 import { fledgeApi } from '../../api/fledgeApi'
 import { applyTheme } from '../../styles/theme'
 import i18n from '../../i18n'
@@ -145,6 +146,7 @@ export function AppShell() {
           </main>
         </div>
       </div>
+      <LoginErrorDialog />
     </div>
   )
 }

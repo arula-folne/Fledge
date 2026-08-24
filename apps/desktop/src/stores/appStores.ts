@@ -159,6 +159,9 @@ export type LibraryFocus = {
 type UiStore = {
   authStatus: AuthStatus
   setAuthStatus: (status: AuthStatus) => void
+  /** ログイン失敗の i18n キー（ダイアログ表示用。null で非表示） */
+  authErrorKey: string | null
+  setAuthErrorKey: (key: string | null) => void
   logPanelOpen: boolean
   setLogPanelOpen: (open: boolean) => void
   instanceWizardOpen: boolean
@@ -174,6 +177,8 @@ type UiStore = {
 export const useUiStore = create<UiStore>((set) => ({
   authStatus: 'logged_out',
   setAuthStatus: (authStatus) => set({ authStatus }),
+  authErrorKey: null,
+  setAuthErrorKey: (authErrorKey) => set({ authErrorKey }),
   logPanelOpen: false,
   setLogPanelOpen: (logPanelOpen) => set({ logPanelOpen }),
   instanceWizardOpen: false,

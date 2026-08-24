@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { useEffect, useId, useRef, useState } from 'react'
 import { fledgeApi } from '../../api/fledgeApi'
 import { applyLoggedInAccount, loadSessionQuery, sessionQueryOptions } from './sessionCache'
+import { startLogin } from './loginAction'
 import { useUiStore } from '../../stores/appStores'
 import { Button } from '../../components/ui/Button'
 import { McFaceAvatar } from './McFaceAvatar'
@@ -32,23 +33,6 @@ export function AccountChip() {
   const accountsQuery = useQuery({
     queryKey: ['accounts'],
     queryFn: () => fledgeApi.auth.list(),
-  })
-
-  const loginMutation = useMutation({
-    mutationFn: () => fledgeApi.auth.login(),
-    onMutate: async () => {
-      setAuthStatus('logging_in')
-      await queryClient.cancelQueries({ queryKey: ['session'] })
-    },
-    onSuccess: (account) => {
-      setAuthStatus('logged_in')
-      applyLoggedInAccount(queryClient, account)
-    },
-    onError: () => {
-      if (useUiStore.getState().authStatus === 'logging_in') {
-        setAuthStatus(sessionQuery.data?.account ? 'logged_in' : 'logged_out')
-      }
-    },
   })
 
   const switchMutation = useMutation({
@@ -210,8 +194,8 @@ export function AccountChip() {
             <Button
               variant="primary"
               className="w-full"
-              disabled={loginMutation.isPending || authStatus === 'logging_in'}
-              onClick={() => loginMutation.mutate()}
+              disabled={authStatus === 'logging_in'}
+              onClick={() => void startLogin(queryClient)}
             >
               {t('auth.addAccount')}
             </Button>
