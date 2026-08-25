@@ -31,11 +31,8 @@ const TITLE_SCREEN_LOG_RE =
 /** 初期設定を「反映済み」にする前にゲームが生きているべき最短時間 */
 const INITIAL_SETTINGS_COMMIT_AFTER_MS = 6_000
 
-/** Options.load とぶつからないよう、ガード開始を遅らせる */
-const INITIAL_SETTINGS_GUARD_DELAY_MS = 2_500
-
-/** Forge 等が起動中に options.txt を潰す場合に備えた再適用間隔 */
-const INITIAL_SETTINGS_GUARD_MS = 800
+/** 連続書き換えではなく、遅延ワンショットで再適用する（製品版でもレースしにくい） */
+const INITIAL_SETTINGS_GUARD_AT_MS = [3_000, 7_000, 12_000] as const
 
 export type LaunchEventBus = {
   emitProgress: (e: ProgressEvent) => void
@@ -56,8 +53,7 @@ type Session = {
   initialSettingsOptions?: Record<string, string>
   initialSettingsOverlay?: Record<string, string>
   initialSettingsTitleSeen?: boolean
-  initialSettingsGuardTimer?: ReturnType<typeof setInterval>
-  initialSettingsGuardDelayTimer?: ReturnType<typeof setTimeout>
+  initialSettingsGuardTimers?: Array<ReturnType<typeof setTimeout>>
   runningSinceMs?: number
 }
 
@@ -509,7 +505,7 @@ export class LaunchOrchestrator {
     }
   }
 
-  /** Forge 等が起動中に options.txt を書き換えても、タイトル到達まで監視して戻す（Options.load 後に開始） */
+  /** Forge 等が起動中に options.txt を書き換えても、遅延ワンショットで戻す（Options.load 後） */
   private startInitialSettingsGuard(session: Session): void {
     this.stopInitialSettingsGuard(session)
     const instanceDir = session.initialSettingsInstanceDir
@@ -517,10 +513,8 @@ export class LaunchOrchestrator {
     const overlay = session.initialSettingsOverlay
     if (!instanceDir || !options) return
 
-    session.initialSettingsGuardDelayTimer = setTimeout(() => {
-      session.initialSettingsGuardDelayTimer = undefined
-      if (!session.initialSettingsPendingCommit || session.initialSettingsTitleSeen) return
-      session.initialSettingsGuardTimer = setInterval(() => {
+    session.initialSettingsGuardTimers = INITIAL_SETTINGS_GUARD_AT_MS.map((delayMs) =>
+      setTimeout(() => {
         void (async () => {
           if (!session.initialSettingsPendingCommit || session.initialSettingsTitleSeen) return
           try {
@@ -533,7 +527,7 @@ export class LaunchOrchestrator {
             }
             this.deps.logger.info(
               'launcher',
-              `Re-applied Minecraft initial options during startup (${session.profileId})`,
+              `Re-applied Minecraft initial options during startup (${session.profileId}, +${delayMs}ms)`,
             )
           } catch (err) {
             this.deps.logger.warn(
@@ -542,19 +536,15 @@ export class LaunchOrchestrator {
             )
           }
         })()
-      }, INITIAL_SETTINGS_GUARD_MS)
-    }, INITIAL_SETTINGS_GUARD_DELAY_MS)
+      }, delayMs),
+    )
   }
 
   private stopInitialSettingsGuard(session: Session): void {
-    if (session.initialSettingsGuardDelayTimer) {
-      clearTimeout(session.initialSettingsGuardDelayTimer)
-      session.initialSettingsGuardDelayTimer = undefined
+    for (const timer of session.initialSettingsGuardTimers ?? []) {
+      clearTimeout(timer)
     }
-    if (session.initialSettingsGuardTimer) {
-      clearInterval(session.initialSettingsGuardTimer)
-      session.initialSettingsGuardTimer = undefined
-    }
+    session.initialSettingsGuardTimers = undefined
   }
 
   /** stdout が空でも logs/latest.log からタイトル到達を拾う */

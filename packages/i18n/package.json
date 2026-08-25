@@ -1,6 +1,6 @@
 {
   "name": "@fledge/i18n",
-  "version": "0.1.12-a",
+  "version": "0.1.12",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",

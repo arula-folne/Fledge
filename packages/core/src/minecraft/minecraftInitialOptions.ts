@@ -237,7 +237,14 @@ async function writeTextAtomic(file: string, body: string): Promise<void> {
   const tmp = path.join(dir, `${path.basename(file)}.${process.pid}.${Date.now()}.tmp`)
   const payload = body.endsWith('\n') ? body : `${body}\n`
   try {
-    await fs.writeFile(tmp, payload, 'utf8')
+    const handle = await fs.open(tmp, 'w')
+    try {
+      await handle.writeFile(payload, 'utf8')
+      // 製品版（パッケージ済み）でもディスクに確実に落とす
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
     try {
       await fs.rename(tmp, file)
     } catch {
@@ -341,7 +348,7 @@ export async function applyMinecraftInitialSettingsToInstance(
 }
 
 /** 初期設定コミットの現行世代（上げると旧世代コミット済みインスタンスは再適用される） */
-export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 5
+export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 6
 
 /**
  * シード済みインスタンスで、Fledge 初期設定を確実にファイルへ載せる。
