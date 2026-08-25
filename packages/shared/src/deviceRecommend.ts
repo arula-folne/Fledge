@@ -1,12 +1,18 @@
 import { MEMORY_PRESETS_NORMAL_MB, type UiScale } from './models.js'
 
 export const WINDOW_SIZE_PRESETS = [
+  { id: '480p', width: 854, height: 480 },
+  { id: '540p', width: 960, height: 540 },
   { id: '720p', width: 1280, height: 720 },
   { id: '900p', width: 1600, height: 900 },
   { id: '1080p', width: 1920, height: 1080 },
   { id: '1440p', width: 2560, height: 1440 },
   { id: '2160p', width: 3840, height: 2160 },
 ] as const
+
+/** ランチャー窓の下限（最小プリセット 480p に合わせる） */
+export const LAUNCHER_WINDOW_MIN_WIDTH = 854
+export const LAUNCHER_WINDOW_MIN_HEIGHT = 480
 
 export type WindowSizePresetId = (typeof WINDOW_SIZE_PRESETS)[number]['id']
 export type WindowSizePreset = (typeof WINDOW_SIZE_PRESETS)[number]
@@ -41,7 +47,7 @@ function snapMemory(mb: number): number {
   return best
 }
 
-/** 作業領域に収まる最大の 720p / 900p などのプリセット。収まらなければ最小の 720p。 */
+/** 作業領域に収まる最大のウィンドウプリセット。収まらなければ最小（480p）。 */
 export function pickWindowPresetForWorkArea(
   workWidth: number,
   workHeight: number,

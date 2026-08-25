@@ -34,11 +34,11 @@ function previewBg(mode: ThemeMode): string {
     case 'light':
       return '#e8e4de'
     case 'dark':
-      return '#525258'
+      return '#313338'
     case 'oled':
       return '#000000'
     case 'system':
-      return 'linear-gradient(90deg, #525258 0 50%, #e8e4de 50% 100%)'
+      return 'linear-gradient(90deg, #313338 0 50%, #e8e4de 50% 100%)'
     case 'color':
       return COLOR_RAINBOW
   }

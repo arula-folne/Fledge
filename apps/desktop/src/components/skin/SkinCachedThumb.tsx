@@ -25,7 +25,8 @@ export function SkinCachedThumb({ skinId, model, skinUrl, className = '' }: Prop
   const thumbQuery = useQuery({
     queryKey: skinThumbQueryKey(skinId, model),
     queryFn: () => fledgeApi.skins.getThumb(skinId, model),
-    staleTime: Infinity,
+    staleTime: 30 * 60_000,
+    gcTime: 15 * 60_000,
   })
 
   useEffect(() => {

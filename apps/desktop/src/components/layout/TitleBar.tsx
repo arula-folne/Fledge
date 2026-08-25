@@ -17,8 +17,11 @@ export function TitleBar() {
 
   useEffect(() => {
     refresh()
-    const id = window.setInterval(refresh, 800)
-    return () => window.clearInterval(id)
+    const onVis = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => document.removeEventListener('visibilitychange', onVis)
   }, [refresh])
 
   return (

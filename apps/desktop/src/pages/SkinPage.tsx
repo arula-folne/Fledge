@@ -374,7 +374,8 @@ function useSkinImageUrl(skin: SkinEntry): string | undefined {
     queryKey: ['skin-data', skin.id],
     queryFn: () => fledgeApi.skins.getDataUrl(skin.id),
     enabled: skin.source === 'upload',
-    staleTime: Infinity,
+    staleTime: 30 * 60_000,
+    gcTime: 15 * 60_000,
   })
   return skin.source === 'default' ? defaultSkinUrl(skin.id) : (urlQuery.data ?? undefined)
 }

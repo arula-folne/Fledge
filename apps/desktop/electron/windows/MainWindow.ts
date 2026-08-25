@@ -1,9 +1,10 @@
 import path from 'node:path'
 import { app, BrowserWindow, shell } from 'electron'
 import type { UiScale } from '@fledge/shared'
+import { LAUNCHER_WINDOW_MIN_HEIGHT, LAUNCHER_WINDOW_MIN_WIDTH } from '@fledge/shared'
 import { resolveAppIconPath } from './appIcon'
 
-/** 720p 時の見た目をノーマルとする。ウィンドウ解像度では拡縮しない。 */
+/** 720p 時の見た目をノーマルとする。小窓（480p/540p）は自動で追加縮小する。 */
 export const UI_SCALE_FACTORS: Record<UiScale, number> = {
   minimal: 0.85,
   normal: 1,
@@ -12,10 +13,29 @@ export const UI_SCALE_FACTORS: Record<UiScale, number> = {
 
 let activeUiScale: UiScale = 'normal'
 
+/** 480p / 540p 帯では UI が崩れないようズーム上限を下げる */
+function zoomCapForWindowSize(width: number, height: number): number {
+  // 480p (854×480) 付近
+  if (height <= 500 || width <= 900) return 0.68
+  // 540p (960×540) 付近
+  if (height <= 560 || width <= 1000) return 0.78
+  return Number.POSITIVE_INFINITY
+}
+
+export function resolveWindowZoomFactor(
+  scale: UiScale,
+  width: number,
+  height: number,
+): number {
+  const base = UI_SCALE_FACTORS[scale]
+  return Math.round(Math.min(base, zoomCapForWindowSize(width, height)) * 1000) / 1000
+}
+
 export function applyWindowUiScale(win: BrowserWindow, scale: UiScale = activeUiScale): void {
   if (win.isDestroyed() || win.webContents.isDestroyed()) return
   activeUiScale = scale
-  const factor = Math.round(UI_SCALE_FACTORS[scale] * 1000) / 1000
+  const [width, height] = win.getSize()
+  const factor = resolveWindowZoomFactor(scale, width, height)
   if (Math.abs(win.webContents.getZoomFactor() - factor) < 0.005) return
   win.webContents.setZoomFactor(factor)
 }
@@ -25,6 +45,12 @@ function attachWindowUiScale(win: BrowserWindow): void {
   const apply = () => applyWindowUiScale(win, activeUiScale)
   win.webContents.on('did-finish-load', apply)
   win.webContents.on('did-navigate', apply)
+  // 端ドラッグで 480p/540p に入ったときも縮小を追従
+  let resizeTimer: ReturnType<typeof setTimeout> | undefined
+  win.on('resize', () => {
+    if (resizeTimer) clearTimeout(resizeTimer)
+    resizeTimer = setTimeout(apply, 50)
+  })
 }
 
 export function createMainWindow(opts?: {
@@ -36,8 +62,8 @@ export function createMainWindow(opts?: {
   /** true = OS タイトルバー、false = 枠なし（独自タイトルバー用） */
   frame?: boolean
 }): BrowserWindow {
-  const width = Math.min(7680, Math.max(900, opts?.width ?? 1280))
-  const height = Math.min(4320, Math.max(600, opts?.height ?? 720))
+  const width = Math.min(7680, Math.max(LAUNCHER_WINDOW_MIN_WIDTH, opts?.width ?? 1280))
+  const height = Math.min(4320, Math.max(LAUNCHER_WINDOW_MIN_HEIGHT, opts?.height ?? 720))
   const frame = opts?.frame ?? true
   activeUiScale = opts?.uiScale ?? 'normal'
   const icon = resolveAppIconPath()
@@ -46,8 +72,8 @@ export function createMainWindow(opts?: {
     height,
     x: opts?.x,
     y: opts?.y,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: LAUNCHER_WINDOW_MIN_WIDTH,
+    minHeight: LAUNCHER_WINDOW_MIN_HEIGHT,
     title: 'Fledge',
     icon,
     backgroundColor: '#F7F9FC',
@@ -61,8 +87,12 @@ export function createMainWindow(opts?: {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      spellcheck: false,
+      backgroundThrottling: true,
+      v8CacheOptions: 'bypassHeatCheck',
     },
   })
+  win.webContents.setBackgroundThrottling(true)
   win.setMenuBarVisibility(false)
   attachWindowUiScale(win)
   if (icon) {
@@ -124,6 +154,48 @@ export function createMainWindow(opts?: {
   }
 
   return win
+}
+
+/** 端ドラッグ中のサイズを renderer へ流し、確定後に設定へ保存する */
+export function attachWindowSizeSync(
+  win: BrowserWindow,
+  options: {
+    emit: (size: { width: number; height: number }) => void
+    persist: (size: { width: number; height: number }) => void
+  },
+): void {
+  let persistTimer: ReturnType<typeof setTimeout> | undefined
+  let lastKey = ''
+
+  const readSize = (): { width: number; height: number } | null => {
+    if (win.isDestroyed() || win.isMaximized() || win.isFullScreen()) return null
+    const [width, height] = win.getSize()
+    return {
+      width: Math.min(7680, Math.max(LAUNCHER_WINDOW_MIN_WIDTH, width)),
+      height: Math.min(4320, Math.max(LAUNCHER_WINDOW_MIN_HEIGHT, height)),
+    }
+  }
+
+  const onResize = () => {
+    const size = readSize()
+    if (!size) return
+    const key = `${size.width}x${size.height}`
+    if (key !== lastKey) {
+      lastKey = key
+      options.emit(size)
+    }
+    if (persistTimer) clearTimeout(persistTimer)
+    persistTimer = setTimeout(() => {
+      const next = readSize()
+      if (!next) return
+      options.persist(next)
+    }, 350)
+  }
+
+  win.on('resize', onResize)
+  win.on('closed', () => {
+    if (persistTimer) clearTimeout(persistTimer)
+  })
 }
 
 /** 本番は exe 隣、開発は apps/desktop/.fledge-root */

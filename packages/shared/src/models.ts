@@ -139,6 +139,14 @@ export const CreateInstanceInputSchema = z.object({
 })
 export type CreateInstanceInput = z.infer<typeof CreateInstanceInputSchema>
 
+/** インスタンス更新。icon: null でカスタム画像を外してプリセットに戻す */
+export const UpdateInstanceInputSchema = InstanceProfileSchema.partial()
+  .omit({ id: true, createdAt: true, updatedAt: true })
+  .extend({
+    icon: CreateInstanceIconSchema.nullable().optional(),
+  })
+export type UpdateInstanceInput = z.infer<typeof UpdateInstanceInputSchema>
+
 export const MEMORY_PRESETS_NORMAL_MB = [
   512, // 512 MB
   1024, // 1.0 GB
@@ -250,8 +258,8 @@ export const SettingsSchema = z.object({
   gameWindowWidth: z.number().int().min(640).max(7680).default(1280),
   gameWindowHeight: z.number().int().min(480).max(4320).default(720),
   // Fledge ランチャー窓
-  launcherWindowWidth: z.number().int().min(900).max(7680).default(1280),
-  launcherWindowHeight: z.number().int().min(600).max(4320).default(720),
+  launcherWindowWidth: z.number().int().min(854).max(7680).default(1280),
+  launcherWindowHeight: z.number().int().min(480).max(4320).default(720),
   uiScale: UiScaleSchema.default('normal'),
   startupPage: StartupPageSchema.default('home'),
   // 旧キー互換（読み込み時に吸収）

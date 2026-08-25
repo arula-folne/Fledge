@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState, type MouseEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { IconPlus } from '@tabler/icons-react'
 import type { InstanceProfile } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
@@ -69,7 +70,8 @@ export function HomeLibrarySection({ instances }: Props) {
     <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
       <div className="flex shrink-0 items-center justify-between gap-2">
         <h2 className="text-sm font-medium text-[var(--color-text-muted)]">{t('library.title')}</h2>
-        <Button variant="primary" onClick={() => setWizardOpen(true)}>
+        <Button variant="secondary" onClick={() => setWizardOpen(true)}>
+          <IconPlus size={16} stroke={1.75} />
           {t('library.create')}
         </Button>
       </div>
@@ -81,7 +83,7 @@ export function HomeLibrarySection({ instances }: Props) {
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             {items.map((item) => (
               <InstanceCard
                 key={item.id}

@@ -9,9 +9,11 @@ import {
   IPC,
   IPC_EVENTS,
   APP_VERSION,
-  InstanceProfileSchema,
+  UpdateInstanceInputSchema,
   SettingsSchema,
   SkinModelSchema,
+  LAUNCHER_WINDOW_MIN_HEIGHT,
+  LAUNCHER_WINDOW_MIN_WIDTH,
   type CreateInstanceInput,
   type Settings,
   type SkinModel,
@@ -42,8 +44,10 @@ function send(win: BrowserWindow | null, channel: string, payload: unknown): voi
 function applyLauncherWindowSize(win: BrowserWindow | null, settings: Settings): void {
   if (!win || win.isDestroyed()) return
   if (win.isFullScreen() || win.isMaximized()) return
-  const width = Math.min(7680, Math.max(900, settings.launcherWindowWidth))
-  const height = Math.min(4320, Math.max(600, settings.launcherWindowHeight))
+  const width = Math.min(7680, Math.max(LAUNCHER_WINDOW_MIN_WIDTH, settings.launcherWindowWidth))
+  const height = Math.min(4320, Math.max(LAUNCHER_WINDOW_MIN_HEIGHT, settings.launcherWindowHeight))
+  const [currentW, currentH] = win.getSize()
+  if (currentW === width && currentH === height) return
   win.setSize(width, height)
 }
 
@@ -66,7 +70,7 @@ export function registerIpc(
   const win = () => getWindow()
   const touchBackup = () => appCtx.backup.scheduleSync()
 
-  appCtx.logger.onLine((line) => send(win(), IPC_EVENTS.logLine, line))
+  // ログはメイン側 Logger に保持。UI が購読するまで logLine は送らない（メモリ・IPC 削減）
   appCtx.auth.onStatusChange?.((status, account) => {
     send(win(), IPC_EVENTS.authStatus, {
       status,
@@ -157,9 +161,7 @@ export function registerIpc(
     return profile
   })
   ipcMain.handle(IPC.instancesUpdate, async (_e, id: string, partial: unknown) => {
-    const update = InstanceProfileSchema.partial()
-      .omit({ id: true, createdAt: true, updatedAt: true })
-      .parse(partial)
+    const update = UpdateInstanceInputSchema.parse(partial)
     const updated = await appCtx.instances.update(id, update)
     touchBackup()
     return updated

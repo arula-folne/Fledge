@@ -9,6 +9,7 @@ import {
   type CreateInstanceIcon,
   type CreateInstanceInput,
   type InstanceProfile,
+  type UpdateInstanceInput,
 } from '@fledge/shared'
 import type { PathLayout } from '../app/paths.js'
 
@@ -134,15 +135,33 @@ export class InstanceStore {
     return profile
   }
 
-  async update(id: string, partial: Partial<InstanceProfile>): Promise<InstanceProfile> {
+  async update(id: string, partial: UpdateInstanceInput): Promise<InstanceProfile> {
     const current = await this.get(id)
     if (!current) throw new Error(`Instance not found: ${id}`)
-    const next = InstanceProfileSchema.parse({
+    const { icon, ...rest } = partial
+
+    let iconFile = current.iconFile
+    if (icon === null) {
+      await this.removeIconFiles(id, current.iconFile)
+      iconFile = undefined
+    } else if (icon) {
+      await this.removeIconFiles(id, current.iconFile)
+      iconFile = await this.writeIconFile(id, icon)
+    }
+
+    const merged: Record<string, unknown> = {
       ...current,
-      ...partial,
+      ...rest,
       id: current.id,
       updatedAt: new Date().toISOString(),
-    })
+    }
+    if (icon === null) {
+      delete merged.iconFile
+    } else if (icon) {
+      merged.iconFile = iconFile
+    }
+
+    const next = InstanceProfileSchema.parse(merged)
     await fs.writeFile(this.profilePath(id), JSON.stringify(next, null, 2), 'utf8')
     return next
   }
@@ -160,6 +179,12 @@ export class InstanceStore {
       createdAt: now,
       updatedAt: now,
       lastPlayedAt: undefined,
+      // コピー先は初回適用し直す（コピー元が applied だと設定がスキップされるのを防ぐ）
+      minecraftInitialSettingsApplied: false,
+      minecraftInitialSettingsApplyGeneration: 0,
+      ...(source.minecraftInitialSettingsSeeded
+        ? { minecraftInitialSettingsSeeded: true }
+        : {}),
     }
     await this.writeInstance(profile)
     // mods 等はコピー（profile 以外）
@@ -198,6 +223,16 @@ export class InstanceStore {
     const fileName = `icon${ext}`
     await fs.writeFile(path.join(this.instanceDir(id), fileName), Buffer.from(icon.bytes))
     return fileName
+  }
+
+  private async removeIconFiles(id: string, knownFile?: string): Promise<void> {
+    const dir = this.instanceDir(id)
+    const names = new Set<string>()
+    if (knownFile) names.add(path.basename(knownFile))
+    for (const ext of INSTANCE_ICON_EXTS) names.add(`icon${ext}`)
+    await Promise.all(
+      [...names].map((name) => fs.rm(path.join(dir, name), { force: true }).catch(() => undefined)),
+    )
   }
 
   private async allocateId(base: string): Promise<string> {

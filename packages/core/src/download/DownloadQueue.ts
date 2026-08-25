@@ -237,7 +237,7 @@ export class DownloadQueue {
 
   private emitJobProgress(job: InternalJob, messageKey?: string, force = false): void {
     const now = Date.now()
-    if (!force && now - job.lastEmitAt < 100 && job.progress.total > 0) {
+    if (!force && now - job.lastEmitAt < 160 && job.progress.total > 0) {
       return
     }
     job.lastEmitAt = now

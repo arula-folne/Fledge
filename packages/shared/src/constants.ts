@@ -130,4 +130,5 @@ export const IPC_EVENTS = {
   logLine: 'event:log-line',
   authStatus: 'event:auth-status',
   newsUpdated: 'event:news-updated',
+  windowSize: 'event:window-size',
 } as const

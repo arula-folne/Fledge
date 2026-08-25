@@ -23,7 +23,11 @@ import { Dialog } from '../components/ui/Dialog'
 import { TextField } from '../components/ui/TextField'
 import { MemorySnapSlider } from '../components/ui/MemorySnapSlider'
 import { InstanceIcon } from '../features/instances/InstanceIcon'
-import { InstanceIconPresetDialog, sameIconPreset } from '../features/instances/instanceIconPresets'
+import {
+  InstanceIconCustomizeDialog,
+  sameIconPreset,
+  type InstanceIconFilePick,
+} from '../features/instances/instanceIconPresets'
 import { InstanceLaunchButton } from '../features/instances/InstanceLaunchButton'
 import { formatLastPlayed, formatLoaderLabel } from '../features/instances/instanceMeta'
 import { parseLibraryTab, writeLibraryTab } from '../navigation/libraryDetailSearch'
@@ -109,8 +113,11 @@ export default function LibraryDetailPage() {
   const [draft, setDraft] = useState<Draft | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
-  const [iconOpen, setIconOpen] = useState(false)
-  const [iconDraft, setIconDraft] = useState<InstanceIconPreset>(DEFAULT_INSTANCE_ICON_PRESET)
+  const [headerIconOpen, setHeaderIconOpen] = useState(false)
+  const [headerIconPreset, setHeaderIconPreset] = useState<InstanceIconPreset>(
+    DEFAULT_INSTANCE_ICON_PRESET,
+  )
+  const [headerIconImage, setHeaderIconImage] = useState<InstanceIconFilePick | null>(null)
   const settingsOpen = editingInstanceId === instanceId
 
   const instanceQuery = useQuery({
@@ -226,6 +233,59 @@ export default function LibraryDetailPage() {
     },
   })
 
+  const iconMutation = useMutation({
+    mutationFn: async (next: { preset: InstanceIconPreset; image: InstanceIconFilePick | null }) => {
+      if (!instance) throw new Error('no instance')
+      if (next.image) {
+        return fledgeApi.instances.update(instance.id, {
+          icon: { bytes: next.image.bytes, originalName: next.image.originalName },
+          iconPreset: next.preset,
+        })
+      }
+      return fledgeApi.instances.update(instance.id, {
+        icon: null,
+        iconPreset: next.preset,
+      })
+    },
+    onSuccess: async () => {
+      setHeaderIconOpen(false)
+      setHeaderIconImage((prev) => {
+        if (prev?.previewUrl.startsWith('blob:')) URL.revokeObjectURL(prev.previewUrl)
+        return null
+      })
+      await queryClient.invalidateQueries({ queryKey: ['instances'] })
+      if (instance) {
+        await queryClient.invalidateQueries({ queryKey: ['instance-icon', instance.id] })
+      }
+    },
+  })
+
+  const openHeaderIconEditor = async () => {
+    if (!instance) return
+    setHeaderIconPreset(instance.iconPreset ?? DEFAULT_INSTANCE_ICON_PRESET)
+    if (instance.iconFile) {
+      try {
+        const dataUrl = await fledgeApi.instances.getIcon(instance.id)
+        if (dataUrl) {
+          const res = await fetch(dataUrl)
+          const buf = new Uint8Array(await res.arrayBuffer())
+          setHeaderIconImage({
+            previewUrl: dataUrl,
+            bytes: Array.from(buf),
+            originalName: instance.iconFile,
+          })
+        } else {
+          setHeaderIconImage(null)
+        }
+      } catch {
+        setHeaderIconImage(null)
+      }
+    } else {
+      setHeaderIconImage(null)
+    }
+    setHeaderIconOpen(true)
+  }
+
   const openSub = (sub: InstanceSubfolder) => {
     if (!instance) return
     void fledgeApi.instances.openSubfolder(instance.id, sub)
@@ -306,11 +366,19 @@ export default function LibraryDetailPage() {
         >
           <IconArrowLeft size={16} stroke={1.75} />
         </Button>
-        <InstanceIcon
-          instance={instance}
-          preset={settingsOpen ? draft.iconPreset : undefined}
-          size="md"
-        />
+        <button
+          type="button"
+          className="shrink-0 rounded-[var(--radius-md)] outline-none ring-[var(--color-accent)] transition hover:ring-2 focus-visible:ring-2"
+          title={t('instances.iconCustomize')}
+          aria-label={t('instances.iconCustomize')}
+          onClick={() => void openHeaderIconEditor()}
+        >
+          <InstanceIcon
+            instance={instance}
+            preset={settingsOpen ? draft.iconPreset : undefined}
+            size="md"
+          />
+        </button>
         <div className="min-w-0 flex-1 self-center">
           <h1 className="truncate text-base font-semibold leading-snug text-[var(--color-text)]">
             {instance.name}
@@ -463,7 +531,7 @@ export default function LibraryDetailPage() {
         open={settingsOpen}
         title={t('library.tab.settings')}
         onClose={() => {
-          if (iconOpen || deleteOpen) return
+          if (headerIconOpen || deleteOpen) return
           closeSettings()
         }}
         size="lg"
@@ -490,25 +558,17 @@ export default function LibraryDetailPage() {
               <span className="text-sm font-medium">{t('instances.icon')}</span>
               <button
                 type="button"
-                className="rounded-[var(--radius-md)] outline-none ring-[var(--color-accent)] hover:ring-2 focus-visible:ring-2 disabled:cursor-default disabled:hover:ring-0"
-                disabled={Boolean(instance.iconFile)}
-                title={
-                  instance.iconFile ? t('instances.iconCustomNote') : t('instances.iconChangePreset')
-                }
+                className="rounded-[var(--radius-md)] outline-none ring-[var(--color-accent)] hover:ring-2 focus-visible:ring-2"
+                title={t('instances.iconCustomize')}
                 onClick={() => {
-                  setIconDraft(draft.iconPreset)
-                  setIconOpen(true)
+                  void openHeaderIconEditor()
                 }}
               >
                 <InstanceIcon instance={instance} preset={draft.iconPreset} size="lg" />
               </button>
-              {instance.iconFile ? (
-                <p className="text-xs text-[var(--color-text-muted)]">{t('instances.iconCustomShort')}</p>
-              ) : (
-                <span className="text-xs text-[var(--color-text-muted)]">
-                  {t('instances.iconChangePreset')}
-                </span>
-              )}
+              <span className="text-xs text-[var(--color-text-muted)]">
+                {t('instances.iconChangePreset')}
+              </span>
             </div>
             <div className="min-w-0 flex-1">
               <TextField
@@ -576,14 +636,21 @@ export default function LibraryDetailPage() {
           {message ? <p className="text-sm text-[var(--color-text-muted)]">{message}</p> : null}
         </div>
       </Dialog>
-      <InstanceIconPresetDialog
-        open={iconOpen && settingsOpen && !instance.iconFile}
-        value={iconDraft}
-        onChange={setIconDraft}
-        onClose={() => setIconOpen(false)}
-        onApply={() => {
-          setDraft({ ...draft, iconPreset: iconDraft })
-          setIconOpen(false)
+      <InstanceIconCustomizeDialog
+        open={headerIconOpen}
+        preset={headerIconPreset}
+        image={headerIconImage}
+        onClose={() => {
+          setHeaderIconOpen(false)
+          setHeaderIconImage((prev) => {
+            if (prev?.previewUrl.startsWith('blob:')) URL.revokeObjectURL(prev.previewUrl)
+            return null
+          })
+        }}
+        onApply={(next) => {
+          setHeaderIconPreset(next.preset)
+          setHeaderIconImage(next.image)
+          iconMutation.mutate(next)
         }}
       />
       <ConfirmDialog

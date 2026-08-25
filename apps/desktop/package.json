@@ -1,6 +1,6 @@
 {
   "name": "@fledge/desktop",
-  "version": "0.1.9-b",
+  "version": "0.1.10-a",
   "private": true,
   "description": "Fledge desktop application",
   "main": "./out/main/index.js",
@@ -93,6 +93,12 @@
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": true,
       "uninstallDisplayName": "Fledge",
+      "unicode": true,
+      "installerLanguages": [
+        "ja_JP",
+        "en_US"
+      ],
+      "language": "1041",
       "license": "build/license.txt",
       "include": "installer.nsh",
       "installerIcon": "icon.ico",

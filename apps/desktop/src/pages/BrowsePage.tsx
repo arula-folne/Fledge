@@ -70,6 +70,7 @@ export default function BrowsePage() {
   const [sort, setSort] = useState<ContentSearchSort>('downloads')
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(DEFAULT_PAGE_SIZE)
   const [page, setPage] = useState(1)
+  const listScrollRef = useRef<HTMLDivElement>(null)
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [selectedProject, setSelectedProject] = useState<ContentProject | null>(null)
@@ -92,6 +93,17 @@ export default function BrowsePage() {
   useEffect(() => {
     setPage(1)
   }, [debouncedQuery, searchCategory, gameVersion, loaders, tags, sort, pageSize])
+
+  useEffect(() => {
+    listScrollRef.current?.scrollTo({ top: 0 })
+  }, [page])
+
+  useEffect(() => {
+    return () => {
+      // 探索画面を離れたら古い検索結果を早めに破棄
+      queryClient.removeQueries({ queryKey: ['content-search'], type: 'inactive' })
+    }
+  }, [queryClient])
 
   useEffect(() => {
     setTags([])
@@ -122,6 +134,7 @@ export default function BrowsePage() {
     queryFn: () => fledgeApi.content.search(searchInput),
     enabled: !selectedProject,
     staleTime: 30_000,
+    gcTime: 90_000,
     retry: 2,
     retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 5_000),
   })
@@ -405,6 +418,7 @@ export default function BrowsePage() {
           ) : null}
 
           <div
+            ref={listScrollRef}
             className={[
               'min-h-0 flex-1 overflow-y-auto transition-opacity',
               searchQuery.isFetching && !searchQuery.isPending ? 'opacity-80' : '',

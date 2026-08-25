@@ -6,35 +6,44 @@ import { AppShell } from './components/layout/AppShell'
 import { CrystalClickEffect } from './components/effects/CrystalClickEffect'
 import { PrivacyNoticeDialog } from './components/PrivacyNoticeDialog'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
+import { WindowSizeHud } from './components/layout/WindowSizeHud'
 import { fledgeApi } from './api/fledgeApi'
 import { applyAuthStatusEvent } from './features/auth/sessionCache'
-import { useLaunchStore, useLogStore, useTransferStore, useUiStore } from './stores/appStores'
+import { useLaunchStore, useTransferStore, useUiStore } from './stores/appStores'
+import type { Settings } from '@fledge/shared'
 
-const HomePage = lazy(() => import('./pages/HomePage'))
-const BrowsePage = lazy(() => import('./pages/BrowsePage'))
+// メインナビは即時切替のため eager import（初回クリックのチャンク待ちを避ける）
+import HomePage from './pages/HomePage'
+import BrowsePage from './pages/BrowsePage'
+import SkinPage from './pages/SkinPage'
+import SettingsPage from './pages/SettingsPage'
+
 const LibraryDetailPage = lazy(() => import('./pages/LibraryDetailPage'))
-const SkinPage = lazy(() => import('./pages/SkinPage'))
-const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 
 function EventBridge() {
   const queryClient = useQueryClient()
   const applyStateEvent = useLaunchStore((s) => s.applyStateEvent)
   const applyPhase = useLaunchStore((s) => s.applyPhase)
   const applyProgress = useLaunchStore((s) => s.applyProgress)
+  // ログはメイン側で保持。UI パネルが無い現状では renderer へミラーしない（メモリ節約）
   const applyTransfer = useTransferStore((s) => s.applyProgress)
-  const appendLog = useLogStore((s) => s.append)
-  const setAllLogs = useLogStore((s) => s.setAll)
   const setAuthStatus = useUiStore((s) => s.setAuthStatus)
 
   useEffect(() => {
-    void fledgeApi.logs.recent().then(setAllLogs)
+    let contentInvalidateTimer: number | undefined
+    const scheduleContentInvalidate = () => {
+      window.clearTimeout(contentInvalidateTimer)
+      contentInvalidateTimer = window.setTimeout(() => {
+        void queryClient.invalidateQueries({ queryKey: ['content-installed'] })
+      }, 450)
+    }
 
     const offs = [
       fledgeApi.on.progress((e) => {
         applyProgress(e)
         applyTransfer(e)
         if (e.kind === 'content' && (e.status === 'completed' || e.status === 'failed')) {
-          void queryClient.invalidateQueries({ queryKey: ['content-installed'] })
+          scheduleContentInvalidate()
         }
         if (e.kind === 'java' && (e.status === 'completed' || e.status === 'failed')) {
           void queryClient.invalidateQueries({ queryKey: ['java-runtimes'] })
@@ -47,16 +56,29 @@ function EventBridge() {
           void queryClient.invalidateQueries({ queryKey: ['settings'] })
         }
       }),
-      fledgeApi.on.logLine(appendLog),
       fledgeApi.on.authStatus((event) => {
         applyAuthStatusEvent(queryClient, setAuthStatus, event)
       }),
       fledgeApi.on.newsUpdated((items) => {
         queryClient.setQueryData(['news'], items)
       }),
+      fledgeApi.on.windowSize((size) => {
+        queryClient.setQueryData<Settings>(['settings'], (prev) =>
+          prev
+            ? {
+                ...prev,
+                launcherWindowWidth: size.width,
+                launcherWindowHeight: size.height,
+              }
+            : prev,
+        )
+      }),
     ]
-    return () => offs.forEach((off) => off())
-  }, [applyPhase, applyProgress, applyTransfer, applyStateEvent, appendLog, setAllLogs, setAuthStatus, queryClient])
+    return () => {
+      window.clearTimeout(contentInvalidateTimer)
+      offs.forEach((off) => off())
+    }
+  }, [applyPhase, applyProgress, applyTransfer, applyStateEvent, setAuthStatus, queryClient])
 
   return null
 }
@@ -82,31 +104,37 @@ export default function App() {
       <EventBridge />
       <DisableNonInputDrag />
       <CrystalClickEffect />
+      <WindowSizeHud />
       <PrivacyNoticeDialog />
-      <Suspense
-        fallback={
-          <div className="flex h-full items-center justify-center text-[var(--color-text-muted)]">
-            {t('common.loading')}
-          </div>
-        }
+      <RouteErrorBoundary
+        title={t('common.loadErrorTitle')}
+        description={t('common.loadErrorBody')}
+        retryLabel={t('common.retry')}
       >
-        <RouteErrorBoundary
-          title={t('common.loadErrorTitle')}
-          description={t('common.loadErrorBody')}
-          retryLabel={t('common.retry')}
-        >
-          <Routes>
-            <Route element={<AppShell />}>
-              <Route index element={<HomePage />} />
-              <Route path="browse" element={<BrowsePage />} />
-              <Route path="library" element={<Navigate to="/" replace />} />
-              <Route path="library/:instanceId" element={<LibraryDetailPage />} />
-              <Route path="skin" element={<SkinPage />} />
-              <Route path="settings" element={<SettingsPage />} />
-            </Route>
-          </Routes>
-        </RouteErrorBoundary>
-      </Suspense>
+        <Routes>
+          <Route element={<AppShell />}>
+            <Route index element={<HomePage />} />
+            <Route path="browse" element={<BrowsePage />} />
+            <Route path="library" element={<Navigate to="/" replace />} />
+            <Route
+              path="library/:instanceId"
+              element={
+                <Suspense
+                  fallback={
+                    <div className="flex h-full items-center justify-center text-[var(--color-text-muted)]">
+                      {t('common.loading')}
+                    </div>
+                  }
+                >
+                  <LibraryDetailPage />
+                </Suspense>
+              }
+            />
+            <Route path="skin" element={<SkinPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
+        </Routes>
+      </RouteErrorBoundary>
     </>
   )
 }

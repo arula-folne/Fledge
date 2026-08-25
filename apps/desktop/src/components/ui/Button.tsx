@@ -10,7 +10,7 @@ const styles: Record<NonNullable<Props['variant']>, string> = {
   primary:
     'rounded-full bg-[var(--color-accent)] text-[var(--color-on-accent)] brightness-110 hover:brightness-125 disabled:opacity-50',
   secondary:
-    'rounded-[var(--radius-sm)] bg-[color-mix(in_srgb,var(--color-surface)_58%,white)] text-[var(--color-text)] border border-[var(--color-border)] hover:brightness-105 disabled:opacity-50',
+    'rounded-[var(--radius-sm)] bg-[var(--color-surface)] text-[var(--color-text)] border border-[var(--color-border)] hover:bg-[var(--color-hover)] disabled:opacity-50',
   danger:
     'rounded-full bg-[var(--color-danger)] text-white brightness-110 hover:brightness-125 disabled:opacity-50',
   ghost:

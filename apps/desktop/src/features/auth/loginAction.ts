@@ -30,7 +30,11 @@ export async function startLogin(queryClient: QueryClient): Promise<void> {
     const state = useUiStore.getState()
     if (state.authStatus === 'logging_in') {
       const session = queryClient.getQueryData<SessionQueryData>(sessionQueryKey)
-      state.setAuthStatus(session?.account ? 'logged_in' : 'logged_out')
+      if (session?.status === 'expired') {
+        state.setAuthStatus('expired')
+      } else {
+        state.setAuthStatus(session?.account ? 'logged_in' : 'logged_out')
+      }
     }
     if (key !== 'auth.error.cancelled') {
       state.setAuthErrorKey(key)

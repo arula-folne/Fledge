@@ -8,8 +8,9 @@ import { useLaunchStore } from '../stores/appStores'
 
 export default function HomePage() {
   const { t } = useTranslation()
-  const byProfileId = useLaunchStore((s) => s.byProfileId)
-  const runningCount = Object.values(byProfileId).filter((s) => s.state === 'running').length
+  const runningCount = useLaunchStore(
+    (s) => Object.values(s.byProfileId).filter((x) => x.state === 'running').length,
+  )
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],

@@ -162,8 +162,6 @@ type UiStore = {
   /** ログイン失敗の i18n キー（ダイアログ表示用。null で非表示） */
   authErrorKey: string | null
   setAuthErrorKey: (key: string | null) => void
-  logPanelOpen: boolean
-  setLogPanelOpen: (open: boolean) => void
   instanceWizardOpen: boolean
   setInstanceWizardOpen: (open: boolean) => void
   editingInstanceId: string | null
@@ -179,8 +177,6 @@ export const useUiStore = create<UiStore>((set) => ({
   setAuthStatus: (authStatus) => set({ authStatus }),
   authErrorKey: null,
   setAuthErrorKey: (authErrorKey) => set({ authErrorKey }),
-  logPanelOpen: false,
-  setLogPanelOpen: (logPanelOpen) => set({ logPanelOpen }),
   instanceWizardOpen: false,
   setInstanceWizardOpen: (instanceWizardOpen) => set({ instanceWizardOpen }),
   editingInstanceId: null,
@@ -254,22 +250,4 @@ export const useTransferStore = create<TransferStore>((set) => ({
       }
     })
   },
-}))
-
-type LogStore = {
-  lines: import('@fledge/shared').LogLine[]
-  append: (line: import('@fledge/shared').LogLine) => void
-  setAll: (lines: import('@fledge/shared').LogLine[]) => void
-  clear: () => void
-}
-
-export const useLogStore = create<LogStore>((set) => ({
-  lines: [],
-  append: (line) =>
-    set((s) => {
-      const next = [...s.lines, line]
-      return { lines: next.length > 2000 ? next.slice(-2000) : next }
-    }),
-  setAll: (lines) => set({ lines }),
-  clear: () => set({ lines: [] }),
 }))

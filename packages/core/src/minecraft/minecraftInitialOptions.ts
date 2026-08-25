@@ -326,13 +326,15 @@ export async function applyMinecraftInitialSettingsToInstance(
   return { options, overlay }
 }
 
-/** 初期設定コミットの現行世代（上げると未到達インスタンスは再適用される） */
-export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 2
+/** 初期設定コミットの現行世代（上げると旧世代コミット済みインスタンスは再適用される） */
+export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 4
 
 /**
  * シード済みインスタンスで、Fledge 初期設定を確実にファイルへ載せる。
  * - 未コミット（または旧世代）: 毎回強制適用（起動直前の最新設定を優先）
  * - 現行世代でコミット済み: options.txt が消えているときだけ修復（ゲーム内変更は尊重）
+ * Forge は起動中に options.txt を上書きすることがあるため、LaunchOrchestrator 側で
+ * タイトル到達まで再適用ガードする（世代 4: タイトル判定を厳格化）。
  * @returns 起動後に applied コミットが必要なら true
  */
 export async function ensureMinecraftInitialSettingsApplied(

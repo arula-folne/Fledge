@@ -84,7 +84,7 @@ export function AppShell() {
       >
         <aside
           className={[
-            'flex shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]/90 py-2 transition-[width]',
+            'flex shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]/90 py-2',
             collapsed ? 'w-12 items-center px-1.5' : 'w-40 px-2',
           ].join(' ')}
         >

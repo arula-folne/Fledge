@@ -85,15 +85,17 @@ export const InstanceCard = memo(function InstanceCard({
         }
       }}
       className={[
-        'group flex h-full min-w-0 cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 transition',
+        'group flex h-full min-h-[4.75rem] min-w-0 cursor-pointer items-center gap-3 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-3.5 transition',
         'hover:border-[var(--color-accent)]/35 hover:bg-[var(--color-hover)]/50',
         className,
       ].join(' ')}
     >
-      <InstanceIcon instance={instance} size="sm" />
+      <InstanceIcon instance={instance} size="md" />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-medium text-[var(--color-text)]">{instance.name}</div>
-        <div className="truncate text-xs text-[var(--color-text-muted)]">
+        <div className="truncate text-base font-medium leading-snug text-[var(--color-text)]">
+          {instance.name}
+        </div>
+        <div className="mt-0.5 truncate text-sm text-[var(--color-text-muted)]">
           {instance.minecraftVersion} · {formatLoaderLabel(instance.loader, t)}
           <span className="ml-1.5">{formatLastPlayed(instance.lastPlayedAt, t)}</span>
         </div>
@@ -107,17 +109,16 @@ export const InstanceCard = memo(function InstanceCard({
 /** リストカード向け：準備中のプログレスを本文側にも出す */
 function InstancePrepareProgress({ instanceId }: { instanceId: string }) {
   const { t } = useTranslation()
-  const state = useLaunchStore((s) => s.stateFor(instanceId))
-  const byProfileId = useLaunchStore((s) => s.byProfileId)
+  const state = useLaunchStore((s) => s.byProfileId[instanceId]?.state ?? 'idle')
+  const sessionId = useLaunchStore((s) => s.byProfileId[instanceId]?.sessionId)
   const focusSessionId = useLaunchStore((s) => s.focusSessionId)
-  const phaseMessageKey = useLaunchStore((s) => s.phaseMessageKey)
-  const progress = useLaunchStore((s) => s.progress)
-
-  const session = byProfileId[instanceId]
   const focused =
-    session?.sessionId != null &&
-    (focusSessionId === session.sessionId || !focusSessionId)
-  if (!focused || (state !== 'preparing' && state !== 'launching')) return null
+    sessionId != null && (focusSessionId === sessionId || !focusSessionId)
+  const active = focused && (state === 'preparing' || state === 'launching')
+  const phaseMessageKey = useLaunchStore((s) => (active ? s.phaseMessageKey : null))
+  const progress = useLaunchStore((s) => (active ? s.progress : null))
+
+  if (!active) return null
 
   const percent =
     progress?.percent ??

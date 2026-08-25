@@ -10,9 +10,12 @@ import { defaultEnvCandidatePaths, loadFledgeEnvFiles } from './env/loadEnv'
 import { registerIpc } from './ipc/registerIpc'
 import { TokenVault } from './security/tokenVault'
 import { applyLightStartEnv, isLightStart } from './startup/lightStart'
-import { createMainWindow, resolveFledgeRoot } from './windows/MainWindow'
+import { attachWindowSizeSync, createMainWindow, resolveFledgeRoot } from './windows/MainWindow'
 
 applyLightStartEnv()
+
+// ready 前: 使わない Chromium 機能を落としてベースメモリを抑える
+app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,MediaSessionService')
 
 let mainWindow: BrowserWindow | null = null
 let launcherApp: LauncherApp | null = null
@@ -242,20 +245,36 @@ async function bootstrap(): Promise<void> {
     frame: settings.useOsWindowChrome,
     uiScale: settings.uiScale,
   })
+  attachWindowSizeSync(mainWindow, {
+    emit: (size) => {
+      if (!mainWindow || mainWindow.isDestroyed()) return
+      mainWindow.webContents.send(IPC_EVENTS.windowSize, size)
+    },
+    persist: (size) => {
+      void launcherApp?.settings
+        .set({
+          launcherWindowWidth: size.width,
+          launcherWindowHeight: size.height,
+        })
+        .catch(() => undefined)
+    },
+  })
   logger.info('system', `Fledge root: ${root}${lightStart ? ' (light start)' : ''}`)
   if (!lightStart && settings.backupSyncEnabled) launcherApp.backup.scheduleSync()
 
   const warmupId = settings.lastPlayedInstanceId ?? settings.selectedInstanceId
   if (!lightStart && warmupId) {
-    void launcherApp.launch.warmup(warmupId).catch((err) => {
-      logger.warn(
-        'launcher',
-        `Launch warmup skipped: ${err instanceof Error ? err.message : String(err)}`,
-      )
-    })
+    // 起動直後のメモリを抑えるため、warmup は遅延実行
+    setTimeout(() => {
+      void launcherApp?.launch.warmup(warmupId).catch((err) => {
+        logger.warn(
+          'launcher',
+          `Launch warmup skipped: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      })
+    }, 25_000)
   }
 }
-
 // ready 前に適用（Electron 要件）
 {
   const root = resolveFledgeRoot()
@@ -317,6 +336,22 @@ app.on('activate', () => {
         frame: s?.useOsWindowChrome ?? false,
         uiScale: s?.uiScale ?? 'normal',
       })
+      if (mainWindow) {
+        attachWindowSizeSync(mainWindow, {
+          emit: (size) => {
+            if (!mainWindow || mainWindow.isDestroyed()) return
+            mainWindow.webContents.send(IPC_EVENTS.windowSize, size)
+          },
+          persist: (size) => {
+            void launcherApp?.settings
+              .set({
+                launcherWindowWidth: size.width,
+                launcherWindowHeight: size.height,
+              })
+              .catch(() => undefined)
+          },
+        })
+      }
     })()
   }
 })

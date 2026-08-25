@@ -110,6 +110,7 @@ export function AddContentModal({
   const [sort, setSort] = useState<ContentSearchSort>('relevance')
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(DEFAULT_PAGE_SIZE)
   const [page, setPage] = useState(1)
+  const listScrollRef = useRef<HTMLDivElement>(null)
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const jobs = useTransferStore((s) => s.jobs)
@@ -165,6 +166,10 @@ export function AddContentModal({
   }, [debouncedQuery, searchCategory, gameVersion, loaders, tags, sort, pageSize])
 
   useEffect(() => {
+    listScrollRef.current?.scrollTo({ top: 0 })
+  }, [page])
+
+  useEffect(() => {
     setTags([])
   }, [searchCategory])
 
@@ -184,6 +189,7 @@ export function AddContentModal({
         queryKey: ['content-search', input],
         queryFn: () => fledgeApi.content.search(input),
         staleTime: 30_000,
+        gcTime: 90_000,
       })
     },
     [debouncedQuery, gameVersion, loaders, sort, pageSize, queryClient],
@@ -195,15 +201,11 @@ export function AddContentModal({
       queryKey: ['content-installed', instance.id, 'all'],
       queryFn: () => fledgeApi.content.listInstalled(instance.id),
       staleTime: 30_000,
+      gcTime: 2 * 60_000,
     })
   }, [open, instance.id, queryClient])
 
-  useEffect(() => {
-    if (!open || !browseMode || projectId) return
-    for (const cat of CATEGORIES) {
-      void prefetchCategorySearch(cat, cat === searchCategory ? tags : [])
-    }
-  }, [open, browseMode, projectId, searchCategory, tags, prefetchCategorySearch])
+  // 全カテゴリ一括 prefetch はメモリを食いやすいので、ホバー／フォーカス時のみにする
 
   const versionOptions = useMemo(() => {
     const ids = (versionsQuery.data?.versions ?? []).map((v) => v.id)
@@ -517,6 +519,7 @@ export function AddContentModal({
             ) : null}
 
             <div
+              ref={listScrollRef}
               className={[
                 'min-h-0 flex-1 overflow-y-auto transition-opacity',
                 searchQuery.isFetching && !searchQuery.isPending ? 'opacity-80' : '',

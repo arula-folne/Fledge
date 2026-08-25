@@ -34,6 +34,7 @@ export function InstanceIcon({
     queryFn: () => fledgeApi.instances.getIcon(instance!.id),
     enabled: Boolean(instance?.id && instance?.iconFile) && !previewSrc,
     staleTime: 60_000,
+    gcTime: 3 * 60_000,
   })
 
   const src = previewSrc || iconQuery.data || null

@@ -24,10 +24,10 @@ export function NewsList({ compact = false }: { compact?: boolean }) {
   const newsQuery = useQuery({
     queryKey: ['news'],
     queryFn: () => fledgeApi.news.list(),
-    staleTime: 0,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
-    refetchInterval: 20_000,
+    staleTime: 5 * 60_000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000,
   })
 
   const items = newsQuery.data ?? []

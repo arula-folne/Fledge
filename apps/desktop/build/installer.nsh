@@ -1,15 +1,15 @@
-; Fledge NSIS hooks
-; 手順: 利用規約(ラジオ) → インストール先 → ショートカット/起動 → 完了
+﻿; Fledge NSIS hooks
+; Flow: license (radio) -> install dir -> shortcut/launch -> finish
+; Keep UTF-8 BOM. Japanese UI uses ${U+XXXX} to avoid mojibake.
 
 !include "LogicLib.nsh"
 
 !ifndef BUILD_UNINSTALLER
   !include "nsDialogs.nsh"
 
-  ; 利用規約ページを同意/不同意のラジオボタンにする（licensePage 挿入より前に定義）
   !define MUI_LICENSEPAGE_RADIOBUTTONS
-  !define MUI_LICENSEPAGE_RADIOBUTTONS_TEXT_ACCEPT "利用規約に同意する"
-  !define MUI_LICENSEPAGE_RADIOBUTTONS_TEXT_DECLINE "利用規約に同意しない"
+  !define MUI_LICENSEPAGE_RADIOBUTTONS_TEXT_ACCEPT "${U+5229}${U+7528}${U+898F}${U+7D04}${U+306B}${U+540C}${U+610F}${U+3059}${U+308B}"
+  !define MUI_LICENSEPAGE_RADIOBUTTONS_TEXT_DECLINE "${U+5229}${U+7528}${U+898F}${U+7D04}${U+306B}${U+540C}${U+610F}${U+3057}${U+306A}${U+3044}"
 
   Var fledgeDesktopShortcut
   Var fledgeRunAfter
@@ -23,7 +23,6 @@
   BrandingText "Fledge by folne"
 !macroend
 
-; 常に現在のユーザー向け（「誰にインストールするか」ページを出さない）
 !macro customInstallMode
   StrCpy $isForceCurrentInstall "1"
   StrCpy $isForceMachineInstall "0"
@@ -35,8 +34,6 @@
     StrCpy $fledgeRunAfter "1"
   !macroend
 
-  ; ディレクトリ選択のあと: ショートカット / 起動するか
-  ; ※ Function は MUI2 読み込み後に展開されるようマクロ内に置く
   !macro customPageAfterChangeDir
     Page custom fledgeOptionsPageCreate fledgeOptionsPageLeave
 
@@ -45,7 +42,7 @@
         Abort
       ${endif}
 
-      !insertmacro MUI_HEADER_TEXT "追加オプション" "ショートカットと起動の設定を選べます"
+      !insertmacro MUI_HEADER_TEXT "${U+8FFD}${U+52A0}${U+30AA}${U+30D7}${U+30B7}${U+30E7}${U+30F3}" "${U+30B7}${U+30E7}${U+30FC}${U+30C8}${U+30AB}${U+30C3}${U+30C8}${U+3068}${U+8D77}${U+52D5}${U+306E}${U+8A2D}${U+5B9A}${U+3092}${U+9078}${U+3079}${U+307E}${U+3059}"
 
       nsDialogs::Create 1018
       Pop $0
@@ -53,16 +50,16 @@
         Abort
       ${EndIf}
 
-      ${NSD_CreateLabel} 0 0 100% 24u "インストール後の動作を選択してください。"
+      ${NSD_CreateLabel} 0 0 100% 24u "${U+30A4}${U+30F3}${U+30B9}${U+30C8}${U+30FC}${U+30EB}${U+5F8C}${U+306E}${U+52D5}${U+4F5C}${U+3092}${U+9078}${U+629E}${U+3057}${U+3066}${U+304F}${U+3060}${U+3055}${U+3044}${U+3002}"
       Pop $0
 
-      ${NSD_CreateCheckbox} 0 36u 100% 14u "デスクトップに Fledge のショートカットを作成する"
+      ${NSD_CreateCheckbox} 0 36u 100% 14u "${U+30C7}${U+30B9}${U+30AF}${U+30C8}${U+30C3}${U+30D7}${U+306B} Fledge ${U+306E}${U+30B7}${U+30E7}${U+30FC}${U+30C8}${U+30AB}${U+30C3}${U+30C8}${U+3092}${U+4F5C}${U+6210}${U+3059}${U+308B}"
       Pop $fledgeDesktopCheckbox
       ${If} $fledgeDesktopShortcut == "1"
         ${NSD_Check} $fledgeDesktopCheckbox
       ${EndIf}
 
-      ${NSD_CreateCheckbox} 0 56u 100% 14u "インストール完了後に Fledge を起動する"
+      ${NSD_CreateCheckbox} 0 56u 100% 14u "${U+30A4}${U+30F3}${U+30B9}${U+30C8}${U+30FC}${U+30EB}${U+5B8C}${U+4E86}${U+5F8C}${U+306B} Fledge ${U+3092}${U+8D77}${U+52D5}${U+3059}${U+308B}"
       Pop $fledgeRunCheckbox
       ${If} $fledgeRunAfter == "1"
         ${NSD_Check} $fledgeRunCheckbox
@@ -88,7 +85,6 @@
     FunctionEnd
   !macroend
 
-  ; デスクトップショートカットをオフにした場合は作成後に削除
   !macro customInstall
     ${If} $fledgeDesktopShortcut == "0"
       ${If} $newDesktopLink != ""
@@ -97,7 +93,6 @@
     ${EndIf}
   !macroend
 
-  ; 完了ページには起動チェックを出さず、前ページの選択に従って起動する
   !macro customFinishPage
     Function StartApp
       ${if} ${isUpdated}
@@ -119,7 +114,6 @@
   !macroend
 !endif
 
-; Data/ と Instances/ は実行後に作られるため、標準アンインストールでは残る
 !macro customUnInstall
   RMDir /r "$INSTDIR\Data"
   RMDir /r "$INSTDIR\Instances"

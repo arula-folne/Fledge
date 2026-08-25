@@ -1,5 +1,4 @@
 import {
-  getVersionList,
   installMinecraft,
   completeInstallation,
   getFabricLoaders,
@@ -25,6 +24,9 @@ import {
   readyKey,
   writeReadyRecord,
 } from './installReady.js'
+import { getCachedVersionList } from './mojangVersionListCache.js'
+
+type ParsedVersion = Awaited<ReturnType<typeof Version.parse>>
 
 /**
  * Minecraft のインストール・起動。
@@ -33,6 +35,8 @@ import {
  */
 export class MinecraftService {
   private readonly inflight = new Map<string, Promise<string>>()
+  /** 同一 versionId の Version.parse を起動／修復中に再利用 */
+  private readonly parsedVersionCache = new Map<string, Promise<ParsedVersion>>()
 
   constructor(
     private readonly layout: PathLayout,
@@ -97,12 +101,24 @@ export class MinecraftService {
   }
 
   private async repairInstallation(versionId: string, javaPath?: string): Promise<void> {
-    const resolved = await Version.parse(this.layout.minecraft, versionId)
+    const resolved = await this.parseVersion(versionId)
     await completeInstallation(resolved, javaPath ? { java: javaPath } : {})
   }
 
+  private parseVersion(versionId: string): Promise<ParsedVersion> {
+    let pending = this.parsedVersionCache.get(versionId)
+    if (!pending) {
+      pending = Version.parse(this.layout.minecraft, versionId).catch((err) => {
+        this.parsedVersionCache.delete(versionId)
+        throw err
+      })
+      this.parsedVersionCache.set(versionId, pending)
+    }
+    return pending
+  }
+
   private async ensureNatives(versionId: string): Promise<void> {
-    const resolved = await Version.parse(this.layout.minecraft, versionId)
+    const resolved = await this.parseVersion(versionId)
     const folder = new MinecraftFolder(this.layout.minecraft)
     await LaunchPrecheck.checkNatives(folder, resolved, {
       nativeRoot: nativesRoot(this.layout.minecraft, versionId),
@@ -151,7 +167,7 @@ export class MinecraftService {
           messageKey: 'launch.install.versionList',
         })
         const location = this.layout.minecraft
-        const manifest = await getVersionList()
+        const manifest = await getCachedVersionList()
         const meta = manifest.versions.find((v) => v.id === profile.minecraftVersion)
         if (!meta) {
           throw Object.assign(new Error(`Version not found: ${profile.minecraftVersion}`), {
@@ -227,7 +243,7 @@ export class MinecraftService {
             side: 'client',
           })
           ctx.report({ current: 1, total: 2, unit: 'count', messageKey: 'launch.install.libraries' })
-          const resolved = await Version.parse(this.layout.minecraft, installedId)
+          const resolved = await this.parseVersion(installedId)
           await this.completeTracked(ctx, resolved, 'launch.install.libraries', javaPath)
         },
       })
@@ -270,7 +286,7 @@ export class MinecraftService {
             ),
           )
           ctx.report({ current: 1, total: 2, unit: 'count', messageKey: 'launch.install.libraries' })
-          const resolved = await Version.parse(this.layout.minecraft, installedId)
+          const resolved = await this.parseVersion(installedId)
           await this.completeTracked(ctx, resolved, 'launch.install.libraries', javaPath)
         },
       })
@@ -313,7 +329,7 @@ export class MinecraftService {
             }),
           )
           ctx.report({ current: 1, total: 2, unit: 'count', messageKey: 'launch.install.libraries' })
-          const resolved = await Version.parse(this.layout.minecraft, installedId)
+          const resolved = await this.parseVersion(installedId)
           await this.completeTracked(ctx, resolved, 'launch.install.libraries', javaPath)
         },
       })
@@ -355,7 +371,7 @@ export class MinecraftService {
             side: 'client',
           })
           ctx.report({ current: 1, total: 2, unit: 'count', messageKey: 'launch.install.libraries' })
-          const resolved = await Version.parse(this.layout.minecraft, installedId)
+          const resolved = await this.parseVersion(installedId)
           await this.completeTracked(ctx, resolved, 'launch.install.libraries', javaPath)
         },
       })

@@ -87,12 +87,16 @@ export function versionIdFromDownloadUrl(url: string): string | undefined {
   return url.match(/cdn\.modrinth\.com\/data\/[^/]+\/versions\/([^/]+)/i)?.[1]
 }
 
-/** overrides / client-overrides をインスタンスフォルダへ展開 */
+/** overrides / client-overrides をインスタンスフォルダへ展開（同時書き込み数制限付き） */
 export async function writeMrpackOverrides(
   instanceDir: string,
   entries: Record<string, Uint8Array>,
+  writeConcurrency = 10,
 ): Promise<void> {
   const prefixes = ['overrides/', 'client-overrides/']
+  const root = path.resolve(instanceDir)
+  const tasks: Array<{ dest: string; data: Uint8Array }> = []
+
   for (const [name, data] of Object.entries(entries)) {
     const normalized = name.replaceAll('\\', '/')
     const prefix = prefixes.find((p) => normalized.startsWith(p))
@@ -101,11 +105,23 @@ export async function writeMrpackOverrides(
     if (!rel || rel.endsWith('/') || rel.split('/').includes('..')) continue
     const dest = path.join(instanceDir, rel)
     const resolved = path.resolve(dest)
-    const root = path.resolve(instanceDir)
     if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) continue
-    await fs.mkdir(path.dirname(dest), { recursive: true })
-    await fs.writeFile(dest, data)
+    tasks.push({ dest, data })
   }
+
+  if (tasks.length === 0) return
+
+  const concurrency = Math.max(1, Math.min(32, Math.round(writeConcurrency)))
+  let next = 0
+  const workers = Array.from({ length: Math.min(concurrency, tasks.length) }, async () => {
+    while (next < tasks.length) {
+      const i = next++
+      const task = tasks[i]!
+      await fs.mkdir(path.dirname(task.dest), { recursive: true })
+      await fs.writeFile(task.dest, task.data)
+    }
+  })
+  await Promise.all(workers)
 }
 
 export function packFileCategory(filePath: string): ContentCategory {

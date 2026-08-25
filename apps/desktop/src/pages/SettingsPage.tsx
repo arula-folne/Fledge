@@ -14,6 +14,8 @@ import {
 import {
   DEFAULT_CONCURRENT_DOWNLOADS,
   DEFAULT_MAX_WRITE_CONCURRENCY,
+  LAUNCHER_WINDOW_MIN_HEIGHT,
+  LAUNCHER_WINDOW_MIN_WIDTH,
   WINDOW_SIZE_PRESETS,
   type Settings,
   type UiScale,
@@ -71,25 +73,20 @@ export default function SettingsPage() {
   })
   const selectedSkinId = settingsQuery.data?.selectedSkinId
   const sessionAccount = sessionQuery.data?.account
-  const loggedIn = Boolean(sessionAccount)
+  const sessionStatus = sessionQuery.data?.status
+  const showAccountFace =
+    Boolean(sessionAccount) &&
+    sessionStatus !== 'expired' &&
+    sessionStatus !== 'logged_out'
   const accountFaceQuery = useQuery({
     queryKey: ['account-face', selectedSkinId, 64],
-    enabled: section === 'account' && loggedIn && Boolean(selectedSkinId),
-    staleTime: Infinity,
+    enabled: section === 'account' && showAccountFace && Boolean(selectedSkinId),
+    staleTime: 30 * 60_000,
+    gcTime: 10 * 60_000,
     queryFn: async () => {
       const dataUrl = await fledgeApi.skins.getDataUrl(selectedSkinId!)
       if (!dataUrl) return null
       return cropSkinFaceDataUrl(dataUrl, 64)
-    },
-  })
-  const accountListFaceQuery = useQuery({
-    queryKey: ['account-face', selectedSkinId, 40],
-    enabled: section === 'account' && loggedIn && Boolean(selectedSkinId),
-    staleTime: Infinity,
-    queryFn: async () => {
-      const dataUrl = await fledgeApi.skins.getDataUrl(selectedSkinId!)
-      if (!dataUrl) return null
-      return cropSkinFaceDataUrl(dataUrl, 40)
     },
   })
 
@@ -371,7 +368,10 @@ export default function SettingsPage() {
             const account = sessionQuery.data?.account
             const status = sessionQuery.data?.status
             const accounts = accountsQuery.data ?? []
-            const faceUrl = account ? (accountFaceQuery.data ?? mcFaceUrl(account, 64)) : null
+            const showUserFace = Boolean(account) && status !== 'expired' && status !== 'logged_out'
+            const faceUrl = showUserFace
+              ? (accountFaceQuery.data ?? mcFaceUrl(account, 64))
+              : null
 
             return (
               <div className="space-y-5">
@@ -380,6 +380,10 @@ export default function SettingsPage() {
                     <div className="flex flex-wrap items-center gap-4">
                       {faceUrl ? (
                         <McFaceAvatar src={faceUrl} size={64} radius="md" />
+                      ) : status === 'expired' ? (
+                        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-accent-soft)] text-[var(--color-text-muted)]">
+                          <IconUser size={36} stroke={1.75} aria-hidden />
+                        </div>
                       ) : (
                         <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-accent-soft)] text-lg font-semibold text-[var(--color-text)]">
                           {account.displayName.slice(0, 1)}
@@ -435,9 +439,10 @@ export default function SettingsPage() {
                     <ul className="space-y-2">
                       {accounts.map((a) => {
                         const active = a.id === account?.id
-                        const aFace = active
-                          ? (accountListFaceQuery.data ?? mcFaceUrl(a, 40))
-                          : mcFaceUrl(a, 40)
+                        const aFace =
+                          active && showUserFace
+                            ? (accountFaceQuery.data ?? mcFaceUrl(a, 40))
+                            : mcFaceUrl(a, 40)
                         return (
                           <li
                             key={a.id}
@@ -547,14 +552,18 @@ export default function SettingsPage() {
               hint={t('settings.launcherWindowSizeHint')}
               width={settings.launcherWindowWidth}
               height={settings.launcherWindowHeight}
-              minWidth={900}
+              minWidth={LAUNCHER_WINDOW_MIN_WIDTH}
               maxWidth={7680}
-              minHeight={600}
+              minHeight={LAUNCHER_WINDOW_MIN_HEIGHT}
               maxHeight={4320}
-              onCommitWidth={(launcherWindowWidth) => saveMutation.mutate({ launcherWindowWidth })}
-              onCommitHeight={(launcherWindowHeight) => saveMutation.mutate({ launcherWindowHeight })}
+              onCommitWidth={(launcherWindowWidth) =>
+                saveMutation.mutate(launcherWindowPatch(launcherWindowWidth, settings.launcherWindowHeight))
+              }
+              onCommitHeight={(launcherWindowHeight) =>
+                saveMutation.mutate(launcherWindowPatch(settings.launcherWindowWidth, launcherWindowHeight))
+              }
               onCommitSize={(launcherWindowWidth, launcherWindowHeight) =>
-                saveMutation.mutate({ launcherWindowWidth, launcherWindowHeight })
+                saveMutation.mutate(launcherWindowPatch(launcherWindowWidth, launcherWindowHeight))
               }
             />
             <UiScalePicker
@@ -821,6 +830,18 @@ function UiScalePicker({
 
 function matchWindowPreset(width: number, height: number) {
   return WINDOW_SIZE_PRESETS.find((p) => p.width === width && p.height === height) ?? null
+}
+
+/** 480p / 540p では UI が窮屈なのでコンパクトに寄せる */
+function launcherWindowPatch(
+  launcherWindowWidth: number,
+  launcherWindowHeight: number,
+): Partial<Settings> {
+  const patch: Partial<Settings> = { launcherWindowWidth, launcherWindowHeight }
+  if (launcherWindowHeight <= 560 || launcherWindowWidth <= 1000) {
+    patch.uiScale = 'minimal'
+  }
+  return patch
 }
 
 function WindowSizeFields({

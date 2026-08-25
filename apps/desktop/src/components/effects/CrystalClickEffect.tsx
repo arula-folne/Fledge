@@ -125,38 +125,64 @@ function drawGlint(ctx: CanvasRenderingContext2D, p: Particle) {
   ctx.restore()
 }
 
-/** folne web と同じクリスタル状のクリックエフェクト */
+/** folne web と同じクリスタル状のクリックエフェクト（粒子があるときだけ描画） */
 export function CrystalClickEffect() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const particlesRef = useRef<Particle[]>([])
   const rafRef = useRef<number>(0)
+  const runningRef = useRef(false)
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const ctx = canvas.getContext('2d')
+    const ctx = canvas.getContext('2d', { alpha: true })
     if (!ctx) return
 
-    const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2)
-      canvas.width = Math.floor(window.innerWidth * dpr)
-      canvas.height = Math.floor(window.innerHeight * dpr)
-      canvas.style.width = `${window.innerWidth}px`
-      canvas.style.height = `${window.innerHeight}px`
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    const syncSize = () => {
+      // アイドル時はバッファを解放して VRAM/ヒープを抑える
+      if (particlesRef.current.length === 0) {
+        if (canvas.width !== 1 || canvas.height !== 1) {
+          canvas.width = 1
+          canvas.height = 1
+          canvas.style.width = '0'
+          canvas.style.height = '0'
+        }
+        return
+      }
+      // DPR=1 でフルスクリーンバッファを小さく保つ
+      const w = window.innerWidth
+      const h = window.innerHeight
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w
+        canvas.height = h
+        canvas.style.width = `${w}px`
+        canvas.style.height = `${h}px`
+        ctx.setTransform(1, 0, 0, 1, 0, 0)
+      }
     }
-
-    resize()
-    window.addEventListener('resize', resize)
 
     let last = performance.now()
 
+    const stop = () => {
+      runningRef.current = false
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = 0
+      }
+      syncSize()
+    }
+
     const tick = (now: number) => {
+      const list = particlesRef.current
+      if (list.length === 0) {
+        stop()
+        return
+      }
+
       const dt = Math.min(32, now - last)
       last = now
-      const list = particlesRef.current
-
-      ctx.clearRect(0, 0, window.innerWidth, window.innerHeight)
+      syncSize()
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
 
       for (let i = list.length - 1; i >= 0; i--) {
         const p = list[i]!
@@ -178,22 +204,39 @@ export function CrystalClickEffect() {
         else drawGlint(ctx, p)
       }
 
+      if (list.length === 0) {
+        stop()
+        return
+      }
       rafRef.current = requestAnimationFrame(tick)
     }
 
-    rafRef.current = requestAnimationFrame(tick)
+    const start = () => {
+      if (runningRef.current) return
+      runningRef.current = true
+      last = performance.now()
+      syncSize()
+      rafRef.current = requestAnimationFrame(tick)
+    }
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return
       spawnBurst(particlesRef.current, e.clientX, e.clientY)
+      start()
     }
 
+    const onResize = () => {
+      if (particlesRef.current.length > 0) syncSize()
+    }
+
+    syncSize()
     window.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('resize', onResize)
 
     return () => {
-      window.removeEventListener('resize', resize)
       window.removeEventListener('pointerdown', onPointerDown)
-      cancelAnimationFrame(rafRef.current)
+      window.removeEventListener('resize', onResize)
+      stop()
     }
   }, [])
 

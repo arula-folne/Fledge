@@ -65,5 +65,12 @@ export function applyAuthStatusEvent(
   if (status === 'logged_out') {
     queryClient.setQueryData(sessionQueryKey, { account: null, status })
     void queryClient.invalidateQueries({ queryKey: accountsQueryKey })
+    return
   }
+
+  // expired など account 無しのステータスだけ更新（既存アカウントは維持）
+  queryClient.setQueryData(sessionQueryKey, (prev: SessionQueryData | undefined) => ({
+    account: prev?.account ?? null,
+    status,
+  }))
 }

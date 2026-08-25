@@ -29,19 +29,21 @@ export function InstanceLaunchButton({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const authStatus = useUiStore((s) => s.authStatus)
-  const byProfileId = useLaunchStore((s) => s.byProfileId)
-  const stateFor = useLaunchStore((s) => s.stateFor)
+  const state = useLaunchStore((s) => s.byProfileId[instanceId]?.state ?? 'idle')
+  const sessionId = useLaunchStore((s) => s.byProfileId[instanceId]?.sessionId)
   const focusSessionId = useLaunchStore((s) => s.focusSessionId)
-  const phaseMessageKey = useLaunchStore((s) => s.phaseMessageKey)
-  const progress = useLaunchStore((s) => s.progress)
-  const errorMessageKey = useLaunchStore((s) => s.errorMessageKey)
-  const errorProfileId = useLaunchStore((s) => s.errorProfileId)
-
-  const state = stateFor(instanceId)
-  const session = byProfileId[instanceId]
   const focused =
-    session?.sessionId != null &&
-    (focusSessionId === session.sessionId || !focusSessionId)
+    sessionId != null && (focusSessionId === sessionId || !focusSessionId)
+
+  const needsProgress =
+    focused &&
+    (state === 'preparing' || state === 'launching' || (showProgress && state === 'running'))
+
+  const phaseMessageKey = useLaunchStore((s) => (needsProgress ? s.phaseMessageKey : null))
+  const progress = useLaunchStore((s) => (needsProgress ? s.progress : null))
+  const errorMessageKey = useLaunchStore((s) =>
+    s.errorProfileId === instanceId ? s.errorMessageKey : null,
+  )
 
   const canPlay =
     (authStatus === 'logged_in' || authStatus === 'refreshing') &&
@@ -102,7 +104,7 @@ export function InstanceLaunchButton({
         className={[sizeClass, className].join(' ')}
         onClick={(e) => {
           stop(e)
-          void fledgeApi.launch.cancel(session?.sessionId)
+          void fledgeApi.launch.cancel(sessionId)
         }}
       >
         <IconX size={iconSize} stroke={1.75} />
@@ -116,7 +118,7 @@ export function InstanceLaunchButton({
         className={[sizeClass, className].join(' ')}
         onClick={(e) => {
           stop(e)
-          void fledgeApi.launch.kill(session?.sessionId)
+          void fledgeApi.launch.kill(sessionId)
         }}
       >
         <IconPlayerStop size={iconSize} stroke={1.75} />
@@ -141,7 +143,7 @@ export function InstanceLaunchButton({
   const showProgressBlock =
     focused &&
     (state === 'preparing' || state === 'launching' || (showProgress && state === 'running'))
-  const showError = Boolean(errorMessageKey && errorProfileId === instanceId)
+  const showError = Boolean(errorMessageKey)
 
   return (
     <div

@@ -5,7 +5,7 @@ import { promisify } from 'node:util'
 import type { PathLayout } from '../app/paths.js'
 import type { Logger } from '../logging/Logger.js'
 import type { DownloadQueue } from '../download/DownloadQueue.js'
-import { fetchBody } from '../download/fetchBody.js'
+import { fetchToFile } from '../download/fetchBody.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -362,9 +362,8 @@ export class JavaManager {
     const destZip = path.join(this.layout.temp, `temurin-${major}.zip`)
     const destDir = this.installDir(major)
 
-    const buffer = await fetchBody(api, { signal, onProgress })
     await fs.mkdir(this.layout.temp, { recursive: true })
-    await fs.writeFile(destZip, buffer)
+    await fetchToFile(api, destZip, { signal, onProgress })
 
     onExtracting?.()
     await fs.rm(destDir, { recursive: true, force: true })

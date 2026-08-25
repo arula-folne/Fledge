@@ -3,12 +3,15 @@ import type { LogLevel, LogLine, LogSource } from '@fledge/shared'
 
 export type LogListener = (line: LogLine) => void
 
+/** メインプロセスの直近ログ保持件数（renderer へは必要時のみ渡す） */
+const DEFAULT_MAX_RECENT = 400
+
 export class Logger {
   private listeners = new Set<LogListener>()
   private recent: LogLine[] = []
   private readonly maxRecent: number
 
-  constructor(maxRecent = 2000) {
+  constructor(maxRecent = DEFAULT_MAX_RECENT) {
     this.maxRecent = maxRecent
   }
 
@@ -18,12 +21,12 @@ export class Logger {
   }
 
   getRecent(): LogLine[] {
-    return [...this.recent]
+    return this.recent.slice()
   }
 
   log(source: LogSource, level: LogLevel, message: string, context?: Record<string, string>): void {
     const line: LogLine = {
-      id: randomUUID(),
+      id: randomUUID().slice(0, 8),
       ts: Date.now(),
       source,
       level,

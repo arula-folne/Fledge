@@ -70,10 +70,10 @@ const NEUTRAL_LIGHT_BORDER = { r: 210, g: 205, b: 198 }
 const NEUTRAL_LIGHT_BODY_TOP = { r: 238, g: 234, b: 228 }
 const NEUTRAL_LIGHT_BODY_BOT = { r: 226, g: 222, b: 216 }
 const NEUTRAL_LIGHT_ZEBRA = { r: 240, g: 236, b: 230 }
-const NEUTRAL_DARK = { r: 82, g: 82, b: 88 }
-const NEUTRAL_DARK_SURFACE = { r: 96, g: 96, b: 102 }
-const NEUTRAL_DARK_INPUT = { r: 74, g: 74, b: 80 }
-const NEUTRAL_DARK_ZEBRA = { r: 88, g: 88, b: 94 }
+const NEUTRAL_DARK = { r: 30, g: 31, b: 34 }
+const NEUTRAL_DARK_SURFACE = { r: 49, g: 51, b: 56 }
+const NEUTRAL_DARK_INPUT = { r: 30, g: 31, b: 34 }
+const NEUTRAL_DARK_ZEBRA = { r: 43, g: 45, b: 49 }
 
 type ThemeTokens = {
   bg: string
@@ -111,22 +111,23 @@ function tokensForLight(): ThemeTokens {
   }
 }
 
+/** Discord ダークに近いニュートラル階層（#1e1f22 / #2b2d31 / #313338） */
 function tokensForDark(): ThemeTokens {
   return {
-    bg: '#525258',
-    surface: '#606068',
-    input: '#4a4a50',
-    border: '#74747c',
-    text: '#f5f5f7',
-    textMuted: '#c0c0c6',
-    accent: '#8ec8ef',
-    accentSoft: '#555a64',
-    hover: 'rgba(245, 245, 247, 0.11)',
-    onAccent: '#1a1a1c',
-    scrollbar: '#7a7a82',
-    zebra: '#585860',
+    bg: '#1e1f22',
+    surface: '#313338',
+    input: '#1e1f22',
+    border: '#3f4147',
+    text: '#dbdee1',
+    textMuted: '#949ba4',
+    accent: '#5865f2',
+    accentSoft: '#2b2d31',
+    hover: 'rgba(79, 84, 92, 0.32)',
+    onAccent: '#ffffff',
+    scrollbar: '#1a1b1e',
+    zebra: '#2b2d31',
     scheme: 'dark',
-    bodyBg: 'linear-gradient(180deg, #56565c 0%, #4e4e54 100%)',
+    bodyBg: 'linear-gradient(180deg, #2b2d31 0%, #1e1f22 100%)',
   }
 }
 
@@ -161,23 +162,23 @@ function tokensForColor(r: number, g: number, b: number): ThemeTokens {
   const black = { r: 0, g: 0, b: 0 }
 
   if (darkFg) {
-    const tint = softMute(colorBase, 0.1)
-    const accentBase = boostChroma(softMute(colorBase, 0.06), 0.12)
+    const tint = softMute(colorBase, 0.14)
+    const accentBase = boostChroma(softMute(colorBase, 0.04), 0.1)
     return {
-      bg: mixRgb(NEUTRAL_DARK, tint, 0.38),
-      surface: mixRgb(NEUTRAL_DARK_SURFACE, tint, 0.34),
-      input: mixRgb(NEUTRAL_DARK_INPUT, tint, 0.26),
-      border: mixRgb({ r: 116, g: 116, b: 124 }, tint, 0.34),
-      text: '#f5f5f7',
-      textMuted: '#c0c0c6',
-      accent: mixRgb(accentBase, white, 0.34),
-      accentSoft: `rgba(${tint.r}, ${tint.g}, ${tint.b}, 0.28)`,
-      hover: 'rgba(245, 245, 247, 0.11)',
-      onAccent: '#1a1a1c',
-      scrollbar: mixRgb({ r: 122, g: 122, b: 130 }, tint, 0.32),
-      zebra: mixRgb(NEUTRAL_DARK_ZEBRA, tint, 0.32),
+      bg: mixRgb(NEUTRAL_DARK, tint, 0.22),
+      surface: mixRgb(NEUTRAL_DARK_SURFACE, tint, 0.2),
+      input: mixRgb(NEUTRAL_DARK_INPUT, tint, 0.16),
+      border: mixRgb({ r: 63, g: 65, b: 71 }, tint, 0.22),
+      text: '#dbdee1',
+      textMuted: '#949ba4',
+      accent: mixRgb(accentBase, white, 0.18),
+      accentSoft: `rgba(${tint.r}, ${tint.g}, ${tint.b}, 0.22)`,
+      hover: 'rgba(79, 84, 92, 0.32)',
+      onAccent: '#ffffff',
+      scrollbar: mixRgb({ r: 26, g: 27, b: 30 }, tint, 0.2),
+      zebra: mixRgb(NEUTRAL_DARK_ZEBRA, tint, 0.18),
       scheme: 'dark',
-      bodyBg: `linear-gradient(180deg, ${mixRgb(NEUTRAL_DARK, tint, 0.18)} 0%, ${mixRgb(NEUTRAL_DARK, black, 0.06)} 100%)`,
+      bodyBg: `linear-gradient(180deg, ${mixRgb(NEUTRAL_DARK_ZEBRA, tint, 0.14)} 0%, ${mixRgb(NEUTRAL_DARK, black, 0.2)} 100%)`,
     }
   }
 

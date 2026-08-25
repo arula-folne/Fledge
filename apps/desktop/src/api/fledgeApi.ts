@@ -28,6 +28,7 @@ import type {
   Settings,
   SkinEntry,
   SkinModel,
+  UpdateInstanceInput,
   UpdateCheckResult,
   UpdateChannel,
   VersionInfo,
@@ -51,7 +52,7 @@ export type FledgeApi = {
     list: () => Promise<InstanceProfile[]>
     get: (id: string) => Promise<InstanceProfile | null>
     create: (input: CreateInstanceInput) => Promise<InstanceProfile>
-    update: (id: string, partial: Partial<InstanceProfile>) => Promise<InstanceProfile>
+    update: (id: string, partial: UpdateInstanceInput) => Promise<InstanceProfile>
     duplicate: (id: string) => Promise<InstanceProfile>
     remove: (id: string) => Promise<void>
     openFolder: (id: string) => Promise<void>
@@ -186,6 +187,7 @@ export type FledgeApi = {
     logLine: (cb: (e: LogLine) => void) => () => void
     authStatus: (cb: (e: AuthStatusEvent) => void) => () => void
     newsUpdated: (cb: (items: NewsItem[]) => void) => () => void
+    windowSize: (cb: (size: { width: number; height: number }) => void) => () => void
   }
 }
 

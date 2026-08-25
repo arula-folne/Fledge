@@ -72,13 +72,16 @@ async function listFilesRecursive(root: string, rel = ''): Promise<string[]> {
   } catch {
     return []
   }
-  const out: string[] = []
+  const files: string[] = []
+  const dirJobs: Promise<string[]>[] = []
   for (const entry of entries) {
     const child = rel ? path.join(rel, entry.name) : entry.name
-    if (entry.isDirectory()) out.push(...(await listFilesRecursive(root, child)))
-    else if (entry.isFile()) out.push(child)
+    if (entry.isDirectory()) dirJobs.push(listFilesRecursive(root, child))
+    else if (entry.isFile()) files.push(child)
   }
-  return out
+  if (dirJobs.length === 0) return files
+  const nested = await Promise.all(dirJobs)
+  return files.concat(...nested)
 }
 
 function fileHashes(data: Uint8Array): { sha1: string; sha512: string } {
@@ -275,14 +278,25 @@ export class ContentService {
     const installedByProject = new Map(index.items.map((item) => [item.projectId, item]))
 
     let primaryEntry: InstalledContent | null = null
+    const toEnqueue: typeof files = []
     for (const resolved of files) {
       const current = installedByProject.get(resolved.projectId)
       if (current?.versionId === resolved.versionId) {
         if (resolved.projectId === primary.projectId) primaryEntry = current
         continue
       }
-      const entry = await this.enqueueContentDownload(req.instanceId, instanceDir, resolved)
-      if (resolved.projectId === primary.projectId) primaryEntry = entry
+      toEnqueue.push(resolved)
+    }
+
+    if (toEnqueue.length > 0) {
+      const dirs = new Set(toEnqueue.map((f) => path.join(instanceDir, categoryDir(f.category))))
+      await Promise.all([...dirs].map((dir) => fs.mkdir(dir, { recursive: true })))
+      const entries = await Promise.all(
+        toEnqueue.map((resolved) => this.enqueueContentDownload(req.instanceId, instanceDir, resolved)),
+      )
+      for (let i = 0; i < toEnqueue.length; i++) {
+        if (toEnqueue[i]!.projectId === primary.projectId) primaryEntry = entries[i]!
+      }
     }
 
     if (files.length > 1) {
@@ -308,12 +322,13 @@ export class ContentService {
       })
     }
 
-    const page = await this.getProject(req.projectId)
-    const versions = await this.listVersions({
+    const pagePromise = this.getProject(req.projectId)
+    const versionsPromise = this.listVersions({
       projectId: req.projectId,
       gameVersion: req.gameVersion,
       loaders: req.loaders,
     })
+    const [page, versions] = await Promise.all([pagePromise, versionsPromise])
     let version = req.versionId
       ? versions.find((v) => v.id === req.versionId)
       : versions[0]
@@ -485,7 +500,12 @@ export class ContentService {
       })
 
       const instanceDir = this.instances.instanceDir(profile.id)
-      await writeMrpackOverrides(instanceDir, entries)
+      const writeSettings = await this.settings.get()
+      await writeMrpackOverrides(
+        instanceDir,
+        entries,
+        writeSettings.maxWriteConcurrency,
+      )
 
       const packFiles = clientFiles(index)
       const projectIds = packFiles
@@ -1102,18 +1122,19 @@ export class ContentService {
     const dir = path.join(this.instances.instanceDir(instanceId), kind)
     try {
       const entries = await fs.readdir(dir, { withFileTypes: true })
-      const items: ContentMediaItem[] = []
-      for (const e of entries) {
-        if (!e.isFile()) continue
-        const full = path.join(dir, e.name)
-        const stat = await fs.stat(full)
-        items.push({
-          name: e.name,
-          path: full,
-          mtime: stat.mtime.toISOString(),
-          size: stat.size,
-        })
-      }
+      const files = entries.filter((e) => e.isFile())
+      const items = await Promise.all(
+        files.map(async (e) => {
+          const full = path.join(dir, e.name)
+          const stat = await fs.stat(full)
+          return {
+            name: e.name,
+            path: full,
+            mtime: stat.mtime.toISOString(),
+            size: stat.size,
+          } satisfies ContentMediaItem
+        }),
+      )
       return items.sort((a, b) => (b.mtime ?? '').localeCompare(a.mtime ?? ''))
     } catch {
       return []

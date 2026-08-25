@@ -28,6 +28,7 @@ import {
   type NewsItem,
   type PathInfo,
   type ProgressEvent,
+  type UpdateInstanceInput,
   type Settings,
   type SkinEntry,
   type SkinModel,
@@ -54,7 +55,7 @@ export type FledgeApi = {
     list: () => Promise<InstanceProfile[]>
     get: (id: string) => Promise<InstanceProfile | null>
     create: (input: CreateInstanceInput) => Promise<InstanceProfile>
-    update: (id: string, partial: Partial<InstanceProfile>) => Promise<InstanceProfile>
+    update: (id: string, partial: UpdateInstanceInput) => Promise<InstanceProfile>
     duplicate: (id: string) => Promise<InstanceProfile>
     remove: (id: string) => Promise<void>
     openFolder: (id: string) => Promise<void>
@@ -189,6 +190,7 @@ export type FledgeApi = {
     logLine: (cb: (e: LogLine) => void) => () => void
     authStatus: (cb: (e: AuthStatusEvent) => void) => () => void
     newsUpdated: (cb: (items: NewsItem[]) => void) => () => void
+    windowSize: (cb: (size: { width: number; height: number }) => void) => () => void
   }
 }
 
@@ -318,6 +320,7 @@ const api: FledgeApi = {
     logLine: (cb) => subscribe(IPC_EVENTS.logLine, cb),
     authStatus: (cb) => subscribe(IPC_EVENTS.authStatus, cb),
     newsUpdated: (cb) => subscribe(IPC_EVENTS.newsUpdated, cb),
+    windowSize: (cb) => subscribe(IPC_EVENTS.windowSize, cb),
   },
 }
 

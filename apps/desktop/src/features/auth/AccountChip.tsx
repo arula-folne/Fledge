@@ -59,40 +59,35 @@ export function AccountChip() {
   })
   const selectedSkinId = settingsQuery.data?.selectedSkinId
   const account = sessionQuery.data?.account
-  const loggedIn = Boolean(account)
+  /** 期限切れ・未ログインはスキン顔を出さず汎用アイコンにする */
+  const showUserFace =
+    Boolean(account) && authStatus !== 'expired' && authStatus !== 'logged_out'
 
   const chipFaceQuery = useQuery({
     queryKey: ['account-face', selectedSkinId, 32],
-    enabled: loggedIn && Boolean(selectedSkinId),
-    staleTime: Infinity,
+    enabled: showUserFace && Boolean(selectedSkinId),
+    staleTime: 30 * 60_000,
+    gcTime: 10 * 60_000,
     queryFn: async () => {
       const dataUrl = await fledgeApi.skins.getDataUrl(selectedSkinId!)
       if (!dataUrl) return null
       return cropSkinFaceDataUrl(dataUrl, 32)
     },
   })
-  const popupFaceQuery = useQuery({
-    queryKey: ['account-face', selectedSkinId, 48],
-    enabled: loggedIn && Boolean(selectedSkinId) && open,
-    staleTime: Infinity,
-    queryFn: async () => {
-      const dataUrl = await fledgeApi.skins.getDataUrl(selectedSkinId!)
-      if (!dataUrl) return null
-      return cropSkinFaceDataUrl(dataUrl, 48)
-    },
-  })
 
   const switchMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.auth.switch(id),
-    onSuccess: (account) => {
-      applyLoggedInAccount(queryClient, account)
+    onSuccess: (next) => {
+      applyLoggedInAccount(queryClient, next)
     },
   })
 
   const logoutMutation = useMutation({
     mutationFn: (id?: string) => fledgeApi.auth.logout(id),
-    onSuccess: () => {
+    onSuccess: async () => {
       setOpen(false)
+      await queryClient.invalidateQueries({ queryKey: ['session'] })
+      await queryClient.invalidateQueries({ queryKey: ['accounts'] })
     },
   })
 
@@ -113,18 +108,10 @@ export function AccountChip() {
   }, [open])
 
   const accounts = accountsQuery.data ?? []
-  const faceUrl = loggedIn ? (chipFaceQuery.data ?? mcFaceUrl(account, 32)) : null
-  const popupFaceUrl = loggedIn
-    ? (popupFaceQuery.data ?? chipFaceQuery.data ?? mcFaceUrl(account, 48))
+  const faceUrl = showUserFace ? (chipFaceQuery.data ?? mcFaceUrl(account, 32)) : null
+  const popupFaceUrl = showUserFace
+    ? (chipFaceQuery.data ?? mcFaceUrl(account, 48))
     : null
-  const secondaryLine =
-    authStatus === 'expired' ? (
-      <div className="text-xs leading-tight text-[var(--color-danger)]">{t('auth.reloginRequired')}</div>
-    ) : accounts.length > 1 ? (
-      <div className="text-xs leading-tight text-[var(--color-text-muted)]">
-        {t('auth.accountCount', { count: accounts.length })}
-      </div>
-    ) : null
 
   const chipLabel =
     authStatus === 'logging_in'
@@ -159,8 +146,19 @@ export function AccountChip() {
         onClick={() => setOpen((v) => !v)}
       >
         <div className="flex h-8 min-w-0 flex-col justify-center text-right text-sm">
-          <div className="truncate font-medium leading-none text-[var(--color-text)]">{chipLabel}</div>
-          {secondaryLine}
+          <div
+            className={[
+              'truncate font-medium leading-none',
+              authStatus === 'expired' ? 'text-[var(--color-danger)]' : 'text-[var(--color-text)]',
+            ].join(' ')}
+          >
+            {chipLabel}
+          </div>
+          {authStatus !== 'expired' && accounts.length > 1 ? (
+            <div className="text-xs leading-tight text-[var(--color-text-muted)]">
+              {t('auth.accountCount', { count: accounts.length })}
+            </div>
+          ) : null}
         </div>
         {faceUrl ? <McFaceAvatar src={faceUrl} size={32} /> : <LoggedOutUserIcon size={32} />}
       </button>
@@ -185,7 +183,9 @@ export function AccountChip() {
               <p
                 className={[
                   'text-xs',
-                  authStatus === 'expired' ? 'text-[var(--color-danger)]' : 'text-[var(--color-text-muted)]',
+                  authStatus === 'expired'
+                    ? 'text-[var(--color-danger)]'
+                    : 'text-[var(--color-text-muted)]',
                 ].join(' ')}
               >
                 {statusText}
@@ -237,7 +237,7 @@ export function AccountChip() {
               disabled={authStatus === 'logging_in'}
               onClick={() => void startLogin(queryClient)}
             >
-              {t('auth.addAccount')}
+              {authStatus === 'expired' ? t('auth.loginShort') : t('auth.addAccount')}
             </Button>
             {account ? (
               <Button
