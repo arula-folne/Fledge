@@ -421,7 +421,7 @@
   "settings.block.minecraft": "Minecraft",
   "settings.block.minecraftLaunch": "起動設定",
   "settings.block.minecraftInitial": "初期設定",
-  "settings.minecraftInitial.hint": "変更した項目だけが、新しく作ったインスタンスの初回起動に適用されます。「Minecraftデフォルト」のままの項目は書き込みません。一度適用したあとは、ゲーム内で変えても次の起動で上書きしません。",
+  "settings.minecraftInitial.hint": "変更した項目だけが、新しく作ったインスタンスの初回起動に適用されます。Modpack 同梱の設定より優先されます。「Minecraftデフォルト」のままの項目は書き込みません。一度適用したあとは、ゲーム内で変えても次の起動で上書きしません。",
   "settings.minecraftInitial.reset": "デフォルトに戻す",
   "settings.minecraftInitial.mcDefault": "デフォルト",
   "settings.minecraftInitial.group.game": "ゲーム",

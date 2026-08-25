@@ -124,7 +124,7 @@ Fledge のテーマ・アカウント・スキンは `Data/` 側でランチャ�
 1. `auth` — 資格情報の確認。選択中スキン適用は起動と並行（ログイン時）
 2. `java` / `install` — Java 確認とクライアント準備を並行。導入済みならネット確認を省略
 3. ネイティブは `Data/Minecraft/natives/<versionId>/` に残し、次回は再展開しない
-4. 新規インスタンスなら `pendingMinecraftOptions` を `options.txt` にマージ（初回のみ）
+4. 新規インスタンスなら最新の `minecraftInitialSettings` を `options.txt` に強制マージ（初回のみ。Modpack 同梱より優先）
 5. `spawn` — ゲームプロセス起動
 6. `running`
 
@@ -148,7 +148,8 @@ Java メジャー推定の目安（`requiredJavaMajor`）:
 
 設定の `minecraftInitialSettings` は **新規インスタンスの初回起動専用** です。  
 `null`（UI の「Minecraftデフォルト」）の項目はゲーム側デフォルトのまま（`options.txt` に書かない）。  
-変更した項目がある場合は初回起動前に `options.txt` へ書き込み、あわせて `onboardAccessibility:false` でゲーム側の初回画面を抑止します。
+変更した項目は初回起動直前に `options.txt` へ **強制マージ** し、あわせて `onboardAccessibility:false` でゲーム側の初回画面を抑止します。  
+Modpack（mrpack）同梱の `options.txt` / `debug.json` より Fledge 側の値を優先します（展開直後にも一度書き込み、初回起動時にも最新の設定で再適用）。
 
 対象例: 言語、字幕、オートジャンプ、FOV、音量、最大 FPS、垂直同期、GUI スケール、明るさ、描画／演算距離、マウス感度。
 

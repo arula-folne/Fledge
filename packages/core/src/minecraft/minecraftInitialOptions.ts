@@ -164,20 +164,18 @@ export function snapshotMinecraftDebugOverlay(
   return out
 }
 
-function parseOptionsTxt(text: string): { lines: string[]; map: Map<string, string> } {
-  const lines = text.split(/\r?\n/)
-  const map = new Map<string, string>()
-  for (const line of lines) {
-    if (!line || line.startsWith('#')) continue
-    const idx = line.indexOf(':')
-    if (idx <= 0) continue
-    map.set(line.slice(0, idx), line.slice(idx + 1))
-  }
-  return { lines, map }
+function stripBom(text: string): string {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
+}
+
+function hasOwnKey(patch: Record<string, string>, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(patch, key)
 }
 
 /**
- * 既存 options.txt があればキーを上書きマージ。無ければ変更分だけ書いて Minecraft が残りを埋める。
+ * 既存 options.txt があれば Fledge のキーで強制上書きマージ。
+ * Modpack 同梱の options.txt より Fledge 初期設定を優先する。
+ * 同一キーの重複行は落とし、パッチキーはファイル内に1回だけ残す。
  */
 export async function mergeMinecraftOptionsFile(
   instanceDir: string,
@@ -189,7 +187,7 @@ export async function mergeMinecraftOptionsFile(
   const file = path.join(instanceDir, 'options.txt')
   let existing = ''
   try {
-    existing = await fs.readFile(file, 'utf8')
+    existing = stripBom(await fs.readFile(file, 'utf8'))
   } catch {
     existing = ''
   }
@@ -200,31 +198,58 @@ export async function mergeMinecraftOptionsFile(
     return
   }
 
-  const { lines, map } = parseOptionsTxt(existing)
+  const lines = existing.split(/\r?\n/)
   const used = new Set<string>()
   const nextLines: string[] = []
 
   for (const line of lines) {
+    if (!line || line.startsWith('#')) {
+      nextLines.push(line)
+      continue
+    }
     const idx = line.indexOf(':')
-    if (idx > 0 && !line.startsWith('#')) {
-      const key = line.slice(0, idx)
-      if (key in patch) {
-        nextLines.push(`${key}:${patch[key]}`)
-        used.add(key)
-        continue
-      }
+    if (idx <= 0) {
+      nextLines.push(line)
+      continue
+    }
+    const key = line.slice(0, idx).trim()
+    if (hasOwnKey(patch, key)) {
+      // 重複キーは捨て、Fledge 値を1回だけ書く
+      if (used.has(key)) continue
+      nextLines.push(`${key}:${patch[key]}`)
+      used.add(key)
+      continue
     }
     nextLines.push(line)
   }
 
   for (const key of keys) {
     if (used.has(key)) continue
-    if (map.has(key)) continue
     nextLines.push(`${key}:${patch[key]}`)
   }
 
   const body = nextLines.filter((l, i, arr) => !(l === '' && i === arr.length - 1)).join('\n')
   await fs.writeFile(file, body.endsWith('\n') ? body : `${body}\n`, 'utf8')
+}
+
+/**
+ * Fledge 初期設定をインスタンスへ強制反映（Modpack の options.txt / debug.json より優先）。
+ * pending の凍結スナップショットより、渡された settings を正とする。
+ */
+export async function applyMinecraftInitialSettingsToInstance(
+  instanceDir: string,
+  settings: MinecraftInitialSettings,
+  minecraftVersion: string,
+): Promise<{ options: Record<string, string>; overlay: Record<string, string> }> {
+  const options = snapshotMinecraftInitialOptions(settings, minecraftVersion)
+  const overlay = snapshotMinecraftDebugOverlay(settings, minecraftVersion)
+  // 変更 0 件でも Welcome / アクセシビリティ初回画面を抑止する
+  if (!('onboardAccessibility' in options)) {
+    options.onboardAccessibility = 'false'
+  }
+  await mergeMinecraftOptionsFile(instanceDir, options)
+  await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
+  return { options, overlay }
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

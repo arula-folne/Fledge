@@ -25,6 +25,7 @@ export {
   snapshotMinecraftDebugOverlay,
   mergeMinecraftOptionsFile,
   mergeMinecraftDebugOverlayFile,
+  applyMinecraftInitialSettingsToInstance,
 } from './minecraft/minecraftInitialOptions.js'
 export { VersionService } from './versions/VersionService.js'
 export type { MinecraftVersionProvider, LoaderVersionProvider } from './versions/VersionProvider.js'
