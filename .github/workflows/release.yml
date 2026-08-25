@@ -79,7 +79,16 @@ jobs:
             # a / b / rc 接尾辞付きはプレリリース（製品版 v0.1.4 のみ正式）
             $ver = $tag.TrimStart('v')
             $prerelease = if ($ver -match '(a|b|rc)$') { '--prerelease' } else { $null }
-            gh release create $tag --title "Fledge Ver.$ver" --generate-notes $prerelease
+            # RELEASE_NOTES.md に書いた更新内容をリリースページ本文にする
+            $notesFile = 'RELEASE_NOTES.md'
+            if (-not (Test-Path $notesFile)) {
+              throw "Missing $notesFile (write release notes before tagging)"
+            }
+            if ($prerelease) {
+              gh release create $tag --title "Fledge Ver.$ver" --notes-file $notesFile --prerelease
+            } else {
+              gh release create $tag --title "Fledge Ver.$ver" --notes-file $notesFile
+            }
           }
           gh release upload $tag $exe.FullName --clobber
         env:

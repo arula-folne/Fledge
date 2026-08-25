@@ -61,6 +61,8 @@ pnpm dev
 
 正規の経路は GitHub Actions です。`v*` タグを push すると `.github/workflows/release.yml` が NSIS をビルドし、アンインストーラー同梱を検証したうえで Release に添付します。手元でビルドした exe を直接アップロードしないでください。
 
+リリースページの本文はリポジトリ直下の `RELEASE_NOTES.md` から取り込みます（自動生成ノートは使いません）。タグを切る前に、そのバージョンの更新内容を `RELEASE_NOTES.md` に書いてください。お知らせ（`news/news.ja.json`）も従来どおり手動追加します。
+
 ## `@xmcl` のエントリ修正
 
 npm 上の `@xmcl/core` / `@xmcl/installer` は `main` がソースを指していることがあります。  

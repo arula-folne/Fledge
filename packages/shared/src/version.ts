@@ -15,8 +15,10 @@
  * 1. APP_VERSION だけを編集（接尾辞 a / b / rc を含める）
  * 2. リポジトリルートで `pnpm version:sync` を実行
  * 3. お知らせ（news/news.ja.json）にリリース条目を手動追加
+ * 4. RELEASE_NOTES.md に GitHub Release 用の更新内容を書く（リリースページ本文）
+ * 5. main へマージ後、`v{APP_VERSION}` タグを push（例: v0.1.9a）
  */
-export const APP_VERSION = '0.1.8a' as const
+export const APP_VERSION = '0.1.9a' as const
 
 /** UI 表示用（`Ver.X.X.X[a|b|rc]`） */
 export const APP_VERSION_LABEL = `Ver.${APP_VERSION}` as const

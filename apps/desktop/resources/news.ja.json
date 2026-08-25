@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.1.9a",
+    "title": "【バージョンアップ】Fledge Ver.0.1.9a",
+    "body": "**Fledge Ver.0.1.9a** を公開しました。\n\n## 主な変更\n\n- 新規インスタンス／Modpack 導入後の初回起動で、Fledge の Minecraft 初期設定を同梱の `options.txt` より優先して強制適用するようにしました\n- 起動・ダウンロード中のプログレス表示を、ポップアップ風から従来のボタン直下インライン表示に戻しました\n- インスタンス詳細のタイトルカードをコンパクトにし、文字サイズを合わせて見切れにくくしました\n\n> 引き続きベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-25T03:45:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.1.9a"
+  },
+  {
     "id": "v0.1.8a",
     "title": "【バージョンアップ】Fledge Ver.0.1.8a",
     "body": "**Fledge Ver.0.1.8a** を公開しました。\n\n## 主な変更\n\n- アプリ設定の Minecraft 初期設定が新規インスタンスに正しく反映されるようにしました（初回 Welcome 画面の抑制を含む）\n- インスタンス詳細で起動失敗しても起動ボタンの位置が動かないようにしました\n- コンテンツ検索の下部にもページ送りを追加し、インストールボタンを大きくしました\n- 設定のアカウントアイコンがスキン変更に合わせてすぐ更新されるようにしました\n- Windows のアンインストール一覧の表示名を「Fledge」に統一しました\n\n> 引き続きベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
