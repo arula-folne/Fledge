@@ -260,6 +260,7 @@ export class ContentService {
             versionId: req.versionId,
             gameVersion,
             loaders,
+            loader: profile.loader,
             installed,
           })
         : [

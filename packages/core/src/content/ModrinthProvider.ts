@@ -9,8 +9,13 @@ import type {
   ContentSearchQuery,
   ContentSearchResult,
   ContentVersion,
+  Loader,
 } from '@fledge/shared'
 import type { ContentProvider, ResolvedContentFile } from './ContentProvider.js'
+import {
+  implicitLibrariesForLoader,
+  isImplicitLibraryTarget,
+} from './implicitLibraries.js'
 
 const API = 'https://api.modrinth.com/v2'
 const UA = fledgeUserAgent('https://github.com/arula-folne/Fledge; content-manager')
@@ -541,6 +546,7 @@ export class ModrinthProvider implements ContentProvider {
     versionId?: string
     gameVersion?: string
     loaders?: ContentLoaderFilter[]
+    loader?: Loader
     installed?: ReadonlyMap<string, string>
   }): Promise<ResolvedContentFile[]> {
     await this.refreshLocale()
@@ -717,6 +723,13 @@ export class ModrinthProvider implements ContentProvider {
           { name: after.name },
         )
       }
+    }
+
+    for (const lib of implicitLibrariesForLoader(input.loader, input.category)) {
+      if (isImplicitLibraryTarget(input.projectId, lib)) continue
+      if (input.installed?.has(lib.projectId)) continue
+      if (chosen.has(lib.projectId)) continue
+      await walk(lib.projectId, 'mod', undefined, 1)
     }
 
     await walk(input.projectId, input.category, input.versionId, 0)

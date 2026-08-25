@@ -100,6 +100,7 @@ export function AddContentModal({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const wasBrowseOpenRef = useRef(false)
+  const prevInstanceIdRef = useRef(instance.id)
   const [searchCategory, setSearchCategory] = useState<ContentCategory>('mod')
   const [query, setQuery] = useState('')
   const [gameVersion, setGameVersion] = useState(instance.minecraftVersion)
@@ -140,6 +141,10 @@ export function AddContentModal({
   })
 
   useEffect(() => {
+    if (prevInstanceIdRef.current !== instance.id) {
+      reset()
+      prevInstanceIdRef.current = instance.id
+    }
     if (open && browseMode && !wasBrowseOpenRef.current) {
       setSearchCategory('mod')
       setGameVersion(instance.minecraftVersion)
@@ -151,10 +156,14 @@ export function AddContentModal({
       setQuery('')
       setDebouncedQuery('')
       setError(null)
-      reset()
     }
     wasBrowseOpenRef.current = open && browseMode
   }, [open, browseMode, instance.id, instance.minecraftVersion, instance.loader, reset])
+
+  useEffect(() => {
+    if (!open) return
+    void queryClient.refetchQueries({ queryKey: ['content-installed', instance.id] })
+  }, [open, instance.id, queryClient])
 
   useEffect(() => {
     const id = window.setTimeout(() => setDebouncedQuery(query.trim()), 400)
@@ -200,8 +209,7 @@ export function AddContentModal({
     void queryClient.prefetchQuery({
       queryKey: ['content-installed', instance.id, 'all'],
       queryFn: () => fledgeApi.content.listInstalled(instance.id),
-      staleTime: 30_000,
-      gcTime: 2 * 60_000,
+      staleTime: 0,
     })
   }, [open, instance.id, queryClient])
 
@@ -242,8 +250,11 @@ export function AddContentModal({
     queryKey: ['content-installed', instance.id, 'all'],
     queryFn: () => fledgeApi.content.listInstalled(instance.id),
     enabled: open,
-    placeholderData: (previousData, previousQuery) =>
-      keepInstalledDataForInstance(previousData, previousQuery, instance.id),
+    refetchOnMount: 'always',
+    placeholderData: browseMode
+      ? undefined
+      : (previousData, previousQuery) =>
+          keepInstalledDataForInstance(previousData, previousQuery, instance.id),
   })
 
   const installedProjectIds = useMemo(
@@ -252,7 +263,7 @@ export function AddContentModal({
   )
 
   const refreshInstalled = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ['content-installed', instance.id] })
+    await queryClient.refetchQueries({ queryKey: ['content-installed', instance.id] })
   }, [instance.id, queryClient])
 
   useEffect(() => {

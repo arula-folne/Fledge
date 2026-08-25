@@ -8,6 +8,7 @@ import type {
   ContentSourceId,
   ContentVersion,
   InstalledContent,
+  Loader,
 } from '@fledge/shared'
 
 /** Provider が解決した「いま入れるファイル」 */
@@ -63,6 +64,7 @@ export interface ContentProvider {
     versionId?: string
     gameVersion?: string
     loaders?: ContentLoaderFilter[]
+    loader?: Loader
     /** すでに入っている projectId → versionId（incompatible 判定用） */
     installed?: ReadonlyMap<string, string>
   }): Promise<ResolvedContentFile[]>
