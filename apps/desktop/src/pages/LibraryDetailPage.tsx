@@ -161,7 +161,7 @@ export default function LibraryDetailPage() {
   }, [instanceId, tab, setLibraryFocus])
 
   useEffect(() => {
-    if (!settingsOpen) setIconOpen(false)
+    if (!settingsOpen) setHeaderIconOpen(false)
   }, [settingsOpen])
 
   useEffect(() => {

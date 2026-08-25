@@ -6,6 +6,7 @@ import {
   type BackupEntry,
   type AuthStatus,
   type AuthStatusEvent,
+  type AppDirectoryInfo,
   type ContentCategory,
   type ContentCategoryTag,
   type ContentCreateInstanceRequest,
@@ -50,6 +51,8 @@ export type FledgeApi = {
     get: () => Promise<PathInfo>
     open: (target: string) => Promise<void>
     selectFolder: () => Promise<string | null>
+    getAppDirectory: () => Promise<AppDirectoryInfo>
+    setAppDirectory: (path: string | null) => Promise<AppDirectoryInfo>
   }
   instances: {
     list: () => Promise<InstanceProfile[]>
@@ -210,6 +213,8 @@ const api: FledgeApi = {
     get: () => ipcRenderer.invoke(IPC.pathsGet),
     open: (target) => ipcRenderer.invoke(IPC.shellOpenPath, target),
     selectFolder: () => ipcRenderer.invoke(IPC.dialogSelectFolder),
+    getAppDirectory: () => ipcRenderer.invoke(IPC.pathsGetAppDirectory),
+    setAppDirectory: (next) => ipcRenderer.invoke(IPC.pathsSetAppDirectory, next),
   },
   instances: {
     list: () => ipcRenderer.invoke(IPC.instancesList),

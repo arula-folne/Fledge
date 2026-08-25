@@ -327,6 +327,16 @@ export const PathInfoSchema = z.object({
 })
 export type PathInfo = z.infer<typeof PathInfoSchema>
 
+/** アプリデータルートの表示・変更用（settings.json 外にポインタを持つ） */
+export const AppDirectoryInfoSchema = z.object({
+  configured: z.string(),
+  active: z.string(),
+  defaultPath: z.string(),
+  isCustom: z.boolean(),
+  restartRequired: z.boolean(),
+})
+export type AppDirectoryInfo = z.infer<typeof AppDirectoryInfoSchema>
+
 export const NewsItemSchema = z.object({
   id: z.string(),
   title: z.string(),

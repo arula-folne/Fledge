@@ -6,6 +6,7 @@ import { AppShell } from './components/layout/AppShell'
 import { CrystalClickEffect } from './components/effects/CrystalClickEffect'
 import { PrivacyNoticeDialog } from './components/PrivacyNoticeDialog'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
+import { WindowChrome } from './components/layout/WindowChrome'
 import { WindowSizeHud } from './components/layout/WindowSizeHud'
 import { fledgeApi } from './api/fledgeApi'
 import { applyAuthStatusEvent } from './features/auth/sessionCache'
@@ -106,35 +107,37 @@ export default function App() {
       <CrystalClickEffect />
       <WindowSizeHud />
       <PrivacyNoticeDialog />
-      <RouteErrorBoundary
-        title={t('common.loadErrorTitle')}
-        description={t('common.loadErrorBody')}
-        retryLabel={t('common.retry')}
-      >
-        <Routes>
-          <Route element={<AppShell />}>
-            <Route index element={<HomePage />} />
-            <Route path="browse" element={<BrowsePage />} />
-            <Route path="library" element={<Navigate to="/" replace />} />
-            <Route
-              path="library/:instanceId"
-              element={
-                <Suspense
-                  fallback={
-                    <div className="flex h-full items-center justify-center text-[var(--color-text-muted)]">
-                      {t('common.loading')}
-                    </div>
-                  }
-                >
-                  <LibraryDetailPage />
-                </Suspense>
-              }
-            />
-            <Route path="skin" element={<SkinPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-          </Route>
-        </Routes>
-      </RouteErrorBoundary>
+      <WindowChrome>
+        <RouteErrorBoundary
+          title={t('common.loadErrorTitle')}
+          description={t('common.loadErrorBody')}
+          retryLabel={t('common.retry')}
+        >
+          <Routes>
+            <Route element={<AppShell />}>
+              <Route index element={<HomePage />} />
+              <Route path="browse" element={<BrowsePage />} />
+              <Route path="library" element={<Navigate to="/" replace />} />
+              <Route
+                path="library/:instanceId"
+                element={
+                  <Suspense
+                    fallback={
+                      <div className="flex h-full items-center justify-center text-[var(--color-text-muted)]">
+                        {t('common.loading')}
+                      </div>
+                    }
+                  >
+                    <LibraryDetailPage />
+                  </Suspense>
+                }
+              />
+              <Route path="skin" element={<SkinPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
+          </Routes>
+        </RouteErrorBoundary>
+      </WindowChrome>
     </>
   )
 }

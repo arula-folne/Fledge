@@ -76,19 +76,21 @@ export class RouteErrorBoundary extends Component<Props, State> {
           : this.state.error.message)
 
       return (
-        <div className="mx-auto flex max-w-lg flex-col gap-3 p-8">
-          <h1 className="text-lg font-semibold">{title}</h1>
-          <p className="text-sm text-[var(--color-text-muted)]">{description}</p>
-          {!loadFailure && this.props.description ? (
-            <p className="text-xs text-[var(--color-text-muted)]">{this.state.error.message}</p>
-          ) : null}
-          <button
-            type="button"
-            className="self-start rounded-[var(--radius-md)] bg-[var(--color-accent)] px-3 py-2 text-sm text-white"
-            onClick={this.reset}
-          >
-            {this.props.retryLabel ?? '再試行'}
-          </button>
+        <div className="flex h-full min-h-0 flex-col overflow-auto">
+          <div className="mx-auto flex max-w-lg flex-col gap-3 p-8">
+            <h1 className="text-lg font-semibold">{title}</h1>
+            <p className="text-sm text-[var(--color-text-muted)]">{description}</p>
+            {!loadFailure && this.props.description ? (
+              <p className="text-xs text-[var(--color-text-muted)]">{this.state.error.message}</p>
+            ) : null}
+            <button
+              type="button"
+              className="self-start rounded-[var(--radius-md)] bg-[var(--color-accent)] px-3 py-2 text-sm text-white"
+              onClick={this.reset}
+            >
+              {this.props.retryLabel ?? '再試行'}
+            </button>
+          </div>
         </div>
       )
     }

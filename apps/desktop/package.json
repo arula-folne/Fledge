@@ -1,6 +1,6 @@
 {
   "name": "@fledge/desktop",
-  "version": "0.1.10-a",
+  "version": "0.1.11-a",
   "private": true,
   "description": "Fledge desktop application",
   "main": "./out/main/index.js",

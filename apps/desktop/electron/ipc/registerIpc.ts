@@ -25,6 +25,12 @@ import {
   resolvePackagedInstallRoot,
   scheduleCompleteUninstall,
 } from '../uninstall/scheduleCompleteUninstall'
+import {
+  getAppDirectoryInfo,
+  getDefaultFledgeRoot,
+  readCustomRoot,
+  writeCustomRoot,
+} from '../paths/customRoot'
 
 function decodeThumbDataUrl(dataUrl: string): { bytes: Buffer; ext: 'webp' | 'png' } {
   if (typeof dataUrl !== 'string') throw new Error('Invalid skin thumb')
@@ -117,8 +123,31 @@ export function registerIpc(
 
   ipcMain.handle(IPC.pathsGet, async () => appCtx.paths)
 
+  ipcMain.handle(IPC.pathsGetAppDirectory, async () => getAppDirectoryInfo(appCtx.paths.root))
+
+  ipcMain.handle(IPC.pathsSetAppDirectory, async (_e, next: string | null) => {
+    if (next != null && typeof next !== 'string') throw new Error('Invalid path')
+    const trimmed = typeof next === 'string' ? next.trim() : ''
+    if (next != null && !trimmed) throw new Error('Invalid path')
+    if (next == null) {
+      writeCustomRoot(null)
+    } else {
+      const resolved = path.resolve(trimmed)
+      writeCustomRoot(
+        path.resolve(resolved) === path.resolve(getDefaultFledgeRoot()) ? null : resolved,
+      )
+    }
+    return getAppDirectoryInfo(appCtx.paths.root)
+  })
+
   ipcMain.handle(IPC.shellOpenPath, async (_e, target: string) => {
-    const allowed = [...Object.values(appCtx.paths), appCtx.paths.root]
+    const custom = readCustomRoot()
+    const allowed = [
+      ...Object.values(appCtx.paths),
+      appCtx.paths.root,
+      getDefaultFledgeRoot(),
+      ...(custom ? [custom] : []),
+    ]
     const normalized = target.replace(/\\/g, '/').toLowerCase()
     const ok = allowed.some((p) => normalized.startsWith(String(p).replace(/\\/g, '/').toLowerCase()))
     if (!ok) throw new Error('Path not allowed')

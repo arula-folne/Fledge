@@ -3,8 +3,10 @@ import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react'
 import {
   IconBrandMinecraft,
+  IconBox,
   IconCoffee,
   IconDeviceGamepad2,
+  IconFolderSearch,
   IconFolders,
   IconLibrary,
   IconPlayerPlay,
@@ -57,9 +59,9 @@ export default function SettingsPage() {
     queryKey: ['settings'],
     queryFn: () => fledgeApi.settings.get(),
   })
-  const pathsQuery = useQuery({
-    queryKey: ['paths'],
-    queryFn: () => fledgeApi.paths.get(),
+  const appDirectoryQuery = useQuery({
+    queryKey: ['app-directory'],
+    queryFn: () => fledgeApi.paths.getAppDirectory(),
   })
   const sessionQuery = useQuery({
     queryKey: ['session'],
@@ -170,7 +172,25 @@ export default function SettingsPage() {
   }
 
   const settings = settingsQuery.data
-  const paths = pathsQuery.data
+  const appDirectory = appDirectoryQuery.data
+
+  const setAppDirectoryMutation = useMutation({
+    mutationFn: (next: string | null) => fledgeApi.paths.setAppDirectory(next),
+    onSuccess: (info) => {
+      queryClient.setQueryData(['app-directory'], info)
+      setMessage(null)
+      if (info.restartRequired) setRestartNoticeOpen(true)
+    },
+    onError: (err) => {
+      setMessage(err instanceof Error ? err.message : String(err))
+    },
+  })
+
+  const browseAppDirectory = async () => {
+    const selected = await fledgeApi.paths.selectFolder()
+    if (!selected) return
+    setAppDirectoryMutation.mutate(selected)
+  }
 
   type SettingsTab = {
     id: typeof section
@@ -639,16 +659,52 @@ export default function SettingsPage() {
 
       {section === 'resources' ? (
         <>
-          <Section title={t('settings.block.folders')}>
-            <div>
-              <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.appDirectory')}</h3>
-              <p className="mt-1 text-xs text-[var(--color-text-muted)]">{t('settings.appDirectoryHint')}</p>
-              <p className="mt-2 mb-2 break-all text-xs text-[var(--color-text-muted)]">
-                {paths?.root}
-              </p>
-              <Button disabled={!paths} onClick={() => paths && void fledgeApi.paths.open(paths.root)}>
-                {t('settings.openAppDirectory')}
-              </Button>
+          <Section title={t('settings.appDirectory')}>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <div className="flex min-w-0 flex-1 items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2.5">
+                  <IconBox
+                    size={18}
+                    stroke={1.6}
+                    className="shrink-0 text-[var(--color-text-muted)]"
+                    aria-hidden
+                  />
+                  <span className="min-w-0 flex-1 truncate text-sm text-[var(--color-text)]">
+                    {appDirectory?.configured ?? '…'}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="grid size-10 shrink-0 place-items-center rounded-full border border-[var(--color-border)] bg-[var(--color-input)] text-[var(--color-text)] transition hover:bg-[var(--color-hover)] disabled:opacity-50"
+                  title={t('settings.appDirectoryBrowse')}
+                  aria-label={t('settings.appDirectoryBrowse')}
+                  disabled={setAppDirectoryMutation.isPending}
+                  onClick={() => void browseAppDirectory()}
+                >
+                  <IconFolderSearch size={18} stroke={1.6} />
+                </button>
+              </div>
+              <p className="text-xs text-[var(--color-text-muted)]">{t('settings.appDirectoryHint')}</p>
+              <div className="mt-1 flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  disabled={!appDirectory}
+                  onClick={() =>
+                    appDirectory && void fledgeApi.paths.open(appDirectory.configured)
+                  }
+                >
+                  {t('settings.openAppDirectory')}
+                </Button>
+                {appDirectory?.isCustom ? (
+                  <Button
+                    variant="ghost"
+                    disabled={setAppDirectoryMutation.isPending}
+                    onClick={() => setAppDirectoryMutation.mutate(null)}
+                  >
+                    {t('settings.appDirectoryReset')}
+                  </Button>
+                ) : null}
+              </div>
             </div>
           </Section>
           <Section title={t('settings.block.downloads')}>

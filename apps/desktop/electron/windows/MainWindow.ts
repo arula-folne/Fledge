@@ -198,10 +198,4 @@ export function attachWindowSizeSync(
   })
 }
 
-/** 本番は exe 隣、開発は apps/desktop/.fledge-root */
-export function resolveFledgeRoot(): string {
-  if (!app.isPackaged) {
-    return path.join(app.getAppPath(), '.fledge-root')
-  }
-  return path.dirname(app.getPath('exe'))
-}
+export { resolveFledgeRoot } from '../paths/customRoot'

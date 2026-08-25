@@ -16,7 +16,6 @@ import { LoginErrorDialog } from '../../features/auth/LoginErrorDialog'
 import { fledgeApi } from '../../api/fledgeApi'
 import { applyTheme } from '../../styles/theme'
 import i18n from '../../i18n'
-import { TitleBar } from './TitleBar'
 import { TransferProgress } from './TransferProgress'
 import { UpdateAvailableBanner } from './UpdateAvailableBanner'
 import appIcon from '../../assets/app-icon.png'
@@ -68,16 +67,10 @@ export function AppShell() {
     }
   }, [collapsed])
 
-  const useOsChrome = settingsQuery.data?.useOsWindowChrome ?? false
   const itemClass = navClass(collapsed)
-
-  useEffect(() => {
-    document.documentElement.style.setProperty('--titlebar-offset', useOsChrome ? '0px' : '2rem')
-  }, [useOsChrome])
 
   return (
     <div className="flex h-full flex-col">
-      {!useOsChrome ? <TitleBar /> : null}
       <div
         className="flex min-h-0 flex-1"
         style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}

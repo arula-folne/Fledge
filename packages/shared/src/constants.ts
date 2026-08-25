@@ -60,6 +60,8 @@ export const IPC = {
   instancesGetIcon: 'instances:get-icon',
   shellOpenPath: 'shell:open-path',
   pathsGet: 'paths:get',
+  pathsGetAppDirectory: 'paths:get-app-directory',
+  pathsSetAppDirectory: 'paths:set-app-directory',
   authLogin: 'auth:login',
   authLogout: 'auth:logout',
   authSession: 'auth:session',

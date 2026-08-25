@@ -2,6 +2,7 @@ import type {
   AccountView,
   AuthStatus,
   AuthStatusEvent,
+  AppDirectoryInfo,
   BackupEntry,
   ContentCategory,
   ContentCategoryTag,
@@ -47,6 +48,8 @@ export type FledgeApi = {
     get: () => Promise<PathInfo>
     open: (target: string) => Promise<void>
     selectFolder: () => Promise<string | null>
+    getAppDirectory: () => Promise<AppDirectoryInfo>
+    setAppDirectory: (path: string | null) => Promise<AppDirectoryInfo>
   }
   instances: {
     list: () => Promise<InstanceProfile[]>
