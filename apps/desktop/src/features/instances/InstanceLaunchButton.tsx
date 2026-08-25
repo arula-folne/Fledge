@@ -144,10 +144,10 @@ export function InstanceLaunchButton({
   const showError = Boolean(errorMessageKey && errorProfileId === instanceId)
 
   return (
-    <div className="relative shrink-0" onClick={stop}>
-      <div className={size === 'sm' ? 'flex items-center' : 'flex h-12 items-center'}>{action}</div>
+    <div className={size === 'sm' ? 'shrink-0' : 'space-y-2'} onClick={stop}>
+      {action}
       {showProgressBlock && size !== 'sm' ? (
-        <div className="absolute left-0 top-full z-10 mt-1 min-w-[12rem] space-y-1.5 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1.5 shadow-sm">
+        <div className="min-w-[12rem] space-y-1.5">
           <div className="text-xs text-[var(--color-text-muted)]">
             {formatProgressMessage(t, progress?.messageKey ?? phaseMessageKey, progress?.meta)}
           </div>
@@ -160,7 +160,7 @@ export function InstanceLaunchButton({
         </div>
       ) : null}
       {showError && size !== 'sm' ? (
-        <div className="absolute left-0 top-full z-20 mt-1 min-w-[12rem] max-w-[18rem] rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2 py-1.5 text-xs text-[var(--color-danger)] shadow-sm">
+        <div className="max-w-[18rem] rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2 py-1.5 text-xs text-[var(--color-danger)]">
           {t(errorMessageKey!)}
         </div>
       ) : null}

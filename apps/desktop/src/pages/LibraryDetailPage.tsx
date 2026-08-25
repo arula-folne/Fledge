@@ -297,40 +297,40 @@ export default function LibraryDetailPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <header className="flex min-h-24 shrink-0 flex-wrap items-center gap-4 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3">
+      <header className="flex shrink-0 flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
         <Button
           variant="ghost"
-          className="shrink-0 px-2 py-2"
+          className="shrink-0 px-1.5 py-1.5"
           title={t('library.backToList')}
           onClick={() => navigate('/')}
         >
-          <IconArrowLeft size={18} stroke={1.75} />
+          <IconArrowLeft size={16} stroke={1.75} />
         </Button>
         <InstanceIcon
           instance={instance}
           preset={settingsOpen ? draft.iconPreset : undefined}
-          size="lg"
+          size="md"
         />
-        <div className="min-w-[12rem] flex-1 py-0.5">
-          <h1 className="break-words text-xl font-semibold leading-normal text-[var(--color-text)]">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-base font-semibold leading-snug text-[var(--color-text)]">
             {instance.name}
           </h1>
-          <p className="mt-1 flex flex-wrap items-center gap-x-1 text-sm leading-relaxed text-[var(--color-text-muted)]">
+          <p className="mt-0.5 truncate text-xs leading-snug text-[var(--color-text-muted)]">
             {instance.minecraftVersion} · {formatLoaderLabel(instance.loader, t)}
             {' · '}
             {formatLastPlayed(instance.lastPlayedAt, t)}
           </p>
         </div>
-        <div className="relative z-10 flex shrink-0 items-center gap-1 overflow-visible">
+        <div className="flex shrink-0 items-start gap-1">
           <InstanceLaunchButton instanceId={instance.id} />
           <Button
             variant="ghost"
-            className="size-12 rounded-full p-0"
+            className="size-9 rounded-full p-0"
             title={t('library.tab.settings')}
             aria-label={t('library.tab.settings')}
             onClick={() => setEditingInstanceId(instance.id)}
           >
-            <IconSettings size={30} stroke={1.65} />
+            <IconSettings size={20} stroke={1.65} />
           </Button>
         </div>
       </header>
