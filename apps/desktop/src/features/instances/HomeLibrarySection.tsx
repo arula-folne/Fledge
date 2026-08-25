@@ -1,9 +1,16 @@
 import { useCallback, useMemo, useState, type MouseEvent } from 'react'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { IconPlus } from '@tabler/icons-react'
-import type { InstanceProfile } from '@fledge/shared'
+import { IconChevronDown, IconChevronUp, IconPlus } from '@tabler/icons-react'
+import {
+  LibrarySortModeSchema,
+  moveLibraryInstanceOrder,
+  reconcileLibraryInstanceOrder,
+  type InstanceProfile,
+  type LibrarySortMode,
+  type Settings,
+} from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
@@ -13,16 +20,19 @@ import {
   InstanceContextMenu,
   type InstanceContextMenuState,
 } from './InstanceContextMenu'
+import { sortLibraryInstances } from './sortLibraryInstances'
 import { useUiStore } from '../../stores/appStores'
 
-function sortInstances(items: InstanceProfile[]): InstanceProfile[] {
-  return [...items].sort((a, b) => {
-    const at = a.lastPlayedAt ? Date.parse(a.lastPlayedAt) : 0
-    const bt = b.lastPlayedAt ? Date.parse(b.lastPlayedAt) : 0
-    if (bt !== at) return bt - at
-    return a.name.localeCompare(b.name, 'ja')
-  })
-}
+const SORT_MODES: LibrarySortMode[] = [
+  'lastPlayed',
+  'name',
+  'nameDesc',
+  'created',
+  'manual',
+]
+
+const selectClass =
+  'rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-2 py-1 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]'
 
 type Props = {
   instances: InstanceProfile[]
@@ -39,6 +49,32 @@ export function HomeLibrarySection({ instances }: Props) {
   const [menu, setMenu] = useState<InstanceContextMenuState>(null)
   const [pendingDelete, setPendingDelete] = useState<InstanceProfile | null>(null)
 
+  const settingsQuery = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => fledgeApi.settings.get(),
+  })
+
+  const sortMode = settingsQuery.data?.librarySortMode ?? 'lastPlayed'
+  const savedOrder = settingsQuery.data?.libraryInstanceOrder ?? []
+
+  const saveSettings = useMutation({
+    mutationFn: (partial: Partial<Settings>) => fledgeApi.settings.set(partial),
+    onMutate: async (partial) => {
+      await queryClient.cancelQueries({ queryKey: ['settings'] })
+      const previous = queryClient.getQueryData<Settings>(['settings'])
+      if (previous) {
+        queryClient.setQueryData<Settings>(['settings'], { ...previous, ...partial })
+      }
+      return { previous }
+    },
+    onError: (_err, _partial, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['settings'], ctx.previous)
+    },
+    onSuccess: (next) => {
+      queryClient.setQueryData(['settings'], next)
+    },
+  })
+
   const removeMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.instances.remove(id),
     onSuccess: async () => {
@@ -51,14 +87,19 @@ export function HomeLibrarySection({ instances }: Props) {
     mutationFn: (id: string) => fledgeApi.instances.duplicate(id),
     onSuccess: async (created) => {
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
+      await queryClient.invalidateQueries({ queryKey: ['settings'] })
       setLibraryFocus({ instanceId: created.id, tab: 'content' })
       navigate(`/library/${created.id}`)
     },
   })
 
-  const items = useMemo(() => sortInstances(instances), [instances])
+  const items = useMemo(
+    () => sortLibraryInstances(instances, sortMode, savedOrder),
+    [instances, sortMode, savedOrder],
+  )
   const empty = items.length === 0
   const menuInstance = items.find((item) => item.id === menu?.instanceId) ?? null
+  const manual = sortMode === 'manual'
 
   const closeMenu = useCallback(() => setMenu(null), [])
 
@@ -66,14 +107,58 @@ export function HomeLibrarySection({ instances }: Props) {
     setMenu({ x: event.clientX, y: event.clientY, instanceId: instance.id })
   }
 
+  const onSortModeChange = (raw: string) => {
+    const mode = LibrarySortModeSchema.parse(raw)
+    if (mode === 'manual') {
+      // 保存済みの手動順があればそれを優先。無ければ今見えている並びを初期値にする
+      const ids = instances.map((i) => i.id)
+      const order =
+        savedOrder.length > 0
+          ? reconcileLibraryInstanceOrder(savedOrder, ids)
+          : items.map((i) => i.id)
+      saveSettings.mutate({ librarySortMode: mode, libraryInstanceOrder: order })
+      return
+    }
+    saveSettings.mutate({ librarySortMode: mode })
+  }
+
+  const moveInstance = (id: string, delta: -1 | 1) => {
+    const base = reconcileLibraryInstanceOrder(
+      savedOrder.length > 0 ? savedOrder : items.map((i) => i.id),
+      items.map((i) => i.id),
+    )
+    const next = moveLibraryInstanceOrder(base, id, delta)
+    if (next === base) return
+    saveSettings.mutate({ librarySortMode: 'manual', libraryInstanceOrder: next })
+  }
+
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
-      <div className="flex shrink-0 items-center justify-between gap-2">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-medium text-[var(--color-text-muted)]">{t('library.title')}</h2>
-        <Button variant="secondary" onClick={() => setWizardOpen(true)}>
-          <IconPlus size={16} stroke={1.75} />
-          {t('library.create')}
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {!empty ? (
+            <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+              <span className="hidden sm:inline">{t('library.sort.label')}</span>
+              <select
+                value={sortMode}
+                onChange={(e) => onSortModeChange(e.target.value)}
+                className={selectClass}
+                aria-label={t('library.sort.label')}
+              >
+                {SORT_MODES.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {t(`library.sort.${mode}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <Button variant="secondary" onClick={() => setWizardOpen(true)}>
+            <IconPlus size={16} stroke={1.75} />
+            {t('library.create')}
+          </Button>
+        </div>
       </div>
 
       {empty ? (
@@ -84,13 +169,44 @@ export function HomeLibrarySection({ instances }: Props) {
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-            {items.map((item) => (
-              <InstanceCard
-                key={item.id}
-                instance={item}
-                className="h-full min-w-0"
-                onContextMenu={openMenu}
-              />
+            {items.map((item, index) => (
+              <div key={item.id} className="flex h-full min-w-0 items-stretch gap-1">
+                {manual ? (
+                  <div className="flex shrink-0 flex-col justify-center gap-0.5">
+                    <button
+                      type="button"
+                      className="grid size-7 place-items-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)] disabled:opacity-30"
+                      title={t('library.sort.moveUp')}
+                      aria-label={t('library.sort.moveUp')}
+                      disabled={index === 0 || saveSettings.isPending}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        moveInstance(item.id, -1)
+                      }}
+                    >
+                      <IconChevronUp size={16} stroke={1.75} />
+                    </button>
+                    <button
+                      type="button"
+                      className="grid size-7 place-items-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)] disabled:opacity-30"
+                      title={t('library.sort.moveDown')}
+                      aria-label={t('library.sort.moveDown')}
+                      disabled={index === items.length - 1 || saveSettings.isPending}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        moveInstance(item.id, 1)
+                      }}
+                    >
+                      <IconChevronDown size={16} stroke={1.75} />
+                    </button>
+                  </div>
+                ) : null}
+                <InstanceCard
+                  instance={item}
+                  className="h-full min-w-0 flex-1"
+                  onContextMenu={openMenu}
+                />
+              </div>
             ))}
           </div>
         </div>

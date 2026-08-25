@@ -111,12 +111,13 @@ function InstancePrepareProgress({ instanceId }: { instanceId: string }) {
   const { t } = useTranslation()
   const state = useLaunchStore((s) => s.byProfileId[instanceId]?.state ?? 'idle')
   const sessionId = useLaunchStore((s) => s.byProfileId[instanceId]?.sessionId)
-  const focusSessionId = useLaunchStore((s) => s.focusSessionId)
-  const focused =
-    sessionId != null && (focusSessionId === sessionId || !focusSessionId)
-  const active = focused && (state === 'preparing' || state === 'launching')
-  const phaseMessageKey = useLaunchStore((s) => (active ? s.phaseMessageKey : null))
-  const progress = useLaunchStore((s) => (active ? s.progress : null))
+  const active = state === 'preparing' || state === 'launching'
+  const phaseMessageKey = useLaunchStore((s) =>
+    active && sessionId ? (s.phaseMessageBySessionId[sessionId] ?? null) : null,
+  )
+  const progress = useLaunchStore((s) =>
+    active && sessionId ? (s.progressBySessionId[sessionId] ?? null) : null,
+  )
 
   if (!active) return null
 

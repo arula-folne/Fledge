@@ -17,9 +17,13 @@ export type LaunchSessionInfo = {
 type LaunchStore = {
   /** インスタンス ID → 起動セッション */
   byProfileId: Record<string, LaunchSessionInfo>
-  /** 進捗表示の対象（起動中のセッション） */
+  /** 進捗表示の対象（起動中のセッション）。UI のフォールバック用 */
   focusSessionId: string | null
+  /** セッション単位の進捗（同時準備で上書きし合わない） */
+  progressBySessionId: Record<string, ProgressEvent>
+  phaseMessageBySessionId: Record<string, string>
   phase: LaunchPhase | null
+  /** focus セッションの進捗（互換・ヘッダー向け） */
   progress: ProgressEvent | null
   phaseMessageKey: string | null
   errorMessageKey: string | null
@@ -32,11 +36,36 @@ type LaunchStore = {
   /** 指定インスタンスの状態。無ければ idle */
   stateFor: (profileId: string | null | undefined) => LaunchState
   anyPreparing: () => boolean
+  progressForSession: (sessionId: string | null | undefined) => ProgressEvent | null
+  phaseMessageForSession: (sessionId: string | null | undefined) => string | null
+}
+
+function clearSessionProgress(
+  progressBySessionId: Record<string, ProgressEvent>,
+  phaseMessageBySessionId: Record<string, string>,
+  sessionId: string | undefined,
+): {
+  progressBySessionId: Record<string, ProgressEvent>
+  phaseMessageBySessionId: Record<string, string>
+} {
+  if (!sessionId) {
+    return { progressBySessionId, phaseMessageBySessionId }
+  }
+  if (!(sessionId in progressBySessionId) && !(sessionId in phaseMessageBySessionId)) {
+    return { progressBySessionId, phaseMessageBySessionId }
+  }
+  const nextProgress = { ...progressBySessionId }
+  const nextPhase = { ...phaseMessageBySessionId }
+  delete nextProgress[sessionId]
+  delete nextPhase[sessionId]
+  return { progressBySessionId: nextProgress, phaseMessageBySessionId: nextPhase }
 }
 
 export const useLaunchStore = create<LaunchStore>((set, get) => ({
   byProfileId: {},
   focusSessionId: null,
+  progressBySessionId: {},
+  phaseMessageBySessionId: {},
   phase: null,
   progress: null,
   phaseMessageKey: null,
@@ -63,14 +92,31 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
 
       const focusing =
         e.state === 'preparing' || e.state === 'launching' || e.state === 'running'
-          ? (e.sessionId ?? s.focusSessionId)
+          ? s.focusSessionId &&
+            Object.values(nextMap).some((x) => x.sessionId === s.focusSessionId)
+            ? s.focusSessionId
+            : (e.sessionId ?? s.focusSessionId)
           : s.focusSessionId === e.sessionId
             ? null
             : s.focusSessionId
 
+      const cleared =
+        e.state === 'idle' || e.state === 'exited' || e.state === 'error'
+          ? clearSessionProgress(s.progressBySessionId, s.phaseMessageBySessionId, e.sessionId)
+          : {
+              progressBySessionId: s.progressBySessionId,
+              phaseMessageBySessionId: s.phaseMessageBySessionId,
+            }
+
+      const focusProgress =
+        focusing != null ? (cleared.progressBySessionId[focusing] ?? null) : null
+      const focusPhaseKey =
+        focusing != null ? (cleared.phaseMessageBySessionId[focusing] ?? null) : null
+
       return {
         byProfileId: nextMap,
         focusSessionId: focusing,
+        ...cleared,
         errorMessageKey:
           e.state === 'error'
             ? (e.errorMessageKey ?? s.errorMessageKey)
@@ -90,19 +136,32 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
         lastExitCode: e.code ?? null,
         ...(e.state === 'idle' || e.state === 'exited' || e.state === 'error'
           ? s.focusSessionId === e.sessionId
-            ? { phase: null, progress: null, phaseMessageKey: null }
-            : {}
+            ? {
+                phase: null,
+                progress: focusProgress,
+                phaseMessageKey: focusPhaseKey,
+              }
+            : { progress: focusProgress, phaseMessageKey: focusPhaseKey }
           : {}),
       }
     })
   },
 
   applyPhase: (phase, messageKey, sessionId) =>
-    set((s) => ({
-      phase,
-      phaseMessageKey: messageKey,
-      focusSessionId: sessionId ?? s.focusSessionId,
-    })),
+    set((s) => {
+      const nextPhaseMsg = sessionId
+        ? { ...s.phaseMessageBySessionId, [sessionId]: messageKey }
+        : s.phaseMessageBySessionId
+      return {
+        phase,
+        phaseMessageBySessionId: nextPhaseMsg,
+        phaseMessageKey:
+          !sessionId || sessionId === s.focusSessionId || !s.focusSessionId
+            ? messageKey
+            : s.phaseMessageKey,
+        focusSessionId: s.focusSessionId ?? sessionId ?? null,
+      }
+    }),
 
   applyProgress: (progress) =>
     set((s) => {
@@ -110,11 +169,25 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
       const isLaunch =
         progress.scope === 'launch' ||
         (sid != null && Object.values(s.byProfileId).some((x) => x.sessionId === sid))
-      if (!isLaunch) return s
+      if (!isLaunch || !sid) return s
+
+      const nextProgress = { ...s.progressBySessionId, [sid]: progress }
+      const nextPhaseMsg = progress.messageKey
+        ? { ...s.phaseMessageBySessionId, [sid]: progress.messageKey }
+        : s.phaseMessageBySessionId
+
+      const isFocused = !s.focusSessionId || s.focusSessionId === sid
       return {
-        progress,
-        phaseMessageKey: progress.messageKey ?? s.phaseMessageKey,
-        focusSessionId: sid ?? s.focusSessionId,
+        progressBySessionId: nextProgress,
+        phaseMessageBySessionId: nextPhaseMsg,
+        // focus は奪わない（同時準備でバーが飛び跳ねるのを防ぐ）
+        focusSessionId: s.focusSessionId ?? sid,
+        ...(isFocused
+          ? {
+              progress,
+              phaseMessageKey: progress.messageKey ?? s.phaseMessageKey,
+            }
+          : {}),
       }
     }),
 
@@ -122,6 +195,8 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
     set({
       byProfileId: {},
       focusSessionId: null,
+      progressBySessionId: {},
+      phaseMessageBySessionId: {},
       phase: null,
       progress: null,
       phaseMessageKey: null,
@@ -138,6 +213,16 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
     Object.values(get().byProfileId).some(
       (s) => s.state === 'preparing' || s.state === 'launching',
     ),
+
+  progressForSession: (sessionId) => {
+    if (!sessionId) return null
+    return get().progressBySessionId[sessionId] ?? null
+  },
+
+  phaseMessageForSession: (sessionId) => {
+    if (!sessionId) return null
+    return get().phaseMessageBySessionId[sessionId] ?? null
+  },
 }))
 
 export type SettingsSection =
@@ -211,6 +296,8 @@ export type TransferJob = {
 
 type TransferStore = {
   jobs: Record<string, TransferJob>
+  /** ヘッダー表示の主ジョブ（完了するまで切り替えない） */
+  pinnedJobId: string | null
   applyProgress: (e: ProgressEvent) => void
 }
 
@@ -220,33 +307,54 @@ function isTerminalStatus(status: TransferJob['status'] | undefined): boolean {
 
 export const useTransferStore = create<TransferStore>((set) => ({
   jobs: {},
+  pinnedJobId: null,
   applyProgress: (e) => {
     const jobId = e.jobId
     if (!jobId) return
-    const status = e.status ?? (typeof e.meta?.status === 'string' ? (e.meta.status as TransferJob['status']) : 'active')
+    const status =
+      e.status ??
+      (typeof e.meta?.status === 'string' ? (e.meta.status as TransferJob['status']) : 'active')
     set((s) => {
       if (isTerminalStatus(status)) {
         if (!(jobId in s.jobs)) return s
         const next = { ...s.jobs }
         delete next[jobId]
-        return { jobs: next }
+        const remaining = Object.values(next).filter(
+          (j) => j.status === 'queued' || j.status === 'active',
+        )
+        const pinnedJobId =
+          s.pinnedJobId === jobId
+            ? remaining.sort((a, b) => a.jobId.localeCompare(b.jobId))[0]?.jobId ?? null
+            : s.pinnedJobId && next[s.pinnedJobId]
+              ? s.pinnedJobId
+              : remaining.sort((a, b) => a.jobId.localeCompare(b.jobId))[0]?.jobId ?? null
+        return { jobs: next, pinnedJobId }
       }
+      const job: TransferJob = {
+        jobId,
+        kind: e.kind ?? 'download',
+        sessionId: e.sessionId,
+        messageKey: e.messageKey,
+        current: e.current,
+        total: e.total,
+        percent: e.percent,
+        bytesPerSecond: e.bytesPerSecond,
+        status,
+        meta: e.meta ?? s.jobs[jobId]?.meta ?? {},
+      }
+      const wasNew = !(jobId in s.jobs)
+      const pinnedJobId =
+        s.pinnedJobId && (s.jobs[s.pinnedJobId] || jobId === s.pinnedJobId)
+          ? s.pinnedJobId
+          : wasNew || !s.pinnedJobId
+            ? s.pinnedJobId ?? jobId
+            : s.pinnedJobId
       return {
         jobs: {
           ...s.jobs,
-          [jobId]: {
-            jobId,
-            kind: e.kind ?? 'download',
-            sessionId: e.sessionId,
-            messageKey: e.messageKey,
-            current: e.current,
-            total: e.total,
-            percent: e.percent,
-            bytesPerSecond: e.bytesPerSecond,
-            status,
-            meta: e.meta ?? s.jobs[jobId]?.meta ?? {},
-          },
+          [jobId]: job,
         },
+        pinnedJobId: pinnedJobId ?? jobId,
       }
     })
   },

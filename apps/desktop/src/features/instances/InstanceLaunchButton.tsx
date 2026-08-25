@@ -31,16 +31,16 @@ export function InstanceLaunchButton({
   const authStatus = useUiStore((s) => s.authStatus)
   const state = useLaunchStore((s) => s.byProfileId[instanceId]?.state ?? 'idle')
   const sessionId = useLaunchStore((s) => s.byProfileId[instanceId]?.sessionId)
-  const focusSessionId = useLaunchStore((s) => s.focusSessionId)
-  const focused =
-    sessionId != null && (focusSessionId === sessionId || !focusSessionId)
 
   const needsProgress =
-    focused &&
-    (state === 'preparing' || state === 'launching' || (showProgress && state === 'running'))
+    state === 'preparing' || state === 'launching' || (showProgress && state === 'running')
 
-  const phaseMessageKey = useLaunchStore((s) => (needsProgress ? s.phaseMessageKey : null))
-  const progress = useLaunchStore((s) => (needsProgress ? s.progress : null))
+  const phaseMessageKey = useLaunchStore((s) =>
+    needsProgress && sessionId ? (s.phaseMessageBySessionId[sessionId] ?? null) : null,
+  )
+  const progress = useLaunchStore((s) =>
+    needsProgress && sessionId ? (s.progressBySessionId[sessionId] ?? null) : null,
+  )
   const errorMessageKey = useLaunchStore((s) =>
     s.errorProfileId === instanceId ? s.errorMessageKey : null,
   )
@@ -141,8 +141,7 @@ export function InstanceLaunchButton({
   }
 
   const showProgressBlock =
-    focused &&
-    (state === 'preparing' || state === 'launching' || (showProgress && state === 'running'))
+    state === 'preparing' || state === 'launching' || (showProgress && state === 'running')
   const showError = Boolean(errorMessageKey)
 
   return (

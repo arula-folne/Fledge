@@ -183,9 +183,12 @@ export function registerIpc(
         input.minecraftVersion,
       ),
     })
-    if (!settings.selectedInstanceId) {
-      await appCtx.settings.set({ selectedInstanceId: profile.id })
-    }
+    await appCtx.settings.set({
+      ...(settings.selectedInstanceId ? {} : { selectedInstanceId: profile.id }),
+      libraryInstanceOrder: settings.libraryInstanceOrder.includes(profile.id)
+        ? settings.libraryInstanceOrder
+        : [...settings.libraryInstanceOrder, profile.id],
+    })
     touchBackup()
     return profile
   })
@@ -197,21 +200,31 @@ export function registerIpc(
   })
   ipcMain.handle(IPC.instancesDuplicate, async (_e, id: string) => {
     const copied = await appCtx.instances.duplicate(id)
+    const settings = await appCtx.settings.get()
+    const order = settings.libraryInstanceOrder
+    const at = order.indexOf(id)
+    const nextOrder =
+      at >= 0
+        ? [...order.slice(0, at + 1), copied.id, ...order.slice(at + 1)]
+        : [...order, copied.id]
+    await appCtx.settings.set({
+      libraryInstanceOrder: nextOrder,
+    })
     touchBackup()
     return copied
   })
   ipcMain.handle(IPC.instancesRemove, async (_e, id: string) => {
     await appCtx.instances.remove(id)
     const settings = await appCtx.settings.get()
-    if (settings.selectedInstanceId === id || settings.lastPlayedInstanceId === id) {
-      const list = await appCtx.instances.list()
-      await appCtx.settings.set({
-        selectedInstanceId:
-          settings.selectedInstanceId === id ? (list[0]?.id ?? null) : settings.selectedInstanceId,
-        lastPlayedInstanceId:
-          settings.lastPlayedInstanceId === id ? null : settings.lastPlayedInstanceId,
-      })
-    }
+    const list = await appCtx.instances.list()
+    const libraryInstanceOrder = settings.libraryInstanceOrder.filter((x) => x !== id)
+    await appCtx.settings.set({
+      selectedInstanceId:
+        settings.selectedInstanceId === id ? (list[0]?.id ?? null) : settings.selectedInstanceId,
+      lastPlayedInstanceId:
+        settings.lastPlayedInstanceId === id ? null : settings.lastPlayedInstanceId,
+      libraryInstanceOrder,
+    })
     touchBackup()
   })
   ipcMain.handle(IPC.instancesOpenFolder, async (_e, id: string) => {
@@ -272,6 +285,12 @@ export function registerIpc(
   ipcMain.handle(IPC.contentListCategoryTags, async () => appCtx.content.listCategoryTags())
   ipcMain.handle(IPC.contentCreateInstance, async (_e, req: unknown) => {
     const profile = await appCtx.content.createInstanceFromProject(req)
+    const settings = await appCtx.settings.get()
+    if (!settings.libraryInstanceOrder.includes(profile.id)) {
+      await appCtx.settings.set({
+        libraryInstanceOrder: [...settings.libraryInstanceOrder, profile.id],
+      })
+    }
     touchBackup()
     return profile
   })
@@ -284,6 +303,12 @@ export function registerIpc(
     const filePath = result.filePaths[0]
     if (result.canceled || !filePath) return null
     const profile = await appCtx.content.importMrpackFromFile(filePath)
+    const settings = await appCtx.settings.get()
+    if (!settings.libraryInstanceOrder.includes(profile.id)) {
+      await appCtx.settings.set({
+        libraryInstanceOrder: [...settings.libraryInstanceOrder, profile.id],
+      })
+    }
     touchBackup()
     return profile
   })

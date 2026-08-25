@@ -183,7 +183,7 @@ function parseOptionsMap(text: string): Map<string, string> {
   return map
 }
 
-/** パッチの全キーが options.txt に期待値で残っているか */
+/** パッチの全キーが options.txt に期待値で残っているか（数値は 0 / 0.0 を同等扱い） */
 export async function verifyMinecraftOptionsFile(
   instanceDir: string,
   patch: Record<string, string>,
@@ -193,10 +193,24 @@ export async function verifyMinecraftOptionsFile(
   try {
     const text = await fs.readFile(path.join(instanceDir, 'options.txt'), 'utf8')
     const map = parseOptionsMap(text)
-    return keys.every((key) => map.get(key) === patch[key])
+    return keys.every((key) => optionValuesEqual(patch[key]!, map.get(key)))
   } catch {
     return false
   }
+}
+
+function optionValuesEqual(expected: string, actual: string | undefined): boolean {
+  if (actual === undefined) return false
+  if (actual === expected) return true
+  const en = Number(expected)
+  const an = Number(actual)
+  if (Number.isFinite(en) && Number.isFinite(an)) {
+    return Math.abs(en - an) < 1e-6
+  }
+  if (/^(true|false)$/i.test(expected) && /^(true|false)$/i.test(actual)) {
+    return expected.toLowerCase() === actual.toLowerCase()
+  }
+  return false
 }
 
 /** パッチの全キーが debug.json に期待値で残っているか */
@@ -327,14 +341,13 @@ export async function applyMinecraftInitialSettingsToInstance(
 }
 
 /** 初期設定コミットの現行世代（上げると旧世代コミット済みインスタンスは再適用される） */
-export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 4
+export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 5
 
 /**
  * シード済みインスタンスで、Fledge 初期設定を確実にファイルへ載せる。
  * - 未コミット（または旧世代）: 毎回強制適用（起動直前の最新設定を優先）
- * - 現行世代でコミット済み: options.txt が消えているときだけ修復（ゲーム内変更は尊重）
- * Forge は起動中に options.txt を上書きすることがあるため、LaunchOrchestrator 側で
- * タイトル到達まで再適用ガードする（世代 4: タイトル判定を厳格化）。
+ * - 現行世代でコミット済み: パッチが options.txt に残っているときだけスキップ（欠けていれば再適用）
+ * Forge 等が起動中に潰す場合は LaunchOrchestrator 側で遅延ガードする。
  * @returns 起動後に applied コミットが必要なら true
  */
 export async function ensureMinecraftInitialSettingsApplied(
@@ -350,13 +363,15 @@ export async function ensureMinecraftInitialSettingsApplied(
   }
 
   if (alreadyCommitted) {
-    try {
-      await fs.access(path.join(instanceDir, 'options.txt'))
+    const optionsOk = await verifyMinecraftOptionsFile(instanceDir, options)
+    const overlayOk =
+      Object.keys(overlay).length === 0 ||
+      (await verifyMinecraftDebugOverlayFile(instanceDir, overlay))
+    if (optionsOk && overlayOk) {
       return { neededCommit: false, options, overlay }
-    } catch {
-      await applyMinecraftInitialSettingsToInstance(instanceDir, settings, minecraftVersion)
-      return { neededCommit: true, options, overlay }
     }
+    await applyMinecraftInitialSettingsToInstance(instanceDir, settings, minecraftVersion)
+    return { neededCommit: true, options, overlay }
   }
 
   await applyMinecraftInitialSettingsToInstance(instanceDir, settings, minecraftVersion)

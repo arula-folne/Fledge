@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { ChildProcess } from 'node:child_process'
+import fs from 'node:fs/promises'
+import path from 'node:path'
 import type {
   LaunchPhaseEvent,
   LaunchStateEvent,
@@ -18,21 +20,22 @@ import type { SessionJoinProxy } from '../auth/SessionJoinProxy.js'
 import type { SkinApplier } from '../skins/SkinApplier.js'
 
 /**
- * タイトル画面到達の目安（この時点で Forge 等が options.txt を一度書き換えたあとのことが多い）。
- * Options 本体はそれより前に読まれるため、ここで直した内容は「次回起動」から確実に効く。
- * 起動中の上書きに対しては、到達までのポーリングで再書き込みしてレースに勝つ。
- *
- * 「Setting user:」「Reloading ResourceManager」は Fabric の Mod 不整合などで
- * タイトル未到達でも出るため使わない（誤ってガード停止→誤コミットの原因になる）。
+ * タイトル画面到達の目安。
+ * OpenAL / Sound engine は Options.load より前に出るため使わない（ガード停止が早すぎて潰される）。
+ * Options 本体はタイトルより前に読まれるため、spawn 前の書き込み＋遅延ガードで初回を守り、
+ * タイトル到達時の再書き込みは「次回起動」を確実にする。
  */
 const TITLE_SCREEN_LOG_RE =
-  /Sound engine started|OpenAL initialized|Turning off relative mouse|Startup done in /i
+  /Turning off relative mouse|Startup done in |Loading Music/i
 
-/** 初期設定を「反映済み」にする前にタイトル到達後ゲームが生きているべき最短時間 */
-const INITIAL_SETTINGS_COMMIT_AFTER_MS = 8_000
+/** 初期設定を「反映済み」にする前にゲームが生きているべき最短時間 */
+const INITIAL_SETTINGS_COMMIT_AFTER_MS = 6_000
 
-/** Forge 等が起動直後に options.txt を潰す場合に備えた再適用間隔 */
-const INITIAL_SETTINGS_GUARD_MS = 300
+/** Options.load とぶつからないよう、ガード開始を遅らせる */
+const INITIAL_SETTINGS_GUARD_DELAY_MS = 2_500
+
+/** Forge 等が起動中に options.txt を潰す場合に備えた再適用間隔 */
+const INITIAL_SETTINGS_GUARD_MS = 800
 
 export type LaunchEventBus = {
   emitProgress: (e: ProgressEvent) => void
@@ -47,13 +50,14 @@ type Session = {
   abort: AbortController
   child?: ChildProcess
   state: LaunchStateEvent['state']
-  /** 初回 options 適用後、タイトル到達＋十分な起動成功を待って applied を立てる */
+  /** 初回 options 適用後、十分な起動成功を待って applied を立てる */
   initialSettingsPendingCommit?: boolean
   initialSettingsInstanceDir?: string
   initialSettingsOptions?: Record<string, string>
   initialSettingsOverlay?: Record<string, string>
   initialSettingsTitleSeen?: boolean
   initialSettingsGuardTimer?: ReturnType<typeof setInterval>
+  initialSettingsGuardDelayTimer?: ReturnType<typeof setTimeout>
   runningSinceMs?: number
 }
 
@@ -505,7 +509,7 @@ export class LaunchOrchestrator {
     }
   }
 
-  /** Forge 等が起動中に options.txt を書き換えても、タイトル到達まで監視して戻す */
+  /** Forge 等が起動中に options.txt を書き換えても、タイトル到達まで監視して戻す（Options.load 後に開始） */
   private startInitialSettingsGuard(session: Session): void {
     this.stopInitialSettingsGuard(session)
     const instanceDir = session.initialSettingsInstanceDir
@@ -513,33 +517,61 @@ export class LaunchOrchestrator {
     const overlay = session.initialSettingsOverlay
     if (!instanceDir || !options) return
 
-    session.initialSettingsGuardTimer = setInterval(() => {
-      void (async () => {
-        if (!session.initialSettingsPendingCommit || session.initialSettingsTitleSeen) return
-        try {
-          if (await verifyMinecraftOptionsFile(instanceDir, options)) return
-          await mergeMinecraftOptionsFile(instanceDir, options)
-          if (overlay && Object.keys(overlay).length > 0) {
-            await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
+    session.initialSettingsGuardDelayTimer = setTimeout(() => {
+      session.initialSettingsGuardDelayTimer = undefined
+      if (!session.initialSettingsPendingCommit || session.initialSettingsTitleSeen) return
+      session.initialSettingsGuardTimer = setInterval(() => {
+        void (async () => {
+          if (!session.initialSettingsPendingCommit || session.initialSettingsTitleSeen) return
+          try {
+            await this.pollTitleFromLatestLog(session)
+            if (session.initialSettingsTitleSeen) return
+            if (await verifyMinecraftOptionsFile(instanceDir, options)) return
+            await mergeMinecraftOptionsFile(instanceDir, options)
+            if (overlay && Object.keys(overlay).length > 0) {
+              await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
+            }
+            this.deps.logger.info(
+              'launcher',
+              `Re-applied Minecraft initial options during startup (${session.profileId})`,
+            )
+          } catch (err) {
+            this.deps.logger.warn(
+              'launcher',
+              `Initial options guard failed: ${err instanceof Error ? err.message : String(err)}`,
+            )
           }
-          this.deps.logger.info(
-            'launcher',
-            `Re-applied Minecraft initial options during startup (${session.profileId})`,
-          )
-        } catch (err) {
-          this.deps.logger.warn(
-            'launcher',
-            `Initial options guard failed: ${err instanceof Error ? err.message : String(err)}`,
-          )
-        }
-      })()
-    }, INITIAL_SETTINGS_GUARD_MS)
+        })()
+      }, INITIAL_SETTINGS_GUARD_MS)
+    }, INITIAL_SETTINGS_GUARD_DELAY_MS)
   }
 
   private stopInitialSettingsGuard(session: Session): void {
+    if (session.initialSettingsGuardDelayTimer) {
+      clearTimeout(session.initialSettingsGuardDelayTimer)
+      session.initialSettingsGuardDelayTimer = undefined
+    }
     if (session.initialSettingsGuardTimer) {
       clearInterval(session.initialSettingsGuardTimer)
       session.initialSettingsGuardTimer = undefined
+    }
+  }
+
+  /** stdout が空でも logs/latest.log からタイトル到達を拾う */
+  private async pollTitleFromLatestLog(session: Session): Promise<void> {
+    if (!session.initialSettingsPendingCommit || session.initialSettingsTitleSeen) return
+    const instanceDir = session.initialSettingsInstanceDir
+    if (!instanceDir) return
+    try {
+      const logPath = path.join(instanceDir, 'logs', 'latest.log')
+      const text = await fs.readFile(logPath, 'utf8')
+      const slice = text.length > 48_000 ? text.slice(-48_000) : text
+      if (!TITLE_SCREEN_LOG_RE.test(slice)) return
+      session.initialSettingsTitleSeen = true
+      this.stopInitialSettingsGuard(session)
+      await this.reapplyInitialSettingsAtTitle(session)
+    } catch {
+      /* ログ未作成 */
     }
   }
 
@@ -578,12 +610,8 @@ export class LaunchOrchestrator {
   private async finalizeInitialSettingsCommit(session: Session, exitCode: number): Promise<void> {
     if (!session.initialSettingsPendingCommit) return
     const ranMs = session.runningSinceMs != null ? Date.now() - session.runningSinceMs : 0
-    // タイトル未到達・異常終了・短命起動ではコミットしない（次回起動で再適用）
-    const baseOk =
-      exitCode === 0 &&
-      session.initialSettingsTitleSeen === true &&
-      ranMs >= INITIAL_SETTINGS_COMMIT_AFTER_MS
-    if (!baseOk) {
+    // 異常終了・短命起動ではコミットしない（次回起動で再適用）
+    if (exitCode !== 0 || ranMs < INITIAL_SETTINGS_COMMIT_AFTER_MS) {
       this.deps.logger.info(
         'launcher',
         `Defer Minecraft initial settings commit for ${session.profileId} (exit=${exitCode}, title=${Boolean(session.initialSettingsTitleSeen)}, ranMs=${ranMs})`,
@@ -615,7 +643,7 @@ export class LaunchOrchestrator {
       })
       this.deps.logger.info(
         'launcher',
-        `Committed Minecraft initial settings for ${session.profileId}`,
+        `Committed Minecraft initial settings for ${session.profileId} (title=${Boolean(session.initialSettingsTitleSeen)})`,
       )
     } catch (err) {
       this.deps.logger.warn(

@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.1.12a",
+    "title": "【バージョンアップ】Fledge Ver.0.1.12a",
+    "body": "**Fledge Ver.0.1.12a** を公開しました。\n\n## 主な変更\n\n- Minecraft 初期設定の反映を修正（起動直後の上書きレースを抑え、検証・コミット条件を見直し）\n- 複数インスタンス同時作成時にプログレスバーがぴくぴく動く問題を修正しました\n- ライブラリに並び替え機能を追加しました（最近遊んだ順／名前／作成日／手動）\n\n> 引き続きベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-25T15:10:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.1.12a"
+  },
+  {
     "id": "v0.1.11a",
     "title": "【バージョンアップ】Fledge Ver.0.1.11a",
     "body": "**Fledge Ver.0.1.11a** を公開しました。\n\n## 主な変更\n\n- エラー／再試行画面でもウィンドウの最小化・最大化・閉じるボタンが使えるようにしました\n- インスタンス詳細を開くと落ちる不具合（`setIconOpen`）を修正しました\n- 設定のアプリディレクトリ表示を直し、Modrinth のように保存フォルダを変更できるようにしました（再起動後に反映）\n\n> 引き続きベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

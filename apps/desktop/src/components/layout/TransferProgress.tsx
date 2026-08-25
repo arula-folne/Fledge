@@ -67,6 +67,7 @@ export function TransferProgress() {
   const navigate = useNavigate()
   const location = useLocation()
   const jobsMap = useTransferStore((s) => s.jobs)
+  const pinnedJobId = useTransferStore((s) => s.pinnedJobId)
   const settingsSection = useUiStore((s) => s.settingsSection)
   const libraryFocus = useUiStore((s) => s.libraryFocus)
   const setSettingsSection = useUiStore((s) => s.setSettingsSection)
@@ -74,21 +75,24 @@ export function TransferProgress() {
   const byProfileId = useLaunchStore((s) => s.byProfileId)
 
   const visible = useMemo(() => {
-    return Object.values(jobsMap).filter((job) => {
-      if (job.status !== 'queued' && job.status !== 'active') return false
-      return !isOnTargetScreen(
-        job,
-        location.pathname,
-        settingsSection,
-        libraryFocus,
-        byProfileId,
-      )
-    })
+    return Object.values(jobsMap)
+      .filter((job) => {
+        if (job.status !== 'queued' && job.status !== 'active') return false
+        return !isOnTargetScreen(
+          job,
+          location.pathname,
+          settingsSection,
+          libraryFocus,
+          byProfileId,
+        )
+      })
+      .sort((a, b) => a.jobId.localeCompare(b.jobId))
   }, [jobsMap, location.pathname, settingsSection, libraryFocus, byProfileId])
 
   if (visible.length === 0) return null
 
-  const primary = visible[0]!
+  const primary =
+    (pinnedJobId ? visible.find((j) => j.jobId === pinnedJobId) : undefined) ?? visible[0]!
   const extra = visible.length - 1
   const percent = jobPercent(primary)
 

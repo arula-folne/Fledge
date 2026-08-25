@@ -181,6 +181,42 @@ export type UiScale = z.infer<typeof UiScaleSchema>
 export const StartupPageSchema = z.enum(['home', 'library'])
 export type StartupPage = z.infer<typeof StartupPageSchema>
 
+export const LibrarySortModeSchema = z.enum([
+  'lastPlayed',
+  'name',
+  'nameDesc',
+  'created',
+  'manual',
+])
+export type LibrarySortMode = z.infer<typeof LibrarySortModeSchema>
+
+/** 手動順を現状の ID 集合に合わせる（削除分を落とし、新規を末尾へ） */
+export function reconcileLibraryInstanceOrder(order: string[], ids: readonly string[]): string[] {
+  const idSet = new Set(ids)
+  const kept = order.filter((id) => idSet.has(id))
+  const keptSet = new Set(kept)
+  const missing = ids.filter((id) => !keptSet.has(id))
+  return kept.length === order.length && missing.length === 0 ? order : [...kept, ...missing]
+}
+
+/** 手動順で ID を隣接と入れ替え。範囲外なら元配列を返す */
+export function moveLibraryInstanceOrder(
+  order: string[],
+  id: string,
+  delta: -1 | 1,
+): string[] {
+  const idx = order.indexOf(id)
+  if (idx < 0) return order
+  const next = idx + delta
+  if (next < 0 || next >= order.length) return order
+  const copy = [...order]
+  const a = copy[idx]!
+  const b = copy[next]!
+  copy[idx] = b
+  copy[next] = a
+  return copy
+}
+
 export const SkinModelSchema = z.enum(['wide', 'slim'])
 export type SkinModel = z.infer<typeof SkinModelSchema>
 
@@ -297,6 +333,11 @@ export const SettingsSchema = z.object({
   // スキン
   selectedSkinId: z.string().default('steve'),
   skinModel: SkinModelSchema.default('wide'),
+
+  // ライブラリ並び
+  librarySortMode: LibrarySortModeSchema.default('lastPlayed'),
+  /** manual 時のインスタンス ID 順。未知 ID は末尾に足す */
+  libraryInstanceOrder: z.array(z.string()).default([]),
 })
 export type Settings = z.infer<typeof SettingsSchema>
 
