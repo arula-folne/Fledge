@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.1.13a",
+    "title": "【バージョンアップ】Fledge Ver.0.1.13a",
+    "body": "**Fledge Ver.0.1.13a** を公開しました。\n\n## 主な変更\n\n- Minecraft 初期設定の初回反映を修正（製品版で英語のまま／アクセシビリティ画面が出る問題）\n- インスタンス作成時点と起動直前に `options.txt` を確定し、書き込み検証を強化しました\n- 言語未設定時はアプリの言語（日本語）から `ja_jp` を推定するようにしました\n\n> 引き続きベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-25T15:50:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.1.13a"
+  },
+  {
     "id": "v0.1.12",
     "title": "【バージョンアップ】Fledge Ver.0.1.12",
     "body": "**Fledge Ver.0.1.12** を公開しました。\n\n## 主な変更\n\n- Minecraft 初期設定の反映を修正（製品版インストールでも確実に書き込むよう強化）\n- 起動中の options.txt 連打をやめ、遅延ワンショット再適用に変更しました\n- 複数インスタンス同時作成時のプログレスバー乱れを修正しました\n- ライブラリに並び替え機能を追加しました（最近遊んだ順／名前／作成日／手動）\n\n> 不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

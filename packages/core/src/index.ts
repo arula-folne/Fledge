@@ -29,6 +29,7 @@ export {
   ensureMinecraftInitialSettingsApplied,
   verifyMinecraftOptionsFile,
   verifyMinecraftDebugOverlayFile,
+  resolveInitialLang,
   MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION,
 } from './minecraft/minecraftInitialOptions.js'
 export { VersionService } from './versions/VersionService.js'

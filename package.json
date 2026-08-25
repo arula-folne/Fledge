@@ -1,7 +1,7 @@
 {
   "name": "fledge",
   "private": true,
-  "version": "0.1.12",
+  "version": "0.1.13-a",
   "description": "軽量・高速な Minecraft ランチャー",
   "license": "GPL-3.0",
   "author": "folne",

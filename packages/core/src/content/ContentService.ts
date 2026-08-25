@@ -386,6 +386,7 @@ export class ContentService {
       this.instances.instanceDir(profile.id),
       settingsAfterContent.minecraftInitialSettings,
       minecraftVersion,
+      settingsAfterContent.locale,
     )
 
     return profile
@@ -536,6 +537,7 @@ export class ContentService {
         instanceDir,
         settingsAfterPack.minecraftInitialSettings,
         minecraftVersion,
+        settingsAfterPack.locale,
       )
 
       this.logger.info(
@@ -816,12 +818,19 @@ export class ContentService {
         pendingMinecraftOptions: snapshotMinecraftInitialOptions(
           settings.minecraftInitialSettings,
           input.minecraftVersion,
+          settings.locale,
         ),
         pendingMinecraftDebugOverlay: snapshotMinecraftDebugOverlay(
           settings.minecraftInitialSettings,
           input.minecraftVersion,
         ),
       },
+    )
+    await applyMinecraftInitialSettingsToInstance(
+      this.instances.instanceDir(profile.id),
+      settings.minecraftInitialSettings,
+      input.minecraftVersion,
+      settings.locale,
     )
     if (!settings.selectedInstanceId) {
       await this.settings.set({ selectedInstanceId: profile.id })

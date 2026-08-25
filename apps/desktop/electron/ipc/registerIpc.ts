@@ -18,7 +18,7 @@ import {
   type Settings,
   type SkinModel,
 } from '@fledge/shared'
-import { snapshotMinecraftDebugOverlay, snapshotMinecraftInitialOptions, factoryReset, type LauncherApp } from '@fledge/core'
+import { snapshotMinecraftDebugOverlay, snapshotMinecraftInitialOptions, applyMinecraftInitialSettingsToInstance, factoryReset, type LauncherApp } from '@fledge/core'
 import { applyWindowUiScale } from '../windows/MainWindow'
 import { isLightStart } from '../startup/lightStart'
 import {
@@ -177,12 +177,20 @@ export function registerIpc(
       pendingMinecraftOptions: snapshotMinecraftInitialOptions(
         settings.minecraftInitialSettings,
         input.minecraftVersion,
+        settings.locale,
       ),
       pendingMinecraftDebugOverlay: snapshotMinecraftDebugOverlay(
         settings.minecraftInitialSettings,
         input.minecraftVersion,
       ),
     })
+    // 作成直後に options.txt を書いておく（初回起動前にファイルが無いと英語＋アクセシビリティ画面になる）
+    await applyMinecraftInitialSettingsToInstance(
+      appCtx.instances.instanceDir(profile.id),
+      settings.minecraftInitialSettings,
+      profile.minecraftVersion,
+      settings.locale,
+    )
     await appCtx.settings.set({
       ...(settings.selectedInstanceId ? {} : { selectedInstanceId: profile.id }),
       libraryInstanceOrder: settings.libraryInstanceOrder.includes(profile.id)

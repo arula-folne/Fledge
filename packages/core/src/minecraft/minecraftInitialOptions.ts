@@ -90,10 +90,12 @@ function formatFloat(n: number): string {
 
 /**
  * Fledge の初期設定のうち、Minecraft デフォルトから変更された項目だけを options.txt 行にする。
+ * lang 未指定時はアプリ locale から推定する（製品版で「アプリは日本語なのにゲームは英語」を防ぐ）。
  */
 export function snapshotMinecraftInitialOptions(
   settings: MinecraftInitialSettings,
   minecraftVersion: string,
+  appLocale?: string | null,
 ): Record<string, string> {
   const out: Record<string, string> = {}
   const put = (key: string, value: string) => {
@@ -102,7 +104,8 @@ export function snapshotMinecraftInitialOptions(
     out[key] = value
   }
 
-  if (settings.lang) put('lang', settings.lang)
+  const lang = resolveInitialLang(settings.lang, appLocale)
+  if (lang) put('lang', lang)
   if (settings.showSubtitles !== null) put('showSubtitles', String(settings.showSubtitles))
   if (settings.autoJump !== null) put('autoJump', String(settings.autoJump))
   if (settings.bobView !== null) put('bobView', String(settings.bobView))
@@ -135,12 +138,21 @@ export function snapshotMinecraftInitialOptions(
     put(`key_${id}`, code)
   }
 
-  // Fledge がシードしたインスタンスでは、変更 0 件でも初回アクセシビリティ画面を出さない
-  if (versionAtLeast(minecraftVersion, { major: 1, minor: 19, patch: 4 })) {
-    out.onboardAccessibility = 'false'
-  }
+  // 初回アクセシビリティ画面を出さない（未知バージョンでも書く。古い版は無視するだけ）
+  out.onboardAccessibility = 'false'
 
   return out
+}
+
+/** 明示 lang → アプリ locale からの推定 */
+export function resolveInitialLang(
+  lang: string | null | undefined,
+  appLocale?: string | null,
+): string | null {
+  if (lang && lang.trim()) return lang.trim()
+  const locale = (appLocale ?? '').toLowerCase()
+  if (locale.startsWith('ja')) return 'ja_jp'
+  return null
 }
 
 /**
@@ -234,27 +246,18 @@ export async function verifyMinecraftDebugOverlayFile(
 async function writeTextAtomic(file: string, body: string): Promise<void> {
   const dir = path.dirname(file)
   await fs.mkdir(dir, { recursive: true })
-  const tmp = path.join(dir, `${path.basename(file)}.${process.pid}.${Date.now()}.tmp`)
   const payload = body.endsWith('\n') ? body : `${body}\n`
+  // 製品版 Windows では rename 原子書き込みが失敗しやすいので、直接書き込みを優先する
+  await fs.writeFile(file, payload, 'utf8')
   try {
-    const handle = await fs.open(tmp, 'w')
+    const handle = await fs.open(file, 'r+')
     try {
-      await handle.writeFile(payload, 'utf8')
-      // 製品版（パッケージ済み）でもディスクに確実に落とす
       await handle.sync()
     } finally {
       await handle.close()
     }
-    try {
-      await fs.rename(tmp, file)
-    } catch {
-      // Windows では既存ファイルへの rename が失敗することがある
-      await fs.copyFile(tmp, file)
-      await fs.rm(tmp, { force: true })
-    }
-  } catch (err) {
-    await fs.rm(tmp, { force: true }).catch(() => undefined)
-    throw err
+  } catch {
+    /* sync 失敗でもファイル自体は書けていれば続行 */
   }
 }
 
@@ -321,13 +324,15 @@ export async function mergeMinecraftOptionsFile(
 /**
  * Fledge 初期設定をインスタンスへ強制反映（Modpack の options.txt / debug.json より優先）。
  * pending の凍結スナップショットより、渡された settings を正とする。
+ * @param appLocale アプリの locale（lang 未設定時のフォールバック）
  */
 export async function applyMinecraftInitialSettingsToInstance(
   instanceDir: string,
   settings: MinecraftInitialSettings,
   minecraftVersion: string,
+  appLocale?: string | null,
 ): Promise<{ options: Record<string, string>; overlay: Record<string, string> }> {
-  const options = snapshotMinecraftInitialOptions(settings, minecraftVersion)
+  const options = snapshotMinecraftInitialOptions(settings, minecraftVersion, appLocale)
   const overlay = snapshotMinecraftDebugOverlay(settings, minecraftVersion)
   // 変更 0 件でも Welcome / アクセシビリティ初回画面を抑止する
   if (!('onboardAccessibility' in options)) {
@@ -344,11 +349,17 @@ export async function applyMinecraftInitialSettingsToInstance(
     await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
   }
 
+  // 初回英語／アクセシビリティ画面の主因は「起動前に options.txt が無い」こと。
+  // ここで読めなければ呼び出し側で起動を止める／再試行できるようにする。
+  if (!(await verifyMinecraftOptionsFile(instanceDir, options))) {
+    throw new Error(`Failed to persist Minecraft options.txt at ${path.join(instanceDir, 'options.txt')}`)
+  }
+
   return { options, overlay }
 }
 
 /** 初期設定コミットの現行世代（上げると旧世代コミット済みインスタンスは再適用される） */
-export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 6
+export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 7
 
 /**
  * シード済みインスタンスで、Fledge 初期設定を確実にファイルへ載せる。
@@ -362,8 +373,9 @@ export async function ensureMinecraftInitialSettingsApplied(
   settings: MinecraftInitialSettings,
   minecraftVersion: string,
   alreadyCommitted: boolean,
+  appLocale?: string | null,
 ): Promise<{ neededCommit: boolean; options: Record<string, string>; overlay: Record<string, string> }> {
-  const options = snapshotMinecraftInitialOptions(settings, minecraftVersion)
+  const options = snapshotMinecraftInitialOptions(settings, minecraftVersion, appLocale)
   const overlay = snapshotMinecraftDebugOverlay(settings, minecraftVersion)
   if (!('onboardAccessibility' in options)) {
     options.onboardAccessibility = 'false'
@@ -377,11 +389,11 @@ export async function ensureMinecraftInitialSettingsApplied(
     if (optionsOk && overlayOk) {
       return { neededCommit: false, options, overlay }
     }
-    await applyMinecraftInitialSettingsToInstance(instanceDir, settings, minecraftVersion)
+    await applyMinecraftInitialSettingsToInstance(instanceDir, settings, minecraftVersion, appLocale)
     return { neededCommit: true, options, overlay }
   }
 
-  await applyMinecraftInitialSettingsToInstance(instanceDir, settings, minecraftVersion)
+  await applyMinecraftInitialSettingsToInstance(instanceDir, settings, minecraftVersion, appLocale)
   return { neededCommit: true, options, overlay }
 }
 

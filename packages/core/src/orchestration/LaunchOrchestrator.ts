@@ -14,7 +14,7 @@ import type { InstanceStore } from '../instances/InstanceStore.js'
 import type { JavaManager } from '../java/JavaManager.js'
 import type { Logger } from '../logging/Logger.js'
 import type { MinecraftService } from '../minecraft/MinecraftService.js'
-import { ensureMinecraftInitialSettingsApplied, MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION, mergeMinecraftDebugOverlayFile, mergeMinecraftOptionsFile, verifyMinecraftOptionsFile } from '../minecraft/minecraftInitialOptions.js'
+import { ensureMinecraftInitialSettingsApplied, MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION, applyMinecraftInitialSettingsToInstance, mergeMinecraftDebugOverlayFile, mergeMinecraftOptionsFile, verifyMinecraftOptionsFile } from '../minecraft/minecraftInitialOptions.js'
 import type { SettingsStore } from '../settings/SettingsStore.js'
 import type { SessionJoinProxy } from '../auth/SessionJoinProxy.js'
 import type { SkinApplier } from '../skins/SkinApplier.js'
@@ -321,6 +321,26 @@ export class LaunchOrchestrator {
         session.initialSettingsOverlay = initial.overlay
       }
 
+      // Options.load より前に必ずファイルを確定させる（初回英語／アクセシビリティ画面の防止）
+      if (Object.keys(initial.options).length > 0) {
+        await applyMinecraftInitialSettingsToInstance(
+          instanceDir,
+          settings.minecraftInitialSettings,
+          profile.minecraftVersion,
+          settings.locale,
+        )
+        const ok = await verifyMinecraftOptionsFile(instanceDir, initial.options)
+        if (!ok) {
+          throw Object.assign(new Error('Minecraft options.txt was not ready before launch'), {
+            messageKey: 'launch.error.generic',
+          })
+        }
+        this.deps.logger.info(
+          'launcher',
+          `Pre-spawn options verified at ${path.join(instanceDir, 'options.txt')}`,
+        )
+      }
+
       this.emitPhase(sessionId, 'spawn', 'launch.phase.spawn')
       this.emitState(session, 'launching')
       const child = await this.deps.minecraft.launchGame({
@@ -484,11 +504,12 @@ export class LaunchOrchestrator {
         settings.minecraftInitialSettings,
         latest.minecraftVersion || fallbackMinecraftVersion,
         committed,
+        settings.locale,
       )
       if (result.neededCommit) {
         this.deps.logger.info(
           'launcher',
-          `Minecraft initial options ensured for ${profileId} (${Object.keys(result.options).length} keys)`,
+          `Minecraft initial options ensured for ${profileId} at ${path.join(instanceDir, 'options.txt')} (${Object.keys(result.options).length} keys)`,
         )
       }
       return {
@@ -501,7 +522,8 @@ export class LaunchOrchestrator {
         'launcher',
         `Failed to apply Minecraft initial options: ${err instanceof Error ? err.message : String(err)}`,
       )
-      return empty
+      // 失敗を握りつぶすと初回英語／アクセシビリティ画面になるため、起動側で再試行／中断できるように投げる
+      throw err
     }
   }
 
