@@ -90,12 +90,12 @@ export const InstanceProfileSchema = z.object({
   notes: z.string().optional(),
   /**
    * 新規作成時にだけ立つ。既存インスタンスには無い。
-   * true のときだけ pendingMinecraftOptions を初回起動で適用する。
+   * true のときだけ初回起動で Minecraft 初期設定を options.txt へ強制適用する。
    */
   minecraftInitialSettingsSeeded: z.boolean().optional(),
   /** 初回起動で options.txt へ反映済み */
   minecraftInitialSettingsApplied: z.boolean().optional(),
-  /** 作成時点の「Minecraftデフォルトから変更した項目」だけ（options.txt の key:value） */
+  /** 作成時点のスナップショット（互換・参照用。初回適用は設定の最新値を優先） */
   pendingMinecraftOptions: z.record(z.string()).optional(),
   /** 1.21.9+ のデバッグオーバーレイ（debug.json）。Identifier → visibility */
   pendingMinecraftDebugOverlay: z.record(z.string()).optional(),

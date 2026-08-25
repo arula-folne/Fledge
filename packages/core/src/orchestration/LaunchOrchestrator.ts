@@ -12,10 +12,7 @@ import type { InstanceStore } from '../instances/InstanceStore.js'
 import type { JavaManager } from '../java/JavaManager.js'
 import type { Logger } from '../logging/Logger.js'
 import type { MinecraftService } from '../minecraft/MinecraftService.js'
-import {
-  mergeMinecraftDebugOverlayFile,
-  mergeMinecraftOptionsFile,
-} from '../minecraft/minecraftInitialOptions.js'
+import { applyMinecraftInitialSettingsToInstance } from '../minecraft/minecraftInitialOptions.js'
 import type { SettingsStore } from '../settings/SettingsStore.js'
 import type { SessionJoinProxy } from '../auth/SessionJoinProxy.js'
 import type { SkinApplier } from '../skins/SkinApplier.js'
@@ -281,16 +278,16 @@ export class LaunchOrchestrator {
       // 導入後の version JSON（javaVersion）に合わせて Java を取り直す
       const resolvedJavaPath = await this.deps.java.ensureJava(profile.minecraftVersion, sessionId)
 
+      const settings = await this.deps.settings.get()
+
+      // 初回起動: 作成時 pending ではなく「今の」初期設定を強制反映（Modpack 同梱 options より優先）
       if (profile.minecraftInitialSettingsSeeded && !profile.minecraftInitialSettingsApplied) {
         try {
-          const options = { ...(profile.pendingMinecraftOptions ?? {}) }
-          const overlay = { ...(profile.pendingMinecraftDebugOverlay ?? {}) }
-          // pending が空でも options.txt を作り、Welcome / アクセシビリティ初回画面を抑止する
-          if (!('onboardAccessibility' in options)) {
-            options.onboardAccessibility = 'false'
-          }
-          await mergeMinecraftOptionsFile(instanceDir, options)
-          await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
+          await applyMinecraftInitialSettingsToInstance(
+            instanceDir,
+            settings.minecraftInitialSettings,
+            profile.minecraftVersion,
+          )
           await this.deps.instances.update(profileId, {
             minecraftInitialSettingsApplied: true,
             pendingMinecraftOptions: {},
@@ -306,7 +303,6 @@ export class LaunchOrchestrator {
 
       this.emitPhase(sessionId, 'spawn', 'launch.phase.spawn')
       this.emitState(session, 'launching')
-      const settings = await this.deps.settings.get()
       const child = await this.deps.minecraft.launchGame({
         profile,
         instanceDir,

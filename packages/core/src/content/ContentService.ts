@@ -27,6 +27,7 @@ import { fetchBody, fetchToFile } from '../download/fetchBody.js'
 import type { InstanceStore } from '../instances/InstanceStore.js'
 import type { Logger } from '../logging/Logger.js'
 import {
+  applyMinecraftInitialSettingsToInstance,
   snapshotMinecraftDebugOverlay,
   snapshotMinecraftInitialOptions,
 } from '../minecraft/minecraftInitialOptions.js'
@@ -499,6 +500,14 @@ export class ContentService {
         (result): result is PromiseRejectedResult => result.status === 'rejected',
       )
       if (failedDownload) throw failedDownload.reason
+
+      // overrides / パックファイル展開後に Fledge 初期設定で上書き（初回起動でも再適用）
+      const settingsAfterPack = await this.settings.get()
+      await applyMinecraftInitialSettingsToInstance(
+        instanceDir,
+        settingsAfterPack.minecraftInitialSettings,
+        minecraftVersion,
+      )
 
       this.logger.info(
         'downloader',
