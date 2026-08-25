@@ -547,6 +547,7 @@ export class ContentService {
       return profile
     } catch (err) {
       if (profile) {
+        this.disposeInstance(profile.id)
         await this.instances.remove(profile.id).catch(() => undefined)
         const current = await this.settings.get()
         if (current.selectedInstanceId === profile.id) {
@@ -777,6 +778,10 @@ export class ContentService {
             { key, generation, stagingPath, destPath: dest },
           )
         } else {
+          if (!(await this.instances.get(instanceId))) {
+            await fs.rm(stagingPath, { force: true })
+            return
+          }
           await fs.rm(dest, { force: true })
           await fs.rename(stagingPath, dest)
         }
@@ -997,8 +1002,18 @@ export class ContentService {
       destPath: string
     },
   ): Promise<void> {
+    const profile = await this.instances.get(instanceId)
+    if (!profile) {
+      await fs.rm(pending.stagingPath, { force: true })
+      return
+    }
+
     await this.withIndexLock(instanceId, async () => {
       if (this.contentGeneration.get(pending.key) !== pending.generation) {
+        await fs.rm(pending.stagingPath, { force: true })
+        return
+      }
+      if (!(await this.instances.get(instanceId))) {
         await fs.rm(pending.stagingPath, { force: true })
         return
       }
@@ -1050,6 +1065,19 @@ export class ContentService {
       await this.writeIndex(instanceId, index)
       return entry
     })
+  }
+
+  /** インスタンス削除時: 進行中の導入を止め、メモリ上の状態を破棄する */
+  disposeInstance(instanceId: string): void {
+    this.queue.cancelBySessionPrefix(`content-${instanceId}-`)
+    const prefix = `${instanceId}:`
+    for (const key of [...this.inflightContent.keys()]) {
+      if (key.startsWith(prefix)) this.inflightContent.delete(key)
+    }
+    for (const key of [...this.contentGeneration.keys()]) {
+      if (key.startsWith(prefix)) this.contentGeneration.delete(key)
+    }
+    this.indexTail.delete(instanceId)
   }
 
   async remove(instanceId: string, entryId: string): Promise<void> {

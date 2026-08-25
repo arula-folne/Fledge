@@ -156,6 +156,15 @@ export class DownloadQueue {
     }
   }
 
+  cancelBySessionPrefix(sessionPrefix: string): void {
+    for (const job of [...this.queued]) {
+      if (job.sessionId?.startsWith(sessionPrefix)) this.cancel(job.id)
+    }
+    for (const job of this.active.values()) {
+      if (job.sessionId?.startsWith(sessionPrefix)) this.cancel(job.id)
+    }
+  }
+
   cancelAll(): void {
     for (const job of [...this.queued]) this.cancel(job.id)
     for (const job of this.active.values()) this.cancel(job.id)

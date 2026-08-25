@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { randomUUID } from 'node:crypto'
 import {
   CreateInstanceInputSchema,
   DEFAULT_INSTANCE_ICON_PRESET,
@@ -12,6 +13,7 @@ import {
   type UpdateInstanceInput,
 } from '@fledge/shared'
 import type { PathLayout } from '../app/paths.js'
+import { rmRetry } from '../fs/rmRetry.js'
 
 function slugify(name: string): string {
   const base = name
@@ -195,7 +197,7 @@ export class InstanceStore {
 
   async remove(id: string): Promise<void> {
     const dir = this.instanceDir(id)
-    await fs.rm(dir, { recursive: true, force: true })
+    await rmRetry(dir)
   }
 
   async getIconDataUrl(id: string): Promise<string | null> {
@@ -236,13 +238,13 @@ export class InstanceStore {
   }
 
   private async allocateId(base: string): Promise<string> {
-    let candidate = base
-    let i = 2
-    while (await pathExists(this.instanceDir(candidate))) {
-      candidate = `${base}-${i}`
-      i += 1
+    // 削除後に同名で作り直しても ID / フォルダが再利用されないよう常に一意サフィックスを付ける
+    for (let i = 0; i < 32; i++) {
+      const suffix = randomUUID().replace(/-/g, '').slice(0, 8)
+      const candidate = `${base}-${suffix}`
+      if (!(await pathExists(this.instanceDir(candidate)))) return candidate
     }
-    return candidate
+    throw new Error('Failed to allocate instance id')
   }
 
   private async writeInstance(profile: InstanceProfile): Promise<void> {

@@ -222,6 +222,8 @@ export function registerIpc(
     return copied
   })
   ipcMain.handle(IPC.instancesRemove, async (_e, id: string) => {
+    appCtx.content.disposeInstance(id)
+    appCtx.launch.stopForProfile(id)
     await appCtx.instances.remove(id)
     const settings = await appCtx.settings.get()
     const list = await appCtx.instances.list()

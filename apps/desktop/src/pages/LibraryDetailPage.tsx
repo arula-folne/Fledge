@@ -225,8 +225,9 @@ export default function LibraryDetailPage() {
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.instances.remove(id),
-    onSuccess: async () => {
+    onSuccess: async (_data, id) => {
       setEditingInstanceId(null)
+      queryClient.removeQueries({ queryKey: ['content-installed', id] })
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
       navigate('/')

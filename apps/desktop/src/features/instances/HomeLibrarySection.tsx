@@ -77,7 +77,8 @@ export function HomeLibrarySection({ instances }: Props) {
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.instances.remove(id),
-    onSuccess: async () => {
+    onSuccess: async (_data, id) => {
+      queryClient.removeQueries({ queryKey: ['content-installed', id] })
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
     },

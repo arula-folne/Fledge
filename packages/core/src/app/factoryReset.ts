@@ -1,19 +1,5 @@
-import fs from 'node:fs/promises'
 import type { LauncherApp } from './createLauncherApp.js'
-
-async function rmRetry(target: string, attempts = 5): Promise<void> {
-  let lastError: unknown
-  for (let i = 0; i < attempts; i++) {
-    try {
-      await fs.rm(target, { recursive: true, force: true })
-      return
-    } catch (err) {
-      lastError = err
-      await new Promise((resolve) => setTimeout(resolve, 250 * (i + 1)))
-    }
-  }
-  throw lastError
-}
+import { rmRetry } from '../fs/rmRetry.js'
 
 /**
  * Data/ と Instances/ を削除する。空フォルダの作り直しは再起動後の

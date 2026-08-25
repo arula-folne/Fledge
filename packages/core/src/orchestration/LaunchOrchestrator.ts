@@ -479,6 +479,23 @@ export class LaunchOrchestrator {
     }
   }
 
+  /** 指定インスタンスに紐づく起動セッションを停止する（インスタンス削除用） */
+  stopForProfile(profileId: string): void {
+    for (const session of [...this.sessions.values()]) {
+      if (session.profileId !== profileId) continue
+      session.abort.abort()
+      this.deps.queue.cancelBySession(session.id)
+      this.stopInitialSettingsGuard(session)
+      try {
+        session.child?.kill()
+      } catch {
+        /* ignore */
+      }
+      this.emitState(session, 'idle')
+      this.sessions.delete(session.id)
+    }
+  }
+
   private async ensureInitialSettings(
     profileId: string,
     instanceDir: string,
