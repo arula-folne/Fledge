@@ -1,23 +1,24 @@
 @import 'tailwindcss';
 
 :root {
-  --color-bg: #e4e1dc;
-  --color-surface: #eeebe6;
-  --color-input: #f2efe9;
-  --color-border: #d4cfc8;
+  --color-bg: #e8e4de;
+  --color-surface: #f8f6f2;
+  --color-input: #fcfbf8;
+  --color-border: #d2cdc6;
   --color-text: #2c2a27;
   --color-text-muted: #6e6a64;
-  --color-accent: #5a8fb0;
-  --color-accent-soft: #e4e0da;
+  --color-accent: #5fa0c4;
+  --color-accent-soft: #eee9e2;
   /* 選択中の縁・ラジオなど。テーマカラーでは上書きしない */
-  --color-selection: #6bb0df;
-  --color-selection-soft: rgba(107, 176, 223, 0.22);
+  --color-selection: #7ec0ef;
+  --color-selection-soft: rgba(126, 192, 239, 0.24);
   --color-on-selection: #1a1a1c;
-  --color-hover: rgba(44, 42, 39, 0.06);
-  --color-on-accent: #f4f1eb;
-  --color-scrollbar: #b0aba5;
-  --color-danger: #c94c4c;
-  --color-success: #3d9a6a;
+  --color-hover: rgba(44, 42, 39, 0.07);
+  --color-on-accent: #f8f6f2;
+  --color-scrollbar: #b4aea6;
+  --color-zebra: #f0ece6;
+  --color-danger: #e05c5c;
+  --color-success: #4aaf7a;
   --color-version-release: #3d9a6a;
   --color-version-snapshot: #d97706;
   --color-loader-fabric: #3d9a6a;
@@ -59,7 +60,7 @@ body,
 }
 
 body {
-  background: linear-gradient(180deg, #e7e4de 0%, #ddd9d3 100%);
+  background: linear-gradient(180deg, #e0dbd4 0%, #d0cbc3 100%);
   color: var(--color-text);
   /* UI のタイトル・ヘッダーはダブルクリック選択させない */
   user-select: none;

@@ -172,6 +172,71 @@ function hasOwnKey(patch: Record<string, string>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(patch, key)
 }
 
+function parseOptionsMap(text: string): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const line of stripBom(text).split(/\r?\n/)) {
+    if (!line || line.startsWith('#')) continue
+    const idx = line.indexOf(':')
+    if (idx <= 0) continue
+    map.set(line.slice(0, idx).trim(), line.slice(idx + 1))
+  }
+  return map
+}
+
+/** パッチの全キーが options.txt に期待値で残っているか */
+export async function verifyMinecraftOptionsFile(
+  instanceDir: string,
+  patch: Record<string, string>,
+): Promise<boolean> {
+  const keys = Object.keys(patch)
+  if (keys.length === 0) return true
+  try {
+    const text = await fs.readFile(path.join(instanceDir, 'options.txt'), 'utf8')
+    const map = parseOptionsMap(text)
+    return keys.every((key) => map.get(key) === patch[key])
+  } catch {
+    return false
+  }
+}
+
+/** パッチの全キーが debug.json に期待値で残っているか */
+export async function verifyMinecraftDebugOverlayFile(
+  instanceDir: string,
+  patch: Record<string, string>,
+): Promise<boolean> {
+  const keys = Object.keys(patch)
+  if (keys.length === 0) return true
+  try {
+    const text = await fs.readFile(path.join(instanceDir, 'debug.json'), 'utf8')
+    const existing = JSON.parse(text) as unknown
+    if (!isPlainObject(existing)) return false
+    const entries = isPlainObject(existing.entries) ? existing.entries : existing
+    return keys.every((key) => entries[key] === patch[key])
+  } catch {
+    return false
+  }
+}
+
+async function writeTextAtomic(file: string, body: string): Promise<void> {
+  const dir = path.dirname(file)
+  await fs.mkdir(dir, { recursive: true })
+  const tmp = path.join(dir, `${path.basename(file)}.${process.pid}.${Date.now()}.tmp`)
+  const payload = body.endsWith('\n') ? body : `${body}\n`
+  try {
+    await fs.writeFile(tmp, payload, 'utf8')
+    try {
+      await fs.rename(tmp, file)
+    } catch {
+      // Windows では既存ファイルへの rename が失敗することがある
+      await fs.copyFile(tmp, file)
+      await fs.rm(tmp, { force: true })
+    }
+  } catch (err) {
+    await fs.rm(tmp, { force: true }).catch(() => undefined)
+    throw err
+  }
+}
+
 /**
  * 既存 options.txt があれば Fledge のキーで強制上書きマージ。
  * Modpack 同梱の options.txt より Fledge 初期設定を優先する。
@@ -194,7 +259,7 @@ export async function mergeMinecraftOptionsFile(
 
   if (!existing.trim()) {
     const body = keys.map((key) => `${key}:${patch[key]}`).join('\n')
-    await fs.writeFile(file, `${body}\n`, 'utf8')
+    await writeTextAtomic(file, body)
     return
   }
 
@@ -229,7 +294,7 @@ export async function mergeMinecraftOptionsFile(
   }
 
   const body = nextLines.filter((l, i, arr) => !(l === '' && i === arr.length - 1)).join('\n')
-  await fs.writeFile(file, body.endsWith('\n') ? body : `${body}\n`, 'utf8')
+  await writeTextAtomic(file, body)
 }
 
 /**
@@ -249,7 +314,51 @@ export async function applyMinecraftInitialSettingsToInstance(
   }
   await mergeMinecraftOptionsFile(instanceDir, options)
   await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
+
+  // 書き込み直後に検証し、失敗したら一度だけ再書き込み
+  if (!(await verifyMinecraftOptionsFile(instanceDir, options))) {
+    await mergeMinecraftOptionsFile(instanceDir, options)
+  }
+  if (!(await verifyMinecraftDebugOverlayFile(instanceDir, overlay))) {
+    await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
+  }
+
   return { options, overlay }
+}
+
+/** 初期設定コミットの現行世代（上げると未到達インスタンスは再適用される） */
+export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 2
+
+/**
+ * シード済みインスタンスで、Fledge 初期設定を確実にファイルへ載せる。
+ * - 未コミット（または旧世代）: 毎回強制適用（起動直前の最新設定を優先）
+ * - 現行世代でコミット済み: options.txt が消えているときだけ修復（ゲーム内変更は尊重）
+ * @returns 起動後に applied コミットが必要なら true
+ */
+export async function ensureMinecraftInitialSettingsApplied(
+  instanceDir: string,
+  settings: MinecraftInitialSettings,
+  minecraftVersion: string,
+  alreadyCommitted: boolean,
+): Promise<{ neededCommit: boolean; options: Record<string, string>; overlay: Record<string, string> }> {
+  const options = snapshotMinecraftInitialOptions(settings, minecraftVersion)
+  const overlay = snapshotMinecraftDebugOverlay(settings, minecraftVersion)
+  if (!('onboardAccessibility' in options)) {
+    options.onboardAccessibility = 'false'
+  }
+
+  if (alreadyCommitted) {
+    try {
+      await fs.access(path.join(instanceDir, 'options.txt'))
+      return { neededCommit: false, options, overlay }
+    } catch {
+      await applyMinecraftInitialSettingsToInstance(instanceDir, settings, minecraftVersion)
+      return { neededCommit: true, options, overlay }
+    }
+  }
+
+  await applyMinecraftInitialSettingsToInstance(instanceDir, settings, minecraftVersion)
+  return { neededCommit: true, options, overlay }
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -283,5 +392,5 @@ export async function mergeMinecraftDebugOverlayFile(
     next = { ...base, ...patch }
   }
 
-  await fs.writeFile(file, `${JSON.stringify(next, null, 2)}\n`, 'utf8')
+  await writeTextAtomic(file, `${JSON.stringify(next, null, 2)}\n`)
 }

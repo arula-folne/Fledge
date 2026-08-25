@@ -12,10 +12,13 @@ import type { InstanceStore } from '../instances/InstanceStore.js'
 import type { JavaManager } from '../java/JavaManager.js'
 import type { Logger } from '../logging/Logger.js'
 import type { MinecraftService } from '../minecraft/MinecraftService.js'
-import { applyMinecraftInitialSettingsToInstance } from '../minecraft/minecraftInitialOptions.js'
+import { ensureMinecraftInitialSettingsApplied, MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION } from '../minecraft/minecraftInitialOptions.js'
 import type { SettingsStore } from '../settings/SettingsStore.js'
 import type { SessionJoinProxy } from '../auth/SessionJoinProxy.js'
 import type { SkinApplier } from '../skins/SkinApplier.js'
+
+/** 初期設定を「反映済み」にする前にゲームが生きているべき最短時間 */
+const INITIAL_SETTINGS_COMMIT_AFTER_MS = 15_000
 
 export type LaunchEventBus = {
   emitProgress: (e: ProgressEvent) => void
@@ -30,6 +33,9 @@ type Session = {
   abort: AbortController
   child?: ChildProcess
   state: LaunchStateEvent['state']
+  /** 初回 options 適用後、十分な起動成功を待って applied を立てる */
+  initialSettingsPendingCommit?: boolean
+  runningSinceMs?: number
 }
 
 export class LaunchOrchestrator {
@@ -131,6 +137,9 @@ export class LaunchOrchestrator {
       if (abort.signal.aborted) {
         throw Object.assign(new Error('cancelled'), { messageKey: 'download.cancelled' })
       }
+
+      // 準備時点でも初期設定を揃えておく（大量 Mod 導入後の options 欠落対策）
+      await this.ensureInitialSettings(profile.id, instanceDir, profile.minecraftVersion)
 
       this.deps.events.emitProgress({
         scope: 'launch',
@@ -280,25 +289,14 @@ export class LaunchOrchestrator {
 
       const settings = await this.deps.settings.get()
 
-      // 初回起動: 作成時 pending ではなく「今の」初期設定を強制反映（Modpack 同梱 options より優先）
-      if (profile.minecraftInitialSettingsSeeded && !profile.minecraftInitialSettingsApplied) {
-        try {
-          await applyMinecraftInitialSettingsToInstance(
-            instanceDir,
-            settings.minecraftInitialSettings,
-            profile.minecraftVersion,
-          )
-          await this.deps.instances.update(profileId, {
-            minecraftInitialSettingsApplied: true,
-            pendingMinecraftOptions: {},
-            pendingMinecraftDebugOverlay: {},
-          })
-        } catch (err) {
-          this.deps.logger.warn(
-            'launcher',
-            `Failed to apply Minecraft initial options: ${err instanceof Error ? err.message : String(err)}`,
-          )
-        }
+      // 起動直前に最新プロファイルで初期設定を強制反映（Modpack / 大量 Mod で消えても再適用）
+      const initial = await this.ensureInitialSettings(
+        profileId,
+        instanceDir,
+        profile.minecraftVersion,
+      )
+      if (initial.neededCommit) {
+        session.initialSettingsPendingCommit = true
       }
 
       this.emitPhase(sessionId, 'spawn', 'launch.phase.spawn')
@@ -318,6 +316,7 @@ export class LaunchOrchestrator {
         sessionHost,
       })
       session.child = child
+      session.runningSinceMs = Date.now()
       this.emitState(session, 'running')
       this.emitPhase(sessionId, 'running', 'launch.phase.running')
       child.stdout?.on('data', (buf: Buffer) => {
@@ -343,6 +342,7 @@ export class LaunchOrchestrator {
       child.on('exit', (code) => {
         const current = this.sessions.get(sessionId)
         if (!current) return
+        void this.finalizeInitialSettingsCommit(current, code ?? 0)
         if (code && code !== 0) {
           this.deps.logger.error('launcher', `Minecraft exited with code ${code}`)
           this.emitState(current, 'error', 'launch.error.gameExited')
@@ -425,6 +425,73 @@ export class LaunchOrchestrator {
       }
       this.emitState(session, 'idle')
       this.sessions.delete(session.id)
+    }
+  }
+
+  private async ensureInitialSettings(
+    profileId: string,
+    instanceDir: string,
+    fallbackMinecraftVersion: string,
+  ): Promise<{ neededCommit: boolean }> {
+    const latest = await this.deps.instances.get(profileId)
+    if (!latest?.minecraftInitialSettingsSeeded) {
+      return { neededCommit: false }
+    }
+    try {
+      const settings = await this.deps.settings.get()
+      const committed =
+        Boolean(latest.minecraftInitialSettingsApplied) &&
+        (latest.minecraftInitialSettingsApplyGeneration ?? 0) >=
+          MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION
+      const result = await ensureMinecraftInitialSettingsApplied(
+        instanceDir,
+        settings.minecraftInitialSettings,
+        latest.minecraftVersion || fallbackMinecraftVersion,
+        committed,
+      )
+      if (result.neededCommit) {
+        this.deps.logger.info(
+          'launcher',
+          `Minecraft initial options ensured for ${profileId} (${Object.keys(result.options).length} keys)`,
+        )
+      }
+      return { neededCommit: result.neededCommit }
+    } catch (err) {
+      this.deps.logger.warn(
+        'launcher',
+        `Failed to apply Minecraft initial options: ${err instanceof Error ? err.message : String(err)}`,
+      )
+      return { neededCommit: false }
+    }
+  }
+
+  private async finalizeInitialSettingsCommit(session: Session, exitCode: number): Promise<void> {
+    if (!session.initialSettingsPendingCommit) return
+    const ranMs = session.runningSinceMs != null ? Date.now() - session.runningSinceMs : 0
+    const ok = exitCode === 0 && ranMs >= INITIAL_SETTINGS_COMMIT_AFTER_MS
+    if (!ok) {
+      this.deps.logger.info(
+        'launcher',
+        `Defer Minecraft initial settings commit for ${session.profileId} (exit=${exitCode}, ranMs=${ranMs})`,
+      )
+      return
+    }
+    try {
+      await this.deps.instances.update(session.profileId, {
+        minecraftInitialSettingsApplied: true,
+        minecraftInitialSettingsApplyGeneration: MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION,
+        pendingMinecraftOptions: {},
+        pendingMinecraftDebugOverlay: {},
+      })
+      this.deps.logger.info(
+        'launcher',
+        `Committed Minecraft initial settings for ${session.profileId}`,
+      )
+    } catch (err) {
+      this.deps.logger.warn(
+        'launcher',
+        `Failed to commit Minecraft initial settings: ${err instanceof Error ? err.message : String(err)}`,
+      )
     }
   }
 

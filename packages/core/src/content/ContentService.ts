@@ -364,6 +364,15 @@ export class ContentService {
       gameVersion: minecraftVersion,
       loaders: req.category === 'mod' ? loaderToContentFilters(loader) : [],
     })
+
+    // Mod 導入後に初期設定を書いておく（初回起動でも再検証・再適用する）
+    const settingsAfterContent = await this.settings.get()
+    await applyMinecraftInitialSettingsToInstance(
+      this.instances.instanceDir(profile.id),
+      settingsAfterContent.minecraftInitialSettings,
+      minecraftVersion,
+    )
+
     return profile
   }
 

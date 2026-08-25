@@ -342,18 +342,22 @@ export function registerIpc(
 
   ipcMain.handle(IPC.newsList, async () => appCtx.news.list())
   ipcMain.handle(IPC.logsRecent, async () => appCtx.logger.getRecent())
-  ipcMain.handle(IPC.updaterCheck, async () => {
+  ipcMain.handle(IPC.updaterCheck, async (_e, channel?: unknown) => {
     if (isLightStart()) {
       return { status: 'up-to-date' as const, currentVersion: APP_VERSION }
     }
-    return appCtx.updater.check()
+    const resolved =
+      channel === 'prerelease' || channel === 'stable' ? channel : ('stable' as const)
+    return appCtx.updater.check(resolved)
   })
-  ipcMain.handle(IPC.updaterApply, async () => {
+  ipcMain.handle(IPC.updaterApply, async (_e, channel?: unknown) => {
     if (!app.isPackaged) {
       throw new Error('updater.noop')
     }
 
-    const installerPath = await appCtx.updater.downloadInstaller()
+    const resolved =
+      channel === 'prerelease' || channel === 'stable' ? channel : ('stable' as const)
+    const installerPath = await appCtx.updater.downloadInstaller(resolved)
     const installDir = path.dirname(app.getPath('exe'))
 
     // インストールツリー内だと上書き中に消えるため、OS 一時領域へ退避する

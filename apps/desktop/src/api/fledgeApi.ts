@@ -29,6 +29,7 @@ import type {
   SkinEntry,
   SkinModel,
   UpdateCheckResult,
+  UpdateChannel,
   VersionInfo,
   VersionListResult,
   JavaRuntimeView,
@@ -146,8 +147,8 @@ export type FledgeApi = {
     recent: () => Promise<LogLine[]>
   }
   updater: {
-    check: () => Promise<UpdateCheckResult>
-    apply: () => Promise<void>
+    check: (channel?: UpdateChannel) => Promise<UpdateCheckResult>
+    apply: (channel?: UpdateChannel) => Promise<void>
   }
   cache: {
     clear: () => Promise<void>

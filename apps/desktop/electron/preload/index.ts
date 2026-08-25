@@ -32,6 +32,7 @@ import {
   type SkinEntry,
   type SkinModel,
   type UpdateCheckResult,
+  type UpdateChannel,
   type VersionInfo,
   type VersionListResult,
   type JavaRuntimeView,
@@ -149,8 +150,8 @@ export type FledgeApi = {
     recent: () => Promise<LogLine[]>
   }
   updater: {
-    check: () => Promise<UpdateCheckResult>
-    apply: () => Promise<void>
+    check: (channel?: UpdateChannel) => Promise<UpdateCheckResult>
+    apply: (channel?: UpdateChannel) => Promise<void>
   }
   cache: {
     clear: () => Promise<void>
@@ -278,8 +279,8 @@ const api: FledgeApi = {
     recent: () => ipcRenderer.invoke(IPC.logsRecent),
   },
   updater: {
-    check: () => ipcRenderer.invoke(IPC.updaterCheck),
-    apply: () => ipcRenderer.invoke(IPC.updaterApply),
+    check: (channel) => ipcRenderer.invoke(IPC.updaterCheck, channel ?? 'stable'),
+    apply: (channel) => ipcRenderer.invoke(IPC.updaterApply, channel ?? 'stable'),
   },
   cache: {
     clear: () => ipcRenderer.invoke(IPC.cacheClear),

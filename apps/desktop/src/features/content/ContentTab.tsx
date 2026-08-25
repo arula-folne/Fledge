@@ -248,8 +248,14 @@ export function ContentTab({ instance }: Props) {
         </div>
       ) : (
         <ul className="min-h-0 flex-1 divide-y divide-[var(--color-border)] overflow-y-auto rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
-          {items.map((item) => (
-            <li key={item.id} className="flex items-center gap-3 px-3 py-2">
+          {items.map((item, index) => (
+            <li
+              key={item.id}
+              className={[
+                'flex items-center gap-3 px-3 py-2',
+                index % 2 === 1 ? 'bg-[var(--color-zebra)]' : 'bg-[var(--color-surface)]',
+              ].join(' ')}
+            >
               <button
                 type="button"
                 className="flex min-w-0 flex-1 items-center gap-3 text-left transition-colors hover:bg-[var(--color-hover)]/60 -mx-1 rounded-[var(--radius-sm)] px-1 py-0.5"

@@ -32,13 +32,13 @@ const COLOR_RAINBOW =
 function previewBg(mode: ThemeMode): string {
   switch (mode) {
     case 'light':
-      return '#e4e1dc'
+      return '#e8e4de'
     case 'dark':
-      return '#2c2c2e'
+      return '#525258'
     case 'oled':
       return '#000000'
     case 'system':
-      return 'linear-gradient(90deg, #2c2c2e 0 50%, #e4e1dc 50% 100%)'
+      return 'linear-gradient(90deg, #525258 0 50%, #e8e4de 50% 100%)'
     case 'color':
       return COLOR_RAINBOW
   }

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useId, useRef, useState } from 'react'
+import { IconUser } from '@tabler/icons-react'
 import { fledgeApi } from '../../api/fledgeApi'
 import { applyLoggedInAccount, loadSessionQuery, sessionQueryOptions } from './sessionCache'
 import { startLogin } from './loginAction'
@@ -9,6 +10,22 @@ import { Button } from '../../components/ui/Button'
 import { McFaceAvatar } from './McFaceAvatar'
 import { mcFaceUrl } from './mcFace'
 import { cropSkinFaceDataUrl } from './skinFace'
+
+function LoggedOutUserIcon({ size }: { size: number }) {
+  const iconSize = Math.round(size * 0.55)
+  return (
+    <div
+      className="flex shrink-0 items-center justify-center border border-[var(--color-border)] bg-[var(--color-accent-soft)] text-[var(--color-text-muted)]"
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size >= 40 ? 'var(--radius-md)' : 'var(--radius-sm)',
+      }}
+    >
+      <IconUser size={iconSize} stroke={1.75} aria-hidden />
+    </div>
+  )
+}
 
 export function AccountChip() {
   const { t } = useTranslation()
@@ -41,10 +58,12 @@ export function AccountChip() {
     queryFn: () => fledgeApi.settings.get(),
   })
   const selectedSkinId = settingsQuery.data?.selectedSkinId
+  const account = sessionQuery.data?.account
+  const loggedIn = Boolean(account)
 
   const chipFaceQuery = useQuery({
     queryKey: ['account-face', selectedSkinId, 32],
-    enabled: Boolean(selectedSkinId),
+    enabled: loggedIn && Boolean(selectedSkinId),
     staleTime: Infinity,
     queryFn: async () => {
       const dataUrl = await fledgeApi.skins.getDataUrl(selectedSkinId!)
@@ -54,7 +73,7 @@ export function AccountChip() {
   })
   const popupFaceQuery = useQuery({
     queryKey: ['account-face', selectedSkinId, 48],
-    enabled: Boolean(selectedSkinId) && open,
+    enabled: loggedIn && Boolean(selectedSkinId) && open,
     staleTime: Infinity,
     queryFn: async () => {
       const dataUrl = await fledgeApi.skins.getDataUrl(selectedSkinId!)
@@ -93,10 +112,11 @@ export function AccountChip() {
     }
   }, [open])
 
-  const account = sessionQuery.data?.account
   const accounts = accountsQuery.data ?? []
-  const faceUrl = chipFaceQuery.data ?? mcFaceUrl(account, 32)
-  const popupFaceUrl = popupFaceQuery.data ?? chipFaceQuery.data ?? mcFaceUrl(account, 48)
+  const faceUrl = loggedIn ? (chipFaceQuery.data ?? mcFaceUrl(account, 32)) : null
+  const popupFaceUrl = loggedIn
+    ? (popupFaceQuery.data ?? chipFaceQuery.data ?? mcFaceUrl(account, 48))
+    : null
   const secondaryLine =
     authStatus === 'expired' ? (
       <div className="text-xs leading-tight text-[var(--color-danger)]">{t('auth.reloginRequired')}</div>
@@ -142,13 +162,7 @@ export function AccountChip() {
           <div className="truncate font-medium leading-none text-[var(--color-text)]">{chipLabel}</div>
           {secondaryLine}
         </div>
-        {faceUrl ? (
-          <McFaceAvatar src={faceUrl} size={32} />
-        ) : (
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-accent-soft)] text-xs text-[var(--color-text-muted)]">
-            {(account?.displayName ?? '?').slice(0, 1)}
-          </div>
-        )}
+        {faceUrl ? <McFaceAvatar src={faceUrl} size={32} /> : <LoggedOutUserIcon size={32} />}
       </button>
 
       {open ? (
@@ -162,9 +176,7 @@ export function AccountChip() {
             {popupFaceUrl ? (
               <McFaceAvatar src={popupFaceUrl} size={48} radius="md" />
             ) : (
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-accent-soft)] text-sm font-semibold text-[var(--color-text)]">
-                {(account?.displayName ?? '?').slice(0, 1)}
-              </div>
+              <LoggedOutUserIcon size={48} />
             )}
             <div className="min-w-0 space-y-1">
               <p className="truncate text-sm font-semibold text-[var(--color-text)]">

@@ -91,7 +91,7 @@ function buildGradientGrid(): ThemeColor[] {
   for (const light of LIGHT_STEPS) {
     for (let i = 0; i < HUE_STEPS; i++) {
       const hue = (i / HUE_STEPS) * 360
-      const sat = light >= 78 ? 55 : light <= 34 ? 72 : 68
+      const sat = light >= 78 ? 68 : light <= 34 ? 78 : 74
       cells.push(hslToRgb(hue, sat, light))
     }
   }

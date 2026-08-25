@@ -144,31 +144,40 @@ export function InstanceLaunchButton({
   const showError = Boolean(errorMessageKey && errorProfileId === instanceId)
 
   return (
-    <div className={size === 'sm' ? 'shrink-0' : 'space-y-2'} onClick={stop}>
-      {action}
-      {showProgressBlock && size !== 'sm' ? (
-        <div className="min-w-[12rem] space-y-1.5">
-          <div className="text-xs text-[var(--color-text-muted)]">
-            {formatProgressMessage(t, progress?.messageKey ?? phaseMessageKey, progress?.meta)}
-          </div>
-          <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-accent-soft)]">
-            <div
-              className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-150"
-              style={{ width: `${Math.min(100, Math.max(4, percent))}%` }}
-            />
-          </div>
-        </div>
-      ) : null}
+    <div
+      className={
+        size === 'sm'
+          ? 'shrink-0'
+          : 'flex max-w-full items-start justify-end gap-2'
+      }
+      onClick={stop}
+    >
       {showError && size !== 'sm' ? (
-        <div className="max-w-[18rem] rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2 py-1.5 text-xs text-[var(--color-danger)]">
+        <div className="min-w-0 max-w-[18rem] self-center rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2 py-1.5 text-xs text-[var(--color-danger)]">
           {t(errorMessageKey!)}
         </div>
       ) : null}
-      {showError && size === 'sm' ? (
-        <div className="mt-1 max-w-[10rem] rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-1.5 py-1 text-[10px] leading-snug text-[var(--color-danger)]">
-          {t(errorMessageKey!)}
-        </div>
-      ) : null}
+      <div className={size === 'sm' ? undefined : 'shrink-0 space-y-2'}>
+        {action}
+        {showProgressBlock && size !== 'sm' ? (
+          <div className="min-w-[12rem] space-y-1.5">
+            <div className="text-xs text-[var(--color-text-muted)]">
+              {formatProgressMessage(t, progress?.messageKey ?? phaseMessageKey, progress?.meta)}
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-accent-soft)]">
+              <div
+                className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-150"
+                style={{ width: `${Math.min(100, Math.max(4, percent))}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
+        {showError && size === 'sm' ? (
+          <div className="mt-1 max-w-[10rem] rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-1.5 py-1 text-[10px] leading-snug text-[var(--color-danger)]">
+            {t(errorMessageKey!)}
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }

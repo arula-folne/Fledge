@@ -50,15 +50,30 @@ function softMute(
   return blendRgb(c, { r: y, g: y, b: y }, amount)
 }
 
-const NEUTRAL_LIGHT = { r: 228, g: 225, b: 220 } // #e4e1dc
-const NEUTRAL_LIGHT_SURFACE = { r: 238, g: 235, b: 230 } // #eeebe6
-const NEUTRAL_LIGHT_INPUT = { r: 242, g: 239, b: 233 } // #f2efe9
-const NEUTRAL_LIGHT_BORDER = { r: 212, g: 207, b: 200 } // #d4cfc8
-const NEUTRAL_LIGHT_BODY_TOP = { r: 231, g: 228, b: 222 }
-const NEUTRAL_LIGHT_BODY_BOT = { r: 221, g: 217, b: 211 }
-const NEUTRAL_DARK = { r: 44, g: 44, b: 46 } // #2c2c2e
-const NEUTRAL_DARK_SURFACE = { r: 54, g: 54, b: 56 }
-const NEUTRAL_DARK_INPUT = { r: 37, g: 37, b: 39 }
+/** 彩度を少し上げて鮮やかにする（ライト用アクセント） */
+function boostChroma(
+  c: { r: number; g: number; b: number },
+  amount = 0.18,
+): { r: number; g: number; b: number } {
+  const y = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
+  return {
+    r: clampByte(y + (c.r - y) * (1 + amount)),
+    g: clampByte(y + (c.g - y) * (1 + amount)),
+    b: clampByte(y + (c.b - y) * (1 + amount)),
+  }
+}
+
+const NEUTRAL_LIGHT = { r: 232, g: 228, b: 222 }
+const NEUTRAL_LIGHT_SURFACE = { r: 248, g: 246, b: 242 }
+const NEUTRAL_LIGHT_INPUT = { r: 252, g: 251, b: 248 }
+const NEUTRAL_LIGHT_BORDER = { r: 210, g: 205, b: 198 }
+const NEUTRAL_LIGHT_BODY_TOP = { r: 238, g: 234, b: 228 }
+const NEUTRAL_LIGHT_BODY_BOT = { r: 226, g: 222, b: 216 }
+const NEUTRAL_LIGHT_ZEBRA = { r: 240, g: 236, b: 230 }
+const NEUTRAL_DARK = { r: 82, g: 82, b: 88 }
+const NEUTRAL_DARK_SURFACE = { r: 96, g: 96, b: 102 }
+const NEUTRAL_DARK_INPUT = { r: 74, g: 74, b: 80 }
+const NEUTRAL_DARK_ZEBRA = { r: 88, g: 88, b: 94 }
 
 type ThemeTokens = {
   bg: string
@@ -72,108 +87,120 @@ type ThemeTokens = {
   hover: string
   onAccent: string
   scrollbar: string
+  zebra: string
   scheme: 'light' | 'dark'
   bodyBg: string
 }
 
 function tokensForLight(): ThemeTokens {
   return {
-    bg: '#e4e1dc',
-    surface: '#eeebe6',
-    input: '#f2efe9',
-    border: '#d4cfc8',
+    bg: '#e8e4de',
+    surface: '#f8f6f2',
+    input: '#fcfbf8',
+    border: '#d2cdc6',
     text: '#2c2a27',
     textMuted: '#6e6a64',
-    accent: '#5a8fb0',
-    accentSoft: '#e4e0da',
-    hover: 'rgba(44, 42, 39, 0.06)',
-    onAccent: '#f4f1eb',
-    scrollbar: '#b0aba5',
+    accent: '#5fa0c4',
+    accentSoft: '#eee9e2',
+    hover: 'rgba(44, 42, 39, 0.07)',
+    onAccent: '#f8f6f2',
+    scrollbar: '#b4aea6',
+    zebra: '#f0ece6',
     scheme: 'light',
-    bodyBg: 'linear-gradient(180deg, #e7e4de 0%, #ddd9d3 100%)',
+    bodyBg: 'linear-gradient(180deg, #eeeae4 0%, #e4e0da 100%)',
   }
 }
 
 function tokensForDark(): ThemeTokens {
   return {
-    bg: '#2c2c2e',
-    surface: '#363638',
-    input: '#252527',
-    border: '#48484a',
-    text: '#f2f2f4',
-    textMuted: '#a1a1a6',
-    accent: '#6bb0df',
-    accentSoft: '#3a4550',
-    hover: 'rgba(242, 242, 244, 0.08)',
+    bg: '#525258',
+    surface: '#606068',
+    input: '#4a4a50',
+    border: '#74747c',
+    text: '#f5f5f7',
+    textMuted: '#c0c0c6',
+    accent: '#8ec8ef',
+    accentSoft: '#555a64',
+    hover: 'rgba(245, 245, 247, 0.11)',
     onAccent: '#1a1a1c',
-    scrollbar: '#555558',
+    scrollbar: '#7a7a82',
+    zebra: '#585860',
     scheme: 'dark',
-    bodyBg: 'linear-gradient(180deg, #2c2c2e 0%, #262628 100%)',
+    bodyBg: 'linear-gradient(180deg, #56565c 0%, #4e4e54 100%)',
   }
 }
 
 function tokensForOled(): ThemeTokens {
   return {
     bg: '#000000',
-    surface: '#0c0c0c',
+    surface: '#121212',
     input: '#050505',
     border: '#2a2a2a',
     text: '#f5f5f5',
     textMuted: '#a3a3a3',
-    accent: '#6bb0df',
+    accent: '#8ec8ef',
     accentSoft: '#161616',
     hover: 'rgba(255, 255, 255, 0.08)',
     onAccent: '#000000',
     scrollbar: '#333333',
+    zebra: '#0a0a0a',
     scheme: 'dark',
     bodyBg: '#000000',
   }
 }
 
-/** 色の明るさでライト／ダークベースを自動判定。彩度は少し抑えつつ色味はしっかり出す */
+/**
+ * 色テーマ。
+ * ライトベース: 通常ライトに近い面色 + アクセントは鮮やかめ。
+ * ダークベース: 面の明暗差は控えめ。
+ */
 function tokensForColor(r: number, g: number, b: number): ThemeTokens {
   const colorBase = { r, g, b }
   const darkFg = relativeLuminance(r, g, b) < 0.42
-  const muted = softMute(colorBase, 0.14)
   const white = { r: 255, g: 255, b: 255 }
   const black = { r: 0, g: 0, b: 0 }
 
   if (darkFg) {
-    const tint = softMute(colorBase, 0.16)
+    const tint = softMute(colorBase, 0.1)
+    const accentBase = boostChroma(softMute(colorBase, 0.06), 0.12)
     return {
-      bg: mixRgb(NEUTRAL_DARK, tint, 0.34),
-      surface: mixRgb(NEUTRAL_DARK_SURFACE, tint, 0.3),
-      input: mixRgb(NEUTRAL_DARK_INPUT, tint, 0.24),
-      border: mixRgb({ r: 72, g: 72, b: 74 }, tint, 0.34),
-      text: '#f2f2f4',
-      textMuted: '#a1a1a6',
-      accent: mixRgb(muted, white, 0.28),
-      accentSoft: `rgba(${muted.r}, ${muted.g}, ${muted.b}, 0.22)`,
-      hover: 'rgba(242, 242, 244, 0.08)',
+      bg: mixRgb(NEUTRAL_DARK, tint, 0.38),
+      surface: mixRgb(NEUTRAL_DARK_SURFACE, tint, 0.34),
+      input: mixRgb(NEUTRAL_DARK_INPUT, tint, 0.26),
+      border: mixRgb({ r: 116, g: 116, b: 124 }, tint, 0.34),
+      text: '#f5f5f7',
+      textMuted: '#c0c0c6',
+      accent: mixRgb(accentBase, white, 0.34),
+      accentSoft: `rgba(${tint.r}, ${tint.g}, ${tint.b}, 0.28)`,
+      hover: 'rgba(245, 245, 247, 0.11)',
       onAccent: '#1a1a1c',
-      scrollbar: mixRgb({ r: 85, g: 85, b: 88 }, tint, 0.32),
+      scrollbar: mixRgb({ r: 122, g: 122, b: 130 }, tint, 0.32),
+      zebra: mixRgb(NEUTRAL_DARK_ZEBRA, tint, 0.32),
       scheme: 'dark',
-      bodyBg: `linear-gradient(180deg, ${mixRgb(NEUTRAL_DARK, tint, 0.28)} 0%, ${mixRgb(NEUTRAL_DARK, black, 0.22)} 100%)`,
+      bodyBg: `linear-gradient(180deg, ${mixRgb(NEUTRAL_DARK, tint, 0.18)} 0%, ${mixRgb(NEUTRAL_DARK, black, 0.06)} 100%)`,
     }
   }
 
-  const tint = softMute(colorBase, 0.32)
+  // ライトベース: 背景はニュートラル寄り、色はアクセントで主張
+  const tint = softMute(colorBase, 0.1)
+  const vivid = boostChroma(softMute(colorBase, 0.02), 0.22)
   const lum = relativeLuminance(r, g, b)
-  const mix = 0.1 + 0.16 * (1 - Math.min(1, (lum - 0.42) / 0.58))
+  const mix = 0.04 + 0.1 * (1 - Math.min(1, (lum - 0.42) / 0.58))
   return {
     bg: mixRgb(NEUTRAL_LIGHT, tint, mix),
-    surface: mixRgb(NEUTRAL_LIGHT_SURFACE, tint, mix * 0.7),
-    input: mixRgb(NEUTRAL_LIGHT_INPUT, tint, mix * 0.4),
-    border: mixRgb(NEUTRAL_LIGHT_BORDER, tint, 0.2),
+    surface: mixRgb(NEUTRAL_LIGHT_SURFACE, tint, mix * 0.45),
+    input: mixRgb(NEUTRAL_LIGHT_INPUT, tint, mix * 0.28),
+    border: mixRgb(NEUTRAL_LIGHT_BORDER, tint, 0.16),
     text: '#2c2a27',
     textMuted: '#6e6a64',
-    accent: mixRgb(softMute(colorBase, 0.18), black, 0.2),
-    accentSoft: mixRgb(NEUTRAL_LIGHT_SURFACE, tint, 0.18),
-    hover: 'rgba(44, 42, 39, 0.06)',
+    accent: mixRgb(vivid, black, 0.02),
+    accentSoft: mixRgb(NEUTRAL_LIGHT_SURFACE, vivid, 0.32),
+    hover: 'rgba(44, 42, 39, 0.07)',
     onAccent: '#f4f1eb',
-    scrollbar: mixRgb({ r: 176, g: 172, b: 166 }, tint, 0.24),
+    scrollbar: mixRgb({ r: 168, g: 162, b: 154 }, tint, 0.2),
+    zebra: mixRgb(NEUTRAL_LIGHT_ZEBRA, tint, mix * 0.55),
     scheme: 'light',
-    bodyBg: `linear-gradient(180deg, ${mixRgb(NEUTRAL_LIGHT_BODY_TOP, tint, mix * 0.8)} 0%, ${mixRgb(NEUTRAL_LIGHT_BODY_BOT, tint, mix * 0.7)} 100%)`,
+    bodyBg: `linear-gradient(180deg, ${mixRgb(NEUTRAL_LIGHT_BODY_TOP, tint, mix * 0.7)} 0%, ${mixRgb(NEUTRAL_LIGHT_BODY_BOT, tint, mix * 0.55)} 100%)`,
   }
 }
 
@@ -190,6 +217,7 @@ function applyTokens(tokens: ThemeTokens): void {
   root.style.setProperty('--color-hover', tokens.hover)
   root.style.setProperty('--color-on-accent', tokens.onAccent)
   root.style.setProperty('--color-scrollbar', tokens.scrollbar)
+  root.style.setProperty('--color-zebra', tokens.zebra)
   root.style.setProperty('color-scheme', tokens.scheme)
   root.style.color = tokens.text
   document.body.style.background = tokens.bodyBg
@@ -229,19 +257,18 @@ export function themeColorSwatchPreview(color: ThemeColor): string {
 
   let applied: ThemeColor
   if (darkFg) {
-    const tint = softMute(c, 0.16)
-    const surface = blendRgb(NEUTRAL_DARK_SURFACE, tint, 0.3)
-    const accent = blendRgb(softMute(c, 0.14), white, 0.28)
+    const tint = softMute(c, 0.1)
+    const surface = blendRgb(NEUTRAL_DARK_SURFACE, tint, 0.34)
+    const accent = blendRgb(boostChroma(softMute(c, 0.06), 0.12), white, 0.34)
     applied = blendRgb(surface, accent, 0.55)
   } else {
-    const tint = softMute(c, 0.32)
-    const surface = blendRgb(NEUTRAL_LIGHT_SURFACE, tint, 0.18)
-    const accent = blendRgb(softMute(c, 0.18), black, 0.2)
-    applied = blendRgb(surface, accent, 0.4)
+    const tint = softMute(c, 0.1)
+    const surface = blendRgb(NEUTRAL_LIGHT_SURFACE, tint, 0.12)
+    const accent = blendRgb(boostChroma(softMute(c, 0.02), 0.22), black, 0.06)
+    applied = blendRgb(surface, accent, 0.45)
   }
 
-  // 純色を少し残しつつ、実際の反映色に寄せる
-  const shown = blendRgb(c, applied, 0.58)
+  const shown = blendRgb(c, applied, 0.5)
   return `rgb(${shown.r}, ${shown.g}, ${shown.b})`
 }
 
@@ -265,16 +292,19 @@ export function scheduleThemeColorPreview(color: ThemeColor): void {
     previewPending = null
     if (!c) return
     const darkFg = relativeLuminance(c.r, c.g, c.b) < 0.42
-    const muted = softMute(c, darkFg ? 0.14 : 0.18)
-    const accent = darkFg
-      ? mixRgb(muted, { r: 255, g: 255, b: 255 }, 0.28)
-      : mixRgb(muted, { r: 0, g: 0, b: 0 }, 0.2)
-    const soft = darkFg
-      ? `rgba(${muted.r}, ${muted.g}, ${muted.b}, 0.22)`
-      : mixRgb(NEUTRAL_LIGHT_SURFACE, muted, 0.18)
     const root = document.documentElement
-    root.style.setProperty('--color-accent', accent)
-    root.style.setProperty('--color-accent-soft', soft)
+    if (darkFg) {
+      const muted = softMute(c, 0.06)
+      const accent = mixRgb(boostChroma(muted, 0.12), { r: 255, g: 255, b: 255 }, 0.34)
+      root.style.setProperty('--color-accent', accent)
+      root.style.setProperty('--color-accent-soft', `rgba(${muted.r}, ${muted.g}, ${muted.b}, 0.28)`)
+    } else {
+      const vivid = boostChroma(softMute(c, 0.02), 0.22)
+      const accent = mixRgb(vivid, { r: 0, g: 0, b: 0 }, 0.02)
+      const soft = mixRgb(NEUTRAL_LIGHT_SURFACE, vivid, 0.32)
+      root.style.setProperty('--color-accent', accent)
+      root.style.setProperty('--color-accent-soft', soft)
+    }
   })
 }
 

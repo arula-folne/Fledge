@@ -26,6 +26,10 @@ export {
   mergeMinecraftOptionsFile,
   mergeMinecraftDebugOverlayFile,
   applyMinecraftInitialSettingsToInstance,
+  ensureMinecraftInitialSettingsApplied,
+  verifyMinecraftOptionsFile,
+  verifyMinecraftDebugOverlayFile,
+  MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION,
 } from './minecraft/minecraftInitialOptions.js'
 export { VersionService } from './versions/VersionService.js'
 export type { MinecraftVersionProvider, LoaderVersionProvider } from './versions/VersionProvider.js'

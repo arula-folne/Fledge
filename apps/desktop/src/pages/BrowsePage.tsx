@@ -13,10 +13,8 @@ import {
 import { fledgeApi } from '../api/fledgeApi'
 import { PageNav } from '../components/ui/PageNav'
 import { ListPickDialog } from '../components/ui/ListPickDialog'
-import { formatJaCount } from '../utils/formatJaCount'
 import { ContentBrowseFilters } from '../features/content/ContentBrowseFilters'
-import { ContentInstallButton } from '../features/content/ContentInstallButton'
-import { ProjectTagRow } from '../features/content/ContentTags'
+import { ContentSearchHitRow } from '../features/content/ContentSearchHitRow'
 import { ContentCategoryLabel } from '../features/content/contentCategoryIcons'
 import { useModrinthTagIcons } from '../features/content/useModrinthTagIcons'
 
@@ -418,67 +416,23 @@ export default function BrowsePage() {
               <p className="text-sm text-[var(--color-text-muted)]">{t('content.noResults')}</p>
             ) : (
               <ul className="divide-y divide-[var(--color-border)] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
-                {hits.map((hit) => (
-                  <li key={`${hit.provider}:${hit.id}`}>
-                    <div className="flex items-start gap-3 px-3.5 py-3">
-                      <button
-                        type="button"
-                        className="flex min-w-0 flex-1 items-start gap-3 text-left"
-                        onClick={() => {
-                          setError(null)
-                          setSelectedProject(hit)
-                        }}
-                      >
-                        {hit.iconUrl ? (
-                          <img
-                            src={hit.iconUrl}
-                            alt=""
-                            width={48}
-                            height={48}
-                            loading="lazy"
-                            decoding="async"
-                            className="size-12 shrink-0 rounded-[var(--radius-sm)] object-cover"
-                          />
-                        ) : (
-                          <div className="size-12 shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)]" />
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <div className="flex min-w-0 items-baseline gap-2">
-                            <span className="truncate text-base font-medium leading-snug">{hit.name}</span>
-                            {hit.author ? (
-                              <span className="truncate text-sm text-[var(--color-text-muted)]">{hit.author}</span>
-                            ) : null}
-                            <span className="ml-auto shrink-0 text-sm tabular-nums text-[var(--color-text-muted)]">
-                              {formatJaCount(hit.downloads)}
-                            </span>
-                          </div>
-                          {hit.description ? (
-                            <p className="mt-0.5 line-clamp-2 break-words text-sm leading-relaxed text-[var(--color-text-muted)]">
-                              {hit.description}
-                            </p>
-                          ) : null}
-                          <div className="mt-0.5">
-                            <ProjectTagRow
-                              categories={hit.displayCategories ?? []}
-                              loaders={hit.loaders ?? []}
-                              tagIcons={tagIcons}
-                            />
-                          </div>
-                        </div>
-                      </button>
-                      <div className="shrink-0 self-center">
-                        <ContentInstallButton
-                          size="sm"
-                          mode="create"
-                          installing={
-                            createMutation.isPending && createMutation.variables?.id === hit.id
-                          }
-                          installed={false}
-                          onInstall={() => requestCreateWithVersion(hit)}
-                        />
-                      </div>
-                    </div>
-                  </li>
+                {hits.map((hit, index) => (
+                  <ContentSearchHitRow
+                    key={`${hit.provider}:${hit.id}`}
+                    hit={hit}
+                    index={index}
+                    tagIcons={tagIcons}
+                    mode="create"
+                    installing={
+                      createMutation.isPending && createMutation.variables?.id === hit.id
+                    }
+                    installed={false}
+                    onOpen={() => {
+                      setError(null)
+                      setSelectedProject(hit)
+                    }}
+                    onInstall={() => requestCreateWithVersion(hit)}
+                  />
                 ))}
               </ul>
             )}

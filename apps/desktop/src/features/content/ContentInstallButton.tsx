@@ -15,11 +15,11 @@ type Props = {
 }
 
 const sizeClass = {
-  md: 'h-11 min-w-[10rem] whitespace-nowrap px-3 text-sm',
-  sm: 'h-10 min-w-[9.5rem] whitespace-nowrap px-2.5 text-sm',
+  md: 'h-[3.25rem] min-w-[10rem] whitespace-nowrap px-3 text-base',
+  sm: 'h-12 min-w-[9.5rem] whitespace-nowrap px-2.5 text-[0.9375rem]',
 } as const
 
-const versionSizeClass = 'h-9 min-w-[9rem] whitespace-nowrap px-2.5 text-xs'
+const versionSizeClass = 'h-11 min-w-[9rem] whitespace-nowrap px-2.5 text-sm'
 
 function InstallIcon({ installed }: { installed: boolean }) {
   return (
@@ -58,7 +58,7 @@ function InstallLabel({
   mode: 'install' | 'create'
 }) {
   const { t } = useTranslation()
-  const labelClass = compact ? 'text-xs' : 'text-sm'
+  const labelClass = compact ? 'text-sm' : 'text-base'
   const idleLabel = mode === 'create' ? t('content.createInstance') : t('content.install')
   const busyLabel = mode === 'create' ? t('content.creatingInstance') : t('content.installing')
   const doneLabel = mode === 'create' ? t('content.createInstance') : t('content.installed')
@@ -119,7 +119,7 @@ export function ContentInstallButton({
         'active:scale-[0.98] disabled:cursor-default disabled:active:scale-100',
         installed
           ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] opacity-80 shadow-none'
-          : 'border-transparent bg-[rgb(152,196,216)] text-[rgb(36,78,102)] hover:brightness-105 disabled:opacity-50',
+          : 'border-transparent bg-[rgb(176,214,232)] text-[rgb(36,78,102)] hover:brightness-110 disabled:opacity-50',
         dim,
         className,
       ].join(' ')}
@@ -163,7 +163,7 @@ export function ContentVersionInstallButton({
         'active:scale-[0.98] disabled:cursor-default disabled:active:scale-100',
         installed
           ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] opacity-80'
-          : 'border-transparent bg-[rgb(152,196,216)] text-[rgb(36,78,102)] hover:brightness-105 disabled:opacity-50',
+          : 'border-transparent bg-[rgb(176,214,232)] text-[rgb(36,78,102)] hover:brightness-110 disabled:opacity-50',
         versionSizeClass,
       ].join(' ')}
       onClick={installed || installing ? undefined : onInstall}

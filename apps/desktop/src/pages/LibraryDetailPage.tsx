@@ -297,7 +297,7 @@ export default function LibraryDetailPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <header className="flex shrink-0 flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
+      <header className="flex min-h-[4.75rem] shrink-0 flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3">
         <Button
           variant="ghost"
           className="shrink-0 px-1.5 py-1.5"
@@ -311,7 +311,7 @@ export default function LibraryDetailPage() {
           preset={settingsOpen ? draft.iconPreset : undefined}
           size="md"
         />
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 self-center">
           <h1 className="truncate text-base font-semibold leading-snug text-[var(--color-text)]">
             {instance.name}
           </h1>
@@ -321,16 +321,16 @@ export default function LibraryDetailPage() {
             {formatLastPlayed(instance.lastPlayedAt, t)}
           </p>
         </div>
-        <div className="flex shrink-0 items-start gap-1">
-          <InstanceLaunchButton instanceId={instance.id} />
+        <div className="flex min-h-[2.75rem] shrink-0 items-start gap-1.5">
+          <InstanceLaunchButton instanceId={instance.id} showProgress />
           <Button
             variant="ghost"
-            className="size-9 rounded-full p-0"
+            className="size-11 shrink-0 rounded-full p-0"
             title={t('library.tab.settings')}
             aria-label={t('library.tab.settings')}
             onClick={() => setEditingInstanceId(instance.id)}
           >
-            <IconSettings size={20} stroke={1.65} />
+            <IconSettings size={26} stroke={1.6} />
           </Button>
         </div>
       </header>

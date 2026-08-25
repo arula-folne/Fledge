@@ -6,6 +6,7 @@ import {
   compareVersions,
   fledgeUserAgent,
   normalizeReleaseVersion,
+  type UpdateChannel,
   type UpdateCheckResult,
 } from '@fledge/shared'
 import type { PathLayout } from '../app/paths.js'
@@ -20,12 +21,13 @@ type GithubReleaseAsset = {
 type GithubRelease = {
   tag_name: string
   html_url: string
+  body?: string | null
   assets: GithubReleaseAsset[]
   draft?: boolean
   prerelease?: boolean
 }
 
-type UpdaterCache = {
+type ChannelCache = {
   fetchedAt: string
   result: UpdateCheckResult
 }
@@ -45,6 +47,12 @@ function findWindowsInstaller(assets: GithubReleaseAsset[]): GithubReleaseAsset 
   )
 }
 
+function normalizeNotes(body: string | null | undefined): string | undefined {
+  if (typeof body !== 'string') return undefined
+  const trimmed = body.replace(/\r\n/g, '\n').trim()
+  return trimmed.length > 0 ? trimmed : undefined
+}
+
 /**
  * キャッシュ結果を実行中バイナリの APP_VERSION に合わせて解釈する。
  * すでに次版以上なら up-to-date。currentVersion 不一致なら再取得させる。
@@ -59,6 +67,9 @@ export function reconcileCachedUpdateResult(
       currentVersion,
       nextVersion: cached.nextVersion,
       releaseUrl: cached.releaseUrl,
+      releaseNotes: cached.releaseNotes,
+      prerelease: cached.prerelease,
+      channel: cached.channel,
     }
   }
 
@@ -74,65 +85,77 @@ export function reconcileCachedUpdateResult(
 }
 
 /**
- * GitHub Releases の latest を参照し、新しいインストーラーがあれば更新を案内する。
+ * GitHub Releases を参照し、新しいインストーラーがあれば更新を案内する。
+ * - stable: /releases/latest（プレリリース除外）
+ * - prerelease: /releases 一覧の最新（プレリリース含む）
  */
 export class GithubReleaseUpdater implements Updater {
-  private refreshTail: Promise<UpdateCheckResult> | null = null
-  private pending: PendingInstaller | null = null
+  private refreshTail = new Map<UpdateChannel, Promise<UpdateCheckResult>>()
+  private pending = new Map<UpdateChannel, PendingInstaller>()
 
   constructor(private readonly layout: PathLayout) {}
 
-  async check(): Promise<UpdateCheckResult> {
-    const cached = await this.readCache()
+  async check(channel: UpdateChannel = 'stable'): Promise<UpdateCheckResult> {
+    const cached = await this.readCache(channel)
     if (cached && this.isCacheFresh(cached.fetchedAt)) {
       const reconciled = reconcileCachedUpdateResult(cached.result, APP_VERSION)
       if (reconciled) {
-        if (reconciled.status !== cached.result.status || reconciled.currentVersion !== cached.result.currentVersion) {
-          await this.writeCache(reconciled)
+        if (
+          reconciled.status !== cached.result.status ||
+          reconciled.currentVersion !== cached.result.currentVersion
+        ) {
+          await this.writeCache(channel, reconciled)
         }
-        this.syncPending(reconciled)
+        this.syncPending(channel, reconciled)
         return reconciled
       }
     }
 
-    if (this.refreshTail) return this.refreshTail
+    const inflight = this.refreshTail.get(channel)
+    if (inflight) return inflight
 
-    this.refreshTail = this.fetchAndResolve()
+    const refresh = this.fetchAndResolve(channel)
       .catch(async () => {
         if (cached) {
           const reconciled = reconcileCachedUpdateResult(cached.result, APP_VERSION)
           if (reconciled) {
-            this.syncPending(reconciled)
+            this.syncPending(channel, reconciled)
             return reconciled
           }
         }
-        return { status: 'unavailable', messageKey: 'updater.fetchFailed' } satisfies UpdateCheckResult
+        return {
+          status: 'unavailable',
+          messageKey: 'updater.fetchFailed',
+          channel,
+        } satisfies UpdateCheckResult
       })
       .finally(() => {
-        this.refreshTail = null
+        this.refreshTail.delete(channel)
       })
 
-    return this.refreshTail
+    this.refreshTail.set(channel, refresh)
+    return refresh
   }
 
-  async downloadInstaller(): Promise<string> {
-    let result = await this.check()
+  async downloadInstaller(channel: UpdateChannel = 'stable'): Promise<string> {
+    let result = await this.check(channel)
     if (result.status !== 'available' || !result.downloadUrl) {
-      result = await this.fetchAndResolve()
+      result = await this.fetchAndResolve(channel)
     }
-    if (result.status !== 'available' || !this.pending) {
+    const pending = this.pending.get(channel)
+    if (result.status !== 'available' || !pending) {
       throw new Error(result.messageKey ?? 'updater.noAsset')
     }
 
     const dir = path.join(this.layout.temp, 'updates')
     await fs.mkdir(dir, { recursive: true })
-    const target = path.join(dir, this.pending.fileName)
+    const target = path.join(dir, pending.fileName)
 
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), UPDATER.fetchTimeoutMs * 4)
 
     try {
-      const res = await fetch(this.pending.downloadUrl, {
+      const res = await fetch(pending.downloadUrl, {
         signal: controller.signal,
         redirect: 'follow',
         headers: { 'User-Agent': fledgeUserAgent('updater-download') },
@@ -140,9 +163,9 @@ export class GithubReleaseUpdater implements Updater {
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
       const bytes = Buffer.from(await res.arrayBuffer())
-      if (this.pending.expectedSize != null && bytes.byteLength !== this.pending.expectedSize) {
+      if (pending.expectedSize != null && bytes.byteLength !== pending.expectedSize) {
         throw new Error(
-          `Installer size mismatch: expected ${this.pending.expectedSize}, got ${bytes.byteLength}`,
+          `Installer size mismatch: expected ${pending.expectedSize}, got ${bytes.byteLength}`,
         )
       }
       await fs.writeFile(target, bytes)
@@ -155,35 +178,37 @@ export class GithubReleaseUpdater implements Updater {
   }
 
   async clearCache(): Promise<void> {
-    this.pending = null
-    try {
-      await fs.unlink(this.cachePath())
-    } catch {
-      /* missing is fine */
+    this.pending.clear()
+    for (const channel of ['stable', 'prerelease'] as const) {
+      try {
+        await fs.unlink(this.cachePath(channel))
+      } catch {
+        /* missing is fine */
+      }
     }
   }
 
-  private syncPending(result: UpdateCheckResult): void {
+  private syncPending(channel: UpdateChannel, result: UpdateCheckResult): void {
     if (result.status === 'available' && result.downloadUrl) {
       const fileName = path.basename(new URL(result.downloadUrl).pathname)
-      this.pending = {
+      this.pending.set(channel, {
         downloadUrl: result.downloadUrl,
         fileName,
         expectedSize: result.downloadSize,
-      }
+      })
     } else {
-      this.pending = null
+      this.pending.delete(channel)
     }
   }
 
-  private cachePath(): string {
-    return path.join(this.layout.cache, 'updater-check.json')
+  private cachePath(channel: UpdateChannel): string {
+    return path.join(this.layout.cache, `updater-check-${channel}.json`)
   }
 
-  private async readCache(): Promise<UpdaterCache | null> {
+  private async readCache(channel: UpdateChannel): Promise<ChannelCache | null> {
     try {
-      const raw = await fs.readFile(this.cachePath(), 'utf8')
-      const parsed = JSON.parse(raw) as UpdaterCache
+      const raw = await fs.readFile(this.cachePath(channel), 'utf8')
+      const parsed = JSON.parse(raw) as ChannelCache
       if (!parsed?.fetchedAt || !parsed.result) return null
       return parsed
     } catch {
@@ -196,16 +221,18 @@ export class GithubReleaseUpdater implements Updater {
     return Number.isFinite(age) && age >= 0 && age < UPDATER.cacheTtlMs
   }
 
-  private async writeCache(result: UpdateCheckResult): Promise<void> {
+  private async writeCache(channel: UpdateChannel, result: UpdateCheckResult): Promise<void> {
     await fs.mkdir(this.layout.cache, { recursive: true })
-    const payload: UpdaterCache = { fetchedAt: new Date().toISOString(), result }
-    await fs.writeFile(this.cachePath(), `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
+    const payload: ChannelCache = { fetchedAt: new Date().toISOString(), result }
+    await fs.writeFile(this.cachePath(channel), `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
   }
 
-  private async fetchAndResolve(): Promise<UpdateCheckResult> {
-    const release = await this.fetchLatestRelease()
+  private async fetchAndResolve(channel: UpdateChannel): Promise<UpdateCheckResult> {
+    const release = await this.fetchRelease(channel)
     const nextVersion = normalizeReleaseVersion(release.tag_name)
     const currentVersion = APP_VERSION
+    const releaseNotes = normalizeNotes(release.body)
+    const isPrerelease = Boolean(release.prerelease)
 
     if (compareVersions(currentVersion, nextVersion) >= 0) {
       const result: UpdateCheckResult = {
@@ -213,9 +240,12 @@ export class GithubReleaseUpdater implements Updater {
         currentVersion,
         nextVersion,
         releaseUrl: release.html_url,
+        releaseNotes,
+        prerelease: isPrerelease,
+        channel,
       }
-      this.syncPending(result)
-      await this.writeCache(result)
+      this.syncPending(channel, result)
+      await this.writeCache(channel, result)
       return result
     }
 
@@ -227,9 +257,12 @@ export class GithubReleaseUpdater implements Updater {
         currentVersion,
         nextVersion,
         releaseUrl: release.html_url,
+        releaseNotes,
+        prerelease: isPrerelease,
+        channel,
       }
-      this.syncPending(result)
-      await this.writeCache(result)
+      this.syncPending(channel, result)
+      await this.writeCache(channel, result)
       return result
     }
 
@@ -240,32 +273,36 @@ export class GithubReleaseUpdater implements Updater {
       downloadUrl: asset.browser_download_url,
       downloadSize: asset.size,
       releaseUrl: release.html_url,
+      releaseNotes,
+      prerelease: isPrerelease,
+      channel,
     }
-    this.syncPending(result)
-    await this.writeCache(result)
+    this.syncPending(channel, result)
+    await this.writeCache(channel, result)
     return result
   }
 
-  private async fetchLatestRelease(): Promise<GithubRelease> {
+  private async fetchRelease(channel: UpdateChannel): Promise<GithubRelease> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), UPDATER.fetchTimeoutMs)
 
     try {
-      const includePrereleases = /(?:a|b|rc)$/i.test(APP_VERSION)
-      const res = await fetch(
-        includePrereleases ? UPDATER.releasesUrl : UPDATER.latestReleaseUrl,
-        {
+      const url = channel === 'stable' ? UPDATER.latestReleaseUrl : UPDATER.releasesUrl
+      const res = await fetch(url, {
         signal: controller.signal,
         redirect: 'follow',
         headers: {
           Accept: 'application/vnd.github+json',
           'User-Agent': fledgeUserAgent('updater-check'),
         },
-        },
-      )
+      })
       if (!res.ok) throw new Error(`Release fetch failed: HTTP ${res.status}`)
       const payload = (await res.json()) as GithubRelease | GithubRelease[]
-      if (!Array.isArray(payload)) return payload
+
+      if (!Array.isArray(payload)) {
+        if (payload.draft) throw new Error('Latest GitHub release is a draft')
+        return payload
+      }
 
       const releases = payload
         .filter((release) => !release.draft)

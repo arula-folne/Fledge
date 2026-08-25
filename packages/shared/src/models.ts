@@ -95,6 +95,10 @@ export const InstanceProfileSchema = z.object({
   minecraftInitialSettingsSeeded: z.boolean().optional(),
   /** 初回起動で options.txt へ反映済み */
   minecraftInitialSettingsApplied: z.boolean().optional(),
+  /**
+   * 初期設定コミットの世代。古いまま applied だけ立っているインスタンスを再適用するために使う。
+   */
+  minecraftInitialSettingsApplyGeneration: z.number().int().nonnegative().optional(),
   /** 作成時点のスナップショット（互換・参照用。初回適用は設定の最新値を優先） */
   pendingMinecraftOptions: z.record(z.string()).optional(),
   /** 1.21.9+ のデバッグオーバーレイ（debug.json）。Identifier → visibility */
@@ -468,6 +472,9 @@ export const LogLineSchema = z.object({
 })
 export type LogLine = z.infer<typeof LogLineSchema>
 
+export const UpdateChannelSchema = z.enum(['stable', 'prerelease'])
+export type UpdateChannel = z.infer<typeof UpdateChannelSchema>
+
 export const UpdateCheckResultSchema = z.object({
   status: z.enum(['idle', 'unavailable', 'up-to-date', 'available']),
   messageKey: z.string().optional(),
@@ -476,6 +483,11 @@ export const UpdateCheckResultSchema = z.object({
   downloadUrl: z.string().url().optional(),
   downloadSize: z.number().int().nonnegative().optional(),
   releaseUrl: z.string().url().optional(),
+  /** GitHub Release の body（変更点） */
+  releaseNotes: z.string().optional(),
+  /** 対象リリースがプレリリースか */
+  prerelease: z.boolean().optional(),
+  channel: UpdateChannelSchema.optional(),
 })
 export type UpdateCheckResult = z.infer<typeof UpdateCheckResultSchema>
 

@@ -8,6 +8,7 @@ import {
   IconFolders,
   IconLibrary,
   IconPlayerPlay,
+  IconUser,
   IconUsers,
 } from '@tabler/icons-react'
 import {
@@ -69,9 +70,11 @@ export default function SettingsPage() {
     enabled: section === 'account',
   })
   const selectedSkinId = settingsQuery.data?.selectedSkinId
+  const sessionAccount = sessionQuery.data?.account
+  const loggedIn = Boolean(sessionAccount)
   const accountFaceQuery = useQuery({
     queryKey: ['account-face', selectedSkinId, 64],
-    enabled: section === 'account' && Boolean(selectedSkinId),
+    enabled: section === 'account' && loggedIn && Boolean(selectedSkinId),
     staleTime: Infinity,
     queryFn: async () => {
       const dataUrl = await fledgeApi.skins.getDataUrl(selectedSkinId!)
@@ -81,7 +84,7 @@ export default function SettingsPage() {
   })
   const accountListFaceQuery = useQuery({
     queryKey: ['account-face', selectedSkinId, 40],
-    enabled: section === 'account' && Boolean(selectedSkinId),
+    enabled: section === 'account' && loggedIn && Boolean(selectedSkinId),
     staleTime: Infinity,
     queryFn: async () => {
       const dataUrl = await fledgeApi.skins.getDataUrl(selectedSkinId!)
@@ -368,7 +371,7 @@ export default function SettingsPage() {
             const account = sessionQuery.data?.account
             const status = sessionQuery.data?.status
             const accounts = accountsQuery.data ?? []
-            const faceUrl = accountFaceQuery.data ?? mcFaceUrl(account, 64)
+            const faceUrl = account ? (accountFaceQuery.data ?? mcFaceUrl(account, 64)) : null
 
             return (
               <div className="space-y-5">
@@ -411,11 +414,16 @@ export default function SettingsPage() {
                     </dl>
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    <p className="text-sm text-[var(--color-text-muted)]">{t('auth.status.loggedOut')}</p>
-                    <p className="text-xs text-[var(--color-text-muted)]">
-                      {t('settings.account.notLoggedInHint')}
-                    </p>
+                  <div className="flex flex-wrap items-start gap-4">
+                    <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-accent-soft)] text-[var(--color-text-muted)]">
+                      <IconUser size={36} stroke={1.75} aria-hidden />
+                    </div>
+                    <div className="min-w-0 space-y-2">
+                      <p className="text-sm text-[var(--color-text-muted)]">{t('auth.status.loggedOut')}</p>
+                      <p className="text-xs text-[var(--color-text-muted)]">
+                        {t('settings.account.notLoggedInHint')}
+                      </p>
+                    </div>
                   </div>
                 )}
 
