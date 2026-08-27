@@ -29,6 +29,7 @@ import {
   type InstanceIconFilePick,
 } from '../features/instances/instanceIconPresets'
 import { InstanceLaunchButton } from '../features/instances/InstanceLaunchButton'
+import { InstanceLogConsole } from '../features/instances/InstanceLogConsole'
 import { formatLastPlayed, formatLoaderLabel } from '../features/instances/instanceMeta'
 import { parseLibraryTab, writeLibraryTab } from '../navigation/libraryDetailSearch'
 import { useUiStore, type LibraryDetailTab } from '../stores/appStores'
@@ -391,7 +392,7 @@ export default function LibraryDetailPage() {
           </p>
         </div>
         <div className="flex min-h-[2.75rem] shrink-0 items-start gap-1.5">
-          <InstanceLaunchButton instanceId={instance.id} showProgress />
+          <InstanceLaunchButton instanceId={instance.id} />
           <Button
             variant="ghost"
             className="size-11 shrink-0 rounded-full p-0"
@@ -505,26 +506,14 @@ export default function LibraryDetailPage() {
       ) : null}
 
       {tab === 'logs' ? (
-        <div className="space-y-3">
-          <div className="flex justify-end">
-            <Button variant="secondary" onClick={() => openSub('logs')}>
-              <IconFolderOpen size={16} stroke={1.75} />
-              {t('instances.openLogs')}
-            </Button>
-          </div>
-          {(logsQuery.data ?? []).length === 0 ? (
-            <p className="text-sm text-[var(--color-text-muted)]">{t('library.logsEmpty')}</p>
-          ) : (
-            <ul className="divide-y divide-[var(--color-border)] rounded-[var(--radius-lg)] border border-[var(--color-border)]">
-              {(logsQuery.data ?? []).map((file) => (
-                <li key={file.path} className="px-4 py-2.5 text-sm">
-                  <div className="font-medium">{file.name}</div>
-                  <div className="text-xs text-[var(--color-text-muted)]">{file.mtime}</div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <InstanceLogConsole
+          instanceId={instanceId}
+          files={logsQuery.data ?? []}
+          onOpenFolder={() => openSub('logs')}
+          onRefreshList={() => {
+            void logsQuery.refetch()
+          }}
+        />
       ) : null}
       </div>
 

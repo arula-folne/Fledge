@@ -226,7 +226,8 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
 }))
 
 export type SettingsSection =
-  | 'app'
+  | 'appGeneral'
+  | 'appTheme'
   | 'minecraftLaunch'
   | 'minecraftInitial'
   | 'account'
@@ -266,7 +267,7 @@ export const useUiStore = create<UiStore>((set) => ({
   setInstanceWizardOpen: (instanceWizardOpen) => set({ instanceWizardOpen }),
   editingInstanceId: null,
   setEditingInstanceId: (editingInstanceId) => set({ editingInstanceId }),
-  settingsSection: 'app',
+  settingsSection: 'appGeneral',
   setSettingsSection: (settingsSection) => set({ settingsSection }),
   libraryFocus: null,
   setLibraryFocus: (libraryFocus) =>
@@ -358,4 +359,30 @@ export const useTransferStore = create<TransferStore>((set) => ({
       }
     })
   },
+}))
+
+/** インスタンス作成中（一覧に先に載ったあとも完了までバッジ表示） */
+type InstanceCreateStore = {
+  creatingIds: Record<string, true>
+  lastError: string | null
+  markCreating: (id: string) => void
+  unmarkCreating: (id: string) => void
+  setLastError: (message: string | null) => void
+  isCreating: (id: string) => boolean
+}
+
+export const useInstanceCreateStore = create<InstanceCreateStore>((set, get) => ({
+  creatingIds: {},
+  lastError: null,
+  markCreating: (id) =>
+    set((s) => (s.creatingIds[id] ? s : { creatingIds: { ...s.creatingIds, [id]: true } })),
+  unmarkCreating: (id) =>
+    set((s) => {
+      if (!s.creatingIds[id]) return s
+      const next = { ...s.creatingIds }
+      delete next[id]
+      return { creatingIds: next }
+    }),
+  setLastError: (lastError) => set({ lastError }),
+  isCreating: (id) => Boolean(get().creatingIds[id]),
 }))

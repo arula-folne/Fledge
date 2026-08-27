@@ -9,10 +9,10 @@
   --color-text-muted: #6e6a64;
   --color-accent: #5fa0c4;
   --color-accent-soft: #eee9e2;
-  /* 選択中の縁・ラジオなど。テーマカラーでは上書きしない */
-  --color-selection: #7ec0ef;
-  --color-selection-soft: rgba(126, 192, 239, 0.24);
-  --color-on-selection: #1a1a1c;
+  /* メニュー選択など。applyTheme でアクセントに同期される */
+  --color-selection: #5fa0c4;
+  --color-selection-soft: color-mix(in srgb, #5fa0c4 28%, transparent);
+  --color-on-selection: #f8f6f2;
   --color-hover: rgba(44, 42, 39, 0.07);
   --color-on-accent: #f8f6f2;
   --color-scrollbar: #b4aea6;
@@ -115,6 +115,12 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+/* ボタンは各コンポーネントの text-* を優先（inherit だとベースの本文色に潰れる） */
+input,
+select,
+textarea {
   color: inherit;
 }
 
@@ -132,6 +138,25 @@ textarea {
 ::-webkit-scrollbar-thumb {
   background: var(--color-scrollbar);
   border-radius: 999px;
+}
+
+.log-console-scroll::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.log-console-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.log-console-scroll::-webkit-scrollbar-thumb {
+  background: rgba(122, 134, 160, 0.35);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.log-console-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(154, 168, 196, 0.55);
+  background-clip: padding-box;
+  border: 2px solid transparent;
 }
 
 .content-md h1,
@@ -222,4 +247,57 @@ textarea {
   height: 100%;
   pointer-events: none;
   z-index: 10001;
+}
+
+/* イラスト付きシーズンテーマ */
+html[data-theme-season] body {
+  background: transparent !important;
+}
+
+html[data-theme-season] .season-shell-panel {
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+  background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+}
+
+html[data-theme-season] .season-shell-main {
+  background: color-mix(in srgb, var(--color-bg) 18%, transparent);
+}
+
+.season-illustration {
+  animation: season-drift 28s ease-in-out infinite alternate;
+  transform-origin: center bottom;
+}
+
+.season-wave-a {
+  animation: season-wave-shift 9s ease-in-out infinite alternate;
+}
+.season-wave-b {
+  animation: season-wave-shift 12s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes season-drift {
+  from {
+    transform: scale(1.02) translate3d(0, 0, 0);
+  }
+  to {
+    transform: scale(1.06) translate3d(-1.2%, 0.6%, 0);
+  }
+}
+
+@keyframes season-wave-shift {
+  from {
+    transform: translate3d(-1.5%, 0, 0);
+  }
+  to {
+    transform: translate3d(1.5%, -1.5%, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .season-illustration,
+  .season-wave-a,
+  .season-wave-b {
+    animation: none;
+  }
 }

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next'
 import { IconBrandMinecraft, IconFileZip, IconWorldSearch } from '@tabler/icons-react'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Dialog } from '../../components/ui/Dialog'
+import { useInstanceCreateStore } from '../../stores/appStores'
 import { InstanceWizard } from './InstanceWizard'
 
 type Source = 'choice' | 'manual'
@@ -19,6 +20,7 @@ export function InstanceCreationFlow({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const setLastError = useInstanceCreateStore((s) => s.setLastError)
   const [source, setSource] = useState<Source>('choice')
   const [error, setError] = useState<string | null>(null)
 
@@ -29,18 +31,19 @@ export function InstanceCreationFlow({
   }
 
   const importMutation = useMutation({
-    mutationFn: () => fledgeApi.content.importMrpack(),
+    mutationFn: (filePath: string) => fledgeApi.content.importMrpackFromPath(filePath),
     onSuccess: async (profile) => {
-      if (!profile) return
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
-      close()
-      navigate(`/library/${profile.id}`)
+      useInstanceCreateStore.getState().unmarkCreating(profile.id)
       void fledgeApi.launch.prepare(profile.id).catch(() => {
         /* 起動準備エラーは既存イベント表示に任せる */
       })
     },
-    onError: (err) => setError(err instanceof Error ? err.message : String(err)),
+    onError: (err) => {
+      const message = err instanceof Error ? err.message : String(err)
+      setLastError(message)
+    },
   })
 
   if (source === 'manual') {
@@ -62,7 +65,6 @@ export function InstanceCreationFlow({
       title={t('instances.createSource.title')}
       subtitle={t('instances.createSource.subtitle')}
       onClose={close}
-      dismissible={!importMutation.isPending}
       size="lg"
     >
       <div className="grid gap-3 sm:grid-cols-3">
@@ -76,10 +78,16 @@ export function InstanceCreationFlow({
           icon={<IconFileZip size={30} stroke={1.6} />}
           title={t('instances.createSource.mrpack')}
           description={t('instances.createSource.mrpackHint')}
-          pending={importMutation.isPending}
           onClick={() => {
             setError(null)
-            importMutation.mutate()
+            setLastError(null)
+            close()
+            navigate('/')
+            void (async () => {
+              const filePath = await fledgeApi.content.pickMrpack()
+              if (!filePath) return
+              importMutation.mutate(filePath)
+            })()
           }}
         />
         <SourceCard
@@ -105,24 +113,21 @@ function SourceCard({
   icon,
   title,
   description,
-  pending = false,
   onClick,
 }: {
   icon: ReactNode
   title: string
   description: string
-  pending?: boolean
   onClick: () => void
 }) {
   return (
     <button
       type="button"
-      disabled={pending}
       onClick={onClick}
-      className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center transition hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-hover)] disabled:opacity-60"
+      className="flex min-h-40 flex-col items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-center transition hover:border-[var(--color-accent)]/50 hover:bg-[var(--color-hover)]"
     >
       <span className="text-[var(--color-accent)]">{icon}</span>
-      <span className="font-semibold">{pending ? `${title}…` : title}</span>
+      <span className="font-semibold">{title}</span>
       <span className="text-xs leading-relaxed text-[var(--color-text-muted)]">{description}</span>
     </button>
   )

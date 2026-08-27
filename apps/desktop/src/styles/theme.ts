@@ -1,4 +1,5 @@
 import type { Settings } from '@fledge/shared'
+import { getSeasonTheme } from './themeSeasons'
 
 type ResolvedMode = 'light' | 'dark' | 'color' | 'oled'
 
@@ -15,6 +16,17 @@ function relativeLuminance(r: number, g: number, b: number): number {
     return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
   }
   return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b)
+}
+
+/** アクセント等の上に載せる文字色（明るい→黒 / 濃い→白） */
+export function contrastTextOnColor(color: { r: number; g: number; b: number }): '#1a1a1c' | '#ffffff' {
+  // 知覚輝度（YIQ）。WCAG 線形輝度より「明るい／濃い」の体感に近い
+  const y = (0.299 * color.r + 0.587 * color.g + 0.114 * color.b) / 255
+  return y >= 0.55 ? '#1a1a1c' : '#ffffff'
+}
+
+function rgbCss(c: { r: number; g: number; b: number }): string {
+  return `rgb(${c.r}, ${c.g}, ${c.b})`
 }
 
 function clampByte(n: number): number {
@@ -50,19 +62,6 @@ function softMute(
   return blendRgb(c, { r: y, g: y, b: y }, amount)
 }
 
-/** 彩度を少し上げて鮮やかにする（ライト用アクセント） */
-function boostChroma(
-  c: { r: number; g: number; b: number },
-  amount = 0.18,
-): { r: number; g: number; b: number } {
-  const y = 0.299 * c.r + 0.587 * c.g + 0.114 * c.b
-  return {
-    r: clampByte(y + (c.r - y) * (1 + amount)),
-    g: clampByte(y + (c.g - y) * (1 + amount)),
-    b: clampByte(y + (c.b - y) * (1 + amount)),
-  }
-}
-
 const NEUTRAL_LIGHT = { r: 232, g: 228, b: 222 }
 const NEUTRAL_LIGHT_SURFACE = { r: 248, g: 246, b: 242 }
 const NEUTRAL_LIGHT_INPUT = { r: 252, g: 251, b: 248 }
@@ -75,7 +74,7 @@ const NEUTRAL_DARK_SURFACE = { r: 49, g: 51, b: 56 }
 const NEUTRAL_DARK_INPUT = { r: 30, g: 31, b: 34 }
 const NEUTRAL_DARK_ZEBRA = { r: 43, g: 45, b: 49 }
 
-type ThemeTokens = {
+export type ThemeTokens = {
   bg: string
   surface: string
   input: string
@@ -152,18 +151,24 @@ function tokensForOled(): ThemeTokens {
 
 /**
  * 色テーマ。
- * ライトベース: 通常ライトに近い面色 + アクセントは鮮やかめ。
- * ダークベース: 面の明暗差は控えめ。
+ * base: 背景・面・ソフト面などテーマ全体（ボタン以外）
+ * accent: プライマリボタン（とその上の文字色）のみ。全体の色味には混ぜない。
  */
-function tokensForColor(r: number, g: number, b: number): ThemeTokens {
-  const colorBase = { r, g, b }
-  const darkFg = relativeLuminance(r, g, b) < 0.42
-  const white = { r: 255, g: 255, b: 255 }
+function tokensForColor(
+  base: { r: number; g: number; b: number },
+  accentIn: { r: number; g: number; b: number },
+): ThemeTokens {
+  const colorBase = base
+  const darkFg = relativeLuminance(base.r, base.g, base.b) < 0.42
   const black = { r: 0, g: 0, b: 0 }
+
+  // ボタン文字色はアクセントの明るさだけで決める（ベースの明暗は見ない）
+  const accentRgb = softMute(accentIn, 0.04)
+  const onAccent = contrastTextOnColor(accentRgb)
 
   if (darkFg) {
     const tint = softMute(colorBase, 0.14)
-    const accentBase = boostChroma(softMute(colorBase, 0.04), 0.1)
+    const soft = blendRgb(NEUTRAL_DARK_SURFACE, tint, 0.28)
     return {
       bg: mixRgb(NEUTRAL_DARK, tint, 0.22),
       surface: mixRgb(NEUTRAL_DARK_SURFACE, tint, 0.2),
@@ -171,10 +176,10 @@ function tokensForColor(r: number, g: number, b: number): ThemeTokens {
       border: mixRgb({ r: 63, g: 65, b: 71 }, tint, 0.22),
       text: '#dbdee1',
       textMuted: '#949ba4',
-      accent: mixRgb(accentBase, white, 0.18),
-      accentSoft: `rgba(${tint.r}, ${tint.g}, ${tint.b}, 0.22)`,
+      accent: rgbCss(accentRgb),
+      accentSoft: rgbCss(soft),
       hover: 'rgba(79, 84, 92, 0.32)',
-      onAccent: '#ffffff',
+      onAccent,
       scrollbar: mixRgb({ r: 26, g: 27, b: 30 }, tint, 0.2),
       zebra: mixRgb(NEUTRAL_DARK_ZEBRA, tint, 0.18),
       scheme: 'dark',
@@ -182,11 +187,11 @@ function tokensForColor(r: number, g: number, b: number): ThemeTokens {
     }
   }
 
-  // ライトベース: 背景はニュートラル寄り、色はアクセントで主張
+  // ライトベース: 面の色みはベースのみ。アクセントはボタン色だけ
   const tint = softMute(colorBase, 0.1)
-  const vivid = boostChroma(softMute(colorBase, 0.02), 0.22)
-  const lum = relativeLuminance(r, g, b)
+  const lum = relativeLuminance(base.r, base.g, base.b)
   const mix = 0.04 + 0.1 * (1 - Math.min(1, (lum - 0.42) / 0.58))
+  const soft = blendRgb(NEUTRAL_LIGHT_SURFACE, tint, Math.min(0.4, mix * 2.2))
   return {
     bg: mixRgb(NEUTRAL_LIGHT, tint, mix),
     surface: mixRgb(NEUTRAL_LIGHT_SURFACE, tint, mix * 0.45),
@@ -194,10 +199,10 @@ function tokensForColor(r: number, g: number, b: number): ThemeTokens {
     border: mixRgb(NEUTRAL_LIGHT_BORDER, tint, 0.16),
     text: '#2c2a27',
     textMuted: '#6e6a64',
-    accent: mixRgb(vivid, black, 0.02),
-    accentSoft: mixRgb(NEUTRAL_LIGHT_SURFACE, vivid, 0.32),
+    accent: rgbCss(accentRgb),
+    accentSoft: rgbCss(soft),
     hover: 'rgba(44, 42, 39, 0.07)',
-    onAccent: '#f4f1eb',
+    onAccent,
     scrollbar: mixRgb({ r: 168, g: 162, b: 154 }, tint, 0.2),
     zebra: mixRgb(NEUTRAL_LIGHT_ZEBRA, tint, mix * 0.55),
     scheme: 'light',
@@ -205,7 +210,7 @@ function tokensForColor(r: number, g: number, b: number): ThemeTokens {
   }
 }
 
-function applyTokens(tokens: ThemeTokens): void {
+export function applyTokens(tokens: ThemeTokens): void {
   const root = document.documentElement
   root.style.setProperty('--color-bg', tokens.bg)
   root.style.setProperty('--color-surface', tokens.surface)
@@ -217,6 +222,13 @@ function applyTokens(tokens: ThemeTokens): void {
   root.style.setProperty('--color-accent-soft', tokens.accentSoft)
   root.style.setProperty('--color-hover', tokens.hover)
   root.style.setProperty('--color-on-accent', tokens.onAccent)
+  // メニュー選択など: アクセントに追従
+  root.style.setProperty('--color-selection', tokens.accent)
+  root.style.setProperty('--color-on-selection', tokens.onAccent)
+  root.style.setProperty(
+    '--color-selection-soft',
+    `color-mix(in srgb, ${tokens.accent} 28%, transparent)`,
+  )
   root.style.setProperty('--color-scrollbar', tokens.scrollbar)
   root.style.setProperty('--color-zebra', tokens.zebra)
   root.style.setProperty('color-scheme', tokens.scheme)
@@ -225,19 +237,67 @@ function applyTokens(tokens: ThemeTokens): void {
   document.body.style.color = tokens.text
 }
 
+const DEFAULT_THEME_BASE = { r: 255, g: 255, b: 255 }
+const DEFAULT_THEME_ACCENT = { r: 91, g: 164, b: 217 }
+
+function resolveThemeColor(
+  color: { r: number; g: number; b: number } | null | undefined,
+  fallback: { r: number; g: number; b: number },
+): { r: number; g: number; b: number } {
+  if (!color || typeof color.r !== 'number' || typeof color.g !== 'number' || typeof color.b !== 'number') {
+    return { ...fallback }
+  }
+  return {
+    r: Math.min(255, Math.max(0, Math.round(color.r))),
+    g: Math.min(255, Math.max(0, Math.round(color.g))),
+    b: Math.min(255, Math.max(0, Math.round(color.b))),
+  }
+}
+
 export function applyTheme(settings: Settings): void {
+  const root = document.documentElement
+  if (settings.themeFamily === 'season') {
+    const season = getSeasonTheme(settings.seasonThemeId)
+    if (season) {
+      root.dataset.themeSeason = season.id
+      root.dataset.themeSeasonTone = resolveSeasonDark(settings) ? 'dark' : 'light'
+      applyTokens(resolveSeasonDark(settings) ? season.dark : season.light)
+      return
+    }
+  }
+  delete root.dataset.themeSeason
+  delete root.dataset.themeSeasonTone
+
   const mode = resolveMode(settings)
   if (mode === 'oled') applyTokens(tokensForOled())
   else if (mode === 'dark') applyTokens(tokensForDark())
-  else if (mode === 'color')
-    applyTokens(tokensForColor(settings.themeColor.r, settings.themeColor.g, settings.themeColor.b))
-  else applyTokens(tokensForLight())
+  else if (mode === 'color') {
+    applyTokens(
+      tokensForColor(
+        resolveThemeColor(settings.themeColor, DEFAULT_THEME_BASE),
+        resolveThemeColor(settings.themeAccentColor, DEFAULT_THEME_ACCENT),
+      ),
+    )
+  } else applyTokens(tokensForLight())
+}
+
+/** シーズンテーマ用。color→light / oled→dark、system は OS に従う */
+export function resolveSeasonDark(settings: Settings): boolean {
+  if (settings.themeMode === 'system') {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+  }
+  return settings.themeMode === 'dark' || settings.themeMode === 'oled'
 }
 
 type ThemeColor = { r: number; g: number; b: number }
 
+export type ThemeColorPair = {
+  base: ThemeColor
+  accent: ThemeColor
+}
+
 let previewRaf = 0
-let previewPending: ThemeColor | null = null
+let previewPending: ThemeColorPair | null = null
 
 function clampThemeColor(color: ThemeColor): ThemeColor {
   return {
@@ -247,11 +307,18 @@ function clampThemeColor(color: ThemeColor): ThemeColor {
   }
 }
 
+function clampThemePair(pair: ThemeColorPair): ThemeColorPair {
+  return { base: clampThemeColor(pair.base), accent: clampThemeColor(pair.accent) }
+}
+
 /**
- * パレット／プリセット表示用。選択後に出やすい見た目へ寄せた色（保存値自体は生の RGB のまま）。
+ * パレット表示用。選択後に出やすい見た目へ寄せた色（保存値自体は生の RGB のまま）。
  */
-export function themeColorSwatchPreview(color: ThemeColor): string {
+export function themeColorSwatchPreview(color: ThemeColor, role: 'base' | 'accent' = 'base'): string {
   const c = clampThemeColor(color)
+  if (role === 'accent') {
+    return `rgb(${c.r}, ${c.g}, ${c.b})`
+  }
   const darkFg = relativeLuminance(c.r, c.g, c.b) < 0.42
   const white = { r: 255, g: 255, b: 255 }
   const black = { r: 0, g: 0, b: 0 }
@@ -260,13 +327,11 @@ export function themeColorSwatchPreview(color: ThemeColor): string {
   if (darkFg) {
     const tint = softMute(c, 0.1)
     const surface = blendRgb(NEUTRAL_DARK_SURFACE, tint, 0.34)
-    const accent = blendRgb(boostChroma(softMute(c, 0.06), 0.12), white, 0.34)
-    applied = blendRgb(surface, accent, 0.55)
+    applied = blendRgb(surface, white, 0.08)
   } else {
     const tint = softMute(c, 0.1)
     const surface = blendRgb(NEUTRAL_LIGHT_SURFACE, tint, 0.12)
-    const accent = blendRgb(boostChroma(softMute(c, 0.02), 0.22), black, 0.06)
-    applied = blendRgb(surface, accent, 0.45)
+    applied = blendRgb(surface, black, 0.02)
   }
 
   const shown = blendRgb(c, applied, 0.5)
@@ -274,38 +339,24 @@ export function themeColorSwatchPreview(color: ThemeColor): string {
 }
 
 /** 確定時用。グラデーション込みのフル CSS 変数を即時反映（IPC なし） */
-export function applyThemeColor(color: ThemeColor): void {
+export function applyThemeColor(pair: ThemeColorPair): void {
   cancelThemeColorPreview()
-  const c = clampThemeColor(color)
-  applyTokens(tokensForColor(c.r, c.g, c.b))
+  const next = clampThemePair(pair)
+  applyTokens(tokensForColor(next.base, next.accent))
 }
 
 /**
- * ドラッグ中プレビュー用。全面トークン再計算はせず、アクセント系だけ更新して滑らかにする。
- * 確定時は applyThemeColor でフルテーマを適用する。
+ * ドラッグ中プレビュー用。全面トークンを再計算して反映する。
  */
-export function scheduleThemeColorPreview(color: ThemeColor): void {
-  previewPending = clampThemeColor(color)
+export function scheduleThemeColorPreview(pair: ThemeColorPair): void {
+  previewPending = clampThemePair(pair)
   if (previewRaf) return
   previewRaf = requestAnimationFrame(() => {
     previewRaf = 0
-    const c = previewPending
+    const next = previewPending
     previewPending = null
-    if (!c) return
-    const darkFg = relativeLuminance(c.r, c.g, c.b) < 0.42
-    const root = document.documentElement
-    if (darkFg) {
-      const muted = softMute(c, 0.06)
-      const accent = mixRgb(boostChroma(muted, 0.12), { r: 255, g: 255, b: 255 }, 0.34)
-      root.style.setProperty('--color-accent', accent)
-      root.style.setProperty('--color-accent-soft', `rgba(${muted.r}, ${muted.g}, ${muted.b}, 0.28)`)
-    } else {
-      const vivid = boostChroma(softMute(c, 0.02), 0.22)
-      const accent = mixRgb(vivid, { r: 0, g: 0, b: 0 }, 0.02)
-      const soft = mixRgb(NEUTRAL_LIGHT_SURFACE, vivid, 0.32)
-      root.style.setProperty('--color-accent', accent)
-      root.style.setProperty('--color-accent-soft', soft)
-    }
+    if (!next) return
+    applyTokens(tokensForColor(next.base, next.accent))
   })
 }
 
@@ -317,14 +368,24 @@ export function cancelThemeColorPreview(): void {
   previewPending = null
 }
 
-/** ライト／システム(明) → 白、ダーク／OLED／システム(暗) → 黒 */
-export function defaultThemeColorForMode(from: Settings['themeMode']): { r: number; g: number; b: number } {
+const DEFAULT_ACCENT = { r: 91, g: 164, b: 217 }
+const DEFAULT_BASE = { r: 255, g: 255, b: 255 }
+
+/** ライト／システム(明) → 白ベース、ダーク／OLED／システム(暗) → 黒ベース。アクセントは既定の青 */
+export function defaultThemeColorsForMode(from: Settings['themeMode']): ThemeColorPair {
   const resolved =
     from === 'system'
       ? window.matchMedia('(prefers-color-scheme: dark)').matches
         ? 'dark'
         : 'light'
       : from
-  if (resolved === 'dark' || resolved === 'oled') return { r: 0, g: 0, b: 0 }
-  return { r: 255, g: 255, b: 255 }
+  if (resolved === 'dark' || resolved === 'oled') {
+    return { base: { r: 0, g: 0, b: 0 }, accent: { ...DEFAULT_ACCENT } }
+  }
+  return { base: { ...DEFAULT_BASE }, accent: { ...DEFAULT_ACCENT } }
+}
+
+/** @deprecated defaultThemeColorsForMode を使う */
+export function defaultThemeColorForMode(from: Settings['themeMode']): ThemeColor {
+  return defaultThemeColorsForMode(from).base
 }

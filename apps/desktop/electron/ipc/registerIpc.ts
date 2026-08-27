@@ -18,7 +18,7 @@ import {
   type Settings,
   type SkinModel,
 } from '@fledge/shared'
-import { snapshotMinecraftDebugOverlay, snapshotMinecraftInitialOptions, applyMinecraftInitialSettingsToInstance, factoryReset, type LauncherApp } from '@fledge/core'
+import { snapshotMinecraftDebugOverlay, snapshotMinecraftInitialOptions, factoryReset, fetchActiveMinecraftSkin, hashSkinPng, type LauncherApp } from '@fledge/core'
 import { applyWindowUiScale } from '../windows/MainWindow'
 import { isLightStart } from '../startup/lightStart'
 import {
@@ -170,27 +170,23 @@ export function registerIpc(
   })
   ipcMain.handle(IPC.instancesCreate, async (_e, input: CreateInstanceInput) => {
     const settings = await appCtx.settings.get()
+    const pendingMinecraftOptions = snapshotMinecraftInitialOptions(
+      settings.minecraftInitialSettings,
+      input.minecraftVersion,
+      settings.locale,
+    )
+    const pendingMinecraftDebugOverlay = snapshotMinecraftDebugOverlay(
+      settings.minecraftInitialSettings,
+      input.minecraftVersion,
+    )
     const profile = await appCtx.instances.create(CreateInstanceInputSchema.parse(input), {
       memoryMaxMb: settings.defaultMemoryMaxMb,
       jvmArgs: settings.defaultJvmArgs,
       seedMinecraftInitialSettings: true,
-      pendingMinecraftOptions: snapshotMinecraftInitialOptions(
-        settings.minecraftInitialSettings,
-        input.minecraftVersion,
-        settings.locale,
-      ),
-      pendingMinecraftDebugOverlay: snapshotMinecraftDebugOverlay(
-        settings.minecraftInitialSettings,
-        input.minecraftVersion,
-      ),
+      pendingMinecraftOptions,
+      pendingMinecraftDebugOverlay,
     })
-    // 作成直後に options.txt を書いておく（初回起動前にファイルが無いと英語＋アクセシビリティ画面になる）
-    await applyMinecraftInitialSettingsToInstance(
-      appCtx.instances.instanceDir(profile.id),
-      settings.minecraftInitialSettings,
-      profile.minecraftVersion,
-      settings.locale,
-    )
+    // options.txt は作成時には書かない（初回起動直前に適用）
     await appCtx.settings.set({
       ...(settings.selectedInstanceId ? {} : { selectedInstanceId: profile.id }),
       libraryInstanceOrder: settings.libraryInstanceOrder.includes(profile.id)
@@ -292,9 +288,39 @@ export function registerIpc(
     async (_e, instanceId: string, kind: 'screenshots' | 'logs') =>
       appCtx.content.listMedia(instanceId, kind),
   )
+  ipcMain.handle(IPC.contentReadLog, async (_e, instanceId: unknown, fileName: unknown) => {
+    if (typeof instanceId !== 'string' || !instanceId) throw new Error('Invalid instance id')
+    if (typeof fileName !== 'string' || !fileName) throw new Error('Invalid log file name')
+    return appCtx.content.readLogFile(instanceId, fileName)
+  })
   ipcMain.handle(IPC.contentListCategoryTags, async () => appCtx.content.listCategoryTags())
   ipcMain.handle(IPC.contentCreateInstance, async (_e, req: unknown) => {
     const profile = await appCtx.content.createInstanceFromProject(req)
+    // library order は作成途中の publishInstanceListed で既に入っていることがある
+    const settings = await appCtx.settings.get()
+    if (!settings.libraryInstanceOrder.includes(profile.id)) {
+      await appCtx.settings.set({
+        libraryInstanceOrder: [...settings.libraryInstanceOrder, profile.id],
+      })
+    }
+    touchBackup()
+    return profile
+  })
+  ipcMain.handle(IPC.contentPickMrpack, async () => {
+    const result = await dialog.showOpenDialog(win() ?? undefined!, {
+      title: 'mrpack からインスタンスを作成',
+      properties: ['openFile'],
+      filters: [{ name: 'Modrinth Modpack', extensions: ['mrpack'] }],
+    })
+    const filePath = result.filePaths[0]
+    if (result.canceled || !filePath) return null
+    return filePath
+  })
+  ipcMain.handle(IPC.contentImportMrpackFromPath, async (_e, filePath: unknown) => {
+    if (typeof filePath !== 'string' || !filePath) {
+      throw new Error('mrpack のパスが不正です')
+    }
+    const profile = await appCtx.content.importMrpackFromFile(filePath)
     const settings = await appCtx.settings.get()
     if (!settings.libraryInstanceOrder.includes(profile.id)) {
       await appCtx.settings.set({
@@ -345,6 +371,7 @@ export function registerIpc(
 
   ipcMain.handle(IPC.authLogin, async () => {
     const account = await appCtx.auth.login()
+    await importMicrosoftAccountSkinBestEffort(appCtx, account)
     return enrichAccount(account)
   })
   ipcMain.handle(IPC.authLogout, async (_e, accountId?: string) => appCtx.auth.logout(accountId))
@@ -361,6 +388,7 @@ export function registerIpc(
   })
   ipcMain.handle(IPC.authSwitch, async (_e, accountId: string) => {
     const account = await appCtx.auth.switchAccount(accountId)
+    await importMicrosoftAccountSkinBestEffort(appCtx, account)
     return enrichAccount(account)
   })
   ipcMain.handle(IPC.authRemove, async (_e, accountId: string) => {
@@ -684,6 +712,61 @@ async function applySkinToPlayableAccounts(
     await appCtx.skinApplier.apply(skinId, model, accountId, {
       forceCredentials: true,
     })
+  }
+}
+
+/**
+ * ログイン／アカウント切替後:
+ * Microsoft プロフィールの現行スキンをマイスキン先頭へ取り込み、選択状態にする。
+ * 公式へ再アップロードはしない（既にアカウント上のスキンのため）。
+ * 失敗してもログイン自体は成功のまま。
+ */
+async function importMicrosoftAccountSkinBestEffort(
+  appCtx: LauncherApp,
+  account: { id: string; displayName: string },
+): Promise<void> {
+  try {
+    const creds = await appCtx.auth.ensureCredentials(account.id)
+    const active = await fetchActiveMinecraftSkin(creds.accessToken)
+    if (!active) {
+      appCtx.logger.info('auth', 'No active Microsoft skin to import')
+      return
+    }
+
+    const digest = hashSkinPng(active.png)
+    const uploaded = (await appCtx.skins.list()).filter((s) => s.source === 'upload')
+    for (const existing of uploaded) {
+      const existingHash = await appCtx.skins.hashUploadedPng(existing.id)
+      if (existingHash === digest) {
+        await appCtx.settings.set({
+          selectedSkinId: existing.id,
+          skinModel: active.model,
+        })
+        appCtx.backup.scheduleSync()
+        appCtx.logger.info('auth', `Selected existing Microsoft skin ${existing.id}`)
+        return
+      }
+    }
+
+    const name = account.displayName.trim().slice(0, 32) || 'マイスキン'
+    const skin = await appCtx.skins.upload({
+      name,
+      model: active.model,
+      bytes: active.png,
+      originalName: 'microsoft-account.png',
+      prepend: true,
+    })
+    await appCtx.settings.set({
+      selectedSkinId: skin.id,
+      skinModel: skin.model,
+    })
+    appCtx.backup.scheduleSync()
+    appCtx.logger.info('auth', `Imported Microsoft skin as my-skin #1 (${skin.id})`)
+  } catch (err) {
+    appCtx.logger.warn(
+      'auth',
+      `Failed to import Microsoft account skin: ${err instanceof Error ? err.message : String(err)}`,
+    )
   }
 }
 

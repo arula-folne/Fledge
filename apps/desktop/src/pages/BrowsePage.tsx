@@ -17,6 +17,7 @@ import { ContentBrowseFilters } from '../features/content/ContentBrowseFilters'
 import { ContentSearchHitRow } from '../features/content/ContentSearchHitRow'
 import { ContentCategoryLabel } from '../features/content/contentCategoryIcons'
 import { useModrinthTagIcons } from '../features/content/useModrinthTagIcons'
+import { useInstanceCreateStore } from '../stores/appStores'
 
 const ContentProjectView = lazy(() =>
   import('../features/content/ContentProjectView').then((m) => ({ default: m.ContentProjectView })),
@@ -175,27 +176,32 @@ export default function BrowsePage() {
           : undefined
       if (key && key.startsWith('content.error.')) {
         setError(t(key, detail))
+        useInstanceCreateStore.getState().setLastError(t(key, detail))
         return
       }
-      setError(err instanceof Error ? err.message : String(err))
+      const message = err instanceof Error ? err.message : String(err)
+      setError(message)
+      useInstanceCreateStore.getState().setLastError(message)
     },
     onSuccess: async (profile) => {
       attemptedVersionTarget.current = null
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
+      useInstanceCreateStore.getState().unmarkCreating(profile.id)
       void fledgeApi.launch.prepare(profile.id).catch(() => {
         /* 裏で準備。失敗しても作成自体は成功 */
       })
-      navigate(`/library/${profile.id}`)
     },
   })
 
   const requestCreate = useCallback(
     (input: { id: string; versionId?: string; category: ContentCategory }) => {
       setError(null)
+      useInstanceCreateStore.getState().setLastError(null)
+      navigate('/')
       createMutation.mutate(input)
     },
-    [createMutation],
+    [createMutation, navigate],
   )
 
   const requestCreateWithVersion = useCallback(

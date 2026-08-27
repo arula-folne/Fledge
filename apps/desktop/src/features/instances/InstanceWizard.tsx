@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { IconInfoCircle, IconRefresh } from '@tabler/icons-react'
 import {
@@ -45,7 +44,6 @@ function formatFetchedAt(iso: string): string {
 
 export function InstanceWizard({ open, onClose, onBack, title }: Props) {
   const { t } = useTranslation()
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const [name, setName] = useState('')
@@ -200,7 +198,6 @@ export function InstanceWizard({ open, onClose, onBack, title }: Props) {
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
       onClose()
-      navigate(`/library/${profile.id}`)
       void fledgeApi.launch.prepare(profile.id).catch(() => {
         // 状態イベントでエラー表示
       })

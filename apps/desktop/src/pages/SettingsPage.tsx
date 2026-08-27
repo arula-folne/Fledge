@@ -2,13 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react'
 import {
+  IconAdjustments,
   IconBrandMinecraft,
   IconBox,
   IconCoffee,
-  IconDeviceGamepad2,
   IconFolderSearch,
   IconFolders,
   IconLibrary,
+  IconPalette,
   IconPlayerPlay,
   IconUser,
   IconUsers,
@@ -16,11 +17,15 @@ import {
 import {
   DEFAULT_CONCURRENT_DOWNLOADS,
   DEFAULT_MAX_WRITE_CONCURRENCY,
+  GAME_WINDOW_MIN_HEIGHT,
+  GAME_WINDOW_MIN_WIDTH,
+  GAME_WINDOW_SIZE_PRESETS,
   LAUNCHER_WINDOW_MIN_HEIGHT,
   LAUNCHER_WINDOW_MIN_WIDTH,
-  WINDOW_SIZE_PRESETS,
+  LAUNCHER_WINDOW_SIZE_PRESETS,
   type Settings,
   type UiScale,
+  type WindowSizePreset,
 } from '@fledge/shared'
 import { fledgeApi } from '../api/fledgeApi'
 import { Button } from '../components/ui/Button'
@@ -32,6 +37,8 @@ import { MemorySnapSlider } from '../components/ui/MemorySnapSlider'
 import { Switch } from '../components/ui/Switch'
 import { ThemeColorPicker } from '../components/ui/ThemeColorPicker'
 import { ThemeModePicker } from '../components/ui/ThemeModePicker'
+import { ThemeSeasonPicker } from '../components/ui/ThemeSeasonPicker'
+import { SeasonTonePicker, coerceSeasonTone } from '../components/ui/SeasonTonePicker'
 import { BackupPanel } from '../components/settings/BackupPanel'
 import { JavaRuntimePanel } from '../components/settings/JavaRuntimePanel'
 import { MinecraftInitialSettingsPanel } from '../components/settings/MinecraftInitialSettingsPanel'
@@ -43,13 +50,18 @@ import { McFaceAvatar } from '../features/auth/McFaceAvatar'
 import { mcFaceUrl } from '../features/auth/mcFace'
 import { cropSkinFaceDataUrl } from '../features/auth/skinFace'
 import { useUiStore } from '../stores/appStores'
-import { applyTheme, defaultThemeColorForMode } from '../styles/theme'
+import { applyTheme, defaultThemeColorsForMode, type ThemeColorPair } from '../styles/theme'
 
 export default function SettingsPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const section = useUiStore((s) => s.settingsSection)
+  const sectionRaw = useUiStore((s) => s.settingsSection)
   const setSection = useUiStore((s) => s.setSettingsSection)
+  const section = (sectionRaw as string) === 'app' ? 'appGeneral' : sectionRaw
+
+  useEffect(() => {
+    if ((sectionRaw as string) === 'app') setSection('appGeneral')
+  }, [sectionRaw, setSection])
   const [message, setMessage] = useState<string | null>(null)
   const [restartNoticeOpen, setRestartNoticeOpen] = useState(false)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
@@ -120,8 +132,11 @@ export default function SettingsPage() {
 
   const saveMutateRef = useRef(saveMutation.mutate)
   saveMutateRef.current = saveMutation.mutate
-  const handleThemeColorChange = useCallback((themeColor: Settings['themeColor']) => {
-    saveMutateRef.current({ themeColor })
+  const handleThemeColorChange = useCallback((pair: ThemeColorPair) => {
+    saveMutateRef.current({
+      themeColor: pair.base,
+      themeAccentColor: pair.accent,
+    })
   }, [])
 
   const resetMutation = useMutation({
@@ -156,8 +171,13 @@ export default function SettingsPage() {
 
   const switchAccountMutation = useMutation({
     mutationFn: (accountId: string) => fledgeApi.auth.switch(accountId),
-    onSuccess: (account) => {
+    onSuccess: async (account) => {
       applyLoggedInAccount(queryClient, account)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['skins'] }),
+        queryClient.invalidateQueries({ queryKey: ['settings'] }),
+        queryClient.invalidateQueries({ queryKey: ['account-face'] }),
+      ])
     },
   })
 
@@ -202,7 +222,8 @@ export default function SettingsPage() {
     {
       label: t('settings.group.app'),
       items: [
-        { id: 'app', label: t('settings.section.app'), Icon: IconDeviceGamepad2 },
+        { id: 'appGeneral', label: t('settings.section.appGeneral'), Icon: IconAdjustments },
+        { id: 'appTheme', label: t('settings.section.appTheme'), Icon: IconPalette },
       ],
     },
     {
@@ -302,10 +323,11 @@ export default function SettingsPage() {
               hint={t('settings.windowSizeHint')}
               width={settings.gameWindowWidth}
               height={settings.gameWindowHeight}
-              minWidth={640}
+              minWidth={GAME_WINDOW_MIN_WIDTH}
               maxWidth={7680}
-              minHeight={480}
+              minHeight={GAME_WINDOW_MIN_HEIGHT}
               maxHeight={4320}
+              presets={GAME_WINDOW_SIZE_PRESETS}
               disabled={settings.gameFullscreen}
               onCommitWidth={(gameWindowWidth) => saveMutation.mutate({ gameWindowWidth })}
               onCommitHeight={(gameWindowHeight) => saveMutation.mutate({ gameWindowHeight })}
@@ -525,7 +547,7 @@ export default function SettingsPage() {
         </Section>
       ) : null}
 
-      {section === 'app' ? (
+      {section === 'appGeneral' ? (
         <>
           <DeviceQuickSettings
             settings={settings}
@@ -534,39 +556,8 @@ export default function SettingsPage() {
               else saveMutation.mutate(partial)
             }}
           />
-          <Section title={t('settings.block.theme')}>
-            <p className="text-xs text-[var(--color-text-muted)]">{t('settings.themeModeHint')}</p>
-            <ThemeModePicker
-              value={settings.themeMode}
-              labels={{
-                light: t('settings.theme.light'),
-                dark: t('settings.theme.dark'),
-                color: t('settings.theme.color'),
-                oled: t('settings.theme.oled'),
-                system: t('settings.theme.system'),
-              }}
-              onChange={(mode) => {
-                if (mode === 'color' && settings.themeMode !== 'color') {
-                  saveMutation.mutate({
-                    themeMode: mode,
-                    themeColor: defaultThemeColorForMode(settings.themeMode),
-                  })
-                  return
-                }
-                saveMutation.mutate({ themeMode: mode })
-              }}
-            />
-            {settings.themeMode === 'color' ? (
-              <ThemeColorPicker
-                title={t('settings.themeColor')}
-                value={settings.themeColor}
-                onChange={handleThemeColorChange}
-              />
-            ) : null}
-          </Section>
-
-          <Section title={t('settings.block.display')}>
-            <p className="text-xs text-[var(--color-text-muted)]">{t('settings.displayHint')}</p>
+          <Section title={t('settings.block.windowGeneral')}>
+            <p className="text-xs text-[var(--color-text-muted)]">{t('settings.windowGeneralHint')}</p>
             <WindowSizeFields
               title={t('settings.launcherWindowSize')}
               hint={t('settings.launcherWindowSizeHint')}
@@ -576,6 +567,7 @@ export default function SettingsPage() {
               maxWidth={7680}
               minHeight={LAUNCHER_WINDOW_MIN_HEIGHT}
               maxHeight={4320}
+              presets={LAUNCHER_WINDOW_SIZE_PRESETS}
               onCommitWidth={(launcherWindowWidth) =>
                 saveMutation.mutate(launcherWindowPatch(launcherWindowWidth, settings.launcherWindowHeight))
               }
@@ -591,23 +583,6 @@ export default function SettingsPage() {
               onChange={(uiScale) => saveMutation.mutate({ uiScale })}
             />
             <Toggle
-              label={t('settings.useOsWindowChrome')}
-              hint={t('settings.useOsWindowChromeHint')}
-              checked={settings.useOsWindowChrome}
-              onChange={(useOsWindowChrome) => saveRestartRequiredSetting({ useOsWindowChrome })}
-            />
-            <Toggle
-              label={t('settings.hardwareAcceleration')}
-              hint={t('settings.hardwareAccelerationHint')}
-              checked={settings.hardwareAcceleration}
-              onChange={(hardwareAcceleration) =>
-                saveRestartRequiredSetting({ hardwareAcceleration })
-              }
-            />
-          </Section>
-
-          <Section title={t('settings.section.general')}>
-            <Toggle
               label={t('settings.minimizeOnLaunch')}
               hint={t('settings.minimizeOnLaunchHint')}
               checked={settings.minimizeOnLaunch}
@@ -619,6 +594,14 @@ export default function SettingsPage() {
               checked={settings.discordRichPresence}
               onChange={(discordRichPresence) => saveMutation.mutate({ discordRichPresence })}
             />
+            <Toggle
+              label={t('settings.hardwareAcceleration')}
+              hint={t('settings.hardwareAccelerationHint')}
+              checked={settings.hardwareAcceleration}
+              onChange={(hardwareAcceleration) =>
+                saveRestartRequiredSetting({ hardwareAcceleration })
+              }
+            />
             <div className="space-y-3 border-t border-[var(--color-border)] pt-5">
               <p className="text-xs text-[var(--color-text-muted)]">{t('settings.resetAllHint')}</p>
               <Button
@@ -629,6 +612,74 @@ export default function SettingsPage() {
                 {t('settings.resetAll')}
               </Button>
             </div>
+          </Section>
+        </>
+      ) : null}
+
+      {section === 'appTheme' ? (
+        <>
+          <Section title={t('settings.block.standardTheme')}>
+            <ThemeModePicker
+              value={settings.themeFamily === 'standard' ? settings.themeMode : null}
+              labels={{
+                light: t('settings.theme.light'),
+                dark: t('settings.theme.dark'),
+                color: t('settings.theme.color'),
+                oled: t('settings.theme.oled'),
+                system: t('settings.theme.system'),
+              }}
+              onChange={(mode) => {
+                if (mode === 'color' && settings.themeMode !== 'color') {
+                  const colors = defaultThemeColorsForMode(settings.themeMode)
+                  saveMutation.mutate({
+                    themeFamily: 'standard',
+                    themeMode: mode,
+                    seasonThemeId: null,
+                    themeColor: colors.base,
+                    themeAccentColor: colors.accent,
+                  })
+                  return
+                }
+                saveMutation.mutate({
+                  themeFamily: 'standard',
+                  themeMode: mode,
+                  seasonThemeId: null,
+                })
+              }}
+            />
+            {settings.themeFamily === 'standard' && settings.themeMode === 'color' ? (
+              <ThemeColorPicker
+                value={{
+                  base: settings.themeColor ?? { r: 255, g: 255, b: 255 },
+                  accent: settings.themeAccentColor ?? { r: 91, g: 164, b: 217 },
+                }}
+                onChange={handleThemeColorChange}
+              />
+            ) : null}
+          </Section>
+          <Section title={t('settings.block.seasonTheme')}>
+            {settings.themeFamily === 'season' && settings.seasonThemeId ? (
+              <SeasonTonePicker
+                value={coerceSeasonTone(settings.themeMode)}
+                onChange={(tone) => {
+                  saveMutation.mutate({
+                    themeFamily: 'season',
+                    seasonThemeId: settings.seasonThemeId,
+                    themeMode: tone,
+                  })
+                }}
+              />
+            ) : null}
+            <ThemeSeasonPicker
+              value={settings.themeFamily === 'season' ? settings.seasonThemeId : null}
+              onChange={(id) => {
+                saveMutation.mutate({
+                  themeFamily: 'season',
+                  seasonThemeId: id,
+                  themeMode: coerceSeasonTone(settings.themeMode),
+                })
+              }}
+            />
           </Section>
         </>
       ) : null}
@@ -884,11 +935,7 @@ function UiScalePicker({
   )
 }
 
-function matchWindowPreset(width: number, height: number) {
-  return WINDOW_SIZE_PRESETS.find((p) => p.width === width && p.height === height) ?? null
-}
-
-/** 480p / 540p では UI が窮屈なのでコンパクトに寄せる */
+/** 540p 付近では UI が窮屈なのでコンパクトに寄せる */
 function launcherWindowPatch(
   launcherWindowWidth: number,
   launcherWindowHeight: number,
@@ -900,6 +947,10 @@ function launcherWindowPatch(
   return patch
 }
 
+function matchWindowPreset(width: number, height: number, presets: readonly WindowSizePreset[]) {
+  return presets.find((p) => p.width === width && p.height === height) ?? null
+}
+
 function WindowSizeFields({
   title,
   hint,
@@ -909,6 +960,7 @@ function WindowSizeFields({
   maxWidth,
   minHeight,
   maxHeight,
+  presets = GAME_WINDOW_SIZE_PRESETS,
   disabled,
   onCommitWidth,
   onCommitHeight,
@@ -922,6 +974,7 @@ function WindowSizeFields({
   maxWidth: number
   minHeight: number
   maxHeight: number
+  presets?: readonly WindowSizePreset[]
   disabled?: boolean
   onCommitWidth: (width: number) => void
   onCommitHeight: (height: number) => void
@@ -930,7 +983,7 @@ function WindowSizeFields({
   const { t } = useTranslation()
   const [widthText, setWidthText] = useState(String(width))
   const [heightText, setHeightText] = useState(String(height))
-  const matched = matchWindowPreset(width, height)
+  const matched = matchWindowPreset(width, height, presets)
 
   useEffect(() => {
     setWidthText(String(width))
@@ -962,7 +1015,7 @@ function WindowSizeFields({
   }
 
   const applyPreset = (id: string) => {
-    const preset = WINDOW_SIZE_PRESETS.find((p) => p.id === id)
+    const preset = presets.find((p) => p.id === id)
     if (!preset) return
     const nextW = Math.min(maxWidth, Math.max(minWidth, preset.width))
     const nextH = Math.min(maxHeight, Math.max(minHeight, preset.height))
@@ -972,7 +1025,7 @@ function WindowSizeFields({
   }
 
   const presetOptions = [
-    ...WINDOW_SIZE_PRESETS.map((p) => ({ value: p.id, label: p.id })),
+    ...presets.map((p) => ({ value: p.id, label: p.id })),
     { value: 'custom', label: t('settings.windowPresetCustom') },
   ]
 

@@ -90,18 +90,21 @@ export const InstanceProfileSchema = z.object({
   notes: z.string().optional(),
   /**
    * 新規作成時にだけ立つ。既存インスタンスには無い。
-   * true のときだけ初回起動で Minecraft 初期設定を options.txt へ強制適用する。
+   * true のとき、初回起動直前に凍結スナップショットを options.txt へ適用する候補になる。
    */
   minecraftInitialSettingsSeeded: z.boolean().optional(),
-  /** 初回起動で options.txt へ反映済み */
+  /**
+   * 初回起動での初期設定適用が完了したか。
+   * 起動前の書き込み成功だけでは立てず、Minecraft が正常終了したあとで立てる。
+   */
   minecraftInitialSettingsApplied: z.boolean().optional(),
   /**
-   * 初期設定コミットの世代。古いまま applied だけ立っているインスタンスを再適用するために使う。
+   * 初期設定コミットの世代（記録用）。
    */
   minecraftInitialSettingsApplyGeneration: z.number().int().nonnegative().optional(),
-  /** 作成時点のスナップショット（互換・参照用。初回適用は設定の最新値を優先） */
+  /** 作成時点で凍結した options.txt パッチ（ファイルへは初回起動直前まで書かない） */
   pendingMinecraftOptions: z.record(z.string()).optional(),
-  /** 1.21.9+ のデバッグオーバーレイ（debug.json）。Identifier → visibility */
+  /** 作成時点で凍結した debug.json パッチ（初回起動直前まで書かない） */
   pendingMinecraftDebugOverlay: z.record(z.string()).optional(),
 })
 export type InstanceProfile = z.infer<typeof InstanceProfileSchema>
@@ -172,6 +175,10 @@ export const MEMORY_GC_WARN_ABOVE_MB = 24576
 
 export const ThemeModeSchema = z.enum(['light', 'dark', 'color', 'oled', 'system'])
 export type ThemeMode = z.infer<typeof ThemeModeSchema>
+
+/** スタンダードテーマ / シーズンテーマ（完全に別系統） */
+export const ThemeFamilySchema = z.enum(['standard', 'season'])
+export type ThemeFamily = z.infer<typeof ThemeFamilySchema>
 
 /** ランチャー UI の大きさ。normal は 720p 時と同じ */
 export const UiScaleSchema = z.enum(['minimal', 'normal', 'wide'])
@@ -291,11 +298,11 @@ export const SettingsSchema = z.object({
 
   // Minecraft 表示設定（ランチャー窓ではなくゲーム側）
   gameFullscreen: z.boolean().default(false),
-  gameWindowWidth: z.number().int().min(640).max(7680).default(1280),
-  gameWindowHeight: z.number().int().min(480).max(4320).default(720),
-  // Fledge ランチャー窓
-  launcherWindowWidth: z.number().int().min(854).max(7680).default(1280),
-  launcherWindowHeight: z.number().int().min(480).max(4320).default(720),
+  gameWindowWidth: z.number().int().min(1280).max(7680).default(1280),
+  gameWindowHeight: z.number().int().min(720).max(4320).default(720),
+  // Fledge ランチャー窓（最小 540p）
+  launcherWindowWidth: z.number().int().min(960).max(7680).default(1280),
+  launcherWindowHeight: z.number().int().min(540).max(4320).default(720),
   uiScale: UiScaleSchema.default('normal'),
   startupPage: StartupPageSchema.default('home'),
   // 旧キー互換（読み込み時に吸収）
@@ -304,8 +311,21 @@ export const SettingsSchema = z.object({
   windowHeight: z.number().int().optional(),
 
   // 表示設定
+  /** standard = スタンダードテーマ / season = シーズンテーマ */
+  themeFamily: ThemeFamilySchema.default('standard'),
   themeMode: ThemeModeSchema.default('light'),
+  /** 選択中のシーズンテーマ ID（themeFamily が season のとき）。カタログに残る過去分も指定可 */
+  seasonThemeId: z.string().min(1).nullable().default(null),
+  /** カラーテーマのベース（背景・面の色み） */
   themeColor: z
+    .object({
+      r: z.number().int().min(0).max(255).default(255),
+      g: z.number().int().min(0).max(255).default(255),
+      b: z.number().int().min(0).max(255).default(255),
+    })
+    .default({ r: 255, g: 255, b: 255 }),
+  /** カラーテーマのアクセント（ボタン・強調） */
+  themeAccentColor: z
     .object({
       r: z.number().int().min(0).max(255).default(91),
       g: z.number().int().min(0).max(255).default(164),
@@ -313,7 +333,6 @@ export const SettingsSchema = z.object({
     })
     .default({ r: 91, g: 164, b: 217 }),
   hardwareAcceleration: z.boolean().default(true),
-  useOsWindowChrome: z.boolean().default(false),
   minimizeOnLaunch: z.boolean().default(false),
   discordRichPresence: z.boolean().default(false),
   /** 初回プライバシー注意の確認済み */
@@ -335,7 +354,7 @@ export const SettingsSchema = z.object({
   skinModel: SkinModelSchema.default('wide'),
 
   // ライブラリ並び
-  librarySortMode: LibrarySortModeSchema.default('lastPlayed'),
+  librarySortMode: LibrarySortModeSchema.default('name'),
   /** manual 時のインスタンス ID 順。未知 ID は末尾に足す */
   libraryInstanceOrder: z.array(z.string()).default([]),
 })

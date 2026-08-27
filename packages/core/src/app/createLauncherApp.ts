@@ -82,7 +82,10 @@ export async function createLauncherApp(options: CreateLauncherAppOptions): Prom
   const java = new JavaManager(paths, queue, logger)
   const minecraft = new MinecraftService(paths, queue, logger)
   const versions = new VersionService(paths, logger)
-  const content = new ContentService(instances, queue, logger, settings, versions)
+  const content = new ContentService(instances, queue, logger, settings, versions, (e) => {
+    options.onProgress?.(e)
+    options.events.emitProgress(e)
+  })
   const launch = new LaunchOrchestrator({
     auth: options.auth,
     instances,

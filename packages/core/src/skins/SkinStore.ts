@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { MAX_UPLOADED_SKINS, type SkinEntry, type SkinModel } from '@fledge/shared'
 import type { PathLayout } from '../app/paths.js'
 
@@ -52,11 +52,22 @@ export class SkinStore {
     bytes: Uint8Array
     originalName: string
     thumb?: { bytes: Uint8Array; ext: 'webp' | 'png' }
+    /** true のときマイスキン一覧の先頭へ挿入 */
+    prepend?: boolean
   }): Promise<SkinEntry> {
     await fs.mkdir(this.layout.skins, { recursive: true })
     const list = await this.readUploaded()
     if (list.length >= MAX_UPLOADED_SKINS) {
-      throw new Error(`Maximum of ${MAX_UPLOADED_SKINS} uploaded skins`)
+      if (input.prepend) {
+        // 先頭挿入のため、末尾（古い方）を1つ捨てる
+        const evicted = list.pop()
+        if (evicted) {
+          await fs.rm(path.join(this.layout.skins, evicted.fileName), { force: true })
+          await this.removeThumbs(evicted.id)
+        }
+      } else {
+        throw new Error(`Maximum of ${MAX_UPLOADED_SKINS} uploaded skins`)
+      }
     }
     const id = randomUUID()
     const ext = path.extname(input.originalName).toLowerCase() || '.png'
@@ -68,12 +79,20 @@ export class SkinStore {
       model: input.model,
       fileName,
     }
-    list.push(entry)
+    if (input.prepend) list.unshift(entry)
+    else list.push(entry)
     await fs.writeFile(this.metaPath(), JSON.stringify(list, null, 2), 'utf8')
     if (input.thumb) {
       await this.writeThumb(id, input.model, input.thumb.bytes, input.thumb.ext)
     }
     return toUploadEntry(entry)
+  }
+
+  /** アップロード済みスキン PNG の SHA-256（一致判定用） */
+  async hashUploadedPng(id: string): Promise<string | null> {
+    const bytes = await this.readPngBytes(id)
+    if (!bytes) return null
+    return createHash('sha256').update(bytes).digest('hex')
   }
 
   private thumbsDir(): string {

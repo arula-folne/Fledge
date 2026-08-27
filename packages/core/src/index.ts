@@ -21,12 +21,15 @@ export { JavaManager, requiredJavaMajor, JAVA_MANAGED_MAJORS } from './java/Java
 export type { JavaManagedMajor, JavaRuntimeView, JavaVerifyResult } from './java/JavaManager.js'
 export { MinecraftService } from './minecraft/MinecraftService.js'
 export {
+  hasCustomMinecraftInitialSettings,
   snapshotMinecraftInitialOptions,
   snapshotMinecraftDebugOverlay,
   mergeMinecraftOptionsFile,
   mergeMinecraftDebugOverlayFile,
+  applyMinecraftInitialPatchToInstance,
   applyMinecraftInitialSettingsToInstance,
   ensureMinecraftInitialSettingsApplied,
+  isMinecraftInitialPatchEmpty,
   verifyMinecraftOptionsFile,
   verifyMinecraftDebugOverlayFile,
   resolveInitialLang,
@@ -36,5 +39,6 @@ export { VersionService } from './versions/VersionService.js'
 export type { MinecraftVersionProvider, LoaderVersionProvider } from './versions/VersionProvider.js'
 export { SkinStore, DEFAULT_SKINS } from './skins/SkinStore.js'
 export { SkinApplier } from './skins/SkinApplier.js'
+export { fetchActiveMinecraftSkin, hashSkinPng } from './skins/MojangSkinClient.js'
 export { SessionJoinProxy, sessionHostJvmArgs } from './auth/SessionJoinProxy.js'
 export { BackupService } from './backup/BackupService.js'

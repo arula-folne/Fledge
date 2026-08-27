@@ -1,83 +1,57 @@
 import { useEffect, useState, type CSSProperties } from 'react'
-import {
-  IconCircleLetterD,
-  IconDeviceDesktop,
-  IconMoon,
-  IconPalette,
-  IconSun,
-} from '@tabler/icons-react'
-import type { ThemeMode } from '@fledge/shared'
+import { useTranslation } from 'react-i18next'
+import { SEASON_THEMES } from '../../styles/themeSeasons'
 
 type Props = {
-  /** null のとき未選択（シーズンテーマ使用中など） */
-  value: ThemeMode | null
-  labels: Record<ThemeMode, string>
-  onChange: (mode: ThemeMode) => void
+  value: string | null
+  onChange: (id: string) => void
 }
-
-const ORDER: ThemeMode[] = ['light', 'dark', 'oled', 'color', 'system']
-
-const MODE_ICON = {
-  dark: IconMoon,
-  light: IconSun,
-  color: IconPalette,
-  oled: IconCircleLetterD,
-  system: IconDeviceDesktop,
-} as const
 
 const SKEW = 12
 
-const COLOR_RAINBOW =
-  'linear-gradient(135deg, #ff4d6d 0%, #ff9f1c 22%, #ffd60a 40%, #2ec4b6 58%, #4cc9f0 76%, #7b2cbf 100%)'
-
-function previewBg(mode: ThemeMode): string {
-  switch (mode) {
-    case 'light':
-      return '#e8e4de'
-    case 'dark':
-      return '#313338'
-    case 'oled':
-      return '#000000'
-    case 'system':
-      return 'linear-gradient(90deg, #313338 0 50%, #e8e4de 50% 100%)'
-    case 'color':
-      return COLOR_RAINBOW
-  }
-}
-
-export function ThemeModePicker({ value, labels, onChange }: Props) {
-  const [pending, setPending] = useState<ThemeMode | null>(null)
+/** スタンダードテーマと同じスキューカード表示 */
+export function ThemeSeasonPicker({ value, onChange }: Props) {
+  const { t } = useTranslation()
+  const [pending, setPending] = useState<string | null>(null)
   const current = pending ?? value
 
   useEffect(() => {
-    // シーズン側へ切り替わった／確定したら pending を捨てて排他表示を保つ
+    // スタンダード側へ切り替わった／確定したら pending を捨てて排他表示を保つ
     if (value === null || (pending !== null && value === pending)) {
       setPending(null)
     }
   }, [value, pending])
 
+  if (SEASON_THEMES.length === 0) return null
+
   return (
-    <div className="w-full overflow-x-clip px-2" role="radiogroup" aria-label="theme">
+    <div
+      className="w-full overflow-x-clip px-2"
+      role="radiogroup"
+      aria-label={t('settings.block.seasonTheme')}
+    >
       <div className="flex w-full gap-2.5">
-        {ORDER.map((mode) => {
-          const selected = current === mode
-          const Icon = MODE_ICON[mode]
+        {SEASON_THEMES.map((theme) => {
+          const selected = current === theme.id
+          const label = t(theme.labelKey)
+          const preview = theme.illustration?.light
           return (
             <button
-              key={mode}
+              key={theme.id}
               type="button"
               role="radio"
               aria-checked={selected}
-              aria-label={labels[mode]}
-              title={labels[mode]}
+              aria-label={label}
+              title={label}
               onClick={() => {
-                setPending(mode)
-                onChange(mode)
+                setPending(theme.id)
+                onChange(theme.id)
               }}
               className={[
-                'relative h-[108px] min-w-0 flex-1',
+                'relative h-[108px] min-w-0',
                 'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-selection)]',
               ].join(' ')}
+              style={{ flex: '1 1 0', maxWidth: 'calc((100% - 2.5rem) / 5)' }}
             >
               <div
                 className={[
@@ -85,20 +59,31 @@ export function ThemeModePicker({ value, labels, onChange }: Props) {
                   'transition-[box-shadow,filter]',
                   selected
                     ? 'z-[1] shadow-[0_0_0_2px_var(--color-selection)]'
-                    : mode === 'oled'
-                      ? 'shadow-[inset_0_0_0_1px_rgba(255,255,255,0.25)]'
-                      : 'shadow-[inset_0_0_0_1px_rgba(0,0,0,0.2)]',
+                    : 'shadow-[inset_0_0_0_1px_rgba(0,0,0,0.2)]',
                 ].join(' ')}
                 style={
                   {
                     transform: `skewX(-${SKEW}deg)`,
-                    background: previewBg(mode),
+                    background: preview ? undefined : theme.previewBg,
                     backfaceVisibility: 'hidden',
                   } satisfies CSSProperties
                 }
               >
+                {preview ? (
+                  <img
+                    src={preview}
+                    alt=""
+                    className="absolute inset-0 h-full w-full max-w-none object-cover object-[center_68%]"
+                    style={{
+                      transform: `skewX(${SKEW}deg) scaleX(1.08)`,
+                      width: '115%',
+                      left: '-7.5%',
+                    }}
+                    draggable={false}
+                  />
+                ) : null}
                 <div
-                  className="flex h-full w-[130%] flex-col justify-end"
+                  className="relative z-[1] flex h-full w-[130%] flex-col justify-end"
                   style={{
                     transform: `skewX(${SKEW}deg)`,
                     marginLeft: '-15%',
@@ -117,9 +102,8 @@ export function ThemeModePicker({ value, labels, onChange }: Props) {
                       ) : null}
                     </span>
                     <span className="truncate text-[11px] font-semibold leading-none text-white">
-                      {labels[mode]}
+                      {label}
                     </span>
-                    <Icon size={13} stroke={1.75} className="shrink-0 text-white/95" aria-hidden />
                   </div>
                 </div>
               </div>

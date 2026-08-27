@@ -89,14 +89,53 @@ function formatFloat(n: number): string {
 }
 
 /**
- * Fledge の初期設定のうち、Minecraft デフォルトから変更された項目だけを options.txt 行にする。
- * lang 未指定時はアプリ locale から推定する（製品版で「アプリは日本語なのにゲームは英語」を防ぐ）。
+ * 初期設定がすべて「Minecraftデフォルト」か（何も書き込まない＝ゲーム本来の初回動作）。
+ */
+export function hasCustomMinecraftInitialSettings(settings: MinecraftInitialSettings): boolean {
+  if (settings.lang) return true
+  if (settings.showSubtitles !== null) return true
+  if (settings.autoJump !== null) return true
+  if (settings.bobView !== null) return true
+  if (settings.operatorItemsTab !== null) return true
+  if (settings.fovDegrees !== null) return true
+  if (settings.masterVolume !== null) return true
+  if (settings.musicVolume !== null) return true
+  if (settings.weatherVolume !== null) return true
+  if (settings.recordVolume !== null) return true
+  if (settings.blockVolume !== null) return true
+  if (settings.maxFps !== null) return true
+  if (settings.enableVsync !== null) return true
+  if (settings.inactivityFpsLimit !== null) return true
+  if (settings.guiScale !== null) return true
+  if (settings.gamma !== null) return true
+  if (settings.renderDistance !== null) return true
+  if (settings.simulationDistance !== null) return true
+  if (settings.mouseSensitivity !== null) return true
+  if (settings.showFps !== null) return true
+  if (settings.fpsExtended !== null) return true
+  if (settings.fpsTextContrast !== null) return true
+  for (const [id, code] of Object.entries(settings.keybinds ?? {})) {
+    if (id.startsWith('key.') && code) return true
+  }
+  return false
+}
+
+/**
+ * Fledge の初期設定のうち、ユーザーが明示した項目だけを options.txt 行にする。
+ * すべて null（変更なし）のときは空オブジェクト（ファイルを作らない／触らない）。
+ * 1件でも変更があるときだけ onboardAccessibility:false を付ける。
+ * lang はユーザーが明示したときだけ書く（アプリ locale からは推定しない）。
+ *
+ * 適用タイミング（作成時に書かない・初回起動前・applied の意味）は不変条件。
+ * 変更する場合は必ずユーザー確認（.cursor/rules/minecraft-initial-settings-launch.mdc）。
  */
 export function snapshotMinecraftInitialOptions(
   settings: MinecraftInitialSettings,
   minecraftVersion: string,
-  appLocale?: string | null,
+  _appLocale?: string | null,
 ): Record<string, string> {
+  if (!hasCustomMinecraftInitialSettings(settings)) return {}
+
   const out: Record<string, string> = {}
   const put = (key: string, value: string) => {
     const min = KEY_MIN_VERSION[key]
@@ -104,8 +143,7 @@ export function snapshotMinecraftInitialOptions(
     out[key] = value
   }
 
-  const lang = resolveInitialLang(settings.lang, appLocale)
-  if (lang) put('lang', lang)
+  if (settings.lang && settings.lang.trim()) put('lang', settings.lang.trim())
   if (settings.showSubtitles !== null) put('showSubtitles', String(settings.showSubtitles))
   if (settings.autoJump !== null) put('autoJump', String(settings.autoJump))
   if (settings.bobView !== null) put('bobView', String(settings.bobView))
@@ -138,13 +176,13 @@ export function snapshotMinecraftInitialOptions(
     put(`key_${id}`, code)
   }
 
-  // 初回アクセシビリティ画面を出さない（未知バージョンでも書く。古い版は無視するだけ）
+  // 変更ありのときだけ初回アクセシビリティ画面を抑止する
   out.onboardAccessibility = 'false'
 
   return out
 }
 
-/** 明示 lang → アプリ locale からの推定 */
+/** 明示 lang のみ。アプリ locale からの推定は初期設定適用では使わない（互換のため残す）。 */
 export function resolveInitialLang(
   lang: string | null | undefined,
   appLocale?: string | null,
@@ -322,9 +360,41 @@ export async function mergeMinecraftOptionsFile(
 }
 
 /**
- * Fledge 初期設定をインスタンスへ強制反映（Modpack の options.txt / debug.json より優先）。
- * pending の凍結スナップショットより、渡された settings を正とする。
- * @param appLocale アプリの locale（lang 未設定時のフォールバック）
+ * 凍結済みパッチをインスタンスへ強制反映（Modpack 同梱より優先）。
+ * 空パッチなら何もしない（ゲーム本来の初回動作）。
+ */
+export async function applyMinecraftInitialPatchToInstance(
+  instanceDir: string,
+  options: Record<string, string>,
+  overlay: Record<string, string> = {},
+): Promise<{ options: Record<string, string>; overlay: Record<string, string> }> {
+  if (Object.keys(options).length === 0 && Object.keys(overlay).length === 0) {
+    return { options, overlay }
+  }
+
+  if (Object.keys(options).length > 0) {
+    await mergeMinecraftOptionsFile(instanceDir, options)
+    if (!(await verifyMinecraftOptionsFile(instanceDir, options))) {
+      await mergeMinecraftOptionsFile(instanceDir, options)
+    }
+    if (!(await verifyMinecraftOptionsFile(instanceDir, options))) {
+      throw new Error(`Failed to persist Minecraft options.txt at ${path.join(instanceDir, 'options.txt')}`)
+    }
+  }
+
+  if (Object.keys(overlay).length > 0) {
+    await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
+    if (!(await verifyMinecraftDebugOverlayFile(instanceDir, overlay))) {
+      await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
+    }
+  }
+
+  return { options, overlay }
+}
+
+/**
+ * 作成時点の設定からパッチを組み立ててインスタンスへ反映する。
+ * 起動時の再適用には使わない（インスタンスの pending スナップショットを使う）。
  */
 export async function applyMinecraftInitialSettingsToInstance(
   instanceDir: string,
@@ -334,67 +404,50 @@ export async function applyMinecraftInitialSettingsToInstance(
 ): Promise<{ options: Record<string, string>; overlay: Record<string, string> }> {
   const options = snapshotMinecraftInitialOptions(settings, minecraftVersion, appLocale)
   const overlay = snapshotMinecraftDebugOverlay(settings, minecraftVersion)
-  // 変更 0 件でも Welcome / アクセシビリティ初回画面を抑止する
-  if (!('onboardAccessibility' in options)) {
-    options.onboardAccessibility = 'false'
-  }
-  await mergeMinecraftOptionsFile(instanceDir, options)
-  await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
-
-  // 書き込み直後に検証し、失敗したら一度だけ再書き込み
-  if (!(await verifyMinecraftOptionsFile(instanceDir, options))) {
-    await mergeMinecraftOptionsFile(instanceDir, options)
-  }
-  if (!(await verifyMinecraftDebugOverlayFile(instanceDir, overlay))) {
-    await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
-  }
-
-  // 初回英語／アクセシビリティ画面の主因は「起動前に options.txt が無い」こと。
-  // ここで読めなければ呼び出し側で起動を止める／再試行できるようにする。
-  if (!(await verifyMinecraftOptionsFile(instanceDir, options))) {
-    throw new Error(`Failed to persist Minecraft options.txt at ${path.join(instanceDir, 'options.txt')}`)
-  }
-
-  return { options, overlay }
+  return applyMinecraftInitialPatchToInstance(instanceDir, options, overlay)
 }
 
-/** 初期設定コミットの現行世代（上げると旧世代コミット済みインスタンスは再適用される） */
+/** 初期設定コミットの現行世代（コミット記録用。作成時スナップショット固定後は再適用トリガーにしない） */
 export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 7
 
+export function isMinecraftInitialPatchEmpty(
+  options: Record<string, string> | undefined | null,
+  overlay: Record<string, string> | undefined | null = {},
+): boolean {
+  return Object.keys(options ?? {}).length === 0 && Object.keys(overlay ?? {}).length === 0
+}
+
 /**
- * シード済みインスタンスで、Fledge 初期設定を確実にファイルへ載せる。
- * - 未コミット（または旧世代）: 毎回強制適用（起動直前の最新設定を優先）
- * - 現行世代でコミット済み: パッチが options.txt に残っているときだけスキップ（欠けていれば再適用）
- * Forge 等が起動中に潰す場合は LaunchOrchestrator 側で遅延ガードする。
- * @returns 起動後に applied コミットが必要なら true
+ * シード済みインスタンスへ、作成時凍結パッチを初回起動前に載せる。
+ * - コミット済み（applied）: 何もしない
+ * - パッチ空（変更なし）: ディスクへ触れず、applied にもしない
+ * - パッチあり: 強制マージし、起動成功後のコミット待ち（起動前だけでは applied にしない）
  */
 export async function ensureMinecraftInitialSettingsApplied(
   instanceDir: string,
-  settings: MinecraftInitialSettings,
-  minecraftVersion: string,
+  pendingOptions: Record<string, string>,
+  pendingOverlay: Record<string, string>,
   alreadyCommitted: boolean,
-  appLocale?: string | null,
-): Promise<{ neededCommit: boolean; options: Record<string, string>; overlay: Record<string, string> }> {
-  const options = snapshotMinecraftInitialOptions(settings, minecraftVersion, appLocale)
-  const overlay = snapshotMinecraftDebugOverlay(settings, minecraftVersion)
-  if (!('onboardAccessibility' in options)) {
-    options.onboardAccessibility = 'false'
-  }
-
+): Promise<{
+  neededCommit: boolean
+  options: Record<string, string>
+  overlay: Record<string, string>
+}> {
   if (alreadyCommitted) {
-    const optionsOk = await verifyMinecraftOptionsFile(instanceDir, options)
-    const overlayOk =
-      Object.keys(overlay).length === 0 ||
-      (await verifyMinecraftDebugOverlayFile(instanceDir, overlay))
-    if (optionsOk && overlayOk) {
-      return { neededCommit: false, options, overlay }
-    }
-    await applyMinecraftInitialSettingsToInstance(instanceDir, settings, minecraftVersion, appLocale)
-    return { neededCommit: true, options, overlay }
+    return { neededCommit: false, options: {}, overlay: {} }
   }
 
-  await applyMinecraftInitialSettingsToInstance(instanceDir, settings, minecraftVersion, appLocale)
-  return { neededCommit: true, options, overlay }
+  // 変更なし: options.txt / debug.json / applied フラグのいずれにも触れない
+  if (isMinecraftInitialPatchEmpty(pendingOptions, pendingOverlay)) {
+    return { neededCommit: false, options: {}, overlay: {} }
+  }
+
+  await applyMinecraftInitialPatchToInstance(instanceDir, pendingOptions, pendingOverlay)
+  return {
+    neededCommit: true,
+    options: pendingOptions,
+    overlay: pendingOverlay,
+  }
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

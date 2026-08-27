@@ -25,6 +25,11 @@ export async function startLogin(queryClient: QueryClient): Promise<void> {
     const account = await fledgeApi.auth.login()
     useUiStore.getState().setAuthStatus('logged_in')
     applyLoggedInAccount(queryClient, account)
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['skins'] }),
+      queryClient.invalidateQueries({ queryKey: ['settings'] }),
+      queryClient.invalidateQueries({ queryKey: ['account-face'] }),
+    ])
   } catch (err) {
     const key = extractAuthErrorKey(err)
     const state = useUiStore.getState()

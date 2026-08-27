@@ -7,10 +7,9 @@ import { CrystalClickEffect } from './components/effects/CrystalClickEffect'
 import { PrivacyNoticeDialog } from './components/PrivacyNoticeDialog'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { WindowChrome } from './components/layout/WindowChrome'
-import { WindowSizeHud } from './components/layout/WindowSizeHud'
 import { fledgeApi } from './api/fledgeApi'
 import { applyAuthStatusEvent } from './features/auth/sessionCache'
-import { useLaunchStore, useTransferStore, useUiStore } from './stores/appStores'
+import { useLaunchStore, useTransferStore, useUiStore, useInstanceCreateStore } from './stores/appStores'
 import type { Settings } from '@fledge/shared'
 
 // メインナビは即時切替のため eager import（初回クリックのチャンク待ちを避ける）
@@ -43,6 +42,16 @@ function EventBridge() {
       fledgeApi.on.progress((e) => {
         applyProgress(e)
         applyTransfer(e)
+        if (e.kind === 'content' && e.meta?.instanceReady && typeof e.meta.instanceId === 'string') {
+          const id = e.meta.instanceId
+          if (e.status === 'active') {
+            useInstanceCreateStore.getState().markCreating(id)
+          } else if (e.status === 'completed' || e.status === 'failed') {
+            useInstanceCreateStore.getState().unmarkCreating(id)
+          }
+          void queryClient.invalidateQueries({ queryKey: ['instances'] })
+          void queryClient.invalidateQueries({ queryKey: ['settings'] })
+        }
         if (e.kind === 'content' && (e.status === 'completed' || e.status === 'failed')) {
           scheduleContentInvalidate()
         }
@@ -105,7 +114,6 @@ export default function App() {
       <EventBridge />
       <DisableNonInputDrag />
       <CrystalClickEffect />
-      <WindowSizeHud />
       <PrivacyNoticeDialog />
       <WindowChrome>
         <RouteErrorBoundary

@@ -77,8 +77,13 @@ export function AccountChip() {
 
   const switchMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.auth.switch(id),
-    onSuccess: (next) => {
+    onSuccess: async (next) => {
       applyLoggedInAccount(queryClient, next)
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['skins'] }),
+        queryClient.invalidateQueries({ queryKey: ['settings'] }),
+        queryClient.invalidateQueries({ queryKey: ['account-face'] }),
+      ])
     },
   })
 
@@ -199,7 +204,10 @@ export function AccountChip() {
               <ul className="max-h-40 space-y-1 overflow-auto">
                 {accounts.map((a) => {
                   const active = a.id === account?.id
-                  const aFace = mcFaceUrl(a, 28)
+                  // 使用中はヘッダーと同じ選択スキン顔。他アカウントは mc-heads
+                  const aFace = active
+                    ? (chipFaceQuery.data ?? mcFaceUrl(a, 28))
+                    : mcFaceUrl(a, 28)
                   return (
                     <li key={a.id}>
                       <button

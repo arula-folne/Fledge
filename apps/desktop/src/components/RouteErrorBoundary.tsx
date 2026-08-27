@@ -85,7 +85,7 @@ export class RouteErrorBoundary extends Component<Props, State> {
             ) : null}
             <button
               type="button"
-              className="self-start rounded-[var(--radius-md)] bg-[var(--color-accent)] px-3 py-2 text-sm text-white"
+              className="self-start rounded-[var(--radius-md)] bg-[var(--color-accent)] px-3 py-2 text-sm text-[var(--color-on-accent)]"
               onClick={this.reset}
             >
               {this.props.retryLabel ?? '再試行'}

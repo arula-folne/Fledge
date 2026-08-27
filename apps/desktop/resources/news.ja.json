@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.2.0b",
+    "title": "【バージョンアップ】Fledge Ver.0.2.0b",
+    "body": "**Fledge Ver.0.2.0b** を公開しました。\n\n## 主な変更\n\n- **シーズン・イベントテーマ**を追加（スタンダードと排他選択）。第1弾として砂浜イラストの **Tidal Summer 2026**（ライト／ダーク／システム）\n- メニュー選択色をテーマのアクセントカラーに連動\n- インスタンスのログタブをコンソール風表示に刷新（`.log.gz` も展開して表示）\n- Minecraft 初期設定の適用フローを安定化（作成時は pending のみ、初回起動時に反映、終了後に applied）\n- 起動プログレス文言の整理、ライブラリの既定並び（名前昇順）など UI／操作性の改善\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-27T16:15:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.2.0b"
+  },
+  {
     "id": "v0.1.14a",
     "title": "【バージョンアップ】Fledge Ver.0.1.14a",
     "body": "**Fledge Ver.0.1.14a** を公開しました。\n\n## 主な変更\n\n- インスタンス削除後に mod が残る問題を修正（同名・同バージョンで作り直しても別インスタンスとして扱う）\n- Fabric / Quilt で mod 導入時に Fabric API / QSL を自動でインストール（Sodium など依存未宣言の mod に対応）\n- コンテンツ検索を開くたびにインストール済み一覧を再取得し、インストールボタンが誤って復活する問題を修正\n\n> 引き続きベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

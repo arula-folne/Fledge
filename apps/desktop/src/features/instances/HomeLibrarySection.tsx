@@ -21,7 +21,7 @@ import {
   type InstanceContextMenuState,
 } from './InstanceContextMenu'
 import { sortLibraryInstances } from './sortLibraryInstances'
-import { useUiStore } from '../../stores/appStores'
+import { useInstanceCreateStore, useUiStore } from '../../stores/appStores'
 
 const SORT_MODES: LibrarySortMode[] = [
   'lastPlayed',
@@ -46,6 +46,8 @@ export function HomeLibrarySection({ instances }: Props) {
   const setWizardOpen = useUiStore((s) => s.setInstanceWizardOpen)
   const setLibraryFocus = useUiStore((s) => s.setLibraryFocus)
   const setEditingInstanceId = useUiStore((s) => s.setEditingInstanceId)
+  const createError = useInstanceCreateStore((s) => s.lastError)
+  const setCreateError = useInstanceCreateStore((s) => s.setLastError)
   const [menu, setMenu] = useState<InstanceContextMenuState>(null)
   const [pendingDelete, setPendingDelete] = useState<InstanceProfile | null>(null)
 
@@ -54,7 +56,7 @@ export function HomeLibrarySection({ instances }: Props) {
     queryFn: () => fledgeApi.settings.get(),
   })
 
-  const sortMode = settingsQuery.data?.librarySortMode ?? 'lastPlayed'
+  const sortMode = settingsQuery.data?.librarySortMode ?? 'name'
   const savedOrder = settingsQuery.data?.libraryInstanceOrder ?? []
 
   const saveSettings = useMutation({
@@ -161,6 +163,19 @@ export function HomeLibrarySection({ instances }: Props) {
           </Button>
         </div>
       </div>
+
+      {createError ? (
+        <p className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-3 py-2 text-sm text-[var(--color-danger)]">
+          <span>{createError}</span>
+          <button
+            type="button"
+            className="ml-2 underline"
+            onClick={() => setCreateError(null)}
+          >
+            {t('common.close')}
+          </button>
+        </p>
+      ) : null}
 
       {empty ? (
         <div className="rounded-[var(--radius-md)] border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]/60 px-4 py-8 text-center">

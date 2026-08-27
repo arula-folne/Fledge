@@ -1,7 +1,16 @@
 import { MEMORY_PRESETS_NORMAL_MB, type UiScale } from './models.js'
 
-export const WINDOW_SIZE_PRESETS = [
-  { id: '480p', width: 854, height: 480 },
+/** Minecraft 窓用（最小 720p） */
+export const GAME_WINDOW_SIZE_PRESETS = [
+  { id: '720p', width: 1280, height: 720 },
+  { id: '900p', width: 1600, height: 900 },
+  { id: '1080p', width: 1920, height: 1080 },
+  { id: '1440p', width: 2560, height: 1440 },
+  { id: '2160p', width: 3840, height: 2160 },
+] as const
+
+/** Fledge 窓用（最小 540p） */
+export const LAUNCHER_WINDOW_SIZE_PRESETS = [
   { id: '540p', width: 960, height: 540 },
   { id: '720p', width: 1280, height: 720 },
   { id: '900p', width: 1600, height: 900 },
@@ -10,12 +19,21 @@ export const WINDOW_SIZE_PRESETS = [
   { id: '2160p', width: 3840, height: 2160 },
 ] as const
 
-/** ランチャー窓の下限（最小プリセット 480p に合わせる） */
-export const LAUNCHER_WINDOW_MIN_WIDTH = 854
-export const LAUNCHER_WINDOW_MIN_HEIGHT = 480
+/** 表示名・一致判定用（ランチャー側が一覧として広い） */
+export const WINDOW_SIZE_PRESETS = LAUNCHER_WINDOW_SIZE_PRESETS
+
+/** ランチャー窓の下限（最小プリセット 540p） */
+export const LAUNCHER_WINDOW_MIN_WIDTH = 960
+export const LAUNCHER_WINDOW_MIN_HEIGHT = 540
+
+/** Minecraft 窓の下限（最小プリセット 720p） */
+export const GAME_WINDOW_MIN_WIDTH = 1280
+export const GAME_WINDOW_MIN_HEIGHT = 720
 
 export type WindowSizePresetId = (typeof WINDOW_SIZE_PRESETS)[number]['id']
 export type WindowSizePreset = (typeof WINDOW_SIZE_PRESETS)[number]
+export type LauncherWindowSizePreset = (typeof LAUNCHER_WINDOW_SIZE_PRESETS)[number]
+export type GameWindowSizePreset = (typeof GAME_WINDOW_SIZE_PRESETS)[number]
 
 export type DeviceSpecs = {
   totalMemMb: number
@@ -47,17 +65,18 @@ function snapMemory(mb: number): number {
   return best
 }
 
-/** 作業領域に収まる最大のウィンドウプリセット。収まらなければ最小（480p）。 */
+/** 作業領域に収まる最大のウィンドウプリセット。収まらなければ一覧の最小。 */
 export function pickWindowPresetForWorkArea(
   workWidth: number,
   workHeight: number,
-  options?: { maxHeight?: number },
+  options?: { maxHeight?: number; presets?: readonly WindowSizePreset[] },
 ): WindowSizePreset {
   const workW = Math.max(1, workWidth)
   const workH = Math.max(1, workHeight)
   const maxH = options?.maxHeight ?? Number.POSITIVE_INFINITY
-  let chosen: WindowSizePreset = WINDOW_SIZE_PRESETS[0]
-  for (const preset of WINDOW_SIZE_PRESETS) {
+  const presets = options?.presets?.length ? options.presets : WINDOW_SIZE_PRESETS
+  let chosen: WindowSizePreset = presets[0]!
+  for (const preset of presets) {
     if (preset.width <= workW && preset.height <= workH && preset.height <= maxH) {
       chosen = preset
     }
@@ -79,8 +98,11 @@ export function recommendSettingsForDevice(specs: DeviceSpecs): DeviceRecommende
 
   const launcherPreset = pickWindowPresetForWorkArea(specs.workAreaWidth, specs.workAreaHeight, {
     maxHeight: 900,
+    presets: LAUNCHER_WINDOW_SIZE_PRESETS,
   })
-  const gamePreset = pickWindowPresetForWorkArea(specs.workAreaWidth, specs.workAreaHeight)
+  const gamePreset = pickWindowPresetForWorkArea(specs.workAreaWidth, specs.workAreaHeight, {
+    presets: GAME_WINDOW_SIZE_PRESETS,
+  })
 
   let uiScale: UiScale = 'normal'
   if (specs.workAreaHeight < 800) uiScale = 'minimal'
@@ -99,4 +121,3 @@ export function recommendSettingsForDevice(specs: DeviceSpecs): DeviceRecommende
     hardwareAcceleration: true,
   }
 }
-

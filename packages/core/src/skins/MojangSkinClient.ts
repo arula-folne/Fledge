@@ -1,8 +1,55 @@
+import { createHash } from 'node:crypto'
 import { fledgeUserAgent } from '@fledge/shared'
 import { File } from 'node:buffer'
+import type { SkinModel } from '@fledge/shared'
 
 const SKIN_UPLOAD_URL = 'https://api.minecraftservices.com/minecraft/profile/skins'
 const PROFILE_URL = 'https://api.minecraftservices.com/minecraft/profile'
+
+type ProfileSkin = {
+  id?: string
+  state?: string
+  url?: string
+  variant?: string
+}
+
+/**
+ * 公式プロフィールのアクティブスキン（PNG + モデル）を取得する。
+ * 取得できない場合は null（カスタム未設定・ネットワーク失敗など）。
+ */
+export async function fetchActiveMinecraftSkin(accessToken: string): Promise<{
+  png: Uint8Array
+  model: SkinModel
+  textureUrl: string
+} | null> {
+  const profileRes = await fetch(PROFILE_URL, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: 'application/json',
+      'User-Agent': fledgeUserAgent('skin-profile'),
+    },
+  })
+  if (!profileRes.ok) return null
+
+  const json = (await profileRes.json()) as { skins?: ProfileSkin[] }
+  const active = json.skins?.find((s) => s.state === 'ACTIVE' && s.url)
+  if (!active?.url) return null
+
+  const texRes = await fetch(active.url, {
+    headers: { 'User-Agent': fledgeUserAgent('skin-texture') },
+  })
+  if (!texRes.ok) return null
+  const buf = new Uint8Array(await texRes.arrayBuffer())
+  if (buf.byteLength < 64) return null
+
+  const variant = (active.variant ?? 'CLASSIC').toUpperCase()
+  const model: SkinModel = variant === 'SLIM' ? 'slim' : 'wide'
+  return { png: buf, model, textureUrl: active.url }
+}
+
+export function hashSkinPng(png: Uint8Array): string {
+  return createHash('sha256').update(png).digest('hex')
+}
 
 /**
  * 公式プロフィールへスキンをアップロードする。

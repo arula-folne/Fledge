@@ -1,6 +1,6 @@
 {
   "name": "@fledge/core",
-  "version": "0.1.14-a",
+  "version": "0.2.0-b",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -14,7 +14,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src --max-warnings 0"
+    "lint": "eslint src --max-warnings 0",
+    "test": "tsc -p tsconfig.json && node --test dist/minecraft/minecraftInitialOptions.test.js"
   },
   "dependencies": {
     "@fledge/shared": "workspace:*",

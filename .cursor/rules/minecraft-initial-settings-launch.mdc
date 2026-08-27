@@ -1,0 +1,53 @@
+---
+description: Minecraft初期設定の起動適用フローを壊さない（変更が必要なら必ずユーザーに確認）
+globs: packages/core/src/orchestration/LaunchOrchestrator.ts,packages/core/src/minecraft/minecraftInitialOptions.ts,packages/core/src/content/ContentService.ts,apps/desktop/electron/ipc/registerIpc.ts,packages/shared/src/models.ts,docs/spec.md
+alwaysApply: false
+---
+
+# Minecraft 初期設定 — 起動適用の不変条件
+
+このフローは実機検証済みの安定仕様。**勝手に変えない。**  
+追加機能がこのフローを変えざるを得ない場合は、実装前にユーザーへ「なぜ必要か／何が壊れるか」を説明して確認する。
+
+## 正しいフロー（これ以外にしない）
+
+```
+インスタンス作成
+  → 初期設定を pending に保存するだけ（options.txt は触らない）
+  → Minecraft ファイルを書かない
+
+初回起動（minecraftInitialSettingsApplied === false）
+  → 起動直前の最新 minecraftInitialSettings をスナップショット
+  → 変更あり → options.txt / onboardAccessibility:false → verify → spawn
+  → 変更なし → options.txt に触れない → spawn（Minecraft 標準の初回画面）
+
+ゲームプロセスが一度でも起動して終了
+  → applied = true（exit code・短命・チュートリアルで×・Mod落ちも同様）
+  → 以降はグローバル初期設定を再適用しない
+```
+
+## 禁止
+
+- 作成時（`instancesCreate` / `createSeededInstance` / mrpack 展開直後）に `options.txt` を書く
+- `prepare` / `warmup` で初期設定を `options.txt` に書く
+- spawn 前の書き込み成功だけで `applied` を立てる
+- 「クラッシュ時だけ applied しない」などの例外分岐（チュートリアル×と区別できず不安定）
+- 未変更項目やアプリ locale からの勝手な lang 書き込み
+- `applied === true` のインスタンスへ、設定変更や別インスタンス作成の副作用で再適用する
+- 起動後の `options.txt` 書き換えを「起動中メモリへの即時反映」目的で増やす（既存ガードは次回起動向け）
+
+## 触ってよい関連ファイル
+
+- `LaunchOrchestrator.ts` — 初回パス判定・spawn 前 verify・終了時 commit
+- `minecraftInitialOptions.ts` — スナップショット／マージ／検証
+- インスタンス作成 IPC / ContentService — **pending 保存のみ**
+
+## 変更が必要なとき（エージェント向け）
+
+次のような機能を足す／直す途中で、上記フローに手を入れたくなったら:
+
+1. **実装しない**（またはフローを変えずに迂回する）
+2. ユーザーに短く報告する: 何をしたいか、なぜこのフローを触る必要があるか、触ると何が壊れるか
+3. ユーザーが明示的に許可してからだけ変更する
+
+例: 「未起動インスタンスだけ設定を追従したい」「クラッシュ時は applied にしたくない」「作成時に options を先書きしたい」→ いずれも要確認。

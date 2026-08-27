@@ -90,9 +90,15 @@ export type FledgeApi = {
       instanceId: string,
       kind: 'screenshots' | 'logs',
     ) => Promise<ContentMediaItem[]>
+    readLog: (
+      instanceId: string,
+      fileName: string,
+    ) => Promise<{ name: string; text: string; truncated: boolean }>
     listCategoryTags: () => Promise<ContentCategoryTag[]>
     createInstance: (req: ContentCreateInstanceRequest) => Promise<InstanceProfile>
+    pickMrpack: () => Promise<string | null>
     importMrpack: () => Promise<InstanceProfile | null>
+    importMrpackFromPath: (filePath: string) => Promise<InstanceProfile>
     exportMrpack: (instanceId: string) => Promise<string | null>
   }
   skins: {

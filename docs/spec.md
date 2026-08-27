@@ -12,7 +12,7 @@ GitHub リポジトリ向けの実装仕様です。アプリ紹介・機能の�
 ## 1. 位置づけ
 
 Fledge は Minecraft Java Edition 用の非公式デスクトップランチャーです。  
-バージョン **Ver.0.1.14a**。製品 ID は `net.folne.fledge`。  
+バージョン **Ver.0.2.0b**。製品 ID は `net.folne.fledge`。  
 **対応環境は Windows 11 のみ**です。
 
 方針:
@@ -146,10 +146,11 @@ Java メジャー推定の目安（`requiredJavaMajor`）:
 
 ## 8. Minecraft 初期設定
 
-設定の `minecraftInitialSettings` は **新規インスタンスの初回起動専用** です。  
-`null`（UI の「Minecraftデフォルト」）の項目はゲーム側デフォルトのまま（`options.txt` に書かない）。  
-変更した項目は初回起動直前に `options.txt` へ **強制マージ** し、あわせて `onboardAccessibility:false` でゲーム側の初回画面を抑止します。  
-Modpack（mrpack）同梱の `options.txt` / `debug.json` より Fledge 側の値を優先します（展開直後にも一度書き込み、初回起動時にも最新の設定で再適用）。
+設定の `minecraftInitialSettings` は、**まだ初回起動していないインスタンス**には起動直前の最新値が使われます。作成時には `options.txt` を書きません。  
+すべて `null`（変更なし）のときは初回起動でも `options.txt` を生成・変更せず、`onboardAccessibility` も触らず、`applied` にもしません。  
+1件でも変更がある場合は、初回起動の **Minecraft プロセス起動前**に変更キーだけをマージし、`onboardAccessibility:false` を付けて検証してから起動します。  
+`minecraftInitialSettingsApplied` は **Minecraft プロセスが一度でも起動した終了**で立てます（チュートリアルを見て閉じた場合も含む）。書き込み成功だけ・spawn 前の失敗では立てません。applied 後はランチャー側の初期設定を変えてもそのインスタンスには再適用しません。  
+Modpack 同梱の `options.txt` より、初回起動時の Fledge パッチを優先します。
 
 対象例: 言語、字幕、オートジャンプ、FOV、音量、最大 FPS、垂直同期、GUI スケール、明るさ、描画／演算距離、マウス感度。
 

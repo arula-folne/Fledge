@@ -1,7 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { zipSync } from 'fflate'
+import { gunzipSync, zipSync } from 'fflate'
+import type { ProgressEvent } from '@fledge/shared'
 import {
   ContentCreateInstanceRequestSchema,
   ContentInstallRequestSchema,
@@ -27,7 +28,6 @@ import { fetchBody, fetchToFile } from '../download/fetchBody.js'
 import type { InstanceStore } from '../instances/InstanceStore.js'
 import type { Logger } from '../logging/Logger.js'
 import {
-  applyMinecraftInitialSettingsToInstance,
   snapshotMinecraftDebugOverlay,
   snapshotMinecraftInitialOptions,
 } from '../minecraft/minecraftInitialOptions.js'
@@ -150,9 +150,50 @@ export class ContentService {
     private readonly logger: Logger,
     private readonly settings: SettingsStore,
     private readonly versions: VersionService,
+    private readonly emitProgress?: (e: ProgressEvent) => void,
   ) {
     this.modrinth = new ModrinthProvider(() => this.settings.get().then((s) => s.locale))
     this.providers = new Map([['modrinth', this.modrinth]])
+  }
+
+  /** 作成直後に一覧へ載せて UI を先に更新する（ダウンロード継続中でも詳細を開ける） */
+  private async publishInstanceListed(profile: InstanceProfile): Promise<void> {
+    const settings = await this.settings.get()
+    if (!settings.libraryInstanceOrder.includes(profile.id)) {
+      await this.settings.set({
+        libraryInstanceOrder: [...settings.libraryInstanceOrder, profile.id],
+      })
+    }
+    this.emitProgress?.({
+      scope: 'download',
+      kind: 'content',
+      jobId: `instance-create-${profile.id}`,
+      sessionId: `instance-create-${profile.id}`,
+      current: 0,
+      total: 1,
+      status: 'active',
+      messageKey: 'content.creatingInstance',
+      meta: {
+        instanceId: profile.id,
+        projectName: profile.name,
+        instanceReady: true,
+      },
+    })
+  }
+
+  private finishInstanceCreateProgress(profileId: string, ok: boolean): void {
+    this.emitProgress?.({
+      scope: 'download',
+      kind: 'content',
+      jobId: `instance-create-${profileId}`,
+      sessionId: `instance-create-${profileId}`,
+      current: 1,
+      total: 1,
+      percent: 100,
+      status: ok ? 'completed' : 'failed',
+      messageKey: 'content.creatingInstance',
+      meta: { instanceId: profileId, instanceReady: true },
+    })
   }
 
   async listProviders(): Promise<ContentProviderInfo[]> {
@@ -370,27 +411,31 @@ export class ContentService {
       loader,
       loaderVersion,
     })
+    await this.publishInstanceListed(profile)
 
-    await this.install({
-      instanceId: profile.id,
-      provider: req.provider,
-      projectId: req.projectId,
-      category: req.category,
-      versionId: version.id,
-      gameVersion: minecraftVersion,
-      loaders: req.category === 'mod' ? loaderToContentFilters(loader) : [],
-    })
+    try {
+      await this.install({
+        instanceId: profile.id,
+        provider: req.provider,
+        projectId: req.projectId,
+        category: req.category,
+        versionId: version.id,
+        gameVersion: minecraftVersion,
+        loaders: req.category === 'mod' ? loaderToContentFilters(loader) : [],
+      })
 
-    // Mod 導入後に初期設定を書いておく（初回起動でも再検証・再適用する）
-    const settingsAfterContent = await this.settings.get()
-    await applyMinecraftInitialSettingsToInstance(
-      this.instances.instanceDir(profile.id),
-      settingsAfterContent.minecraftInitialSettings,
-      minecraftVersion,
-      settingsAfterContent.locale,
-    )
-
-    return profile
+      this.finishInstanceCreateProgress(profile.id, true)
+      return profile
+    } catch (err) {
+      this.finishInstanceCreateProgress(profile.id, false)
+      this.disposeInstance(profile.id)
+      await this.instances.remove(profile.id).catch(() => undefined)
+      const current = await this.settings.get()
+      if (current.selectedInstanceId === profile.id) {
+        await this.settings.set({ selectedInstanceId: null })
+      }
+      throw err
+    }
   }
 
   private async createInstanceFromModpack(
@@ -500,6 +545,7 @@ export class ContentService {
         loader,
         loaderVersion,
       })
+      await this.publishInstanceListed(profile)
 
       const instanceDir = this.instances.instanceDir(profile.id)
       const writeSettings = await this.settings.get()
@@ -532,22 +578,15 @@ export class ContentService {
       )
       if (failedDownload) throw failedDownload.reason
 
-      // overrides / パックファイル展開後に Fledge 初期設定で上書き（初回起動でも再適用）
-      const settingsAfterPack = await this.settings.get()
-      await applyMinecraftInitialSettingsToInstance(
-        instanceDir,
-        settingsAfterPack.minecraftInitialSettings,
-        minecraftVersion,
-        settingsAfterPack.locale,
-      )
-
       this.logger.info(
         'downloader',
         `Created instance ${profile.id} from mrpack ${pack.name}@${pack.versionNumber}`,
       )
+      this.finishInstanceCreateProgress(profile.id, true)
       return profile
     } catch (err) {
       if (profile) {
+        this.finishInstanceCreateProgress(profile.id, false)
         this.disposeInstance(profile.id)
         await this.instances.remove(profile.id).catch(() => undefined)
         const current = await this.settings.get()
@@ -808,6 +847,15 @@ export class ContentService {
     loaderVersion?: string
   }): Promise<InstanceProfile> {
     const settings = await this.settings.get()
+    const pendingMinecraftOptions = snapshotMinecraftInitialOptions(
+      settings.minecraftInitialSettings,
+      input.minecraftVersion,
+      settings.locale,
+    )
+    const pendingMinecraftDebugOverlay = snapshotMinecraftDebugOverlay(
+      settings.minecraftInitialSettings,
+      input.minecraftVersion,
+    )
     const profile = await this.instances.create(
       {
         name: input.name,
@@ -821,23 +869,11 @@ export class ContentService {
         memoryMaxMb: settings.defaultMemoryMaxMb,
         jvmArgs: settings.defaultJvmArgs,
         seedMinecraftInitialSettings: true,
-        pendingMinecraftOptions: snapshotMinecraftInitialOptions(
-          settings.minecraftInitialSettings,
-          input.minecraftVersion,
-          settings.locale,
-        ),
-        pendingMinecraftDebugOverlay: snapshotMinecraftDebugOverlay(
-          settings.minecraftInitialSettings,
-          input.minecraftVersion,
-        ),
+        pendingMinecraftOptions,
+        pendingMinecraftDebugOverlay,
       },
     )
-    await applyMinecraftInitialSettingsToInstance(
-      this.instances.instanceDir(profile.id),
-      settings.minecraftInitialSettings,
-      input.minecraftVersion,
-      settings.locale,
-    )
+    // options.txt は作成時には書かない（初回起動直前に適用）
     if (!settings.selectedInstanceId) {
       await this.settings.set({ selectedInstanceId: profile.id })
     }
@@ -1176,6 +1212,62 @@ export class ContentService {
       return items.sort((a, b) => (b.mtime ?? '').localeCompare(a.mtime ?? ''))
     } catch {
       return []
+    }
+  }
+
+  /** インスタンス logs/ 配下のテキストを読む（.gz は展開。大きなファイルは末尾のみ） */
+  async readLogFile(
+    instanceId: string,
+    fileName: string,
+  ): Promise<{ name: string; text: string; truncated: boolean }> {
+    const base = path.basename(fileName)
+    if (!base || base !== fileName.replaceAll('\\', '/').split('/').pop()) {
+      throw new Error('Invalid log file name')
+    }
+    if (base.includes('\0') || base === '.' || base === '..') {
+      throw new Error('Invalid log file name')
+    }
+    const logsDir = path.resolve(this.instances.instanceDir(instanceId), 'logs')
+    const full = path.resolve(logsDir, base)
+    const rel = path.relative(logsDir, full)
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      throw new Error('Log path escapes instance logs directory')
+    }
+
+    const MAX = 512 * 1024
+    const stat = await fs.stat(full)
+    if (!stat.isFile()) throw new Error('Not a log file')
+
+    const isGzip = base.toLowerCase().endsWith('.gz')
+    if (isGzip) {
+      const compressed = await fs.readFile(full)
+      let inflated: Uint8Array
+      try {
+        inflated = gunzipSync(compressed)
+      } catch {
+        throw new Error('gzip ログの展開に失敗しました')
+      }
+      if (inflated.byteLength <= MAX) {
+        return { name: base, text: Buffer.from(inflated).toString('utf8'), truncated: false }
+      }
+      return {
+        name: base,
+        text: Buffer.from(inflated.subarray(inflated.byteLength - MAX)).toString('utf8'),
+        truncated: true,
+      }
+    }
+
+    if (stat.size <= MAX) {
+      const text = await fs.readFile(full, 'utf8')
+      return { name: base, text, truncated: false }
+    }
+    const handle = await fs.open(full, 'r')
+    try {
+      const buf = Buffer.alloc(MAX)
+      await handle.read(buf, 0, MAX, stat.size - MAX)
+      return { name: base, text: buf.toString('utf8'), truncated: true }
+    } finally {
+      await handle.close()
     }
   }
 

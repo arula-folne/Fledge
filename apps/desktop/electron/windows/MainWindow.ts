@@ -4,7 +4,7 @@ import type { UiScale } from '@fledge/shared'
 import { LAUNCHER_WINDOW_MIN_HEIGHT, LAUNCHER_WINDOW_MIN_WIDTH } from '@fledge/shared'
 import { resolveAppIconPath } from './appIcon'
 
-/** 720p 時の見た目をノーマルとする。小窓（480p/540p）は自動で追加縮小する。 */
+/** 720p 時の見た目をノーマルとする。小窓（540p）は自動で追加縮小する。 */
 export const UI_SCALE_FACTORS: Record<UiScale, number> = {
   minimal: 0.85,
   normal: 1,
@@ -13,10 +13,8 @@ export const UI_SCALE_FACTORS: Record<UiScale, number> = {
 
 let activeUiScale: UiScale = 'normal'
 
-/** 480p / 540p 帯では UI が崩れないようズーム上限を下げる */
+/** 540p 帯では UI が崩れないようズーム上限を下げる */
 function zoomCapForWindowSize(width: number, height: number): number {
-  // 480p (854×480) 付近
-  if (height <= 500 || width <= 900) return 0.68
   // 540p (960×540) 付近
   if (height <= 560 || width <= 1000) return 0.78
   return Number.POSITIVE_INFINITY
@@ -34,7 +32,9 @@ export function resolveWindowZoomFactor(
 export function applyWindowUiScale(win: BrowserWindow, scale: UiScale = activeUiScale): void {
   if (win.isDestroyed() || win.webContents.isDestroyed()) return
   activeUiScale = scale
-  const [width, height] = win.getSize()
+  const size = win.getSize()
+  const width = size[0] ?? LAUNCHER_WINDOW_MIN_WIDTH
+  const height = size[1] ?? LAUNCHER_WINDOW_MIN_HEIGHT
   const factor = resolveWindowZoomFactor(scale, width, height)
   if (Math.abs(win.webContents.getZoomFactor() - factor) < 0.005) return
   win.webContents.setZoomFactor(factor)
@@ -45,7 +45,7 @@ function attachWindowUiScale(win: BrowserWindow): void {
   const apply = () => applyWindowUiScale(win, activeUiScale)
   win.webContents.on('did-finish-load', apply)
   win.webContents.on('did-navigate', apply)
-  // 端ドラッグで 480p/540p に入ったときも縮小を追従
+  // 端ドラッグで 540p に入ったときも縮小を追従
   let resizeTimer: ReturnType<typeof setTimeout> | undefined
   win.on('resize', () => {
     if (resizeTimer) clearTimeout(resizeTimer)
@@ -59,12 +59,9 @@ export function createMainWindow(opts?: {
   x?: number
   y?: number
   uiScale?: UiScale
-  /** true = OS タイトルバー、false = 枠なし（独自タイトルバー用） */
-  frame?: boolean
 }): BrowserWindow {
   const width = Math.min(7680, Math.max(LAUNCHER_WINDOW_MIN_WIDTH, opts?.width ?? 1280))
   const height = Math.min(4320, Math.max(LAUNCHER_WINDOW_MIN_HEIGHT, opts?.height ?? 720))
-  const frame = opts?.frame ?? true
   activeUiScale = opts?.uiScale ?? 'normal'
   const icon = resolveAppIconPath()
   const win = new BrowserWindow({
@@ -78,7 +75,7 @@ export function createMainWindow(opts?: {
     icon,
     backgroundColor: '#F7F9FC',
     show: false,
-    frame,
+    frame: false,
     autoHideMenuBar: true,
     // Windows 枠なし時もリサイズしやすく
     thickFrame: true,
@@ -169,7 +166,9 @@ export function attachWindowSizeSync(
 
   const readSize = (): { width: number; height: number } | null => {
     if (win.isDestroyed() || win.isMaximized() || win.isFullScreen()) return null
-    const [width, height] = win.getSize()
+    const size = win.getSize()
+    const width = size[0] ?? LAUNCHER_WINDOW_MIN_WIDTH
+    const height = size[1] ?? LAUNCHER_WINDOW_MIN_HEIGHT
     return {
       width: Math.min(7680, Math.max(LAUNCHER_WINDOW_MIN_WIDTH, width)),
       height: Math.min(4320, Math.max(LAUNCHER_WINDOW_MIN_HEIGHT, height)),

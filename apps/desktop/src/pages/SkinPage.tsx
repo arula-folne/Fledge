@@ -561,7 +561,7 @@ function RegisterSkinDialog({
                 <Button
                   key={m}
                   variant={model === m ? 'primary' : 'secondary'}
-                  className="flex-1"
+                  className="flex-1 !rounded-[var(--radius-sm)]"
                   onClick={() => setModel(m)}
                 >
                   {m === 'slim' ? t('skin.model.slim') : t('skin.model.wide')}
@@ -672,7 +672,7 @@ function EditSkinDialog({
                 <Button
                   key={m}
                   variant={model === m ? 'primary' : 'secondary'}
-                  className="flex-1"
+                  className="flex-1 !rounded-[var(--radius-sm)]"
                   onClick={() => setModel(m)}
                 >
                   {m === 'slim' ? t('skin.model.slim') : t('skin.model.wide')}

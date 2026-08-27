@@ -12,19 +12,17 @@ type Props = {
   /** ボタンサイズ */
   size?: 'default' | 'lg' | 'sm'
   className?: string
-  /** 進捗バーを下に出す（ホーム・詳細向け） */
-  showProgress?: boolean
 }
 
 /**
  * インスタンス単位の起動 / キャンセル / 終了。
  * click は stopPropagation（カード遷移と分離）。
+ * プログレスは preparing / launching のあいだだけ表示（running 後は消す）。
  */
 export function InstanceLaunchButton({
   instanceId,
   size = 'default',
   className = '',
-  showProgress = false,
 }: Props) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
@@ -32,8 +30,7 @@ export function InstanceLaunchButton({
   const state = useLaunchStore((s) => s.byProfileId[instanceId]?.state ?? 'idle')
   const sessionId = useLaunchStore((s) => s.byProfileId[instanceId]?.sessionId)
 
-  const needsProgress =
-    state === 'preparing' || state === 'launching' || (showProgress && state === 'running')
+  const needsProgress = state === 'preparing' || state === 'launching'
 
   const phaseMessageKey = useLaunchStore((s) =>
     needsProgress && sessionId ? (s.phaseMessageBySessionId[sessionId] ?? null) : null,
@@ -140,8 +137,7 @@ export function InstanceLaunchButton({
     )
   }
 
-  const showProgressBlock =
-    state === 'preparing' || state === 'launching' || (showProgress && state === 'running')
+  const showProgressBlock = state === 'preparing' || state === 'launching'
   const showError = Boolean(errorMessageKey)
 
   return (
@@ -161,8 +157,8 @@ export function InstanceLaunchButton({
       <div className={size === 'sm' ? undefined : 'shrink-0 space-y-2'}>
         {action}
         {showProgressBlock && size !== 'sm' ? (
-          <div className="min-w-[12rem] space-y-1.5">
-            <div className="text-xs text-[var(--color-text-muted)]">
+          <div className="min-w-[14rem] max-w-[22rem] space-y-1.5">
+            <div className="text-xs leading-snug text-[var(--color-text-muted)]">
               {formatProgressMessage(t, progress?.messageKey ?? phaseMessageKey, progress?.meta)}
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-accent-soft)]">

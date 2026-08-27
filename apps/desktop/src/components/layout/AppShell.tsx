@@ -14,10 +14,11 @@ import { AppCredits } from '../brand/AppCredits'
 import { AccountChip } from '../../features/auth/AccountChip'
 import { LoginErrorDialog } from '../../features/auth/LoginErrorDialog'
 import { fledgeApi } from '../../api/fledgeApi'
-import { applyTheme } from '../../styles/theme'
+import { applyTheme, resolveSeasonDark } from '../../styles/theme'
 import i18n from '../../i18n'
 import { TransferProgress } from './TransferProgress'
 import { UpdateAvailableBanner } from './UpdateAvailableBanner'
+import { SeasonThemeAtmosphere } from '../theme/SeasonThemeAtmosphere'
 import appIcon from '../../assets/app-icon.png'
 
 const SIDEBAR_COLLAPSED_KEY = 'fledge.sidebarCollapsed'
@@ -68,16 +69,22 @@ export function AppShell() {
   }, [collapsed])
 
   const itemClass = navClass(collapsed)
+  const settings = settingsQuery.data
+  const seasonId =
+    settings?.themeFamily === 'season' && settings.seasonThemeId ? settings.seasonThemeId : null
+  const seasonDark = settings && seasonId ? resolveSeasonDark(settings) : false
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
+      {seasonId ? <SeasonThemeAtmosphere seasonId={seasonId} dark={seasonDark} /> : null}
       <div
-        className="flex min-h-0 flex-1"
+        className="relative z-10 flex min-h-0 flex-1"
         style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
       >
         <aside
           className={[
-            'flex shrink-0 flex-col border-r border-[var(--color-border)] bg-[var(--color-surface)]/90 py-2',
+            'season-shell-panel flex shrink-0 flex-col border-r border-[var(--color-border)] py-2',
+            seasonId ? '' : 'bg-[var(--color-surface)]/90',
             collapsed ? 'w-12 items-center px-1.5' : 'w-40 px-2',
           ].join(' ')}
         >
@@ -128,14 +135,23 @@ export function AppShell() {
           </div>
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="relative z-20 flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-surface)]/70 px-3 py-1.5">
+          <header
+            className={[
+              'season-shell-panel relative z-20 flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5',
+              seasonId ? '' : 'bg-[var(--color-surface)]/70',
+            ].join(' ')}
+          >
             <TransferProgress />
             <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
               <UpdateAvailableBanner />
               <AccountChip />
             </div>
           </header>
-          <main className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
+          <main
+            className={[
+              'season-shell-main flex min-h-0 flex-1 flex-col overflow-hidden p-3',
+            ].join(' ')}
+          >
             <div className="min-h-0 flex-1 overflow-hidden">
               <Outlet />
             </div>

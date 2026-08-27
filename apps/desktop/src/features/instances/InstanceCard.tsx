@@ -2,7 +2,7 @@ import { memo, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { InstanceProfile } from '@fledge/shared'
-import { useLaunchStore } from '../../stores/appStores'
+import { useLaunchStore, useInstanceCreateStore } from '../../stores/appStores'
 import { formatProgressMessage } from '../launch/formatProgressMessage'
 import { InstanceIcon } from './InstanceIcon'
 import { InstanceLaunchButton } from './InstanceLaunchButton'
@@ -25,6 +25,7 @@ export const InstanceCard = memo(function InstanceCard({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const detailPath = `/library/${instance.id}`
+  const creating = useInstanceCreateStore((s) => Boolean(s.creatingIds[instance.id]))
 
   const goDetail = () => navigate(detailPath)
   const handleContextMenu = (e: MouseEvent) => {
@@ -58,6 +59,11 @@ export const InstanceCard = memo(function InstanceCard({
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-xl font-semibold text-[var(--color-text)]">
               {instance.name}
+              {creating ? (
+                <span className="ml-2 text-sm font-medium text-[var(--color-accent)]">
+                  {t('content.creatingInstance')}
+                </span>
+              ) : null}
             </h3>
             <p className="mt-1 truncate text-sm text-[var(--color-text-muted)]">
               {instance.minecraftVersion} · {formatLoaderLabel(instance.loader, t)}
@@ -66,7 +72,7 @@ export const InstanceCard = memo(function InstanceCard({
               {t('instances.lastPlayed')}: {formatLastPlayed(instance.lastPlayedAt, t)}
             </p>
           </div>
-          <InstanceLaunchButton instanceId={instance.id} size="lg" showProgress />
+          <InstanceLaunchButton instanceId={instance.id} size="lg" />
         </div>
       </article>
     )
@@ -94,6 +100,11 @@ export const InstanceCard = memo(function InstanceCard({
       <div className="min-w-0 flex-1">
         <div className="truncate text-base font-medium leading-snug text-[var(--color-text)]">
           {instance.name}
+          {creating ? (
+            <span className="ml-2 text-xs font-medium text-[var(--color-accent)]">
+              {t('content.creatingInstance')}
+            </span>
+          ) : null}
         </div>
         <div className="mt-0.5 truncate text-sm text-[var(--color-text-muted)]">
           {instance.minecraftVersion} · {formatLoaderLabel(instance.loader, t)}

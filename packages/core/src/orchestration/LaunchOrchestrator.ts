@@ -14,7 +14,7 @@ import type { InstanceStore } from '../instances/InstanceStore.js'
 import type { JavaManager } from '../java/JavaManager.js'
 import type { Logger } from '../logging/Logger.js'
 import type { MinecraftService } from '../minecraft/MinecraftService.js'
-import { ensureMinecraftInitialSettingsApplied, MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION, applyMinecraftInitialSettingsToInstance, mergeMinecraftDebugOverlayFile, mergeMinecraftOptionsFile, verifyMinecraftOptionsFile } from '../minecraft/minecraftInitialOptions.js'
+import { ensureMinecraftInitialSettingsApplied, MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION, applyMinecraftInitialPatchToInstance, mergeMinecraftDebugOverlayFile, mergeMinecraftOptionsFile, snapshotMinecraftDebugOverlay, snapshotMinecraftInitialOptions, verifyMinecraftOptionsFile } from '../minecraft/minecraftInitialOptions.js'
 import type { SettingsStore } from '../settings/SettingsStore.js'
 import type { SessionJoinProxy } from '../auth/SessionJoinProxy.js'
 import type { SkinApplier } from '../skins/SkinApplier.js'
@@ -24,12 +24,12 @@ import type { SkinApplier } from '../skins/SkinApplier.js'
  * OpenAL / Sound engine は Options.load より前に出るため使わない（ガード停止が早すぎて潰される）。
  * Options 本体はタイトルより前に読まれるため、spawn 前の書き込み＋遅延ガードで初回を守り、
  * タイトル到達時の再書き込みは「次回起動」を確実にする。
+ *
+ * 初期設定の適用タイミング・applied の立て方は不変条件。
+ * 変更する場合は必ずユーザー確認（.cursor/rules/minecraft-initial-settings-launch.mdc）。
  */
 const TITLE_SCREEN_LOG_RE =
   /Turning off relative mouse|Startup done in |Loading Music/i
-
-/** 初期設定を「反映済み」にする前にゲームが生きているべき最短時間 */
-const INITIAL_SETTINGS_COMMIT_AFTER_MS = 6_000
 
 /** 連続書き換えではなく、遅延ワンショットで再適用する（製品版でもレースしにくい） */
 const INITIAL_SETTINGS_GUARD_AT_MS = [3_000, 7_000, 12_000] as const
@@ -157,8 +157,7 @@ export class LaunchOrchestrator {
         throw Object.assign(new Error('cancelled'), { messageKey: 'download.cancelled' })
       }
 
-      // 準備時点でも初期設定を揃えておく（大量 Mod 導入後の options 欠落対策）
-      await this.ensureInitialSettings(profile.id, instanceDir, profile.minecraftVersion)
+      // 初期設定の options.txt 適用は初回「起動」直前のみ（prepare では触らない）
 
       this.deps.events.emitProgress({
         scope: 'launch',
@@ -308,26 +307,21 @@ export class LaunchOrchestrator {
 
       const settings = await this.deps.settings.get()
 
-      // 起動直前に最新プロファイルで初期設定を強制反映（Modpack / 大量 Mod で消えても再適用）
-      const initial = await this.ensureInitialSettings(
-        profileId,
-        instanceDir,
-        profile.minecraftVersion,
-      )
-      if (initial.neededCommit) {
+      // 初回起動直前: 未適用なら今の初期設定を反映。空でも「初回パス」として終了時に applied を立てる
+      const initial = await this.ensureInitialSettings(profileId, instanceDir)
+      if (initial.firstLaunchPass) {
         session.initialSettingsPendingCommit = true
         session.initialSettingsInstanceDir = instanceDir
         session.initialSettingsOptions = initial.options
         session.initialSettingsOverlay = initial.overlay
       }
 
-      // Options.load より前に必ずファイルを確定させる（初回英語／アクセシビリティ画面の防止）
+      // Options.load より前にパッチがあればファイルを確定（書き込み成功だけでは applied にしない）
       if (Object.keys(initial.options).length > 0) {
-        await applyMinecraftInitialSettingsToInstance(
+        await applyMinecraftInitialPatchToInstance(
           instanceDir,
-          settings.minecraftInitialSettings,
-          profile.minecraftVersion,
-          settings.locale,
+          initial.options,
+          initial.overlay,
         )
         const ok = await verifyMinecraftOptionsFile(instanceDir, initial.options)
         if (!ok) {
@@ -361,7 +355,8 @@ export class LaunchOrchestrator {
       session.runningSinceMs = Date.now()
       this.emitState(session, 'running')
       this.emitPhase(sessionId, 'running', 'launch.phase.running')
-      if (session.initialSettingsPendingCommit) {
+      // ガードは書き込みがあるときだけ（空パッチの初回は不要）
+      if (session.initialSettingsPendingCommit && Object.keys(initial.options).length > 0) {
         this.startInitialSettingsGuard(session)
       }
       child.stdout?.on('data', (buf: Buffer) => {
@@ -499,29 +494,48 @@ export class LaunchOrchestrator {
   private async ensureInitialSettings(
     profileId: string,
     instanceDir: string,
-    fallbackMinecraftVersion: string,
   ): Promise<{
     neededCommit: boolean
+    /** 未適用の初回起動パス（パッチ空でも終了時に applied を立てる） */
+    firstLaunchPass: boolean
     options: Record<string, string>
     overlay: Record<string, string>
   }> {
-    const empty = { neededCommit: false, options: {}, overlay: {} }
+    const empty = { neededCommit: false, firstLaunchPass: false, options: {}, overlay: {} }
     const latest = await this.deps.instances.get(profileId)
     if (!latest?.minecraftInitialSettingsSeeded) {
       return empty
     }
     try {
+      // 一度 applied になったら二度とグローバル設定を拾わない
+      const committed = Boolean(latest.minecraftInitialSettingsApplied)
+      if (committed) {
+        return empty
+      }
+
+      // 未適用（＝まだ初回起動を完了していない）: 起動時点の最新初期設定を使う
       const settings = await this.deps.settings.get()
-      const committed =
-        Boolean(latest.minecraftInitialSettingsApplied) &&
-        (latest.minecraftInitialSettingsApplyGeneration ?? 0) >=
-          MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION
+      const mcVersion = latest.minecraftVersion
+      const options = snapshotMinecraftInitialOptions(
+        settings.minecraftInitialSettings,
+        mcVersion,
+        settings.locale,
+      )
+      const overlay = snapshotMinecraftDebugOverlay(
+        settings.minecraftInitialSettings,
+        mcVersion,
+      )
+
+      await this.deps.instances.update(profileId, {
+        pendingMinecraftOptions: options,
+        pendingMinecraftDebugOverlay: overlay,
+      })
+
       const result = await ensureMinecraftInitialSettingsApplied(
         instanceDir,
-        settings.minecraftInitialSettings,
-        latest.minecraftVersion || fallbackMinecraftVersion,
-        committed,
-        settings.locale,
+        options,
+        overlay,
+        false,
       )
       if (result.neededCommit) {
         this.deps.logger.info(
@@ -531,6 +545,7 @@ export class LaunchOrchestrator {
       }
       return {
         neededCommit: result.neededCommit,
+        firstLaunchPass: true,
         options: result.options,
         overlay: result.overlay,
       }
@@ -539,12 +554,11 @@ export class LaunchOrchestrator {
         'launcher',
         `Failed to apply Minecraft initial options: ${err instanceof Error ? err.message : String(err)}`,
       )
-      // 失敗を握りつぶすと初回英語／アクセシビリティ画面になるため、起動側で再試行／中断できるように投げる
       throw err
     }
   }
 
-  /** Forge 等が起動中に options.txt を書き換えても、遅延ワンショットで戻す（Options.load 後） */
+  /** Forge 等が起動中に options.txt をディスク上で潰した場合の整合用（次回 Options.load 向け）。起動中メモリへの即時反映は期待しない */
   private startInitialSettingsGuard(session: Session): void {
     this.stopInitialSettingsGuard(session)
     const instanceDir = session.initialSettingsInstanceDir
@@ -612,7 +626,7 @@ export class LaunchOrchestrator {
     void this.reapplyInitialSettingsAtTitle(session)
   }
 
-  /** タイトル到達時に最終書き込み（Forge の初回上書き後）。メモリ上の設定は次回起動から確実に効く */
+  /** タイトル到達時のディスク再書き込み（Forge 初回上書き後の次回起動向け）。起動中セッションへの即時反映は目的ではない */
   private async reapplyInitialSettingsAtTitle(session: Session): Promise<void> {
     const instanceDir = session.initialSettingsInstanceDir
     const options = session.initialSettingsOptions
@@ -636,32 +650,27 @@ export class LaunchOrchestrator {
     }
   }
 
+  /**
+   * ゲームプロセスが一度でも起動した終了で applied を立てる。
+   * exit code / 短命は問わない（チュートリアルを見て × で閉じても初回起動済みにする）。
+   * spawn 前に落ちた場合は child が無いので呼ばれない／シールしない。
+   */
   private async finalizeInitialSettingsCommit(session: Session, exitCode: number): Promise<void> {
     if (!session.initialSettingsPendingCommit) return
-    const ranMs = session.runningSinceMs != null ? Date.now() - session.runningSinceMs : 0
-    // 異常終了・短命起動ではコミットしない（次回起動で再適用）
-    if (exitCode !== 0 || ranMs < INITIAL_SETTINGS_COMMIT_AFTER_MS) {
+    if (session.runningSinceMs == null) {
       this.deps.logger.info(
         'launcher',
-        `Defer Minecraft initial settings commit for ${session.profileId} (exit=${exitCode}, title=${Boolean(session.initialSettingsTitleSeen)}, ranMs=${ranMs})`,
+        `Skip Minecraft initial settings commit for ${session.profileId} (never spawned)`,
       )
       return
     }
     try {
       const instanceDir = session.initialSettingsInstanceDir
-      const options = session.initialSettingsOptions
-      if (instanceDir && options) {
+      const options = session.initialSettingsOptions ?? {}
+      if (instanceDir && Object.keys(options).length > 0) {
         await mergeMinecraftOptionsFile(instanceDir, options)
         if (session.initialSettingsOverlay && Object.keys(session.initialSettingsOverlay).length > 0) {
           await mergeMinecraftDebugOverlayFile(instanceDir, session.initialSettingsOverlay)
-        }
-        const verified = await verifyMinecraftOptionsFile(instanceDir, options)
-        if (!verified) {
-          this.deps.logger.info(
-            'launcher',
-            `Defer Minecraft initial settings commit for ${session.profileId} (options verify failed)`,
-          )
-          return
         }
       }
       await this.deps.instances.update(session.profileId, {
@@ -672,7 +681,7 @@ export class LaunchOrchestrator {
       })
       this.deps.logger.info(
         'launcher',
-        `Committed Minecraft initial settings for ${session.profileId} (title=${Boolean(session.initialSettingsTitleSeen)})`,
+        `Committed Minecraft initial settings for ${session.profileId} (exit=${exitCode}, title=${Boolean(session.initialSettingsTitleSeen)})`,
       )
     } catch (err) {
       this.deps.logger.warn(

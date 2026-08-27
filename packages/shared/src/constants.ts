@@ -118,10 +118,13 @@ export const IPC = {
   contentRemove: 'content:remove',
   contentCheckUpdates: 'content:check-updates',
   contentListMedia: 'content:list-media',
+  contentReadLog: 'content:read-log',
   contentProviders: 'content:providers',
   contentListCategoryTags: 'content:list-category-tags',
   contentCreateInstance: 'content:create-instance',
+  contentPickMrpack: 'content:pick-mrpack',
   contentImportMrpack: 'content:import-mrpack',
+  contentImportMrpackFromPath: 'content:import-mrpack-from-path',
   contentExportMrpack: 'content:export-mrpack',
 } as const
 

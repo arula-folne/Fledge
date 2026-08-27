@@ -3,6 +3,10 @@ import path from 'node:path'
 import {
   DEFAULT_CONCURRENT_DOWNLOADS,
   DEFAULT_MAX_WRITE_CONCURRENCY,
+  GAME_WINDOW_MIN_HEIGHT,
+  GAME_WINDOW_MIN_WIDTH,
+  LAUNCHER_WINDOW_MIN_HEIGHT,
+  LAUNCHER_WINDOW_MIN_WIDTH,
   SettingsSchema,
   type Settings,
 } from '@fledge/shared'
@@ -50,6 +54,7 @@ export class SettingsStore {
       delete parsed.curseforgeApiKey
       delete parsed.curseforgeApiKeyConfigured
       delete parsed.curseforgeApiKeyFromEnv
+      delete parsed.useOsWindowChrome
       // 旧既定（同時DL 8 / 書き込み 4）は両方 10 へ
       const hadLegacyConcurrency =
         parsed.concurrentDownloads === 8 && parsed.maxWriteConcurrency === 4
@@ -57,8 +62,35 @@ export class SettingsStore {
         parsed.concurrentDownloads = DEFAULT_CONCURRENT_DOWNLOADS
         parsed.maxWriteConcurrency = DEFAULT_MAX_WRITE_CONCURRENCY
       }
+      // 旧 480p ランチャー窓は 540p 下限へ
+      let hadLegacyWindowSize = false
+      if (typeof parsed.launcherWindowWidth === 'number' && parsed.launcherWindowWidth < LAUNCHER_WINDOW_MIN_WIDTH) {
+        parsed.launcherWindowWidth = LAUNCHER_WINDOW_MIN_WIDTH
+        hadLegacyWindowSize = true
+      }
+      if (typeof parsed.launcherWindowHeight === 'number' && parsed.launcherWindowHeight < LAUNCHER_WINDOW_MIN_HEIGHT) {
+        parsed.launcherWindowHeight = LAUNCHER_WINDOW_MIN_HEIGHT
+        hadLegacyWindowSize = true
+      }
+  // 旧 480p / 540p Minecraft 窓は 720p 下限へ
+      if (typeof parsed.gameWindowWidth === 'number' && parsed.gameWindowWidth < GAME_WINDOW_MIN_WIDTH) {
+        parsed.gameWindowWidth = GAME_WINDOW_MIN_WIDTH
+        hadLegacyWindowSize = true
+      }
+      if (typeof parsed.gameWindowHeight === 'number' && parsed.gameWindowHeight < GAME_WINDOW_MIN_HEIGHT) {
+        parsed.gameWindowHeight = GAME_WINDOW_MIN_HEIGHT
+        hadLegacyWindowSize = true
+      }
+      // カラーテーマにアクセントが無い旧設定へ既定値を足す
+      if (
+        parsed.themeMode === 'color' &&
+        (parsed.themeAccentColor === undefined || parsed.themeAccentColor === null)
+      ) {
+        parsed.themeAccentColor = { r: 91, g: 164, b: 217 }
+        hadLegacyWindowSize = true
+      }
       this.cache = SettingsSchema.parse({ ...DEFAULT_SETTINGS, ...parsed })
-      if (hadLegacySecret || hadLegacyConcurrency) await this.save(this.cache)
+      if (hadLegacySecret || hadLegacyConcurrency || hadLegacyWindowSize) await this.save(this.cache)
     } catch {
       this.cache = { ...DEFAULT_SETTINGS }
       await this.save(this.cache)

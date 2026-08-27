@@ -93,9 +93,15 @@ export type FledgeApi = {
       instanceId: string,
       kind: 'screenshots' | 'logs',
     ) => Promise<ContentMediaItem[]>
+    readLog: (
+      instanceId: string,
+      fileName: string,
+    ) => Promise<{ name: string; text: string; truncated: boolean }>
     listCategoryTags: () => Promise<ContentCategoryTag[]>
     createInstance: (req: ContentCreateInstanceRequest) => Promise<InstanceProfile>
+    pickMrpack: () => Promise<string | null>
     importMrpack: () => Promise<InstanceProfile | null>
+    importMrpackFromPath: (filePath: string) => Promise<InstanceProfile>
     exportMrpack: (instanceId: string) => Promise<string | null>
   }
   skins: {
@@ -243,9 +249,14 @@ const api: FledgeApi = {
     checkUpdates: (instanceId) => ipcRenderer.invoke(IPC.contentCheckUpdates, instanceId),
     listMedia: (instanceId, kind) =>
       ipcRenderer.invoke(IPC.contentListMedia, instanceId, kind),
+    readLog: (instanceId: string, fileName: string) =>
+      ipcRenderer.invoke(IPC.contentReadLog, instanceId, fileName),
     listCategoryTags: () => ipcRenderer.invoke(IPC.contentListCategoryTags),
     createInstance: (req) => ipcRenderer.invoke(IPC.contentCreateInstance, req),
+    pickMrpack: () => ipcRenderer.invoke(IPC.contentPickMrpack),
     importMrpack: () => ipcRenderer.invoke(IPC.contentImportMrpack),
+    importMrpackFromPath: (filePath: string) =>
+      ipcRenderer.invoke(IPC.contentImportMrpackFromPath, filePath),
     exportMrpack: (instanceId) => ipcRenderer.invoke(IPC.contentExportMrpack, instanceId),
   },
   skins: {

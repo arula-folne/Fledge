@@ -242,7 +242,6 @@ async function bootstrap(): Promise<void> {
   mainWindow = createMainWindow({
     width: settings.launcherWindowWidth,
     height: settings.launcherWindowHeight,
-    frame: settings.useOsWindowChrome,
     uiScale: settings.uiScale,
   })
   attachWindowSizeSync(mainWindow, {
@@ -333,7 +332,6 @@ app.on('activate', () => {
       mainWindow = createMainWindow({
         width: s?.launcherWindowWidth,
         height: s?.launcherWindowHeight,
-        frame: s?.useOsWindowChrome ?? false,
         uiScale: s?.uiScale ?? 'normal',
       })
       if (mainWindow) {
