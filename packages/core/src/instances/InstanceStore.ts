@@ -14,6 +14,8 @@ import {
 } from '@fledge/shared'
 import type { PathLayout } from '../app/paths.js'
 import { rmRetry } from '../fs/rmRetry.js'
+import type { Logger } from '../logging/Logger.js'
+import { parseInstanceProfile } from './instanceProfileMigration.js'
 
 function slugify(name: string): string {
   const base = name
@@ -55,7 +57,10 @@ function mimeForExt(ext: string): string {
 }
 
 export class InstanceStore {
-  constructor(private readonly layout: PathLayout) {}
+  constructor(
+    private readonly layout: PathLayout,
+    private readonly logger?: Logger,
+  ) {}
 
   instanceDir(id: string): string {
     return path.join(this.layout.instances, id)
@@ -71,21 +76,30 @@ export class InstanceStore {
     const profiles: InstanceProfile[] = []
     for (const entry of entries) {
       if (!entry.isDirectory()) continue
-      try {
-        const raw = await fs.readFile(this.profilePath(entry.name), 'utf8')
-        profiles.push(InstanceProfileSchema.parse(JSON.parse(raw)))
-      } catch {
-        // 壊れたインスタンスは一覧からスキップ
-      }
+      const profile = await this.readProfile(entry.name)
+      if (profile) profiles.push(profile)
     }
     return profiles.sort((a, b) => a.name.localeCompare(b.name, 'ja'))
   }
 
   async get(id: string): Promise<InstanceProfile | null> {
+    return this.readProfile(id)
+  }
+
+  private async readProfile(id: string): Promise<InstanceProfile | null> {
+    const file = this.profilePath(id)
     try {
-      const raw = await fs.readFile(this.profilePath(id), 'utf8')
-      return InstanceProfileSchema.parse(JSON.parse(raw))
-    } catch {
+      const raw = await fs.readFile(file, 'utf8')
+      const parsed = JSON.parse(raw) as unknown
+      const { profile, migrated } = parseInstanceProfile(parsed)
+      if (migrated) {
+        await fs.writeFile(file, JSON.stringify(profile, null, 2), 'utf8')
+        this.logger?.info('launcher', `Migrated profile.json for instance ${id}`)
+      }
+      return profile
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err)
+      this.logger?.warn('launcher', `Skipped invalid profile.json for ${id}: ${reason}`)
       return null
     }
   }

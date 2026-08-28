@@ -58,7 +58,7 @@ export async function createLauncherApp(options: CreateLauncherAppOptions): Prom
   const logger = options.logger ?? new Logger()
   const settings = new SettingsStore(paths)
   const initialSettings = await settings.get()
-  const instances = new InstanceStore(paths)
+  const instances = new InstanceStore(paths, logger)
   const skins = new SkinStore(paths, options.defaultSkinsDir)
   const news = new LocalJsonNewsProvider(paths, options.newsBundledPath, undefined, options.onNews)
   const updater = options.updater ?? new NoopUpdater()

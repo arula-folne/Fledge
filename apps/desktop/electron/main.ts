@@ -11,6 +11,7 @@ import { registerIpc } from './ipc/registerIpc'
 import { TokenVault } from './security/tokenVault'
 import { applyLightStartEnv, isLightStart } from './startup/lightStart'
 import { attachWindowSizeSync, createMainWindow, resolveFledgeRoot } from './windows/MainWindow'
+import { takeRootRecoveryNotice } from './paths/customRoot'
 
 applyLightStartEnv()
 
@@ -259,6 +260,10 @@ async function bootstrap(): Promise<void> {
     },
   })
   logger.info('system', `Fledge root: ${root}${lightStart ? ' (light start)' : ''}`)
+  const recoveredRoot = takeRootRecoveryNotice()
+  if (recoveredRoot) {
+    logger.info('system', `Restored Fledge root from alternate location: ${recoveredRoot}`)
+  }
   if (!lightStart && settings.backupSyncEnabled) launcherApp.backup.scheduleSync()
 
   const warmupId = settings.lastPlayedInstanceId ?? settings.selectedInstanceId
