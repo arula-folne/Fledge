@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { SkinModel } from '@fledge/shared'
+import { SKIN_THUMB_VERSION } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
 import { renderSkinThumbDataUrl } from './skinSnapshot'
 
@@ -12,7 +13,7 @@ type Props = {
 }
 
 export function skinThumbQueryKey(skinId: string, model: SkinModel) {
-  return ['skin-thumb', skinId, model] as const
+  return ['skin-thumb', SKIN_THUMB_VERSION, skinId, model] as const
 }
 
 const inflight = new Map<string, Promise<void>>()
@@ -56,7 +57,7 @@ export function SkinCachedThumb({ skinId, model, skinUrl, className = '' }: Prop
     <div className={['relative h-full w-full', className].join(' ')}>
       {!src ? <div className="absolute inset-0 animate-pulse bg-[var(--color-border)]/25" /> : null}
       {src ? (
-        <img src={src} alt="" className="h-full w-full object-contain" draggable={false} />
+        <img src={src} alt="" className="h-full w-full object-contain" draggable={false} decoding="async" />
       ) : null}
     </div>
   )

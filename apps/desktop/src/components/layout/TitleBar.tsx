@@ -81,7 +81,6 @@ function TitleBtn({
     <button
       type="button"
       aria-label={label}
-      title={label}
       onClick={onClick}
       className={[
         'grid h-full w-10 place-items-center text-[var(--color-text-muted)] transition',

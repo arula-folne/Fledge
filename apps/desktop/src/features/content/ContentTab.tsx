@@ -13,6 +13,7 @@ import { Switch } from '../../components/ui/Switch'
 import {
   closeBrowse,
   closeProject,
+  CONTENT_CATEGORIES,
   type ContentListFilter,
   openBrowse,
   openProject,
@@ -27,14 +28,6 @@ import {
   ContentFilterAllLabel,
 } from './contentCategoryIcons'
 import { useTransferStore } from '../../stores/appStores'
-
-const CATEGORIES: ContentCategory[] = [
-  'mod',
-  'resourcepack',
-  'shader',
-  'datapack',
-  'plugin',
-]
 
 type Props = {
   instance: InstanceProfile
@@ -195,7 +188,7 @@ export function ContentTab({ instance }: Props) {
           >
             <ContentFilterAllLabel iconSize={13} />
           </button>
-          {CATEGORIES.map((c) => (
+          {CONTENT_CATEGORIES.map((c) => (
             <button
               key={c}
               type="button"
@@ -216,7 +209,6 @@ export function ContentTab({ instance }: Props) {
             variant="secondary"
             className="px-2 py-1 text-xs"
             disabled={updatesMutation.isPending}
-            title={t('content.checkUpdates')}
             onClick={() => updatesMutation.mutate()}
           >
             <IconRefresh size={14} stroke={1.75} />
@@ -315,7 +307,6 @@ export function ContentTab({ instance }: Props) {
               <button
                 type="button"
                 className="inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/10"
-                title={t('content.remove')}
                 aria-label={t('content.remove')}
                 onClick={() => setRemoveTarget(item)}
               >

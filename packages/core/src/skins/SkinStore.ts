@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
-import { MAX_UPLOADED_SKINS, type SkinEntry, type SkinModel } from '@fledge/shared'
+import { MAX_UPLOADED_SKINS, SKIN_THUMB_VERSION, type SkinEntry, type SkinModel } from '@fledge/shared'
 import type { PathLayout } from '../app/paths.js'
 
 /** Minecraft デフォルトスキン（テクスチャはアプリ同梱） */
@@ -103,7 +103,7 @@ export class SkinStore {
     if (!/^[\w-]+$/.test(id)) {
       throw new Error(`Invalid skin id: ${id}`)
     }
-    return path.join(this.thumbsDir(), `${id}.${model}.${ext}`)
+    return path.join(this.thumbsDir(), `${id}.${model}.v${SKIN_THUMB_VERSION}.${ext}`)
   }
 
   async readThumbDataUrl(id: string, model: SkinModel): Promise<string | null> {

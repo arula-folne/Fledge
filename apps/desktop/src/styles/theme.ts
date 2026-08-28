@@ -384,8 +384,3 @@ export function defaultThemeColorsForMode(from: Settings['themeMode']): ThemeCol
   }
   return { base: { ...DEFAULT_BASE }, accent: { ...DEFAULT_ACCENT } }
 }
-
-/** @deprecated defaultThemeColorsForMode を使う */
-export function defaultThemeColorForMode(from: Settings['themeMode']): ThemeColor {
-  return defaultThemeColorsForMode(from).base
-}

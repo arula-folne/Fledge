@@ -182,17 +182,6 @@ export function snapshotMinecraftInitialOptions(
   return out
 }
 
-/** 明示 lang のみ。アプリ locale からの推定は初期設定適用では使わない（互換のため残す）。 */
-export function resolveInitialLang(
-  lang: string | null | undefined,
-  appLocale?: string | null,
-): string | null {
-  if (lang && lang.trim()) return lang.trim()
-  const locale = (appLocale ?? '').toLowerCase()
-  if (locale.startsWith('ja')) return 'ja_jp'
-  return null
-}
-
 /**
  * 1.21.9+ のデバッグオーバーレイ（FPS 常時表示など）。
  * 文字コントラストはバニラにキーが無いためここでは扱わない。
@@ -390,21 +379,6 @@ export async function applyMinecraftInitialPatchToInstance(
   }
 
   return { options, overlay }
-}
-
-/**
- * 作成時点の設定からパッチを組み立ててインスタンスへ反映する。
- * 起動時の再適用には使わない（インスタンスの pending スナップショットを使う）。
- */
-export async function applyMinecraftInitialSettingsToInstance(
-  instanceDir: string,
-  settings: MinecraftInitialSettings,
-  minecraftVersion: string,
-  appLocale?: string | null,
-): Promise<{ options: Record<string, string>; overlay: Record<string, string> }> {
-  const options = snapshotMinecraftInitialOptions(settings, minecraftVersion, appLocale)
-  const overlay = snapshotMinecraftDebugOverlay(settings, minecraftVersion)
-  return applyMinecraftInitialPatchToInstance(instanceDir, options, overlay)
 }
 
 /** 初期設定コミットの現行世代（コミット記録用。作成時スナップショット固定後は再適用トリガーにしない） */

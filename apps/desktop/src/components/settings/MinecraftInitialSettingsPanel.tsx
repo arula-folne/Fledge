@@ -39,7 +39,6 @@ import { useTranslation } from 'react-i18next'
 import { EMPTY_MINECRAFT_INITIAL_SETTINGS, type MinecraftInitialSettings } from '@fledge/shared'
 import { MINECRAFT_LANGUAGES } from '../../data/minecraftLanguages'
 import { Button } from '../ui/Button'
-import { HoverTooltip } from '../ui/HoverTooltip'
 import { MinecraftKeybindsDialog } from './MinecraftKeybindsDialog'
 
 type Props = {
@@ -592,18 +591,14 @@ function ResetButton({
   onClick: () => void
 }) {
   return (
-    <HoverTooltip
-      content={<span className="text-xs font-medium text-[var(--color-text)]">{label}</span>}
+    <button
+      type="button"
+      aria-label={label}
+      className="flex size-8 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] hover:bg-[var(--color-hover)]"
+      onClick={onClick}
     >
-      <button
-        type="button"
-        aria-label={label}
-        className="flex size-8 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] hover:bg-[var(--color-hover)]"
-        onClick={onClick}
-      >
-        <IconRefresh size={16} stroke={1.75} />
-      </button>
-    </HoverTooltip>
+      <IconRefresh size={16} stroke={1.75} />
+    </button>
   )
 }
 

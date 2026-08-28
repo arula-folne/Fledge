@@ -42,7 +42,6 @@ export function ThemeSeasonPicker({ value, onChange }: Props) {
               role="radio"
               aria-checked={selected}
               aria-label={label}
-              title={label}
               onClick={() => {
                 setPending(theme.id)
                 onChange(theme.id)

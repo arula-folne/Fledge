@@ -42,12 +42,6 @@ export class VersionService {
     ])
   }
 
-  /** 互換: 旧 IPC versions:list */
-  async listVersions(includeSnapshots: boolean): Promise<VersionInfo[]> {
-    const result = await this.listMinecraftVersions({ includeSnapshots })
-    return result.versions
-  }
-
   async listMinecraftVersions(opts?: {
     includeSnapshots?: boolean
     force?: boolean

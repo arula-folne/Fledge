@@ -187,7 +187,7 @@ export default function SkinPage() {
           </div>
           {!canAdd ? (
             <p className="-mt-2 mb-3 text-[11px] text-[var(--color-text-muted)]">
-              {t('skin.limitReached')}
+              {t('skin.limitReached', { max: MAX_UPLOADED_SKINS })}
             </p>
           ) : null}
 
@@ -342,7 +342,6 @@ function SkinCard({
             type="button"
             className="inline-flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
             aria-label={t('skin.edit')}
-            title={t('skin.edit')}
             onClick={onEdit}
           >
             <IconPencil size={18} stroke={1.8} />
@@ -501,7 +500,7 @@ function RegisterSkinDialog({
             onClick={() => {
               if (!file) return
               void onSave(file, name.trim() || defaultName, model).catch((err: unknown) => {
-                setError(err instanceof Error ? err.message : t('skin.limitReached'))
+                setError(err instanceof Error ? err.message : t('skin.limitReached', { max: MAX_UPLOADED_SKINS }))
               })
             }}
           >

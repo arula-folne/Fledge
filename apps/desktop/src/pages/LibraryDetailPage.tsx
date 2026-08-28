@@ -1,4 +1,5 @@
-import { Suspense, lazy, useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -7,6 +8,7 @@ import {
   IconCopy,
   IconFolder,
   IconFolderOpen,
+  IconMenu2,
   IconPackageExport,
   IconPhoto,
   IconPuzzle,
@@ -28,8 +30,9 @@ import {
   sameIconPreset,
   type InstanceIconFilePick,
 } from '../features/instances/instanceIconPresets'
-import { InstanceLaunchButton } from '../features/instances/InstanceLaunchButton'
+import { InstanceLaunchButton, InstanceLaunchProgress } from '../features/instances/InstanceLaunchButton'
 import { InstanceLogConsole } from '../features/instances/InstanceLogConsole'
+import { ExportMrpackDialog } from '../features/content/ExportMrpackDialog'
 import { formatLastPlayed, formatLoaderLabel } from '../features/instances/instanceMeta'
 import { parseLibraryTab, writeLibraryTab } from '../navigation/libraryDetailSearch'
 import { useUiStore, type LibraryDetailTab } from '../stores/appStores'
@@ -114,6 +117,11 @@ export default function LibraryDetailPage() {
   const [draft, setDraft] = useState<Draft | null>(null)
   const [message, setMessage] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
+  const headerMenuRef = useRef<HTMLButtonElement>(null)
+  const headerMenuPanelRef = useRef<HTMLDivElement>(null)
+  const [headerMenuPos, setHeaderMenuPos] = useState({ x: 0, y: 0 })
   const [headerIconOpen, setHeaderIconOpen] = useState(false)
   const [headerIconPreset, setHeaderIconPreset] = useState<InstanceIconPreset>(
     DEFAULT_INSTANCE_ICON_PRESET,
@@ -216,14 +224,6 @@ export default function LibraryDetailPage() {
     },
   })
 
-  const exportMutation = useMutation({
-    mutationFn: (id: string) => fledgeApi.content.exportMrpack(id),
-    onSuccess: (savedPath) => {
-      if (savedPath) setMessage(t('instances.exported'))
-    },
-    onError: (err) => setMessage(err instanceof Error ? err.message : String(err)),
-  })
-
   const removeMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.instances.remove(id),
     onSuccess: async (_data, id) => {
@@ -316,6 +316,38 @@ export default function LibraryDetailPage() {
     })
   }
 
+  useLayoutEffect(() => {
+    if (!headerMenuOpen || !headerMenuRef.current) return
+    const rect = headerMenuRef.current.getBoundingClientRect()
+    const pad = 8
+    const menuWidth = headerMenuPanelRef.current?.offsetWidth ?? 176
+    const menuHeight = headerMenuPanelRef.current?.offsetHeight ?? 96
+    setHeaderMenuPos({
+      x: Math.max(pad, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - pad)),
+      y: Math.max(pad, Math.min(rect.bottom + 4, window.innerHeight - menuHeight - pad)),
+    })
+  }, [headerMenuOpen])
+
+  useEffect(() => {
+    if (!headerMenuOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setHeaderMenuOpen(false)
+    }
+    const onPointer = (e: PointerEvent) => {
+      const target = e.target as Node
+      if (headerMenuRef.current?.contains(target) || headerMenuPanelRef.current?.contains(target)) {
+        return
+      }
+      setHeaderMenuOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    window.addEventListener('pointerdown', onPointer)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      window.removeEventListener('pointerdown', onPointer)
+    }
+  }, [headerMenuOpen])
+
   if (instanceQuery.isLoading) {
     return <div className="text-[var(--color-text-muted)]">{t('common.loading')}</div>
   }
@@ -359,51 +391,106 @@ export default function LibraryDetailPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-3">
-      <header className="flex min-h-[4.75rem] shrink-0 flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3">
-        <Button
-          variant="ghost"
-          className="shrink-0 px-1.5 py-1.5"
-          title={t('library.backToList')}
-          onClick={() => navigate('/')}
-        >
-          <IconArrowLeft size={16} stroke={1.75} />
-        </Button>
-        <button
-          type="button"
-          className="shrink-0 rounded-[var(--radius-md)] outline-none ring-[var(--color-accent)] transition hover:ring-2 focus-visible:ring-2"
-          title={t('instances.iconCustomize')}
-          aria-label={t('instances.iconCustomize')}
-          onClick={() => void openHeaderIconEditor()}
-        >
-          <InstanceIcon
-            instance={instance}
-            preset={settingsOpen ? draft.iconPreset : undefined}
-            size="md"
-          />
-        </button>
-        <div className="min-w-0 flex-1 self-center">
-          <h1 className="truncate text-base font-semibold leading-snug text-[var(--color-text)]">
-            {instance.name}
-          </h1>
-          <p className="mt-0.5 truncate text-xs leading-snug text-[var(--color-text-muted)]">
-            {instance.minecraftVersion} · {formatLoaderLabel(instance.loader, t)}
-            {' · '}
-            {formatLastPlayed(instance.lastPlayedAt, t)}
-          </p>
-        </div>
-        <div className="flex min-h-[2.75rem] shrink-0 items-start gap-1.5">
-          <InstanceLaunchButton instanceId={instance.id} />
+      <header className="shrink-0 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3">
+        <div className="flex min-h-[3.5rem] items-center gap-3">
           <Button
             variant="ghost"
             className="size-11 shrink-0 rounded-full p-0"
-            title={t('library.tab.settings')}
-            aria-label={t('library.tab.settings')}
-            onClick={() => setEditingInstanceId(instance.id)}
+            aria-label={t('library.backToList')}
+            onClick={() => navigate('/')}
           >
-            <IconSettings size={26} stroke={1.6} />
+            <IconArrowLeft size={22} stroke={1.75} />
           </Button>
+          <button
+            type="button"
+            className="shrink-0 rounded-[var(--radius-md)] outline-none ring-[var(--color-accent)] transition hover:ring-2 focus-visible:ring-2"
+            aria-label={t('instances.iconCustomize')}
+            onClick={() => void openHeaderIconEditor()}
+          >
+            <InstanceIcon
+              instance={instance}
+              preset={settingsOpen ? draft.iconPreset : undefined}
+              size="md"
+            />
+          </button>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-base font-semibold leading-snug text-[var(--color-text)]">
+              {instance.name}
+            </h1>
+            <p className="mt-0.5 truncate text-xs leading-snug text-[var(--color-text-muted)]">
+              {instance.minecraftVersion} · {formatLoaderLabel(instance.loader, t)}
+              {' · '}
+              {formatLastPlayed(instance.lastPlayedAt, t)}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <InstanceLaunchButton instanceId={instance.id} showProgress={false} size="header" />
+            <Button
+              variant="ghost"
+              className="size-11 shrink-0 rounded-full p-0"
+              aria-label={t('library.tab.settings')}
+              onClick={() => {
+                setHeaderMenuOpen(false)
+                setEditingInstanceId(instance.id)
+              }}
+            >
+              <IconSettings size={32} stroke={1.5} />
+            </Button>
+            <button
+              ref={headerMenuRef}
+              type="button"
+              className="inline-flex size-11 shrink-0 items-center justify-center rounded-full p-0 text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
+              aria-label={t('library.instanceMenu')}
+              aria-expanded={headerMenuOpen}
+              aria-haspopup="menu"
+              onClick={() => setHeaderMenuOpen((open) => !open)}
+            >
+              <IconMenu2 size={22} stroke={1.75} />
+            </button>
+          </div>
+        </div>
+        <div className="mt-1 flex justify-end pr-[6.75rem]">
+          <InstanceLaunchProgress instanceId={instance.id} />
         </div>
       </header>
+
+      {headerMenuOpen
+        ? createPortal(
+            <div
+              ref={headerMenuPanelRef}
+              role="menu"
+              className="fixed z-[70] min-w-44 overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] py-1 text-[var(--color-text)] shadow-sm"
+              style={{ left: headerMenuPos.x, top: headerMenuPos.y }}
+            >
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-[var(--color-hover)] disabled:opacity-50"
+                disabled={duplicateMutation.isPending}
+                onClick={() => {
+                  setHeaderMenuOpen(false)
+                  duplicateMutation.mutate(instance.id)
+                }}
+              >
+                <IconCopy size={16} stroke={1.75} className="shrink-0 text-[var(--color-text-muted)]" />
+                {t('instances.duplicate')}
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-[var(--color-hover)]"
+                onClick={() => {
+                  setHeaderMenuOpen(false)
+                  setExportOpen(true)
+                }}
+              >
+                <IconPackageExport size={16} stroke={1.75} className="shrink-0 text-[var(--color-text-muted)]" />
+                {t('instances.export')}
+              </button>
+            </div>,
+            document.body,
+          )
+        : null}
 
       <nav className="flex shrink-0 flex-wrap gap-0.5">
         {tabs.map((item) => (
@@ -549,7 +636,7 @@ export default function LibraryDetailPage() {
               <button
                 type="button"
                 className="rounded-[var(--radius-md)] outline-none ring-[var(--color-accent)] hover:ring-2 focus-visible:ring-2"
-                title={t('instances.iconCustomize')}
+                aria-label={t('instances.iconCustomize')}
                 onClick={() => {
                   void openHeaderIconEditor()
                 }}
@@ -599,22 +686,6 @@ export default function LibraryDetailPage() {
           />
           <div className="flex flex-wrap gap-2 border-t border-[var(--color-border)] pt-4">
             <Button
-              variant="secondary"
-              disabled={exportMutation.isPending}
-              onClick={() => exportMutation.mutate(instance.id)}
-            >
-              <IconPackageExport size={16} stroke={1.75} />
-              {exportMutation.isPending ? t('instances.exporting') : t('instances.export')}
-            </Button>
-            <Button
-              variant="secondary"
-              disabled={duplicateMutation.isPending}
-              onClick={() => duplicateMutation.mutate(instance.id)}
-            >
-              <IconCopy size={16} stroke={1.75} />
-              {t('instances.duplicate')}
-            </Button>
-            <Button
               variant="danger"
               disabled={removeMutation.isPending}
               onClick={() => setDeleteOpen(true)}
@@ -642,6 +713,13 @@ export default function LibraryDetailPage() {
           setHeaderIconImage(next.image)
           iconMutation.mutate(next)
         }}
+      />
+      <ExportMrpackDialog
+        open={exportOpen}
+        instanceId={instance.id}
+        onClose={() => setExportOpen(false)}
+        onExported={() => setMessage(t('instances.exported'))}
+        onError={(err) => setMessage(err)}
       />
       <ConfirmDialog
         open={deleteOpen}

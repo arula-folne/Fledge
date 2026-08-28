@@ -91,9 +91,14 @@ export class SettingsStore {
       }
       this.cache = SettingsSchema.parse({ ...DEFAULT_SETTINGS, ...parsed })
       if (hadLegacySecret || hadLegacyConcurrency || hadLegacyWindowSize) await this.save(this.cache)
-    } catch {
+    } catch (err) {
+      const missing =
+        err instanceof Error &&
+        'code' in err &&
+        (err as NodeJS.ErrnoException).code === 'ENOENT'
       this.cache = { ...DEFAULT_SETTINGS }
-      await this.save(this.cache)
+      // 初回起動のみファイル作成。読み取り失敗時に上書きすると更新後などに設定が消えたように見える。
+      if (missing) await this.save(this.cache)
     }
     return this.cache
   }

@@ -25,6 +25,8 @@ type Props = {
   compact?: boolean
   /** パネル幅・高さの追加クラス（お知らせなど） */
   panelClassName?: string
+  /** 本文エリアの追加クラス */
+  contentClassName?: string
 }
 
 /**
@@ -45,6 +47,7 @@ export function Dialog({
   fixedHeight = false,
   compact = false,
   panelClassName = '',
+  contentClassName = '',
 }: Props) {
   const { t } = useTranslation()
   const full = size === 'full'
@@ -194,7 +197,7 @@ export function Dialog({
           ) : null}
         </div>
         <div
-          className={
+          className={[
             fill
               ? [
                   'min-h-0 flex-1',
@@ -213,8 +216,11 @@ export function Dialog({
                 ? 'px-3 py-2'
                 : size === 'sm'
                   ? 'px-3.5 py-3'
-                  : 'px-5 py-4'
-          }
+                  : 'px-5 py-4',
+            contentClassName,
+          ]
+            .filter(Boolean)
+            .join(' ')}
         >
           {children}
         </div>

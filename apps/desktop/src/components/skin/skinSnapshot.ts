@@ -1,11 +1,8 @@
-import { SkinViewer } from 'skinview3d'
 import type { SkinModel } from '@fledge/shared'
+import { SKIN_THUMB, SKIN_THUMB_VERSION } from '@fledge/shared'
+import { SkinViewer } from 'skinview3d'
 
-export const SKIN_THUMB = {
-  width: 112,
-  height: 134,
-  zoom: 0.72,
-} as const
+export { SKIN_THUMB, SKIN_THUMB_VERSION }
 
 let renderChain: Promise<unknown> = Promise.resolve()
 
@@ -50,7 +47,7 @@ export async function renderSkinSnapshotToCanvas(
   cssHeight: number,
   zoom: number,
 ): Promise<void> {
-  const pixelRatio = 1
+  const pixelRatio = Math.min(2, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1)
   const glCanvas = document.createElement('canvas')
   const viewer = new SkinViewer({
     canvas: glCanvas,

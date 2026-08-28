@@ -19,7 +19,7 @@ const styles: Record<NonNullable<Props['variant']>, string> = {
     'rounded-full bg-[var(--color-success)] !text-white hover:bg-[color-mix(in_srgb,var(--color-success)_88%,white)] disabled:opacity-50',
 }
 
-export function Button({ variant = 'secondary', className = '', children, ...rest }: Props) {
+export function Button({ variant = 'secondary', className = '', children, title: _title, ...rest }: Props) {
   return (
     <button
       className={[

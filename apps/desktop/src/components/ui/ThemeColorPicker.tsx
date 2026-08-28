@@ -136,7 +136,6 @@ const PaletteGrid = memo(function PaletteGrid({
           <button
             key={`${idx}-${hex}`}
             type="button"
-            title={hex}
             aria-label={hex}
             className="aspect-square min-h-0 rounded-[1px] border border-black/10 transition hover:brightness-110 focus-visible:z-10 focus-visible:ring-1 focus-visible:ring-white/80"
             style={{ background: hex }}
@@ -455,7 +454,6 @@ export const ThemeColorPicker = memo(function ThemeColorPicker({ value, onChange
     <>
       <button
         type="button"
-        title={t('settings.themeColorChange')}
         aria-label={t('settings.themeColorChange')}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -477,13 +475,11 @@ export const ThemeColorPicker = memo(function ThemeColorPicker({ value, onChange
             <span
               className="size-4 shrink-0 rounded-full border border-black/15 shadow-inner"
               style={{ background: toHex(safeValue.base) }}
-              title={t('settings.themeColorBase')}
               aria-hidden
             />
             <span
               className="size-4 shrink-0 rounded-full border border-black/15 shadow-inner"
               style={{ background: toHex(safeValue.accent) }}
-              title={t('settings.themeColorAccent')}
               aria-hidden
             />
           </div>
@@ -525,7 +521,6 @@ export const ThemeColorPicker = memo(function ThemeColorPicker({ value, onChange
                     type="button"
                     aria-pressed={selected}
                     aria-label={`${item.label} ${toHex(item.color)}`}
-                    title={`${item.label} ${toHex(item.color)}`}
                     className="flex items-center gap-2.5 rounded-[var(--radius-sm)] text-left transition"
                     onClick={() => selectRole(item.id)}
                   >
@@ -556,7 +551,7 @@ export const ThemeColorPicker = memo(function ThemeColorPicker({ value, onChange
                 'bg-[var(--color-input)] px-2 py-1.5 text-[11px] font-medium text-[var(--color-text)]',
                 'transition hover:bg-[var(--color-hover)]',
               ].join(' ')}
-              title={t('settings.themeColorRandomAll')}
+              aria-label={t('settings.themeColorRandomAll')}
               onClick={randomizeAll}
             >
               <IconDice size={15} stroke={1.6} className="shrink-0 text-[var(--color-text-muted)]" aria-hidden />
@@ -576,7 +571,6 @@ export const ThemeColorPicker = memo(function ThemeColorPicker({ value, onChange
                     <button
                       key={preset.id}
                       type="button"
-                      title={`${baseHex} / ${accentHex}`}
                       aria-label={`${t('settings.themeColorBase')} ${baseHex} / ${t('settings.themeColorAccent')} ${accentHex}`}
                       aria-pressed={selected}
                       className={[
@@ -631,7 +625,7 @@ export const ThemeColorPicker = memo(function ThemeColorPicker({ value, onChange
                     'hover:brightness-110',
                   ].join(' ')}
                   style={{ background: toHex(draftActive) }}
-                  title={t('settings.themeColorNativePicker')}
+                  aria-label={t('settings.themeColorNativePicker')}
                 >
                   <IconPalette
                     size={18}

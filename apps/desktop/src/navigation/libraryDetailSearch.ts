@@ -26,12 +26,6 @@ export function parseContentFilter(value: string | null): ContentListFilter {
   return 'all'
 }
 
-/** 互換: 旧コード / HMR 向け。既定は all 相当として mod を返さない */
-export function parseContentCategory(value: string | null): ContentCategory {
-  const filter = parseContentFilter(value)
-  return filter === 'all' ? 'mod' : filter
-}
-
 export function parseLibraryTab(value: string | null): LibraryDetailTab {
   if (value && (LIBRARY_DETAIL_TABS as string[]).includes(value)) {
     return value as LibraryDetailTab
@@ -43,11 +37,6 @@ export function parseLibraryTab(value: string | null): LibraryDetailTab {
 export function writeContentFilter(params: URLSearchParams, filter: ContentListFilter) {
   if (filter === 'all') params.delete('category')
   else params.set('category', filter)
-}
-
-/** @deprecated writeContentFilter を使用 */
-export function writeContentCategory(params: URLSearchParams, category: ContentCategory) {
-  writeContentFilter(params, category)
 }
 
 /** インスタンス詳細タブを URL に反映（既定 content は省略） */

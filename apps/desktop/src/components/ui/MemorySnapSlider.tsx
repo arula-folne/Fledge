@@ -300,7 +300,6 @@ export function MemorySnapSlider({ value, onChange, label, hint }: Props) {
               <button
                 key={mark.mb}
                 type="button"
-                title={formatMemory(mark.mb)}
                 aria-label={formatMemory(mark.mb)}
                 tabIndex={-1}
                 className={[

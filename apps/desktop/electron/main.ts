@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createLauncherApp, GithubReleaseUpdater, Logger, NoopUpdater, resolvePathLayout, type LauncherApp } from '@fledge/core'
-import { IPC_EVENTS, type LaunchStateEvent, type NewsItem } from '@fledge/shared'
+import { IPC_EVENTS, type LaunchStateEvent, type NewsItem, type Settings } from '@fledge/shared'
 import { MicrosoftAuthProvider } from './auth/MicrosoftAuthProvider'
 import { DiscordPresence } from './discord/DiscordPresence'
 import { defaultEnvCandidatePaths, loadFledgeEnvFiles } from './env/loadEnv'
@@ -24,6 +24,67 @@ let discordPresence: DiscordPresence | null = null
 let cachedClientId: string | undefined
 let allowQuit = false
 let relaunchScheduled = false
+
+type MainWindowOptions = {
+  width?: number
+  height?: number
+  uiScale?: Settings['uiScale']
+}
+
+let lastMainWindowOptions: MainWindowOptions = {}
+
+function setupMainWindow(options: MainWindowOptions): BrowserWindow {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.destroy()
+  }
+  lastMainWindowOptions = options
+  mainWindow = createMainWindow({
+    width: options.width,
+    height: options.height,
+    uiScale: options.uiScale,
+  })
+  attachWindowSizeSync(mainWindow, {
+    emit: (size) => {
+      if (!mainWindow || mainWindow.isDestroyed()) return
+      mainWindow.webContents.send(IPC_EVENTS.windowSize, size)
+    },
+    persist: (size) => {
+      void launcherApp?.settings
+        .set({
+          launcherWindowWidth: size.width,
+          launcherWindowHeight: size.height,
+        })
+        .catch(() => undefined)
+    },
+  })
+  return mainWindow
+}
+
+/** preload 変更時は renderer リロードだけでは API が更新されないため、開発時のみウィンドウを作り直す */
+function attachDevPreloadHotReload(): void {
+  if (app.isPackaged) return
+  const preloadPath = path.join(__dirname, '../preload/index.js')
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    fs.watch(preloadPath, () => {
+      clearTimeout(timer)
+      timer = setTimeout(() => {
+        if (!mainWindow || mainWindow.isDestroyed()) return
+        const bounds = mainWindow.getBounds()
+        const maximized = mainWindow.isMaximized()
+        console.log('[dev] Preload updated — recreating main window')
+        setupMainWindow({
+          ...lastMainWindowOptions,
+          width: bounds.width,
+          height: bounds.height,
+        })
+        if (maximized) mainWindow.maximize()
+      }, 250)
+    })
+  } catch (err) {
+    console.warn('[dev] Preload hot reload unavailable:', err)
+  }
+}
 
 function getWindow(): BrowserWindow | null {
   return mainWindow
@@ -198,9 +259,10 @@ async function bootstrap(): Promise<void> {
         mainWindow.webContents.send(IPC_EVENTS.newsUpdated, items)
       }
     },
-    updater: app.isPackaged
-      ? new GithubReleaseUpdater(resolvePathLayout(root))
-      : new NoopUpdater(),
+    updater:
+      app.isPackaged || process.env.FLEDGE_DEV_UPDATER === '1'
+        ? new GithubReleaseUpdater(resolvePathLayout(root))
+        : new NoopUpdater(),
   })
 
   const settings = await launcherApp.settings.get()
@@ -240,25 +302,12 @@ async function bootstrap(): Promise<void> {
       void scheduleAppExit({ relaunch: false, skipBackupFlush: true, delayMs: 400 })
     },
   })
-  mainWindow = createMainWindow({
+  setupMainWindow({
     width: settings.launcherWindowWidth,
     height: settings.launcherWindowHeight,
     uiScale: settings.uiScale,
   })
-  attachWindowSizeSync(mainWindow, {
-    emit: (size) => {
-      if (!mainWindow || mainWindow.isDestroyed()) return
-      mainWindow.webContents.send(IPC_EVENTS.windowSize, size)
-    },
-    persist: (size) => {
-      void launcherApp?.settings
-        .set({
-          launcherWindowWidth: size.width,
-          launcherWindowHeight: size.height,
-        })
-        .catch(() => undefined)
-    },
-  })
+  attachDevPreloadHotReload()
   logger.info('system', `Fledge root: ${root}${lightStart ? ' (light start)' : ''}`)
   const recoveredRoot = takeRootRecoveryNotice()
   if (recoveredRoot) {
@@ -334,27 +383,11 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     void (async () => {
       const s = await launcherApp?.settings.get()
-      mainWindow = createMainWindow({
+      setupMainWindow({
         width: s?.launcherWindowWidth,
         height: s?.launcherWindowHeight,
         uiScale: s?.uiScale ?? 'normal',
       })
-      if (mainWindow) {
-        attachWindowSizeSync(mainWindow, {
-          emit: (size) => {
-            if (!mainWindow || mainWindow.isDestroyed()) return
-            mainWindow.webContents.send(IPC_EVENTS.windowSize, size)
-          },
-          persist: (size) => {
-            void launcherApp?.settings
-              .set({
-                launcherWindowWidth: size.width,
-                launcherWindowHeight: size.height,
-              })
-              .catch(() => undefined)
-          },
-        })
-      }
     })()
   }
 })

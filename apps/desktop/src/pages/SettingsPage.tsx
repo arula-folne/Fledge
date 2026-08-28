@@ -57,11 +57,8 @@ export default function SettingsPage() {
   const queryClient = useQueryClient()
   const sectionRaw = useUiStore((s) => s.settingsSection)
   const setSection = useUiStore((s) => s.setSettingsSection)
-  const section = (sectionRaw as string) === 'app' ? 'appGeneral' : sectionRaw
+  const section = sectionRaw
 
-  useEffect(() => {
-    if ((sectionRaw as string) === 'app') setSection('appGeneral')
-  }, [sectionRaw, setSection])
   const [message, setMessage] = useState<string | null>(null)
   const [restartNoticeOpen, setRestartNoticeOpen] = useState(false)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
@@ -727,7 +724,6 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   className="grid size-10 shrink-0 place-items-center rounded-full border border-[var(--color-border)] bg-[var(--color-input)] text-[var(--color-text)] transition hover:bg-[var(--color-hover)] disabled:opacity-50"
-                  title={t('settings.appDirectoryBrowse')}
                   aria-label={t('settings.appDirectoryBrowse')}
                   disabled={setAppDirectoryMutation.isPending}
                   onClick={() => void browseAppDirectory()}

@@ -22,7 +22,8 @@ import type {
   LaunchStateEvent,
   Loader,
   LoaderVersionListResult,
-  LogLine,
+  MrpackExportCandidates,
+  MrpackExportOptions,
   NewsItem,
   PathInfo,
   ProgressEvent,
@@ -32,7 +33,6 @@ import type {
   UpdateInstanceInput,
   UpdateCheckResult,
   UpdateChannel,
-  VersionInfo,
   VersionListResult,
   JavaRuntimeView,
   JavaVerifyResult,
@@ -99,7 +99,8 @@ export type FledgeApi = {
     pickMrpack: () => Promise<string | null>
     importMrpack: () => Promise<InstanceProfile | null>
     importMrpackFromPath: (filePath: string) => Promise<InstanceProfile>
-    exportMrpack: (instanceId: string) => Promise<string | null>
+    listMrpackExportCandidates: (instanceId: string) => Promise<MrpackExportCandidates>
+    exportMrpack: (instanceId: string, options?: MrpackExportOptions) => Promise<string | null>
   }
   skins: {
     list: () => Promise<SkinEntry[]>
@@ -126,7 +127,6 @@ export type FledgeApi = {
     remove: (accountId: string) => Promise<void>
   }
   versions: {
-    list: (opts?: { includeSnapshots?: boolean }) => Promise<VersionInfo[]>
     listMinecraft: (opts?: {
       includeSnapshots?: boolean
       force?: boolean
@@ -152,9 +152,6 @@ export type FledgeApi = {
     sessions: () => Promise<
       Array<{ sessionId: string; profileId: string; accountId: string; state: string }>
     >
-  }
-  logs: {
-    recent: () => Promise<LogLine[]>
   }
   updater: {
     check: (channel?: UpdateChannel) => Promise<UpdateCheckResult>
@@ -193,7 +190,6 @@ export type FledgeApi = {
     progress: (cb: (e: ProgressEvent) => void) => () => void
     launchPhase: (cb: (e: LaunchPhaseEvent) => void) => () => void
     launchState: (cb: (e: LaunchStateEvent) => void) => () => void
-    logLine: (cb: (e: LogLine) => void) => () => void
     authStatus: (cb: (e: AuthStatusEvent) => void) => () => void
     newsUpdated: (cb: (items: NewsItem[]) => void) => () => void
     windowSize: (cb: (size: { width: number; height: number }) => void) => () => void

@@ -108,6 +108,23 @@ function countInstanceProfiles(root: string): number {
   }
 }
 
+function hasPersistedUserData(root: string): boolean {
+  if (countInstanceProfiles(root) > 0) return true
+  const markers = [
+    path.join(root, 'Data', 'Settings', 'settings.json'),
+    path.join(root, 'Data', 'Accounts', 'index.json'),
+  ]
+  for (const file of markers) {
+    try {
+      fs.accessSync(file)
+      return true
+    } catch {
+      /* missing */
+    }
+  }
+  return false
+}
+
 function uniqueRoots(roots: Array<string | null | undefined>): string[] {
   const seen = new Set<string>()
   const out: string[] = []
@@ -162,7 +179,7 @@ export function resolveFledgeRoot(): string {
     }
   }
 
-  if (countInstanceProfiles(root) > 0) {
+  if (hasPersistedUserData(root)) {
     writeInstallDirPointer(root)
     return root
   }
@@ -170,7 +187,7 @@ export function resolveFledgeRoot(): string {
   const candidates = uniqueRoots([readInstallDirPointer(), defaultPath])
   for (const candidate of candidates) {
     if (path.resolve(candidate) === path.resolve(root)) continue
-    if (countInstanceProfiles(candidate) > 0) {
+    if (hasPersistedUserData(candidate)) {
       recoveredRootFrom = candidate
       persistResolvedRoot(candidate)
       return candidate

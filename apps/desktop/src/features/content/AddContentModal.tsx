@@ -16,9 +16,17 @@ import { Dialog } from '../../components/ui/Dialog'
 import { PageNav } from '../../components/ui/PageNav'
 import { useTransferStore } from '../../stores/appStores'
 import { ContentBrowseFilters } from './ContentBrowseFilters'
+import { listFavoriteProjects } from './contentFavoritesList'
+import { ContentSearchCategoryTabs } from './ContentSearchCategoryTabs'
 import { ContentSearchHitRow } from './ContentSearchHitRow'
+import {
+  defaultInstanceBrowseTab,
+  instanceBrowseSearchTabs,
+  isFavoritesTab,
+  type ContentSearchTab,
+} from './contentSearchTabs'
+import { useContentFavorites } from './useContentFavorites'
 import { useOptimisticContentInstalls } from './useOptimisticContentInstalls'
-import { ContentCategoryLabel } from './contentCategoryIcons'
 import { useModrinthTagIcons } from './useModrinthTagIcons'
 
 const ContentProjectView = lazy(() =>
@@ -27,7 +35,6 @@ const ContentProjectView = lazy(() =>
 
 const PAGE_SIZES = [10, 20, 30, 40, 50] as const
 const DEFAULT_PAGE_SIZE: (typeof PAGE_SIZES)[number] = 20
-const CATEGORIES: ContentCategory[] = ['mod', 'resourcepack', 'datapack', 'shader', 'plugin']
 const SORTS: ContentSearchSort[] = ['relevance', 'downloads', 'follows', 'newest', 'updated']
 
 const selectClass =
@@ -60,10 +67,11 @@ function buildContentSearchInput(input: {
 function keepSearchDataForSameCategory<T>(
   previousData: T | undefined,
   previousQuery: { queryKey: readonly unknown[] } | undefined,
-  category: ContentCategory,
+  tab: ContentSearchTab,
 ): T | undefined {
+  if (isFavoritesTab(tab)) return undefined
   const prev = previousQuery?.queryKey[1] as ContentSearchQuery | undefined
-  return prev?.category === category ? previousData : undefined
+  return prev?.category === tab ? previousData : undefined
 }
 
 function keepInstalledDataForInstance<T>(
@@ -101,7 +109,7 @@ export function AddContentModal({
   const queryClient = useQueryClient()
   const wasBrowseOpenRef = useRef(false)
   const prevInstanceIdRef = useRef(instance.id)
-  const [searchCategory, setSearchCategory] = useState<ContentCategory>('mod')
+  const [searchTab, setSearchTab] = useState<ContentSearchTab>(defaultInstanceBrowseTab())
   const [query, setQuery] = useState('')
   const [gameVersion, setGameVersion] = useState(instance.minecraftVersion)
   const [loaders, setLoaders] = useState<ContentLoaderFilter[]>(() =>
@@ -131,7 +139,10 @@ export function AddContentModal({
     }
     return ids
   }, [jobs, instance.id])
-  const tagIcons = useModrinthTagIcons(searchCategory)
+  const { favorites, isFavorite, toggleFavorite } = useContentFavorites()
+  const tagCategory = isFavoritesTab(searchTab) ? 'mod' : searchTab
+  const tagIcons = useModrinthTagIcons(tagCategory)
+  const filterCategory = isFavoritesTab(searchTab) ? 'mod' : searchTab
 
   const versionsQuery = useQuery({
     queryKey: ['versions-minecraft', false],
@@ -146,7 +157,7 @@ export function AddContentModal({
       prevInstanceIdRef.current = instance.id
     }
     if (open && browseMode && !wasBrowseOpenRef.current) {
-      setSearchCategory('mod')
+      setSearchTab(defaultInstanceBrowseTab())
       setGameVersion(instance.minecraftVersion)
       setLoaders(loaderToContentFilters(instance.loader))
       setTags([])
@@ -172,7 +183,7 @@ export function AddContentModal({
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedQuery, searchCategory, gameVersion, loaders, tags, sort, pageSize])
+  }, [debouncedQuery, searchTab, gameVersion, loaders, tags, sort, pageSize])
 
   useEffect(() => {
     listScrollRef.current?.scrollTo({ top: 0 })
@@ -180,7 +191,7 @@ export function AddContentModal({
 
   useEffect(() => {
     setTags([])
-  }, [searchCategory])
+  }, [searchTab])
 
   const prefetchCategorySearch = useCallback(
     (cat: ContentCategory, searchTags: string[] = []) => {
@@ -223,7 +234,7 @@ export function AddContentModal({
   const searchInput: ContentSearchQuery = useMemo(
     () =>
       buildContentSearchInput({
-        category: searchCategory,
+        category: filterCategory,
         debouncedQuery,
         gameVersion,
         loaders,
@@ -232,15 +243,15 @@ export function AddContentModal({
         page,
         pageSize,
       }),
-    [debouncedQuery, searchCategory, gameVersion, loaders, tags, sort, page, pageSize],
+    [debouncedQuery, filterCategory, gameVersion, loaders, tags, sort, page, pageSize],
   )
 
   const searchQuery = useQuery({
     queryKey: ['content-search', searchInput],
     queryFn: () => fledgeApi.content.search(searchInput),
-    enabled: open && browseMode && !projectId,
+    enabled: open && browseMode && !projectId && !isFavoritesTab(searchTab),
     placeholderData: (previousData, previousQuery) =>
-      keepSearchDataForSameCategory(previousData, previousQuery, searchCategory),
+      keepSearchDataForSameCategory(previousData, previousQuery, searchTab),
     staleTime: 30_000,
     retry: 2,
     retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 5_000),
@@ -303,15 +314,15 @@ export function AddContentModal({
   })()
 
   const installMutation = useMutation({
-    mutationFn: (input: { id: string; versionId?: string }) =>
+    mutationFn: (input: { id: string; versionId?: string; category: ContentCategory }) =>
       fledgeApi.content.install({
         instanceId: instance.id,
         provider: 'modrinth',
         projectId: input.id,
-        category: searchCategory,
+        category: input.category,
         versionId: input.versionId,
         gameVersion: gameVersion.trim() || undefined,
-        loaders: searchCategory === 'mod' || searchCategory === 'plugin' ? loaders : [],
+        loaders: input.category === 'mod' || input.category === 'plugin' ? loaders : [],
       }),
     onError: (err, input) => {
       unmark(input.id)
@@ -336,7 +347,7 @@ export function AddContentModal({
   })
 
   const requestInstall = useCallback(
-    (input: { id: string; versionId?: string }) => {
+    (input: { id: string; versionId?: string; category: ContentCategory }) => {
       setError(null)
       mark(input.id, input.versionId)
       installMutation.mutate(input)
@@ -356,7 +367,19 @@ export function AddContentModal({
     [installedQuery.data, pendingVersionId],
   )
 
-  const hits = searchQuery.data?.hits ?? []
+  const favoriteResults = useMemo(
+    () =>
+      listFavoriteProjects(favorites, {
+        query: debouncedQuery,
+        gameVersion,
+        sort,
+        page,
+        pageSize,
+      }),
+    [favorites, debouncedQuery, gameVersion, sort, page, pageSize],
+  )
+
+  const hits = isFavoritesTab(searchTab) ? favoriteResults.hits : (searchQuery.data?.hits ?? [])
   const selectedFromHits = useMemo(() => {
     if (!projectId) return null
     return hits.find((hit) => hit.id === projectId || hit.slug === projectId) ?? null
@@ -370,9 +393,13 @@ export function AddContentModal({
   })
 
   const selected = selectedFromHits ?? projectQuery.data?.project ?? null
-  const total = searchQuery.data?.total ?? 0
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
-  const typeLabel = t(`content.category.${searchCategory}`)
+  const total = isFavoritesTab(searchTab) ? favoriteResults.total : (searchQuery.data?.total ?? 0)
+  const pageCount = isFavoritesTab(searchTab)
+    ? favoriteResults.pageCount
+    : Math.max(1, Math.ceil(total / pageSize))
+  const typeLabel = isFavoritesTab(searchTab)
+    ? t('content.category.favorites')
+    : t(`content.category.${searchTab}`)
   const dialogTitle =
     selected?.name ??
     (browseMode ? t('content.browseTitle') : projectId ? t('content.detailTitle') : t('content.browseTitle'))
@@ -385,20 +412,25 @@ export function AddContentModal({
       onClose={onClose}
       size="full"
       compact
+      contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
     >
       {projectId ? (
         selected ? (
           <Suspense fallback={<p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>}>
-            <ContentProjectView
-              hit={selected}
-              instance={instance}
-              gameVersion={gameVersion}
-              loaders={loaders}
-              installed={resolveInstalled(selected.id)}
-              installedVersionId={resolveInstalledVersionId(selected.id)}
-              onBack={onBackFromProject}
-              onInstall={(versionId) => requestInstall({ id: selected.id, versionId })}
-            />
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <ContentProjectView
+                hit={selected}
+                instance={instance}
+                gameVersion={gameVersion}
+                loaders={loaders}
+                installed={resolveInstalled(selected.id)}
+                installedVersionId={resolveInstalledVersionId(selected.id)}
+                onBack={onBackFromProject}
+                onInstall={(versionId) =>
+                  requestInstall({ id: selected.id, versionId, category: selected.projectType })
+                }
+              />
+            </div>
           </Suspense>
         ) : projectQuery.isError ? (
           <p className="text-sm text-[var(--color-danger)]">
@@ -410,14 +442,15 @@ export function AddContentModal({
           <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
         )
       ) : (
-        <div className="flex min-h-0 flex-1 gap-2">
+        <div className="flex min-h-0 flex-1 gap-2 overflow-hidden">
           <ContentBrowseFilters
             instance={instance}
-            category={searchCategory}
+            category={filterCategory}
             gameVersion={gameVersion}
             loaders={loaders}
             tags={tags}
             versionOptions={versionOptions}
+            hideSecondaryFilters={isFavoritesTab(searchTab)}
             onGameVersion={setGameVersion}
             onLoaders={setLoaders}
             onTags={setTags}
@@ -427,30 +460,19 @@ export function AddContentModal({
               setTags([])
             }}
           />
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-            <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-              {CATEGORIES.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onMouseEnter={() => void prefetchCategorySearch(c, c === searchCategory ? tags : [])}
-                  onFocus={() => void prefetchCategorySearch(c, c === searchCategory ? tags : [])}
-                  onClick={() => {
-                    if (c === searchCategory) return
-                    setTags([])
-                    setSearchCategory(c)
-                  }}
-                  className={[
-                    'inline-flex items-center rounded-full px-2.5 py-1 text-sm font-medium transition-colors',
-                    searchCategory === c
-                      ? 'bg-[var(--color-selection)] text-[var(--color-on-selection)]'
-                      : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)]',
-                  ].join(' ')}
-                >
-                  <ContentCategoryLabel category={c} iconSize={15} />
-                </button>
-              ))}
-            </div>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+            <ContentSearchCategoryTabs
+              tabs={instanceBrowseSearchTabs()}
+              active={searchTab}
+              onChange={(next) => {
+                setTags([])
+                setSearchTab(next)
+              }}
+              onPrefetch={(tab) => {
+                if (isFavoritesTab(tab)) return
+                void prefetchCategorySearch(tab, tab === searchTab ? tags : [])
+              }}
+            />
 
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               <div className="relative min-w-[14rem] flex-1">
@@ -536,10 +558,12 @@ export function AddContentModal({
                 searchQuery.isFetching && !searchQuery.isPending ? 'opacity-80' : '',
               ].join(' ')}
             >
-              {searchQuery.isPending && !searchQuery.data ? (
+              {searchQuery.isPending && !searchQuery.data && !isFavoritesTab(searchTab) ? (
                 <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
               ) : searchQuery.isError && hits.length === 0 ? null : hits.length === 0 ? (
-                <p className="text-sm text-[var(--color-text-muted)]">{t('content.noResults')}</p>
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  {isFavoritesTab(searchTab) ? t('content.favoritesEmpty') : t('content.noResults')}
+                </p>
               ) : (
                 <ul className="divide-y divide-[var(--color-border)] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
                   {hits.map((hit, index) => (
@@ -549,8 +573,12 @@ export function AddContentModal({
                       index={index}
                       tagIcons={tagIcons}
                       installed={resolveInstalled(hit.id)}
+                      favorited={isFavorite(hit.id)}
+                      onToggleFavorite={() => toggleFavorite(hit)}
                       onOpen={() => onSelectProject(hit)}
-                      onInstall={() => requestInstall({ id: hit.id })}
+                      onInstall={() =>
+                        requestInstall({ id: hit.id, category: hit.projectType })
+                      }
                     />
                   ))}
                 </ul>

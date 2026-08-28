@@ -12,6 +12,12 @@ import {
 import type { PathLayout } from '../app/paths.js'
 import type { Updater } from './Updater.js'
 
+/** 開発時 FLEDGE_DEV_APP_VERSION で古い版を装い、更新ボタン確認できる */
+function effectiveAppVersion(): string {
+  const override = process.env.FLEDGE_DEV_APP_VERSION?.trim()
+  return override || APP_VERSION
+}
+
 type GithubReleaseAsset = {
   name: string
   browser_download_url: string
@@ -98,7 +104,7 @@ export class GithubReleaseUpdater implements Updater {
   async check(channel: UpdateChannel = 'stable'): Promise<UpdateCheckResult> {
     const cached = await this.readCache(channel)
     if (cached && this.isCacheFresh(cached.fetchedAt)) {
-      const reconciled = reconcileCachedUpdateResult(cached.result, APP_VERSION)
+      const reconciled = reconcileCachedUpdateResult(cached.result, effectiveAppVersion())
       if (reconciled) {
         if (
           reconciled.status !== cached.result.status ||
@@ -117,7 +123,7 @@ export class GithubReleaseUpdater implements Updater {
     const refresh = this.fetchAndResolve(channel)
       .catch(async () => {
         if (cached) {
-          const reconciled = reconcileCachedUpdateResult(cached.result, APP_VERSION)
+          const reconciled = reconcileCachedUpdateResult(cached.result, effectiveAppVersion())
           if (reconciled) {
             this.syncPending(channel, reconciled)
             return reconciled
@@ -230,7 +236,7 @@ export class GithubReleaseUpdater implements Updater {
   private async fetchAndResolve(channel: UpdateChannel): Promise<UpdateCheckResult> {
     const release = await this.fetchRelease(channel)
     const nextVersion = normalizeReleaseVersion(release.tag_name)
-    const currentVersion = APP_VERSION
+    const currentVersion = effectiveAppVersion()
     const releaseNotes = normalizeNotes(release.body)
     const isPrerelease = Boolean(release.prerelease)
 

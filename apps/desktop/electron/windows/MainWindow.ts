@@ -77,6 +77,8 @@ export function createMainWindow(opts?: {
     show: false,
     frame: false,
     autoHideMenuBar: true,
+    // Win11: Electron 既定の角丸を使わず DWM / Corner Sharpness 等のシステム側に任せる
+    ...(process.platform === 'win32' ? { roundedCorners: false } : {}),
     // Windows 枠なし時もリサイズしやすく
     thickFrame: true,
     webPreferences: {

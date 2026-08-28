@@ -27,8 +27,8 @@ export default function HomePage() {
   const featured = instances.find((i) => i.id === featuredId) ?? instances[0] ?? null
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-4 overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:grid-rows-[minmax(0,1fr)]">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-5 overflow-hidden lg:h-full">
+    <div className="flex h-full min-h-0 flex-col gap-[var(--home-gap)] overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_var(--home-news-col)] lg:grid-rows-[minmax(0,1fr)]">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-[var(--home-main-gap)] overflow-hidden lg:h-full">
         <section className="min-w-0 shrink-0">
           {featured ? (
             <div className="space-y-3">

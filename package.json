@@ -1,8 +1,8 @@
 {
   "name": "fledge",
   "private": true,
-  "version": "0.2.0-b",
-  "description": "軽量・高速な Minecraft ランチャー",
+  "version": "0.2.1-b",
+  "description": "軽快・モダンな UI と使い勝手を重視した Minecraft ランチャー",
   "license": "GPL-3.0",
   "author": "folne",
   "repository": {

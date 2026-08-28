@@ -29,7 +29,6 @@ import {
 } from '@fledge/shared'
 import { Button } from '../../components/ui/Button'
 import { Dialog } from '../../components/ui/Dialog'
-import { HoverTooltip } from '../../components/ui/HoverTooltip'
 
 export const INSTANCE_ICON_COLOR_SWATCHES = [
   { id: 'snow', value: '#f4f7fa' },
@@ -227,17 +226,16 @@ export function InstanceIconPresetPicker({
         <legend className={legendClass}>{t('instances.iconPreset.variant')}</legend>
         <div className={comfortable ? 'flex flex-wrap gap-2' : 'flex flex-wrap gap-1.5'}>
           {INSTANCE_ICON_VARIANTS.map((variant) => (
-            <HoverTooltip key={variant} content={t(`instances.iconPreset.variant.${variant}`)}>
-              <button
-                type="button"
-                aria-pressed={value.variant === variant}
-                aria-label={t(`instances.iconPreset.variant.${variant}`)}
-                className={choiceClass(value.variant === variant)}
-                onClick={() => onChange({ ...value, variant })}
-              >
-                <InstanceIconTile preset={{ ...value, variant }} size={tileSize} />
-              </button>
-            </HoverTooltip>
+            <button
+              key={variant}
+              type="button"
+              aria-pressed={value.variant === variant}
+              aria-label={t(`instances.iconPreset.variant.${variant}`)}
+              className={choiceClass(value.variant === variant)}
+              onClick={() => onChange({ ...value, variant })}
+            >
+              <InstanceIconTile preset={{ ...value, variant }} size={tileSize} />
+            </button>
           ))}
         </div>
       </fieldset>
@@ -246,20 +244,19 @@ export function InstanceIconPresetPicker({
         <legend className={legendClass}>{t('instances.iconPreset.color')}</legend>
         <div className={comfortable ? 'flex flex-wrap gap-2' : 'flex flex-wrap gap-1.5'}>
           {INSTANCE_ICON_COLOR_SWATCHES.map((swatch) => (
-            <HoverTooltip key={swatch.id} content={t(`instances.iconPreset.color.${swatch.id}`)}>
-              <button
-                type="button"
-                aria-pressed={value.color.toLowerCase() === swatch.value}
-                aria-label={t(`instances.iconPreset.color.${swatch.id}`)}
-                className={[
-                  swatchClass,
-                  'border border-black/10',
-                  choiceClass(value.color.toLowerCase() === swatch.value),
-                ].join(' ')}
-                style={{ background: swatch.value }}
-                onClick={() => onChange({ ...value, color: swatch.value })}
-              />
-            </HoverTooltip>
+            <button
+              key={swatch.id}
+              type="button"
+              aria-pressed={value.color.toLowerCase() === swatch.value}
+              aria-label={t(`instances.iconPreset.color.${swatch.id}`)}
+              className={[
+                swatchClass,
+                'border border-black/10',
+                choiceClass(value.color.toLowerCase() === swatch.value),
+              ].join(' ')}
+              style={{ background: swatch.value }}
+              onClick={() => onChange({ ...value, color: swatch.value })}
+            />
           ))}
         </div>
       </fieldset>
@@ -268,17 +265,16 @@ export function InstanceIconPresetPicker({
         <legend className={legendClass}>{t('instances.iconPreset.backdrop')}</legend>
         <div className={comfortable ? 'flex flex-wrap gap-2' : 'flex flex-wrap gap-1.5'}>
           {INSTANCE_ICON_BACKDROPS.map((backdrop) => (
-            <HoverTooltip key={backdrop} content={t(`instances.iconPreset.backdrop.${backdrop}`)}>
-              <button
-                type="button"
-                aria-pressed={value.backdrop === backdrop}
-                aria-label={t(`instances.iconPreset.backdrop.${backdrop}`)}
-                className={choiceClass(value.backdrop === backdrop)}
-                onClick={() => onChange({ ...value, backdrop })}
-              >
-                <InstanceIconTile preset={{ ...value, backdrop }} size={tileSize} />
-              </button>
-            </HoverTooltip>
+            <button
+              key={backdrop}
+              type="button"
+              aria-pressed={value.backdrop === backdrop}
+              aria-label={t(`instances.iconPreset.backdrop.${backdrop}`)}
+              className={choiceClass(value.backdrop === backdrop)}
+              onClick={() => onChange({ ...value, backdrop })}
+            >
+              <InstanceIconTile preset={{ ...value, backdrop }} size={tileSize} />
+            </button>
           ))}
         </div>
       </fieldset>

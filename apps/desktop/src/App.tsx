@@ -141,7 +141,14 @@ export default function App() {
                 }
               />
               <Route path="skin" element={<SkinPage />} />
-              <Route path="settings" element={<SettingsPage />} />
+              <Route
+                path="settings"
+                element={
+                  <div className="min-h-0 flex-1 overflow-hidden">
+                    <SettingsPage />
+                  </div>
+                }
+              />
             </Route>
           </Routes>
         </RouteErrorBoundary>

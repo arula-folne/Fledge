@@ -105,7 +105,6 @@ export function AppShell() {
               type="button"
               className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
               aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
-              title={collapsed ? t('nav.expand') : t('nav.collapse')}
               onClick={() => setCollapsed((v) => !v)}
             >
               <IconMenu2 size={18} stroke={1.75} />
@@ -113,19 +112,19 @@ export function AppShell() {
             {collapsed ? null : <TextLogo compact showIcon={false} />}
           </div>
           <nav className={['flex flex-col', collapsed ? 'items-center gap-1' : 'gap-0.5'].join(' ')}>
-            <NavLink to="/" end className={itemClass} title={t('nav.home')}>
+            <NavLink to="/" end className={itemClass} aria-label={t('nav.home')}>
               <IconHome {...navIcon} aria-hidden />
               {collapsed ? null : t('nav.home')}
             </NavLink>
-            <NavLink to="/browse" className={itemClass} title={t('nav.browse')}>
+            <NavLink to="/browse" className={itemClass} aria-label={t('nav.browse')}>
               <IconPackages {...navIcon} aria-hidden />
               {collapsed ? null : t('nav.browse')}
             </NavLink>
-            <NavLink to="/skin" className={itemClass} title={t('nav.skin')}>
+            <NavLink to="/skin" className={itemClass} aria-label={t('nav.skin')}>
               <IconShirt {...navIcon} aria-hidden />
               {collapsed ? null : t('nav.skin')}
             </NavLink>
-            <NavLink to="/settings" className={itemClass} title={t('nav.settings')}>
+            <NavLink to="/settings" className={itemClass} aria-label={t('nav.settings')}>
               <IconSettings {...navIcon} aria-hidden />
               {collapsed ? null : t('nav.settings')}
             </NavLink>
@@ -142,7 +141,7 @@ export function AppShell() {
             ].join(' ')}
           >
             <TransferProgress />
-            <div className="ml-auto flex min-w-0 shrink-0 items-center gap-2">
+            <div className="ml-auto flex min-w-0 shrink-0 items-center gap-6">
               <UpdateAvailableBanner />
               <AccountChip />
             </div>
@@ -152,7 +151,7 @@ export function AppShell() {
               'season-shell-main flex min-h-0 flex-1 flex-col overflow-hidden p-3',
             ].join(' ')}
           >
-            <div className="min-h-0 flex-1 overflow-hidden">
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <Outlet />
             </div>
           </main>

@@ -18,7 +18,18 @@ export const BRAND = {
 export const DISCORD_APPLICATION_ID = '1538229017608454205'
 
 /** ユーザーがアップロードして保存できるスキンの上限 */
-export const MAX_UPLOADED_SKINS = 5
+export const MAX_UPLOADED_SKINS = 10
+
+/**
+ * スキン一覧サムネイル（3D スナップショット）の解像度。
+ * バージョンを上げると保存済みサムネイルは再生成される。
+ */
+export const SKIN_THUMB_VERSION = 3
+export const SKIN_THUMB = {
+  width: 336,
+  height: 402,
+  zoom: 0.72,
+} as const
 
 /** お知らせの GitHub 正本とキャッシュ設定 */
 export const NEWS = {
@@ -68,7 +79,6 @@ export const IPC = {
   authList: 'auth:list',
   authSwitch: 'auth:switch',
   authRemove: 'auth:remove',
-  versionsList: 'versions:list',
   versionsListMinecraft: 'versions:list-minecraft',
   versionsListLoaders: 'versions:list-loaders',
   versionsRefresh: 'versions:refresh',
@@ -78,7 +88,6 @@ export const IPC = {
   launchCancel: 'launch:cancel',
   launchKill: 'launch:kill',
   launchSessions: 'launch:sessions',
-  logsRecent: 'logs:recent',
   updaterCheck: 'updater:check',
   updaterApply: 'updater:apply',
   skinsList: 'skins:list',
@@ -125,6 +134,7 @@ export const IPC = {
   contentPickMrpack: 'content:pick-mrpack',
   contentImportMrpack: 'content:import-mrpack',
   contentImportMrpackFromPath: 'content:import-mrpack-from-path',
+  contentListMrpackExportCandidates: 'content:list-mrpack-export-candidates',
   contentExportMrpack: 'content:export-mrpack',
 } as const
 
@@ -132,7 +142,6 @@ export const IPC_EVENTS = {
   progress: 'event:progress',
   launchPhase: 'event:launch-phase',
   launchState: 'event:launch-state',
-  logLine: 'event:log-line',
   authStatus: 'event:auth-status',
   newsUpdated: 'event:news-updated',
   windowSize: 'event:window-size',

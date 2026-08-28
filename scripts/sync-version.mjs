@@ -3,8 +3,8 @@
  * packages/shared/src/version.ts の APP_VERSION を正本として、
  * 各 package.json と README / spec を同期する。
  *
- * 表示: Ver.0.1.4a / Ver.0.1.4b / Ver.0.1.4rc / Ver.0.1.4
- * package.json: 有効な semver のため 0.1.4-a / 0.1.4-b / 0.1.4-rc / 0.1.4
+ * 表示: Ver.0.1.4a / Ver.0.1.4b / Ver.0.1.4
+ * package.json: 有効な semver のため 0.1.4-a / 0.1.4-b / 0.1.4
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -22,11 +22,11 @@ if (!versionMatch) {
 
 const version = versionMatch[1]
 
-const semverMatch = version.match(/^(\d+\.\d+\.\d+)(a|b|rc)?$/)
+const semverMatch = version.match(/^(\d+\.\d+\.\d+)(a|b)?$/)
 if (!semverMatch) {
   console.error(
-    `APP_VERSION '${version}' is not <major>.<minor>.<patch>[a|b|rc]\n` +
-      '  alpha: 0.0.0a / beta: 0.0.0b / rc: 0.0.0rc / release: 0.0.0',
+    `APP_VERSION '${version}' is not <major>.<minor>.<patch>[a|b]\n` +
+      '  alpha: 0.0.0a / beta: 0.0.0b / release: 0.0.0',
   )
   process.exit(1)
 }

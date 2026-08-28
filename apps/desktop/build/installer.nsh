@@ -115,9 +115,12 @@
 !endif
 
 !macro customUnInstall
-  RMDir /r "$INSTDIR\Data"
-  RMDir /r "$INSTDIR\Instances"
-  Delete "$INSTDIR\Fledge-first-run.cmd"
-  DeleteRegKey HKCU "Software\Fledge"
-  RMDir /r "$INSTDIR"
+  ; アプリ内更新時は旧版アンインストール段階でも走る。Data/Instances はユーザー操作のアンインストール時のみ削除する。
+  ${ifNot} ${isUpdated}
+    RMDir /r "$INSTDIR\Data"
+    RMDir /r "$INSTDIR\Instances"
+    Delete "$INSTDIR\Fledge-first-run.cmd"
+    DeleteRegKey HKCU "Software\Fledge"
+    RMDir /r "$INSTDIR"
+  ${endIf}
 !macroend

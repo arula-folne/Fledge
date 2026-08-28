@@ -1,3 +1,5 @@
+import { IconStar, IconStarFilled } from '@tabler/icons-react'
+import { useTranslation } from 'react-i18next'
 import type { ContentProject } from '@fledge/shared'
 import { ContentInstallButton } from './ContentInstallButton'
 import { ProjectTagRow } from './ContentTags'
@@ -14,6 +16,8 @@ type Props = {
   mode?: 'install' | 'create'
   /** 行の明暗交互用 */
   index?: number
+  favorited?: boolean
+  onToggleFavorite?: () => void
 }
 
 /**
@@ -28,7 +32,10 @@ export function ContentSearchHitRow({
   installed = false,
   mode = 'install',
   index = 0,
+  favorited = false,
+  onToggleFavorite,
 }: Props) {
+  const { t } = useTranslation()
   const zebra = index % 2 === 1
   return (
     <li>
@@ -80,6 +87,28 @@ export function ContentSearchHitRow({
             </div>
           </div>
         </button>
+        {onToggleFavorite ? (
+          <button
+            type="button"
+            aria-label={favorited ? t('content.favorite.remove') : t('content.favorite.add')}
+            className={[
+              'inline-flex size-9 shrink-0 items-center justify-center rounded-full transition',
+              favorited
+                ? 'text-[var(--color-accent)] hover:bg-[var(--color-accent-soft)]'
+                : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
+            ].join(' ')}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleFavorite()
+            }}
+          >
+            {favorited ? (
+              <IconStarFilled size={20} stroke={1.5} aria-hidden />
+            ) : (
+              <IconStar size={20} stroke={1.75} aria-hidden />
+            )}
+          </button>
+        ) : null}
         <div className="shrink-0">
           <ContentInstallButton
             size="sm"

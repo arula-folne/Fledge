@@ -35,6 +35,21 @@
   --radius-md: 10px;
   --radius-lg: 12px;
   --titlebar-offset: 2rem;
+  /* 720p (1280×720) 基準 — ウィンドウサイズに応じてホーム・お知らせの比率を維持 */
+  --layout-ref-w: 1280;
+  --layout-ref-h: 720;
+  --home-news-col: clamp(13rem, calc(256 / var(--layout-ref-w) * 100vw), 18rem);
+  --home-gap: clamp(0.75rem, calc(16 / var(--layout-ref-h) * 100vh), 1.25rem);
+  --home-main-gap: clamp(1rem, calc(20 / var(--layout-ref-h) * 100vh), 1.5rem);
+  --news-card-px: clamp(0.5rem, calc(10 / var(--layout-ref-w) * 100vw), 0.75rem);
+  --news-card-py: clamp(0.375rem, calc(8 / var(--layout-ref-h) * 100vh), 0.625rem);
+  --news-list-gap: clamp(0.25rem, calc(6 / var(--layout-ref-h) * 100vh), 0.5rem);
+  --news-view-all-min-h: clamp(2.25rem, calc(40 / var(--layout-ref-h) * 100vh), 2.75rem);
+  --news-preview-gap: clamp(0.25rem, calc(6 / var(--layout-ref-h) * 100vh), 0.5rem);
+  --news-preview-title: clamp(11px, calc(14 / var(--layout-ref-w) * 100vw), 14px);
+  --news-preview-body: clamp(10px, calc(12 / var(--layout-ref-w) * 100vw), 12px);
+  --news-preview-date: clamp(9px, calc(10 / var(--layout-ref-w) * 100vw), 10px);
+  --news-section-title: clamp(10px, calc(12 / var(--layout-ref-w) * 100vw), 12px);
   color: var(--color-text);
   background: var(--color-bg);
   color-scheme: light;

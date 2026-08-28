@@ -32,7 +32,6 @@ export function SeasonTonePicker({ value, onChange }: Props) {
               type="button"
               role="radio"
               aria-checked={selected}
-              title={t(`settings.theme.${tone}`)}
               aria-label={t(`settings.theme.${tone}`)}
               onClick={() => onChange(tone)}
               className={[

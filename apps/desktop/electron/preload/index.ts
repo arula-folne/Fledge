@@ -25,7 +25,8 @@ import {
   type LaunchStateEvent,
   type Loader,
   type LoaderVersionListResult,
-  type LogLine,
+  type MrpackExportCandidates,
+  type MrpackExportOptions,
   type NewsItem,
   type PathInfo,
   type ProgressEvent,
@@ -35,7 +36,6 @@ import {
   type SkinModel,
   type UpdateCheckResult,
   type UpdateChannel,
-  type VersionInfo,
   type VersionListResult,
   type JavaRuntimeView,
   type JavaVerifyResult,
@@ -102,7 +102,8 @@ export type FledgeApi = {
     pickMrpack: () => Promise<string | null>
     importMrpack: () => Promise<InstanceProfile | null>
     importMrpackFromPath: (filePath: string) => Promise<InstanceProfile>
-    exportMrpack: (instanceId: string) => Promise<string | null>
+    listMrpackExportCandidates: (instanceId: string) => Promise<MrpackExportCandidates>
+    exportMrpack: (instanceId: string, options?: MrpackExportOptions) => Promise<string | null>
   }
   skins: {
     list: () => Promise<SkinEntry[]>
@@ -129,7 +130,6 @@ export type FledgeApi = {
     remove: (accountId: string) => Promise<void>
   }
   versions: {
-    list: (opts?: { includeSnapshots?: boolean }) => Promise<VersionInfo[]>
     listMinecraft: (opts?: {
       includeSnapshots?: boolean
       force?: boolean
@@ -155,9 +155,6 @@ export type FledgeApi = {
     sessions: () => Promise<
       Array<{ sessionId: string; profileId: string; accountId: string; state: string }>
     >
-  }
-  logs: {
-    recent: () => Promise<LogLine[]>
   }
   updater: {
     check: (channel?: UpdateChannel) => Promise<UpdateCheckResult>
@@ -196,7 +193,6 @@ export type FledgeApi = {
     progress: (cb: (e: ProgressEvent) => void) => () => void
     launchPhase: (cb: (e: LaunchPhaseEvent) => void) => () => void
     launchState: (cb: (e: LaunchStateEvent) => void) => () => void
-    logLine: (cb: (e: LogLine) => void) => () => void
     authStatus: (cb: (e: AuthStatusEvent) => void) => () => void
     newsUpdated: (cb: (items: NewsItem[]) => void) => () => void
     windowSize: (cb: (size: { width: number; height: number }) => void) => () => void
@@ -257,7 +253,10 @@ const api: FledgeApi = {
     importMrpack: () => ipcRenderer.invoke(IPC.contentImportMrpack),
     importMrpackFromPath: (filePath: string) =>
       ipcRenderer.invoke(IPC.contentImportMrpackFromPath, filePath),
-    exportMrpack: (instanceId) => ipcRenderer.invoke(IPC.contentExportMrpack, instanceId),
+    listMrpackExportCandidates: (instanceId: string) =>
+      ipcRenderer.invoke(IPC.contentListMrpackExportCandidates, instanceId),
+    exportMrpack: (instanceId, options) =>
+      ipcRenderer.invoke(IPC.contentExportMrpack, instanceId, options),
   },
   skins: {
     list: () => ipcRenderer.invoke(IPC.skinsList),
@@ -278,7 +277,6 @@ const api: FledgeApi = {
     remove: (accountId) => ipcRenderer.invoke(IPC.authRemove, accountId),
   },
   versions: {
-    list: (opts) => ipcRenderer.invoke(IPC.versionsList, opts),
     listMinecraft: (opts) => ipcRenderer.invoke(IPC.versionsListMinecraft, opts),
     listLoaders: (opts) => ipcRenderer.invoke(IPC.versionsListLoaders, opts),
     refresh: (opts) => ipcRenderer.invoke(IPC.versionsRefresh, opts),
@@ -292,9 +290,6 @@ const api: FledgeApi = {
     cancel: (sessionId) => ipcRenderer.invoke(IPC.launchCancel, sessionId),
     kill: (sessionId) => ipcRenderer.invoke(IPC.launchKill, sessionId),
     sessions: () => ipcRenderer.invoke(IPC.launchSessions),
-  },
-  logs: {
-    recent: () => ipcRenderer.invoke(IPC.logsRecent),
   },
   updater: {
     check: (channel) => ipcRenderer.invoke(IPC.updaterCheck, channel ?? 'stable'),
@@ -333,7 +328,6 @@ const api: FledgeApi = {
     progress: (cb) => subscribe(IPC_EVENTS.progress, cb),
     launchPhase: (cb) => subscribe(IPC_EVENTS.launchPhase, cb),
     launchState: (cb) => subscribe(IPC_EVENTS.launchState, cb),
-    logLine: (cb) => subscribe(IPC_EVENTS.logLine, cb),
     authStatus: (cb) => subscribe(IPC_EVENTS.authStatus, cb),
     newsUpdated: (cb) => subscribe(IPC_EVENTS.newsUpdated, cb),
     windowSize: (cb) => subscribe(IPC_EVENTS.windowSize, cb),

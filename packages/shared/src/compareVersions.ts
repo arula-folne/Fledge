@@ -4,7 +4,7 @@ type Segment = {
   suffix: string
 }
 
-/** プレリリース順位: a < b < rc < （製品版） */
+/** プレリリース順位: a < b < （製品版）。rc は旧リリース読み取り用の legacy */
 function suffixRank(suffix: string): number {
   if (suffix === '') return 4
   if (suffix === 'a') return 1
@@ -34,14 +34,9 @@ function parseSegments(version: string): Segment[] {
   return segments
 }
 
-/** 後方互換用: 数値セグメントのみを返す */
-export function parseVersionSegments(version: string): number[] {
-  return parseSegments(version).map((s) => s.num)
-}
-
 /**
  * a が b より古いとき -1、同じ 0、新しいとき 1。
- * 例: 0.1.4a < 0.1.4b < 0.1.4rc < 0.1.4
+ * 例: 0.1.4a < 0.1.4b < 0.1.4
  */
 export function compareVersions(a: string, b: string): -1 | 0 | 1 {
   const pa = parseSegments(a)

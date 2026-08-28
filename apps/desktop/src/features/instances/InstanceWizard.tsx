@@ -271,7 +271,7 @@ export function InstanceWizard({ open, onClose, onBack, title }: Props) {
               type="button"
               className="rounded-[var(--radius-md)] outline-none ring-[var(--color-accent)] hover:ring-2 focus-visible:ring-2"
               onClick={() => setIconOpen(true)}
-              title={t('instances.iconCustomize')}
+              aria-label={t('instances.iconCustomize')}
             >
               <InstanceIcon previewSrc={icon?.previewUrl} preset={iconPreset} size="lg" />
             </button>

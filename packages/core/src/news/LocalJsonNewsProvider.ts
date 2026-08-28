@@ -8,7 +8,7 @@ const FALLBACK_NEWS: NewsItem[] = [
   {
     id: 'welcome',
     title: 'Fledge へようこそ',
-    body: '広告や利用解析のない、軽量でシンプルな Minecraft ランチャーです。',
+    body: '広告や利用解析のない、軽快で使いやすい Minecraft ランチャーです。初回起動のゲーム設定や Mod 導入も、モダンな UI から整えられます。',
     publishedAt: new Date().toISOString(),
   },
 ]

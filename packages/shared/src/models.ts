@@ -282,7 +282,7 @@ export const EMPTY_MINECRAFT_INITIAL_SETTINGS: MinecraftInitialSettings =
 export const DEFAULT_CONCURRENT_DOWNLOADS = 10
 export const DEFAULT_MAX_WRITE_CONCURRENCY = 10
 
-export const SettingsSchema = z.object({
+export const SettingsSchemaBase = z.object({
   selectedInstanceId: z.string().nullable(),
   lastPlayedInstanceId: z.string().nullable().default(null),
   locale: z.string().default('ja'),
@@ -358,7 +358,6 @@ export const SettingsSchema = z.object({
   /** manual 時のインスタンス ID 順。未知 ID は末尾に足す */
   libraryInstanceOrder: z.array(z.string()).default([]),
 })
-export type Settings = z.infer<typeof SettingsSchema>
 
 export const BackupKindSchema = z.enum(['snapshot', 'sync'])
 export type BackupKind = z.infer<typeof BackupKindSchema>
@@ -669,6 +668,21 @@ export const ContentProjectSchema = z.object({
 })
 export type ContentProject = z.infer<typeof ContentProjectSchema>
 
+/** コンテンツ検索のお気に入り（settings.json に保存） */
+export const ContentFavoriteEntrySchema = z.object({
+  projectId: z.string(),
+  provider: ContentSourceIdSchema,
+  savedAt: z.string(),
+  project: ContentProjectSchema,
+})
+export type ContentFavoriteEntry = z.infer<typeof ContentFavoriteEntrySchema>
+
+const SettingsSchemaWithContentFavorites = SettingsSchemaBase.extend({
+  contentFavorites: z.array(ContentFavoriteEntrySchema).default([]),
+})
+export { SettingsSchemaWithContentFavorites as SettingsSchema }
+export type Settings = z.infer<typeof SettingsSchemaWithContentFavorites>
+
 export const ContentProjectDetailSchema = ContentProjectSchema.extend({
   body: z.string().default(''),
   bodyTranslated: z.boolean().optional(),
@@ -808,3 +822,39 @@ export const ContentMediaItemSchema = z.object({
   size: z.number().optional(),
 })
 export type ContentMediaItem = z.infer<typeof ContentMediaItemSchema>
+
+/** mrpack エクスポート候補（Modrinth 式のファイル選択） */
+export const MrpackExportContentCandidateSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  category: ContentCategorySchema,
+  path: z.string(),
+  size: z.number().int().nonnegative(),
+  defaultSelected: z.boolean(),
+  /** Modrinth CDN 参照（index.files）として出力可能 */
+  indexEligible: z.boolean(),
+})
+export type MrpackExportContentCandidate = z.infer<typeof MrpackExportContentCandidateSchema>
+
+export const MrpackExportOverrideCandidateSchema = z.object({
+  path: z.string(),
+  size: z.number().int().nonnegative(),
+  defaultSelected: z.boolean(),
+})
+export type MrpackExportOverrideCandidate = z.infer<typeof MrpackExportOverrideCandidateSchema>
+
+export const MrpackExportCandidatesSchema = z.object({
+  name: z.string(),
+  summary: z.string(),
+  contents: z.array(MrpackExportContentCandidateSchema),
+  overrides: z.array(MrpackExportOverrideCandidateSchema),
+})
+export type MrpackExportCandidates = z.infer<typeof MrpackExportCandidatesSchema>
+
+export const MrpackExportOptionsSchema = z.object({
+  contentIds: z.array(z.string()),
+  overridePaths: z.array(z.string()),
+  name: z.string().min(1).max(256).optional(),
+  summary: z.string().max(2000).optional(),
+})
+export type MrpackExportOptions = z.infer<typeof MrpackExportOptionsSchema>

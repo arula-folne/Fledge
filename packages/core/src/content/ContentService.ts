@@ -20,6 +20,10 @@ import {
   type InstalledContent,
   type InstanceProfile,
   type Loader,
+  type MrpackExportCandidates,
+  type MrpackExportContentCandidate,
+  type MrpackExportOptions,
+  type MrpackExportOverrideCandidate,
   loaderToContentFilters,
   fledgeUserAgent,
 } from '@fledge/shared'
@@ -125,6 +129,90 @@ function safeInstancePath(instanceDir: string, rel: string): string | null {
   const resolved = path.resolve(dest)
   if (resolved !== root && !resolved.startsWith(`${root}${path.sep}`)) return null
   return dest
+}
+
+function isExportExcludedPath(rel: string): boolean {
+  const normalized = rel.replaceAll('\\', '/')
+  const lower = normalized.toLowerCase()
+  const root = normalized.split('/')[0]?.toLowerCase() ?? ''
+  return (
+    normalized === 'profile.json' ||
+    /^icon\.[^.]+$/i.test(normalized) ||
+    EXPORT_EXCLUDED_ROOTS.has(root) ||
+    lower.endsWith('.disabled')
+  )
+}
+
+type ResolvedContentExport = {
+  item: InstalledContent
+  rel: string
+  data: Uint8Array
+  indexEligible: boolean
+  downloadUrl?: string
+  sha1?: string
+  sha512?: string
+  env?: InstalledContent['env']
+}
+
+async function resolveContentExportEntry(
+  item: InstalledContent,
+  profile: InstanceProfile,
+  instanceDir: string,
+  modrinth: ModrinthProvider,
+): Promise<ResolvedContentExport | null> {
+  if (item.category === 'modpack') return null
+  const rel = path.join(categoryDir(item.category), item.fileName).replaceAll('\\', '/')
+  const full = safeInstancePath(instanceDir, rel)
+  if (!full) return null
+  let data: Uint8Array
+  try {
+    data = new Uint8Array(await fs.readFile(full))
+  } catch {
+    return null
+  }
+
+  let downloadUrl = item.downloadUrl
+  let resolvedSha1 = item.sha1
+  let resolvedSha512 = item.sha512
+  const env = item.env
+  if (!downloadUrl && !item.projectId.startsWith('pack:')) {
+    try {
+      const resolved = await modrinth.resolveInstall({
+        projectId: item.projectId,
+        category: item.category,
+        versionId: item.versionId,
+        gameVersion: profile.minecraftVersion,
+        loaders:
+          item.category === 'mod' || item.category === 'plugin'
+            ? loaderToContentFilters(profile.loader)
+            : [],
+      })
+      downloadUrl = resolved.downloadUrl
+      resolvedSha1 = resolved.sha1
+      resolvedSha512 = resolved.sha512
+    } catch {
+      // overrides のみ
+    }
+  }
+
+  let indexEligible = false
+  if (downloadUrl) {
+    const computed = fileHashes(data)
+    indexEligible =
+      (!resolvedSha1 || resolvedSha1.toLowerCase() === computed.sha1) &&
+      (!resolvedSha512 || resolvedSha512.toLowerCase() === computed.sha512)
+  }
+
+  return {
+    item,
+    rel,
+    data,
+    indexEligible,
+    downloadUrl,
+    sha1: resolvedSha1,
+    sha512: resolvedSha512,
+    env,
+  }
 }
 
 export class ContentService {
@@ -598,8 +686,65 @@ export class ContentService {
     }
   }
 
+  /** エクスポート対象の一覧（Modrinth 式のファイル選択用） */
+  async listMrpackExportCandidates(instanceId: string): Promise<MrpackExportCandidates> {
+    const profile = await this.instances.get(instanceId)
+    if (!profile) throw new Error(`Instance not found: ${instanceId}`)
+    const instanceDir = this.instances.instanceDir(instanceId)
+    const contentIndex = await this.readIndex(instanceId)
+
+    const contents: MrpackExportContentCandidate[] = []
+    const contentPaths = new Set<string>()
+
+    for (const item of contentIndex.items) {
+      const resolved = await resolveContentExportEntry(item, profile, instanceDir, this.modrinth)
+      if (!resolved) continue
+      contentPaths.add(resolved.rel.toLowerCase())
+      contents.push({
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        path: resolved.rel,
+        size: resolved.data.byteLength,
+        defaultSelected: item.enabled,
+        indexEligible: resolved.indexEligible,
+      })
+    }
+
+    const overrides: MrpackExportOverrideCandidate[] = []
+    for (const relNative of await listFilesRecursive(instanceDir)) {
+      const rel = relNative.replaceAll('\\', '/')
+      const lower = rel.toLowerCase()
+      if (isExportExcludedPath(rel) || contentPaths.has(lower)) continue
+      let size = 0
+      try {
+        const stat = await fs.stat(path.join(instanceDir, relNative))
+        size = stat.size
+      } catch {
+        continue
+      }
+      overrides.push({
+        path: rel,
+        size,
+        defaultSelected: true,
+      })
+    }
+    overrides.sort((a, b) => a.path.localeCompare(b.path, 'ja'))
+
+    return {
+      name: profile.name,
+      summary: profile.notes?.trim() || `${profile.name} exported by Fledge`,
+      contents,
+      overrides,
+    }
+  }
+
   /** インスタンス構成を Modrinth Modpack Format (.mrpack) で保存する。 */
-  async exportMrpack(instanceId: string, destination: string): Promise<void> {
+  async exportMrpack(
+    instanceId: string,
+    destination: string,
+    options?: MrpackExportOptions,
+  ): Promise<void> {
     const profile = await this.instances.get(instanceId)
     if (!profile) throw new Error(`Instance not found: ${instanceId}`)
     const instanceDir = this.instances.instanceDir(instanceId)
@@ -608,78 +753,61 @@ export class ContentService {
     const packFiles: MrpackIndexFile[] = []
     const referencedPaths = new Set<string>()
 
-    for (const item of contentIndex.items.filter((entry) => entry.enabled)) {
+    const selectedContent = new Set(options?.contentIds ?? [])
+    const selectedOverrides = new Set(
+      (options?.overridePaths ?? []).map((p) => p.replaceAll('\\', '/').toLowerCase()),
+    )
+    const filterContent = options != null
+    const filterOverrides = options != null
+    const contentPathToId = new Map<string, string>()
+    for (const item of contentIndex.items) {
       if (item.category === 'modpack') continue
       const rel = path.join(categoryDir(item.category), item.fileName).replaceAll('\\', '/')
-      const full = safeInstancePath(instanceDir, rel)
-      if (!full) continue
-      let data: Uint8Array
-      try {
-        data = new Uint8Array(await fs.readFile(full))
-      } catch {
+      contentPathToId.set(rel.toLowerCase(), item.id)
+    }
+
+    for (const item of contentIndex.items) {
+      if (filterContent) {
+        if (!selectedContent.has(item.id)) continue
+      } else if (!item.enabled) {
         continue
       }
+      const resolved = await resolveContentExportEntry(item, profile, instanceDir, this.modrinth)
+      if (!resolved) continue
 
-      let downloadUrl = item.downloadUrl
-      let resolvedSha1 = item.sha1
-      let resolvedSha512 = item.sha512
-      const env = item.env
-      if (!downloadUrl && !item.projectId.startsWith('pack:')) {
-        try {
-          const resolved = await this.modrinth.resolveInstall({
-            projectId: item.projectId,
-            category: item.category,
-            versionId: item.versionId,
-            gameVersion: profile.minecraftVersion,
-            loaders:
-              item.category === 'mod' || item.category === 'plugin'
-                ? loaderToContentFilters(profile.loader)
-                : [],
-          })
-          downloadUrl = resolved.downloadUrl
-          resolvedSha1 = resolved.sha1
-          resolvedSha512 = resolved.sha512
-        } catch {
-          // API で再解決できないファイルは overrides に含める
-        }
-      }
-
-      if (downloadUrl) {
-        const computed = fileHashes(data)
-        const hashMatches =
-          (!resolvedSha1 || resolvedSha1.toLowerCase() === computed.sha1) &&
-          (!resolvedSha512 || resolvedSha512.toLowerCase() === computed.sha512)
-        if (!hashMatches) {
-          this.logger.warn(
-            'downloader',
-            `Exporting modified content as override because its hash changed: ${rel}`,
-          )
-          continue
-        }
+      if (resolved.indexEligible && resolved.downloadUrl) {
+        const computed = fileHashes(resolved.data)
         packFiles.push({
-          path: rel,
+          path: resolved.rel,
           hashes: {
             sha1: computed.sha1,
             sha512: computed.sha512,
           },
-          env: env ?? { client: 'required', server: 'required' },
-          downloads: [downloadUrl],
-          fileSize: data.byteLength,
+          env: resolved.env ?? { client: 'required', server: 'required' },
+          downloads: [resolved.downloadUrl],
+          fileSize: resolved.data.byteLength,
         })
-        referencedPaths.add(rel.toLowerCase())
+        referencedPaths.add(resolved.rel.toLowerCase())
+      } else if (!filterContent || selectedContent.has(item.id)) {
+        this.logger.warn(
+          'downloader',
+          `Exporting modified or unresolved content as override: ${resolved.rel}`,
+        )
+        zipEntries[`overrides/${resolved.rel}`] = resolved.data
+        referencedPaths.add(resolved.rel.toLowerCase())
       }
     }
 
     for (const relNative of await listFilesRecursive(instanceDir)) {
       const rel = relNative.replaceAll('\\', '/')
-      const root = rel.split('/')[0]?.toLowerCase() ?? ''
       const lower = rel.toLowerCase()
       if (
-        rel === 'profile.json' ||
-        /^icon\.[^.]+$/i.test(rel) ||
-        EXPORT_EXCLUDED_ROOTS.has(root) ||
-        lower.endsWith('.disabled') ||
-        referencedPaths.has(lower)
+        isExportExcludedPath(rel) ||
+        referencedPaths.has(lower) ||
+        (filterOverrides && !selectedOverrides.has(lower)) ||
+        (filterContent &&
+          contentPathToId.has(lower) &&
+          !selectedContent.has(contentPathToId.get(lower)!))
       ) {
         continue
       }
@@ -702,8 +830,11 @@ export class ContentService {
       formatVersion: 1,
       game: 'minecraft',
       versionId: randomUUID(),
-      name: profile.name,
-      summary: profile.notes?.trim() || `${profile.name} exported by Fledge`,
+      name: options?.name?.trim() || profile.name,
+      summary:
+        options?.summary?.trim() ||
+        profile.notes?.trim() ||
+        `${profile.name} exported by Fledge`,
       files: packFiles,
       dependencies,
     }

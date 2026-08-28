@@ -45,7 +45,6 @@ export function HomeLibrarySection({ instances }: Props) {
   const wizardOpen = useUiStore((s) => s.instanceWizardOpen)
   const setWizardOpen = useUiStore((s) => s.setInstanceWizardOpen)
   const setLibraryFocus = useUiStore((s) => s.setLibraryFocus)
-  const setEditingInstanceId = useUiStore((s) => s.setEditingInstanceId)
   const createError = useInstanceCreateStore((s) => s.lastError)
   const setCreateError = useInstanceCreateStore((s) => s.setLastError)
   const [menu, setMenu] = useState<InstanceContextMenuState>(null)
@@ -184,7 +183,7 @@ export function HomeLibrarySection({ instances }: Props) {
         </div>
       ) : (
         <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
-          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((item, index) => (
               <div key={item.id} className="flex h-full min-w-0 items-stretch gap-1">
                 {manual ? (
@@ -192,7 +191,6 @@ export function HomeLibrarySection({ instances }: Props) {
                     <button
                       type="button"
                       className="grid size-7 place-items-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)] disabled:opacity-30"
-                      title={t('library.sort.moveUp')}
                       aria-label={t('library.sort.moveUp')}
                       disabled={index === 0 || saveSettings.isPending}
                       onClick={(e) => {
@@ -205,7 +203,6 @@ export function HomeLibrarySection({ instances }: Props) {
                     <button
                       type="button"
                       className="grid size-7 place-items-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)] disabled:opacity-30"
-                      title={t('library.sort.moveDown')}
                       aria-label={t('library.sort.moveDown')}
                       disabled={index === items.length - 1 || saveSettings.isPending}
                       onClick={(e) => {
@@ -219,6 +216,7 @@ export function HomeLibrarySection({ instances }: Props) {
                 ) : null}
                 <InstanceCard
                   instance={item}
+                  density="compact"
                   className="h-full min-w-0 flex-1"
                   onContextMenu={openMenu}
                 />
@@ -233,13 +231,6 @@ export function HomeLibrarySection({ instances }: Props) {
         onClose={closeMenu}
         onOpen={() => {
           if (!menuInstance) return
-          setLibraryFocus({ instanceId: menuInstance.id, tab: 'content' })
-          navigate(`/library/${menuInstance.id}`)
-          closeMenu()
-        }}
-        onEdit={() => {
-          if (!menuInstance) return
-          setEditingInstanceId(menuInstance.id)
           setLibraryFocus({ instanceId: menuInstance.id, tab: 'content' })
           navigate(`/library/${menuInstance.id}`)
           closeMenu()

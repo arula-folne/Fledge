@@ -12,7 +12,6 @@ import type { JavaManagedMajor, JavaRuntimeView } from '@fledge/shared'
 import { JAVA_MANAGED_MAJORS } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../ui/Button'
-import { HoverTooltip } from '../ui/HoverTooltip'
 import { ProgressBar } from '../ui/ProgressBar'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { useTransferStore } from '../../stores/appStores'
@@ -38,31 +37,20 @@ function IconAction({
   children: ReactNode
 }) {
   return (
-    <HoverTooltip
-      content={
-        <>
-          <div className="text-xs font-semibold text-[var(--color-text)]">{label}</div>
-          {hint ? (
-            <div className="mt-0.5 text-[11px] leading-snug text-[var(--color-text-muted)]">{hint}</div>
-          ) : null}
-        </>
-      }
+    <Button
+      variant={variant}
+      disabled={disabled}
+      aria-label={hint ? `${label}. ${hint}` : label}
+      className={[
+        '!rounded-[var(--radius-sm)] size-10 p-0',
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      onClick={onClick}
     >
-      <Button
-        variant={variant}
-        disabled={disabled}
-        aria-label={hint ? `${label}. ${hint}` : label}
-        className={[
-          '!rounded-[var(--radius-sm)] size-10 p-0',
-          className,
-        ]
-          .filter(Boolean)
-          .join(' ')}
-        onClick={onClick}
-      >
-        {children}
-      </Button>
-    </HoverTooltip>
+      {children}
+    </Button>
   )
 }
 

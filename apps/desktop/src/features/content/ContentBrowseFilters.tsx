@@ -19,6 +19,8 @@ type Props = {
   onLoaders: (next: ContentLoaderFilter[]) => void
   onTags: (next: string[]) => void
   onReset: () => void
+  /** お気に入りタブなど、ローダー・カテゴリ絞り込みを隠す */
+  hideSecondaryFilters?: boolean
 }
 
 function toggleValue<T>(list: T[], value: T): T[] {
@@ -37,25 +39,35 @@ function FilterBlock({
   title,
   extra,
   compact,
+  flexible,
   children,
 }: {
   title: string
   extra?: ReactNode
+  /** 固定高さ（ローダーなど） */
   compact?: boolean
+  /** 残り高さを分け合い、本文のみスクロール */
+  flexible?: boolean
   children: ReactNode
 }) {
   return (
     <section
       className={[
         'flex min-w-0 flex-col rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-1.5 py-1.5',
-        compact ? 'shrink-0' : 'min-h-0 flex-1',
+        compact ? 'shrink-0' : flexible ? 'min-h-0 flex-1' : 'shrink-0',
       ].join(' ')}
     >
       <h4 className="mb-1 shrink-0 text-[0.85em] font-semibold tracking-wide text-[var(--color-text-muted)]">
         {title}
       </h4>
       {extra}
-      <div className={compact ? '' : 'min-h-0 flex-1 overflow-y-auto pr-0.5'}>{children}</div>
+      <div
+        className={
+          flexible ? 'min-h-0 flex-1 overflow-y-auto pr-0.5' : compact ? '' : 'overflow-y-auto pr-0.5'
+        }
+      >
+        {children}
+      </div>
     </section>
   )
 }
@@ -71,10 +83,13 @@ export function ContentBrowseFilters({
   onLoaders,
   onTags,
   onReset,
+  hideSecondaryFilters = false,
 }: Props) {
   const { t, i18n } = useTranslation()
   const [versionQuery, setVersionQuery] = useState('')
-  const showLoaders = category === 'mod' || category === 'plugin' || category === 'modpack'
+  const showLoaders =
+    !hideSecondaryFilters &&
+    (category === 'mod' || category === 'plugin' || category === 'modpack')
   const availableTags = useMemo(() => filterTagsForCategory(category), [category])
   const iconByTag = useModrinthTagIcons(category)
   const filteredVersions = useMemo(() => {
@@ -111,6 +126,7 @@ export function ContentBrowseFilters({
 
       <FilterBlock
         title={t('content.filter.gameVersion')}
+        flexible
         extra={
           <div className="relative mb-1 shrink-0">
             <IconSearch
@@ -170,23 +186,25 @@ export function ContentBrowseFilters({
         </FilterBlock>
       ) : null}
 
-      <FilterBlock title={t('content.filter.category')}>
-        {availableTags.map((tag) => {
-          const checked = tags.includes(tag)
-          return (
-            <label key={tag} className={`${rowClass(checked)} cursor-pointer gap-1`}>
-              <input
-                type="checkbox"
-                className="mr-1 size-[1.05em] shrink-0"
-                checked={checked}
-                onChange={() => onTags(toggleValue(tags, tag))}
-              />
-              <TagIcon icon={iconByTag.get(tag)} className="[&_svg]:size-[1.05em]" />
-              <span className="min-w-0 truncate">{tagLabel(tag, i18n.language)}</span>
-            </label>
-          )
-        })}
-      </FilterBlock>
+      {!hideSecondaryFilters ? (
+        <FilterBlock title={t('content.filter.category')} flexible>
+          {availableTags.map((tag) => {
+            const checked = tags.includes(tag)
+            return (
+              <label key={tag} className={`${rowClass(checked)} cursor-pointer gap-1`}>
+                <input
+                  type="checkbox"
+                  className="mr-1 size-[1.05em] shrink-0"
+                  checked={checked}
+                  onChange={() => onTags(toggleValue(tags, tag))}
+                />
+                <TagIcon icon={iconByTag.get(tag)} className="[&_svg]:size-[1.05em]" />
+                <span className="min-w-0 truncate">{tagLabel(tag, i18n.language)}</span>
+              </label>
+            )
+          })}
+        </FilterBlock>
+      ) : null}
     </aside>
   )
 }

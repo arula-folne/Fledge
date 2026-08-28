@@ -69,7 +69,6 @@ export function ThemeModePicker({ value, labels, onChange }: Props) {
               role="radio"
               aria-checked={selected}
               aria-label={labels[mode]}
-              title={labels[mode]}
               onClick={() => {
                 setPending(mode)
                 onChange(mode)

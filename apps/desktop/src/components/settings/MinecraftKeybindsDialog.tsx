@@ -11,7 +11,6 @@ import {
 import { formatMcKeyCode, keyboardEventToMcKey, mouseButtonToMcKey } from '../../data/minecraftKeyCodes'
 import { Button } from '../ui/Button'
 import { Dialog } from '../ui/Dialog'
-import { HoverTooltip } from '../ui/HoverTooltip'
 
 type Props = {
   open: boolean
@@ -173,35 +172,26 @@ export function MinecraftKeybindsDialog({ open, value, onChange, onClose }: Prop
                           ? t('settings.minecraftInitial.keybinds.listening')
                           : formatMcKeyCode(current)}
                       </button>
-                      <HoverTooltip
+                      <button
+                        type="button"
+                        data-keybind-ignore
                         disabled={!custom}
-                        content={
-                          <span className="text-xs font-medium text-[var(--color-text)]">
-                            {t('settings.minecraftInitial.reset')}
-                          </span>
-                        }
+                        aria-label={t('settings.minecraftInitial.reset')}
+                        className={[
+                          'flex size-8 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)]',
+                          custom
+                            ? 'text-[var(--color-text)] hover:bg-[var(--color-hover)]'
+                            : 'cursor-default text-[var(--color-text-muted)] opacity-45',
+                        ].join(' ')}
+                        onClick={() => {
+                          const next = { ...value }
+                          delete next[item.id]
+                          onChange(next)
+                          if (listeningId === item.id) setListeningId(null)
+                        }}
                       >
-                        <button
-                          type="button"
-                          data-keybind-ignore
-                          disabled={!custom}
-                          aria-label={t('settings.minecraftInitial.reset')}
-                          className={[
-                            'flex size-8 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)]',
-                            custom
-                              ? 'text-[var(--color-text)] hover:bg-[var(--color-hover)]'
-                              : 'cursor-default text-[var(--color-text-muted)] opacity-45',
-                          ].join(' ')}
-                          onClick={() => {
-                            const next = { ...value }
-                            delete next[item.id]
-                            onChange(next)
-                            if (listeningId === item.id) setListeningId(null)
-                          }}
-                        >
-                          <IconRefresh size={16} stroke={1.75} />
-                        </button>
-                      </HoverTooltip>
+                        <IconRefresh size={16} stroke={1.75} />
+                      </button>
                     </div>
                   )
                 })}

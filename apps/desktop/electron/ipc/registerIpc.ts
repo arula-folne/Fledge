@@ -15,6 +15,7 @@ import {
   LAUNCHER_WINDOW_MIN_HEIGHT,
   LAUNCHER_WINDOW_MIN_WIDTH,
   type CreateInstanceInput,
+  type MrpackExportOptions,
   type Settings,
   type SkinModel,
 } from '@fledge/shared'
@@ -39,7 +40,7 @@ function decodeThumbDataUrl(dataUrl: string): { bytes: Buffer; ext: 'webp' | 'pn
   const prefix = dataUrl.startsWith(webp) ? webp : dataUrl.startsWith(png) ? png : null
   if (!prefix) throw new Error('Invalid skin thumb')
   const buf = Buffer.from(dataUrl.slice(prefix.length), 'base64')
-  if (buf.length === 0 || buf.length > 400_000) throw new Error('Invalid skin thumb size')
+  if (buf.length === 0 || buf.length > 900_000) throw new Error('Invalid skin thumb size')
   return { bytes: buf, ext: prefix === webp ? 'webp' : 'png' }
 }
 
@@ -348,7 +349,12 @@ export function registerIpc(
     touchBackup()
     return profile
   })
-  ipcMain.handle(IPC.contentExportMrpack, async (_e, instanceId: string) => {
+  ipcMain.handle(IPC.contentListMrpackExportCandidates, async (_e, instanceId: string) =>
+    appCtx.content.listMrpackExportCandidates(instanceId),
+  )
+  ipcMain.handle(
+    IPC.contentExportMrpack,
+    async (_e, instanceId: string, options?: MrpackExportOptions) => {
     const profile = await appCtx.instances.get(instanceId)
     if (!profile) throw new Error(`Instance not found: ${instanceId}`)
     const safeName =
@@ -365,9 +371,10 @@ export function registerIpc(
     const destination = result.filePath.toLowerCase().endsWith('.mrpack')
       ? result.filePath
       : `${result.filePath}.mrpack`
-    await appCtx.content.exportMrpack(instanceId, destination)
+    await appCtx.content.exportMrpack(instanceId, destination, options)
     return destination
-  })
+    },
+  )
 
   ipcMain.handle(IPC.authLogin, async () => {
     const account = await appCtx.auth.login()
@@ -395,10 +402,6 @@ export function registerIpc(
     await appCtx.auth.logout(accountId)
   })
 
-  ipcMain.handle(IPC.versionsList, async (_e, opts?: { includeSnapshots?: boolean }) => {
-    const settings = await appCtx.settings.get()
-    return appCtx.versions.listVersions(opts?.includeSnapshots ?? settings.showSnapshots)
-  })
   ipcMain.handle(
     IPC.versionsListMinecraft,
     async (_e, opts?: { includeSnapshots?: boolean; force?: boolean }) => {
@@ -435,7 +438,6 @@ export function registerIpc(
   )
 
   ipcMain.handle(IPC.newsList, async () => appCtx.news.list())
-  ipcMain.handle(IPC.logsRecent, async () => appCtx.logger.getRecent())
   ipcMain.handle(IPC.updaterCheck, async (_e, channel?: unknown) => {
     if (isLightStart()) {
       return { status: 'up-to-date' as const, currentVersion: APP_VERSION }

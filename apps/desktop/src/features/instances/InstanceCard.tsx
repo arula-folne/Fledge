@@ -6,12 +6,15 @@ import { useLaunchStore, useInstanceCreateStore } from '../../stores/appStores'
 import { formatProgressMessage } from '../launch/formatProgressMessage'
 import { InstanceIcon } from './InstanceIcon'
 import { InstanceLaunchButton } from './InstanceLaunchButton'
+import { LaunchProgressIndicator, LAUNCH_PROGRESS_WIDTH } from './launchProgressUi'
 import { formatLastPlayed, formatLoaderLabel } from './instanceMeta'
 
 type Props = {
   instance: InstanceProfile
   /** 大きいヒーローカード（ホーム用） */
   variant?: 'list' | 'hero'
+  /** ホーム一覧など狭いグリッド向け */
+  density?: 'default' | 'compact'
   className?: string
   onContextMenu?: (event: MouseEvent, instance: InstanceProfile) => void
 }
@@ -19,6 +22,7 @@ type Props = {
 export const InstanceCard = memo(function InstanceCard({
   instance,
   variant = 'list',
+  density = 'default',
   className = '',
   onContextMenu,
 }: Props) {
@@ -78,6 +82,8 @@ export const InstanceCard = memo(function InstanceCard({
     )
   }
 
+  const compact = density === 'compact'
+
   return (
     <article
       role="link"
@@ -91,34 +97,65 @@ export const InstanceCard = memo(function InstanceCard({
         }
       }}
       className={[
-        'group flex h-full min-h-[4.75rem] min-w-0 cursor-pointer items-center gap-3 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-3.5 transition',
+        'group flex h-full min-w-0 cursor-pointer rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] transition',
+        compact
+          ? 'items-center gap-2.5 px-3 py-3'
+          : 'min-h-[4.75rem] items-center gap-3 px-3.5 py-3.5',
         'hover:border-[var(--color-accent)]/35 hover:bg-[var(--color-hover)]/50',
         className,
       ].join(' ')}
     >
-      <InstanceIcon instance={instance} size="md" />
+      <InstanceIcon instance={instance} size="md" className="shrink-0 self-center" />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-base font-medium leading-snug text-[var(--color-text)]">
+        <div
+          className={[
+            'font-medium leading-snug break-words text-[var(--color-text)]',
+            compact ? 'text-sm' : 'text-base',
+          ].join(' ')}
+        >
           {instance.name}
           {creating ? (
-            <span className="ml-2 text-xs font-medium text-[var(--color-accent)]">
+            <span className="ml-1.5 text-xs font-medium text-[var(--color-accent)]">
               {t('content.creatingInstance')}
             </span>
           ) : null}
         </div>
-        <div className="mt-0.5 truncate text-sm text-[var(--color-text-muted)]">
+        <div
+          className={[
+            'mt-1 leading-snug break-words text-[var(--color-text-muted)]',
+            compact ? 'text-xs' : 'text-sm',
+          ].join(' ')}
+        >
           {instance.minecraftVersion} · {formatLoaderLabel(instance.loader, t)}
-          <span className="ml-1.5">{formatLastPlayed(instance.lastPlayedAt, t)}</span>
         </div>
-        <InstancePrepareProgress instanceId={instance.id} />
+        <div
+          className={[
+            'mt-0.5 leading-snug break-words text-[var(--color-text-muted)]',
+            compact ? 'text-xs' : 'text-sm',
+          ].join(' ')}
+        >
+          {formatLastPlayed(instance.lastPlayedAt, t)}
+        </div>
+        <InstancePrepareProgress instanceId={instance.id} compact={compact} />
       </div>
-      <InstanceLaunchButton instanceId={instance.id} size="sm" />
+      <InstanceLaunchButton
+        instanceId={instance.id}
+        size={compact ? 'icon' : 'sm'}
+        showProgress={!compact}
+        className={compact ? 'shrink-0 self-center' : undefined}
+      />
     </article>
   )
 })
 
 /** リストカード向け：準備中のプログレスを本文側にも出す */
-function InstancePrepareProgress({ instanceId }: { instanceId: string }) {
+function InstancePrepareProgress({
+  instanceId,
+  compact = false,
+}: {
+  instanceId: string
+  compact?: boolean
+}) {
   const { t } = useTranslation()
   const state = useLaunchStore((s) => s.byProfileId[instanceId]?.state ?? 'idle')
   const sessionId = useLaunchStore((s) => s.byProfileId[instanceId]?.sessionId)
@@ -137,21 +174,17 @@ function InstancePrepareProgress({ instanceId }: { instanceId: string }) {
     (progress && progress.total > 0 ? (progress.current / progress.total) * 100 : 0)
 
   return (
-    <div className="mt-2 max-w-sm space-y-1">
-      <div className="text-[11px] text-[var(--color-text-muted)]">
-        {formatProgressMessage(
+    <div className={['mt-1.5 w-full max-w-full', compact ? '' : LAUNCH_PROGRESS_WIDTH].join(' ')}>
+      <LaunchProgressIndicator
+        message={formatProgressMessage(
           t,
           progress?.messageKey ?? phaseMessageKey,
           progress?.meta,
           'library.preparing',
         )}
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-[var(--color-accent-soft)]">
-        <div
-          className="h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-150"
-          style={{ width: `${Math.min(100, Math.max(4, percent))}%` }}
-        />
-      </div>
+        percent={percent}
+        compact={compact}
+      />
     </div>
   )
 }

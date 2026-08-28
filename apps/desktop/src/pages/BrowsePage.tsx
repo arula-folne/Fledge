@@ -14,8 +14,16 @@ import { fledgeApi } from '../api/fledgeApi'
 import { PageNav } from '../components/ui/PageNav'
 import { ListPickDialog } from '../components/ui/ListPickDialog'
 import { ContentBrowseFilters } from '../features/content/ContentBrowseFilters'
+import { listFavoriteProjects } from '../features/content/contentFavoritesList'
+import { ContentSearchCategoryTabs } from '../features/content/ContentSearchCategoryTabs'
 import { ContentSearchHitRow } from '../features/content/ContentSearchHitRow'
-import { ContentCategoryLabel } from '../features/content/contentCategoryIcons'
+import {
+  browsePageSearchTabs,
+  defaultBrowsePageTab,
+  isFavoritesTab,
+  type ContentSearchTab,
+} from '../features/content/contentSearchTabs'
+import { useContentFavorites } from '../features/content/useContentFavorites'
 import { useModrinthTagIcons } from '../features/content/useModrinthTagIcons'
 import { useInstanceCreateStore } from '../stores/appStores'
 
@@ -25,7 +33,6 @@ const ContentProjectView = lazy(() =>
 
 const PAGE_SIZES = [10, 20, 30, 40, 50] as const
 const DEFAULT_PAGE_SIZE: (typeof PAGE_SIZES)[number] = 20
-const CATEGORIES: ContentCategory[] = ['modpack', 'mod', 'resourcepack', 'shader', 'datapack']
 const SORTS: ContentSearchSort[] = ['relevance', 'downloads', 'follows', 'newest', 'updated']
 
 const selectClass =
@@ -63,7 +70,7 @@ export default function BrowsePage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [searchCategory, setSearchCategory] = useState<ContentCategory>('modpack')
+  const [searchTab, setSearchTab] = useState<ContentSearchTab>(defaultBrowsePageTab())
   const [query, setQuery] = useState('')
   const [gameVersion, setGameVersion] = useState('')
   const [loaders, setLoaders] = useState<ContentLoaderFilter[]>(['fabric', 'neoforge', 'forge', 'quilt'])
@@ -78,7 +85,10 @@ export default function BrowsePage() {
   const [versionTarget, setVersionTarget] = useState<ContentProject | null>(null)
   const attemptedVersionTarget = useRef<ContentProject | null>(null)
 
-  const tagIcons = useModrinthTagIcons(searchCategory)
+  const { favorites, isFavorite, toggleFavorite } = useContentFavorites()
+  const tagCategory = isFavoritesTab(searchTab) ? 'mod' : searchTab
+  const tagIcons = useModrinthTagIcons(tagCategory)
+  const filterCategory = isFavoritesTab(searchTab) ? 'mod' : searchTab
 
   const versionsQuery = useQuery({
     queryKey: ['versions-minecraft', false],
@@ -93,7 +103,7 @@ export default function BrowsePage() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedQuery, searchCategory, gameVersion, loaders, tags, sort, pageSize])
+  }, [debouncedQuery, searchTab, gameVersion, loaders, tags, sort, pageSize])
 
   useEffect(() => {
     listScrollRef.current?.scrollTo({ top: 0 })
@@ -108,7 +118,7 @@ export default function BrowsePage() {
 
   useEffect(() => {
     setTags([])
-  }, [searchCategory])
+  }, [searchTab])
 
   const versionOptions = useMemo(
     () => (versionsQuery.data?.versions ?? []).map((v) => v.id),
@@ -118,7 +128,7 @@ export default function BrowsePage() {
   const searchInput = useMemo(
     () =>
       buildSearchInput({
-        category: searchCategory,
+        category: filterCategory,
         debouncedQuery,
         gameVersion,
         loaders,
@@ -127,13 +137,13 @@ export default function BrowsePage() {
         page,
         pageSize,
       }),
-    [debouncedQuery, searchCategory, gameVersion, loaders, tags, sort, page, pageSize],
+    [debouncedQuery, filterCategory, gameVersion, loaders, tags, sort, page, pageSize],
   )
 
   const searchQuery = useQuery({
     queryKey: ['content-search', searchInput],
     queryFn: () => fledgeApi.content.search(searchInput),
-    enabled: !selectedProject,
+    enabled: !selectedProject && !isFavoritesTab(searchTab),
     staleTime: 30_000,
     gcTime: 90_000,
     retry: 2,
@@ -214,10 +224,10 @@ export default function BrowsePage() {
       requestCreate({
         id: project.id,
         versionId,
-        category: project.projectType || searchCategory,
+        category: project.projectType || filterCategory,
       })
     },
-    [requestCreate, searchCategory],
+    [requestCreate, filterCategory],
   )
 
   const versionDialog = (
@@ -253,10 +263,26 @@ export default function BrowsePage() {
     />
   )
 
-  const hits = searchQuery.data?.hits ?? []
-  const total = searchQuery.data?.total ?? 0
-  const pageCount = Math.max(1, Math.ceil(total / pageSize))
-  const typeLabel = t(`content.category.${searchCategory}`)
+  const favoriteResults = useMemo(
+    () =>
+      listFavoriteProjects(favorites, {
+        query: debouncedQuery,
+        gameVersion,
+        sort,
+        page,
+        pageSize,
+      }),
+    [favorites, debouncedQuery, gameVersion, sort, page, pageSize],
+  )
+
+  const hits = isFavoritesTab(searchTab) ? favoriteResults.hits : (searchQuery.data?.hits ?? [])
+  const total = isFavoritesTab(searchTab) ? favoriteResults.total : (searchQuery.data?.total ?? 0)
+  const pageCount = isFavoritesTab(searchTab)
+    ? favoriteResults.pageCount
+    : Math.max(1, Math.ceil(total / pageSize))
+  const typeLabel = isFavoritesTab(searchTab)
+    ? t('content.category.favorites')
+    : t(`content.category.${searchTab}`)
 
   const searchErrorMessage = (() => {
     if (!searchQuery.isError) return null
@@ -275,25 +301,27 @@ export default function BrowsePage() {
 
   if (selectedProject) {
     return (
-      <div className="flex h-full min-h-0 flex-col gap-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
         {error ? (
           <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2.5 py-1.5 text-sm text-[var(--color-danger)]">
             {error}
           </p>
         ) : null}
         <Suspense fallback={<p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>}>
-          <ContentProjectView
-            hit={selectedProject}
-            gameVersion={gameVersion}
-            loaders={loaders}
-            createMode
-            creating={createMutation.isPending}
-            onBack={() => {
-              setError(null)
-              setSelectedProject(null)
-            }}
-            onInstall={(versionId) => requestCreateWithVersion(selectedProject, versionId)}
-          />
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <ContentProjectView
+              hit={selectedProject}
+              gameVersion={gameVersion}
+              loaders={loaders}
+              createMode
+              creating={createMutation.isPending}
+              onBack={() => {
+                setError(null)
+                setSelectedProject(null)
+              }}
+              onInstall={(versionId) => requestCreateWithVersion(selectedProject, versionId)}
+            />
+          </div>
         </Suspense>
         {versionDialog}
       </div>
@@ -301,19 +329,20 @@ export default function BrowsePage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2">
+    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
       <header className="shrink-0">
         <h1 className="text-lg font-semibold text-[var(--color-text)]">{t('content.browsePageTitle')}</h1>
         <p className="mt-0.5 text-sm text-[var(--color-text-muted)]">{t('content.browsePageSubtitle')}</p>
       </header>
 
-      <div className="flex min-h-0 flex-1 gap-2">
+      <div className="flex min-h-0 flex-1 gap-2 overflow-hidden">
         <ContentBrowseFilters
-          category={searchCategory}
+          category={filterCategory}
           gameVersion={gameVersion}
           loaders={loaders}
           tags={tags}
           versionOptions={versionOptions}
+          hideSecondaryFilters={isFavoritesTab(searchTab)}
           onGameVersion={setGameVersion}
           onLoaders={setLoaders}
           onTags={setTags}
@@ -323,28 +352,15 @@ export default function BrowsePage() {
             setTags([])
           }}
         />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
-          <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-            {CATEGORIES.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => {
-                  if (c === searchCategory) return
-                  setTags([])
-                  setSearchCategory(c)
-                }}
-                className={[
-                  'inline-flex items-center rounded-full px-2.5 py-1 text-sm font-medium transition-colors',
-                  searchCategory === c
-                    ? 'bg-[var(--color-selection)] text-[var(--color-on-selection)]'
-                    : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)]',
-                ].join(' ')}
-              >
-                <ContentCategoryLabel category={c} iconSize={15} />
-              </button>
-            ))}
-          </div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+          <ContentSearchCategoryTabs
+            tabs={browsePageSearchTabs()}
+            active={searchTab}
+            onChange={(next) => {
+              setTags([])
+              setSearchTab(next)
+            }}
+          />
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <div className="relative min-w-[14rem] flex-1">
@@ -430,10 +446,12 @@ export default function BrowsePage() {
               searchQuery.isFetching && !searchQuery.isPending ? 'opacity-80' : '',
             ].join(' ')}
           >
-            {searchQuery.isPending && !searchQuery.data ? (
+            {searchQuery.isPending && !searchQuery.data && !isFavoritesTab(searchTab) ? (
               <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
             ) : searchQuery.isError && hits.length === 0 ? null : hits.length === 0 ? (
-              <p className="text-sm text-[var(--color-text-muted)]">{t('content.noResults')}</p>
+              <p className="text-sm text-[var(--color-text-muted)]">
+                {isFavoritesTab(searchTab) ? t('content.favoritesEmpty') : t('content.noResults')}
+              </p>
             ) : (
               <ul className="divide-y divide-[var(--color-border)] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
                 {hits.map((hit, index) => (
@@ -447,6 +465,8 @@ export default function BrowsePage() {
                       createMutation.isPending && createMutation.variables?.id === hit.id
                     }
                     installed={false}
+                    favorited={isFavorite(hit.id)}
+                    onToggleFavorite={() => toggleFavorite(hit)}
                     onOpen={() => {
                       setError(null)
                       setSelectedProject(hit)

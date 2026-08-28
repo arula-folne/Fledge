@@ -12,7 +12,6 @@ type Props = {
   menu: InstanceContextMenuState
   onClose: () => void
   onOpen: () => void
-  onEdit: () => void
   onDuplicate: () => void
   onOpenFolder: () => void
   onDelete: () => void
@@ -47,7 +46,6 @@ export function InstanceContextMenu({
   menu,
   onClose,
   onOpen,
-  onEdit,
   onDuplicate,
   onOpenFolder,
   onDelete,
@@ -97,7 +95,6 @@ export function InstanceContextMenu({
       style={{ left: pos.x, top: pos.y }}
     >
       <MenuItem label={t('instances.open')} onClick={onOpen} />
-      <MenuItem label={t('instances.edit')} onClick={onEdit} />
       <MenuItem label={t('instances.duplicate')} onClick={onDuplicate} />
       <MenuItem label={t('instances.openFolder')} onClick={onOpenFolder} />
       <div className="my-1 border-t border-[var(--color-border)]" />
