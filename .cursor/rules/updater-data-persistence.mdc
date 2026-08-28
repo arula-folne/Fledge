@@ -1,0 +1,62 @@
+---
+description: アップデートでユーザーデータ（Instances/Data）が実質消えないよう守る（変更は要確認）
+globs: apps/desktop/electron/ipc/registerIpc.ts,apps/desktop/electron/paths/customRoot.ts,apps/desktop/build/installer.nsh,apps/desktop/electron/uninstall/**,packages/core/src/updater/**,packages/core/src/instances/**,packages/core/src/app/factoryReset.ts,packages/core/src/app/paths.ts,docs/spec.md
+alwaysApply: false
+---
+
+# アップデート — ユーザーデータ永続化の不変条件
+
+インスタンス・設定・アカウント等のユーザーデータが、アップデート後に**実質的に消えたように見える／消える**状態は避ける。  
+この領域は **勝手に変えない。** 変更が必要なら、実装前にユーザーへ「なぜ必要か／何が壊れるか」を説明して**明示的な確認**を取る。
+
+## ユーザーデータの所在
+
+```
+<fledgeRoot>/
+  Data/       … 設定・アカウント・Minecraft 本体・Java・スキン等
+  Instances/  … インスタンスごとの profile.json / mods / saves 等
+```
+
+- 実効ルート: `FLEDGE_ROOT` → `userData/custom-root.json` → exe 横 `data-root.json`（冗長）→ 既定（exe と同じフォルダ）
+- インスタンス一覧は `Instances/*/profile.json` から読む。**localStorage ではない**
+
+## アップデート時に守ること
+
+```
+アプリ内更新（updaterApply）
+  → 同一 installDir へ NSIS サイレント適用（/S --updated --force-run /D=...）
+  → Data/ と Instances/ は削除・上書きしない
+  → custom-root.json / data-root.json の参照整合を維持
+
+起動時
+  → 現ルートに Instances が無ければ、既知の代替ルート（冗長ポインタ・既定）を探索して復元
+  → profile.json はマイグレーションして読む。検証失敗はログを残す（無言スキップ禁止）
+```
+
+## 禁止（アップデート文脈）
+
+- 更新フローで `Data/` / `Instances/` を削除・初期化する
+- 更新後に実効ルートが変わり、旧ルートのデータに届かなくなる変更（確認なし）
+- `InstanceStore.list()` で profile 検証失敗を無言スキップする
+- NSIS の **アンインストール** 用処理（`customUnInstall` 等）を **アプリ内更新** 経路に混ぜる
+- `deleteAppDataOnUninstall` 相当の挙動を更新時に発火させる
+- 更新確認 UI で「データは消えません」と矛盾する挙動を入れる
+
+## アンインストールとの区別
+
+- **アンインストール** → `Data/` / `Instances/` 削除は仕様（ユーザー操作）
+- **アプリ内更新** → 削除してはいけない。混同しない
+
+## 触るときは要確認（例）
+
+- `updaterApply` の NSIS 引数・installDir の決め方
+- `customRoot.ts` / `data-root.json` / ルート復元ロジック
+- `installer.nsh` の install / uninstall マクロ
+- `InstanceProfileSchema` の破壊的変更（必須化・enum 削除）
+- 更新後の初回起動（`--updated` / light start）でデータパス解決を変える変更
+
+## 変更が必要なとき（エージェント向け）
+
+1. **実装しない**（またはデータを消さずに迂回する）
+2. ユーザーに短く報告: 目的、触るファイル、データ消失リスク
+3. ユーザーが明示的に許可してからだけ変更する
