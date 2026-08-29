@@ -9,15 +9,24 @@ alwaysApply: false
 インスタンス・設定・アカウント等のユーザーデータが、アップデート後に**実質的に消えたように見える／消える**状態は避ける。  
 この領域は **勝手に変えない。** 変更が必要なら、実装前にユーザーへ「なぜ必要か／何が壊れるか」を説明して**明示的な確認**を取る。
 
-## ユーザーデータの所在
+## ユーザーデータの所在（Modrinth 型）
 
 ```
-<fledgeRoot>/
-  Data/       … 設定・アカウント・Minecraft 本体・Java・スキン等
-  Instances/  … インスタンスごとの profile.json / mods / saves 等
+settingsRoot（本番: Electron userData / AppData）
+  Settings/     … settings.json
+  Accounts/     … 表示情報・暗号化トークン
+  custom-root.json  … config ルートへのポインタ（任意）
+
+configRoot（既定: 同上 userData。ユーザーが変更可）
+  Data/         … Minecraft 本体・Java・Cache・Skins・News 等（Settings/Accounts は置かない）
+  Instances/    … インスタンスごとの profile.json / mods / saves 等
+
+installDir（exe 横）
+  アプリ本体のみ。冗長ポインタ data-root.json のみ可。既定では Data/Instances を置かない
 ```
 
-- 実効ルート: `FLEDGE_ROOT` → `userData/custom-root.json` → exe 横 `data-root.json`（冗長）→ 既定（exe と同じフォルダ）
+- 実効 config ルート: `FLEDGE_ROOT` → `userData/custom-root.json` → exe 横 `data-root.json`（冗長）→ 既定（userData）
+- 設定・アカウントは **常に settingsRoot**（更新で INSTDIR が差し替わっても残る）
 - インスタンス一覧は `Instances/*/profile.json` から読む。**localStorage ではない**
 
 ## アップデート時に守ること
@@ -25,33 +34,36 @@ alwaysApply: false
 ```
 アプリ内更新（updaterApply）
   → 同一 installDir へ NSIS サイレント適用（/S --updated --force-run /D=...）
-  → Data/ と Instances/ は削除・上書きしない
+  → Data/ と Instances/ と data-root.json は削除・上書きしない（customRemoveFiles）
   → custom-root.json / data-root.json の参照整合を維持
+  → settingsRoot（AppData）は触らない
 
 起動時
-  → 現ルートに Instances が無ければ、既知の代替ルート（冗長ポインタ・既定）を探索して復元
+  → 現ルートにデータが無ければ、既知の代替（冗長ポインタ・旧 exe 横）を探索して復元
+  → 旧 Data/Settings・Data/Accounts があれば settingsRoot 直下へ移す
   → profile.json はマイグレーションして読む。検証失敗はログを残す（無言スキップ禁止）
 ```
 
 ## 禁止（アップデート文脈）
 
-- 更新フローで `Data/` / `Instances/` を削除・初期化する
+- 更新フローで `Data/` / `Instances/` / AppData の Settings・Accounts を削除・初期化する
 - 更新後に実効ルートが変わり、旧ルートのデータに届かなくなる変更（確認なし）
 - `InstanceStore.list()` で profile 検証失敗を無言スキップする
 - NSIS の **アンインストール** 用処理（`customUnInstall` 等）を **アプリ内更新** 経路に混ぜる
 - `deleteAppDataOnUninstall` 相当の挙動を更新時に発火させる
 - 更新確認 UI で「データは消えません」と矛盾する挙動を入れる
+- 既定の config ルートを再びインストール先（exe 横）に戻す
 
 ## アンインストールとの区別
 
-- **アンインストール** → `Data/` / `Instances/` 削除は仕様（ユーザー操作）
+- **アンインストール** → installDir の残骸削除 +（設定時）AppData 削除は仕様
 - **アプリ内更新** → 削除してはいけない。混同しない
 
 ## 触るときは要確認（例）
 
 - `updaterApply` の NSIS 引数・installDir の決め方
-- `customRoot.ts` / `data-root.json` / ルート復元ロジック
-- `installer.nsh` の install / uninstall マクロ
+- `customRoot.ts` / `data-root.json` / settingsRoot・config 分離 / ルート復元
+- `installer.nsh` の `customRemoveFiles` / `customUnInstall`
 - `InstanceProfileSchema` の破壊的変更（必須化・enum 削除）
 - 更新後の初回起動（`--updated` / light start）でデータパス解決を変える変更
 

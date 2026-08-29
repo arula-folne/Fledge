@@ -4,14 +4,21 @@ import type { PathInfo } from '@fledge/shared'
 
 export type PathLayout = PathInfo
 
-/** インストール先（または開発用ルート）から PathLayout を組み立てる */
-export function resolvePathLayout(root: string): PathLayout {
+/**
+ * PathLayout を組み立てる。
+ *
+ * - `root`（config）: Instances / Minecraft 本体 / キャッシュ等
+ * - `settingsRoot`: 設定・アカウント（未指定時は root と同じ）
+ *
+ * Modrinth 型: 設定は AppData、ゲームデータは設定可能な config ルート。
+ */
+export function resolvePathLayout(root: string, settingsRoot: string = root): PathLayout {
   const data = path.join(root, 'Data')
   return {
     root,
     data,
-    settings: path.join(data, 'Settings'),
-    accounts: path.join(data, 'Accounts'),
+    settings: path.join(settingsRoot, 'Settings'),
+    accounts: path.join(settingsRoot, 'Accounts'),
     cache: path.join(data, 'Cache'),
     minecraft: path.join(data, 'Minecraft'),
     java: path.join(data, 'java-version'),

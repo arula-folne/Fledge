@@ -28,7 +28,7 @@ pnpm dev
 `pnpm install` の `postinstall` で `scripts/patch-xmcl.js` が走ります。  
 ルートの `pnpm dev` は `pnpm --filter @fledge/desktop dev` と同じです。
 
-開発時のデータルートは `apps/desktop/.fledge-root/` です（gitignore 済み）。本番の `Fledge.exe` 横配置とは場所だけが違います。
+開発時のデータルートは `apps/desktop/.fledge-root/` です（gitignore 済み）。本番の既定は Electron `userData`（AppData）で、インストール先（exe 横）にはアプリ本体だけを置きます。
 
 ## バージョン表記
 

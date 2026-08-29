@@ -76,14 +76,17 @@ jobs:
           $exe = Get-Item apps/desktop/release/Fledge-Setup.exe
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
-            # 常に正式リリース（Latest）として作成。folne web は /releases/latest を参照する
             $ver = $tag.TrimStart('v')
-            # RELEASE_NOTES.md に書いた更新内容をリリースページ本文にする
+            # アルファ（a）はプレリリース。ベータ／製品版は Latest（folne web の /releases/latest 用）
             $notesFile = 'RELEASE_NOTES.md'
             if (-not (Test-Path $notesFile)) {
               throw "Missing $notesFile (write release notes before tagging)"
             }
-            gh release create $tag --title "Fledge Ver.$ver" --notes-file $notesFile
+            if ($ver -match 'a$') {
+              gh release create $tag --title "Fledge Ver.$ver" --notes-file $notesFile --prerelease
+            } else {
+              gh release create $tag --title "Fledge Ver.$ver" --notes-file $notesFile
+            }
           }
           gh release upload $tag $exe.FullName --clobber
         env:

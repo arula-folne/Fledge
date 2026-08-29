@@ -3,7 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const STORE_FILE = 'custom-root.json'
-/** exe 横の冗長ポインタ。userData の custom-root.json が消えても復元できる */
+/** インストール先（exe 横）の冗長ポインタ。userData の custom-root.json が消えても復元できる */
 const INSTALL_POINTER_FILE = 'data-root.json'
 
 type RootPointerStore = {
@@ -12,10 +12,6 @@ type RootPointerStore = {
 
 function userDataStorePath(): string {
   return path.join(app.getPath('userData'), STORE_FILE)
-}
-
-function installPointerPath(): string {
-  return path.join(getDefaultFledgeRoot(), INSTALL_POINTER_FILE)
 }
 
 function readRootFromFile(file: string): string | null {
@@ -44,21 +40,77 @@ function deleteFileIfExists(file: string): void {
   }
 }
 
-/** インストール先/exe 横へ実効ルートを記録（更新後の復元用） */
+function pathExists(file: string): boolean {
+  try {
+    fs.accessSync(file)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function renameIfExists(from: string, to: string): void {
+  if (!pathExists(from)) return
+  if (pathExists(to)) return
+  fs.mkdirSync(path.dirname(to), { recursive: true })
+  try {
+    fs.renameSync(from, to)
+  } catch {
+    // 別ディスク等 — コピーしてから削除
+    try {
+      fs.cpSync(from, to, { recursive: true })
+      fs.rmSync(from, { recursive: true, force: true })
+    } catch {
+      /* leave legacy in place */
+    }
+  }
+}
+
+/** アプリ本体のインストール先（Data を置かない） */
+export function getInstallDir(): string {
+  if (!app.isPackaged) {
+    return path.join(app.getAppPath())
+  }
+  return path.dirname(app.getPath('exe'))
+}
+
+/**
+ * 設定・アカウントのルート（常に AppData / 開発時は .fledge-root）。
+ * 更新でインストールフォルダが差し替わっても消えない。
+ */
+export function getSettingsRoot(): string {
+  if (!app.isPackaged) {
+    return path.join(app.getAppPath(), '.fledge-root')
+  }
+  return app.getPath('userData')
+}
+
+function installPointerPath(): string {
+  return path.join(getInstallDir(), INSTALL_POINTER_FILE)
+}
+
+/** インストール先/exe 横へ実効 config ルートを記録（更新後の復元用） */
 export function writeInstallDirPointer(root: string): void {
-  writeRootToFile(installPointerPath(), root)
+  try {
+    writeRootToFile(installPointerPath(), root)
+  } catch {
+    /* Program Files 等で書けない場合は無視 */
+  }
 }
 
 export function readInstallDirPointer(): string | null {
   return readRootFromFile(installPointerPath())
 }
 
-/** パッケージ／開発時の既定ルート（カスタム未設定時） */
+/**
+ * ゲームデータ（Instances / Minecraft 等）の既定ルート。
+ * 本番は userData（インストール先の外）。開発は `.fledge-root`。
+ */
 export function getDefaultFledgeRoot(): string {
   if (!app.isPackaged) {
     return path.join(app.getAppPath(), '.fledge-root')
   }
-  return path.dirname(app.getPath('exe'))
+  return app.getPath('userData')
 }
 
 export function readCustomRoot(): string | null {
@@ -112,15 +164,12 @@ function hasPersistedUserData(root: string): boolean {
   if (countInstanceProfiles(root) > 0) return true
   const markers = [
     path.join(root, 'Data', 'Settings', 'settings.json'),
+    path.join(root, 'Settings', 'settings.json'),
     path.join(root, 'Data', 'Accounts', 'index.json'),
+    path.join(root, 'Accounts', 'index.json'),
   ]
   for (const file of markers) {
-    try {
-      fs.accessSync(file)
-      return true
-    } catch {
-      /* missing */
-    }
+    if (pathExists(file)) return true
   }
   return false
 }
@@ -149,6 +198,27 @@ function persistResolvedRoot(root: string): void {
   }
 }
 
+/**
+ * 旧レイアウト `Data/Settings`・`Data/Accounts` を settingsRoot 直下へ移す。
+ * config と settings が同じフォルダでも、Data の外へ出す（Modrinth 型）。
+ */
+function migrateSettingsAndAccounts(configRoot: string): void {
+  const settingsRoot = getSettingsRoot()
+  const legacySettings = path.join(configRoot, 'Data', 'Settings')
+  const legacyAccounts = path.join(configRoot, 'Data', 'Accounts')
+  const nextSettings = path.join(settingsRoot, 'Settings')
+  const nextAccounts = path.join(settingsRoot, 'Accounts')
+
+  renameIfExists(legacySettings, nextSettings)
+  renameIfExists(legacyAccounts, nextAccounts)
+
+  // settingsRoot と configRoot が違う場合、config 側に残ったレガシーも拾う
+  if (path.resolve(settingsRoot) !== path.resolve(configRoot)) {
+    renameIfExists(path.join(settingsRoot, 'Data', 'Settings'), nextSettings)
+    renameIfExists(path.join(settingsRoot, 'Data', 'Accounts'), nextAccounts)
+  }
+}
+
 let recoveredRootFrom: string | null = null
 
 /** resolveFledgeRoot が代替ルートから復元した場合、そのパスを返す（1 回限り） */
@@ -159,15 +229,20 @@ export function takeRootRecoveryNotice(): string | null {
 }
 
 /**
- * 実効データルート。
- * 優先: FLEDGE_ROOT → userData のカスタム → install 冗長ポインタ → 既定
- * 現ルートに Instances が無い場合は既知の代替ルートを探索して復元する。
+ * 実効 config ルート（Instances / Minecraft 等）。
+ * 優先: FLEDGE_ROOT → userData のカスタム → install 冗長ポインタ → 既定（userData）
+ * 現ルートにデータが無い場合はインストール先など既知の代替を探索する。
  */
 export function resolveFledgeRoot(): string {
   const fromEnv = process.env.FLEDGE_ROOT?.trim()
-  if (fromEnv) return path.resolve(fromEnv)
+  if (fromEnv) {
+    const resolved = path.resolve(fromEnv)
+    migrateSettingsAndAccounts(resolved)
+    return resolved
+  }
 
   const defaultPath = getDefaultFledgeRoot()
+  const installDir = getInstallDir()
   let root = readCustomRoot() ?? readInstallDirPointer() ?? defaultPath
 
   // userData のポインタだけ消えている場合、install 冗長ポインタから復元
@@ -181,20 +256,24 @@ export function resolveFledgeRoot(): string {
 
   if (hasPersistedUserData(root)) {
     writeInstallDirPointer(root)
+    migrateSettingsAndAccounts(root)
     return root
   }
 
-  const candidates = uniqueRoots([readInstallDirPointer(), defaultPath])
+  // 旧既定（exe 横）にデータが残っていればそちらを優先（0.2.5b 以前からの移行）
+  const candidates = uniqueRoots([readInstallDirPointer(), installDir, defaultPath])
   for (const candidate of candidates) {
     if (path.resolve(candidate) === path.resolve(root)) continue
     if (hasPersistedUserData(candidate)) {
       recoveredRootFrom = candidate
       persistResolvedRoot(candidate)
+      migrateSettingsAndAccounts(candidate)
       return candidate
     }
   }
 
   writeInstallDirPointer(root)
+  migrateSettingsAndAccounts(root)
   return root
 }
 
@@ -221,4 +300,15 @@ export function getAppDirectoryInfo(activeRoot: string): AppDirectoryInfo {
     isCustom: custom != null,
     restartRequired: path.resolve(configured) !== path.resolve(activeRoot),
   }
+}
+
+/** settings.json の同期読取用パス（レガシー Data/Settings も候補） */
+export function resolveSettingsFileCandidates(configRoot?: string): string[] {
+  const settingsRoot = getSettingsRoot()
+  const root = configRoot ?? getDefaultFledgeRoot()
+  return [
+    path.join(settingsRoot, 'Settings', 'settings.json'),
+    path.join(root, 'Data', 'Settings', 'settings.json'),
+    path.join(getInstallDir(), 'Data', 'Settings', 'settings.json'),
+  ]
 }

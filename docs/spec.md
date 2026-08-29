@@ -1,6 +1,6 @@
 # Fledge 技術仕様
 
-最終更新: 2026-08-29
+最終更新: 2026-08-30
 
 GitHub リポジトリ向けの実装仕様です。アプリ紹介・機能のアピールは [README](../README.md) を先に読んでください。  
 開発手順は [development.md](./development.md) です。
@@ -12,7 +12,7 @@ GitHub リポジトリ向けの実装仕様です。アプリ紹介・機能の�
 ## 1. 位置づけ
 
 Fledge は Minecraft Java Edition 用の非公式デスクトップランチャーです。  
-バージョン **Ver.0.2.5b**。製品 ID は `net.folne.fledge`。  
+バージョン **Ver.0.3.0a**。製品 ID は `net.folne.fledge`。  
 **対応環境は Windows 11 のみ**です。
 
 製品方針:
@@ -83,27 +83,36 @@ Main (Electron)
 
 ## 5. ランタイムデータ
 
-本番のルートは `Fledge.exe` と同じフォルダ。開発時は `apps/desktop/.fledge-root/`。
+本番は **Modrinth 型**の二層配置です。
+
+- **settingsRoot**（本番: Electron `userData` / AppData）: ランチャー設定・アカウント
+- **configRoot**（既定: 同上。設定で変更可）: インスタンス・Minecraft 本体・キャッシュ等
+- **installDir**（`Fledge.exe` 横）: アプリ本体のみ（既定ではユーザーデータを置かない）
+
+開発時は両方とも `apps/desktop/.fledge-root/` です。
 
 ```
-<root>/
+<settingsRoot>/
+  Settings/            settings.json
+  Accounts/            アカウント一覧 + secrets/（暗号化トークン）
+  custom-root.json     config ルートへのポインタ（任意）
+
+<configRoot>/
   Data/
-    Accounts/          アカウント一覧 + secrets/（暗号化トークン）
     Cache/
     java-version/      java8 / java17 / java21 / java25（各配下に bin/ と jdk-*.md）
     Logs/
     Minecraft/         共有 libraries / assets / versions / natives
     News/
-    Settings/          settings.json
     Skins/             アップロードスキン + uploaded.json
     Temp/
   Instances/           インスタンスごと（mods / saves / config / options.txt / screenshots 等）
 ```
 
-`packages/core/src/app/paths.ts` の `resolvePathLayout` がこの配置を組み立てます。  
+`packages/core/src/app/paths.ts` の `resolvePathLayout(configRoot, settingsRoot)` がこの配置を組み立てます。  
 Minecraft 本体・ライブラリ・アセットは `Data/Minecraft` で共有します。  
 ワールド、Mod、ゲーム内設定（`options.txt`）、Mod 設定（`config/`）などは `Instances/<id>/` です。  
-Fledge のテーマ・アカウント・スキンは `Data/` 側でランチャー全体共通です。
+テーマ・アカウントは settingsRoot、スキンは config の `Data/Skins` です。
 
 インスタンス配下で開いてよいサブフォルダ（`INSTANCE_SUBFOLDERS`）:
 
@@ -114,8 +123,8 @@ Fledge のテーマ・アカウント・スキンは `Data/` 側でランチャ�
 ## 6. 認証
 
 - フローは Microsoft / Xbox / Minecraft の公式認証（`msmc`）
-- 表示情報: `Data/Accounts/index.json`（MCID、UUID、任意で XUID・アバター URL）
-- トークン: `Data/Accounts/secrets/<accountId>.dat` を Electron `safeStorage` で暗号化
+- 表示情報: `<settingsRoot>/Accounts/index.json`（MCID、UUID、任意で XUID・アバター URL）
+- トークン: `<settingsRoot>/Accounts/secrets/<accountId>.dat` を Electron `safeStorage` で暗号化
 - 複数アカウント。アクティブ ID と一覧を index で管理。旧 `active.json` + `secrets.dat` は初回読み込みで移行
 - パスワードは保存しない。サインイン UI は Microsoft 側
 
@@ -200,7 +209,7 @@ Modpack 同梱の `options.txt` より、初回起動時の Fledge パッチを�
 
 ## 12. 設定・見た目
 
-`Data/Settings/settings.json`。主な項目:
+`Data/Settings/settings.json`（実パスは `<settingsRoot>/Settings/settings.json`）。主な項目:
 
 - 既定メモリ（新しいインスタンスの初期値。24GB 超は UI で GC 警告）
 - ゲームのフルスクリーン／ウィンドウサイズ、ランチャー窓サイズ、UI スケール
@@ -240,7 +249,8 @@ Modpack 同梱の `options.txt` より、初回起動時の Fledge パッチを�
 
 `extraResources`: `icon.png` / `icon.ico`、同梱スキン。
 
-アンインストール時は `Data/` と `Instances/` も含めインストールフォルダごと削除する（`build/installer.nsh`）。  
+アンインストール時はインストールフォルダの残骸に加え、設定により AppData（settingsRoot）も削除する（`deleteAppDataOnUninstall` / `build/installer.nsh`）。  
+アプリ内更新では `customRemoveFiles` により `Data/`・`Instances/`・`data-root.json` を残す。  
 設定 → リソース管理からアプリ内アンインストールも可能（終了後に NSIS アンインストーラー／フォルダ削除を実行）。
 
 ## 16. 既知のギャップ（Beta）

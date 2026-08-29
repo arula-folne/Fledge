@@ -40,7 +40,10 @@ export type LauncherApp = {
 }
 
 export type CreateLauncherAppOptions = {
+  /** ゲームデータルート（Instances / Minecraft / Cache 等） */
   root: string
+  /** 設定・アカウントルート。省略時は root と同じ（テスト用）。本番は AppData を渡す */
+  settingsRoot?: string
   auth: AuthProvider
   events: LaunchEventBus
   logger?: Logger
@@ -52,7 +55,7 @@ export type CreateLauncherAppOptions = {
 }
 
 export async function createLauncherApp(options: CreateLauncherAppOptions): Promise<LauncherApp> {
-  const paths = resolvePathLayout(options.root)
+  const paths = resolvePathLayout(options.root, options.settingsRoot ?? options.root)
   await ensurePathLayout(paths)
 
   const logger = options.logger ?? new Logger()

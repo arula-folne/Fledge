@@ -12,6 +12,7 @@ import { TokenVault } from './security/tokenVault'
 import { applyLightStartEnv, isLightStart } from './startup/lightStart'
 import { preparePostUpdateSettings } from './startup/updateStartup'
 import { attachWindowSizeSync, createMainWindow, resolveFledgeRoot } from './windows/MainWindow'
+import { getSettingsRoot, resolveSettingsFileCandidates } from './paths/customRoot'
 import { takeRootRecoveryNotice } from './paths/customRoot'
 
 applyLightStartEnv()
@@ -145,13 +146,14 @@ async function scheduleAppRelaunch(options?: {
 }
 
 /** settings.json を同期読み（app.ready 前の HA 切替用。失敗時は既定 ON） */
-function peekHardwareAcceleration(root: string): boolean {
-  try {
-    const file = path.join(root, 'Data', 'Settings', 'settings.json')
-    const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as { hardwareAcceleration?: unknown }
-    if (typeof raw.hardwareAcceleration === 'boolean') return raw.hardwareAcceleration
-  } catch {
-    // missing / invalid → default
+function peekHardwareAcceleration(configRoot: string): boolean {
+  for (const file of resolveSettingsFileCandidates(configRoot)) {
+    try {
+      const raw = JSON.parse(fs.readFileSync(file, 'utf8')) as { hardwareAcceleration?: unknown }
+      if (typeof raw.hardwareAcceleration === 'boolean') return raw.hardwareAcceleration
+    } catch {
+      // missing / invalid → try next
+    }
   }
   return true
 }
@@ -226,11 +228,12 @@ async function syncPresenceFromLaunchState(e: LaunchStateEvent): Promise<void> {
 
 async function bootstrap(): Promise<void> {
   const root = resolveFledgeRoot()
+  const settingsRoot = getSettingsRoot()
   loadFledgeEnvFiles(
     defaultEnvCandidatePaths(root, app.getAppPath(), path.dirname(process.execPath)),
   )
   const logger = new Logger()
-  const vault = new TokenVault(path.join(root, 'Data', 'Accounts'))
+  const vault = new TokenVault(path.join(settingsRoot, 'Accounts'))
   const presence = new DiscordPresence(logger)
   discordPresence = presence
 
@@ -260,6 +263,7 @@ async function bootstrap(): Promise<void> {
 
   launcherApp = await createLauncherApp({
     root,
+    settingsRoot,
     auth,
     logger,
     events: events as never,
@@ -272,7 +276,7 @@ async function bootstrap(): Promise<void> {
     },
     updater:
       app.isPackaged || process.env.FLEDGE_DEV_UPDATER === '1'
-        ? new GithubReleaseUpdater(resolvePathLayout(root))
+        ? new GithubReleaseUpdater(resolvePathLayout(root, settingsRoot))
         : new NoopUpdater(),
   })
 

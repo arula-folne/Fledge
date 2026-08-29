@@ -2,7 +2,7 @@ import type { LauncherApp } from './createLauncherApp.js'
 import { rmRetry } from '../fs/rmRetry.js'
 
 /**
- * Data/ と Instances/ を削除する。空フォルダの作り直しは再起動後の
+ * 設定・アカウント・Data/・Instances/ を削除する。空フォルダの作り直しは再起動後の
  * `ensurePathLayout` に任せる（終了中プロセスが Windows でフォルダを掴んだまま
  * 再作成すると、終了時に消えてログイン保存が失敗する）。
  */
@@ -19,6 +19,8 @@ export async function factoryReset(app: LauncherApp): Promise<void> {
 
   await new Promise((resolve) => setTimeout(resolve, 600))
 
+  await rmRetry(app.paths.settings)
+  await rmRetry(app.paths.accounts)
   await rmRetry(app.paths.data)
   await rmRetry(app.paths.instances)
   app.logger.info('system', 'Factory reset completed')
