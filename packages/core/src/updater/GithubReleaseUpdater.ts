@@ -103,7 +103,7 @@ export class GithubReleaseUpdater implements Updater {
 
   async check(channel: UpdateChannel = 'stable'): Promise<UpdateCheckResult> {
     const cached = await this.readCache(channel)
-    if (cached && this.isCacheFresh(cached.fetchedAt)) {
+    if (cached && this.isCacheFresh(cached.fetchedAt, cached.result)) {
       const reconciled = reconcileCachedUpdateResult(cached.result, effectiveAppVersion())
       if (reconciled) {
         if (
@@ -247,9 +247,12 @@ export class GithubReleaseUpdater implements Updater {
     }
   }
 
-  private isCacheFresh(fetchedAt: string): boolean {
+  private isCacheFresh(fetchedAt: string, result?: UpdateCheckResult): boolean {
     const age = Date.now() - Date.parse(fetchedAt)
-    return Number.isFinite(age) && age >= 0 && age < UPDATER.cacheTtlMs
+    if (!Number.isFinite(age) || age < 0) return false
+    const ttl =
+      result?.status === 'up-to-date' ? UPDATER.upToDateCacheTtlMs : UPDATER.cacheTtlMs
+    return age < ttl
   }
 
   private async writeCache(channel: UpdateChannel, result: UpdateCheckResult): Promise<void> {

@@ -26,7 +26,8 @@ export function InstallOnboardingHost() {
     settingsQuery.isSuccess &&
     startupQuery.isSuccess &&
     settingsQuery.data.installOnboardingCompleted !== true &&
-    !startupQuery.data.isUpdatedStart
+    !startupQuery.data.isUpdatedStart &&
+    !startupQuery.data.updateNotice
 
   const dialogOpen = (autoOpen || manualOpen) && !interactiveActive
 

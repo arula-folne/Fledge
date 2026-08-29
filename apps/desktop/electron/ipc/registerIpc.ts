@@ -18,11 +18,11 @@ import {
   type MrpackExportOptions,
   type Settings,
   type SkinModel,
-  type UpdateNotice,
 } from '@fledge/shared'
 import { snapshotMinecraftDebugOverlay, snapshotMinecraftInitialOptions, factoryReset, fetchActiveMinecraftSkin, hashSkinPng, type LauncherApp } from '@fledge/core'
 import { applyWindowUiScale } from '../windows/MainWindow'
 import { isLightStart, isPostInstallStart, isUpdatedStart } from '../startup/lightStart'
+import { resolveUpdateNotice } from '../startup/updateStartup'
 import {
   resolvePackagedInstallRoot,
   scheduleCompleteUninstall,
@@ -61,28 +61,6 @@ function applyLauncherWindowSize(win: BrowserWindow | null, settings: Settings):
 
 function toRendererSettings(settings: Settings): Settings {
   return settings
-}
-
-async function resolveUpdateNotice(appCtx: LauncherApp): Promise<UpdateNotice | null> {
-  if (!isUpdatedStart()) return null
-
-  const settings = await appCtx.settings.get()
-  const toVersion = APP_VERSION
-  const pending = settings.updateAckPending
-
-  const fromVersion = pending?.fromVersion ?? settings.lastAppVersion
-  if (!fromVersion) return null
-
-  let releaseNotes = pending?.releaseNotes
-  if (!releaseNotes?.trim()) {
-    releaseNotes = await appCtx.updater.fetchReleaseNotes(toVersion)
-  }
-
-  return {
-    fromVersion,
-    toVersion: pending?.toVersion ?? toVersion,
-    releaseNotes,
-  }
 }
 
 export function registerIpc(

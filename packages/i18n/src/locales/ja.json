@@ -24,6 +24,7 @@
   "header.updatePromptConfirm": "更新しますか？インスタンスや設定などのデータは消えません。完了後にアプリが再起動します。",
   "update.completeTitle": "Fledgeをアップデートしました",
   "update.completeVersion": "Ver.{{from}} → Ver.{{to}}",
+  "update.completeVersionTo": "Ver.{{to}} にアップデートしました",
   "update.completeChanges": "このバージョンの変更点",
   "update.completeChangesEmpty": "このリリースには変更点の説明がありません。",
   "update.completeAcknowledge": "OK",

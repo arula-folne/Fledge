@@ -65,7 +65,9 @@ export function UpdateCompleteDialog() {
     >
       <div className="space-y-3 text-sm leading-relaxed text-[var(--color-text)]">
         <p className="text-center text-sm font-medium">
-          {t('update.completeVersion', { from: notice.fromVersion, to: notice.toVersion })}
+          {notice.fromVersion
+            ? t('update.completeVersion', { from: notice.fromVersion, to: notice.toVersion })
+            : t('update.completeVersionTo', { to: notice.toVersion })}
         </p>
         <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
           <p className="mb-1.5 text-xs font-semibold tracking-wide text-[var(--color-text-muted)]">

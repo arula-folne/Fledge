@@ -24,8 +24,10 @@ export function UpdateAvailableBanner() {
   const stableQuery = useQuery({
     queryKey: ['updater', 'check', 'stable'],
     queryFn: () => fledgeApi.updater.check('stable'),
-    staleTime: 1000 * 60 * 30,
+    // 起動のたびに取り直し。up-to-date キャッシュで新リリースを見逃さない
+    staleTime: 60 * 1000,
     refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
   })
 
   const applyMutation = useMutation({

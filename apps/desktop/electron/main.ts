@@ -3,13 +3,14 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { createLauncherApp, GithubReleaseUpdater, Logger, NoopUpdater, resolvePathLayout, type LauncherApp } from '@fledge/core'
-import { IPC_EVENTS, APP_VERSION, type LaunchStateEvent, type NewsItem, type Settings } from '@fledge/shared'
+import { IPC_EVENTS, type LaunchStateEvent, type NewsItem, type Settings } from '@fledge/shared'
 import { MicrosoftAuthProvider } from './auth/MicrosoftAuthProvider'
 import { DiscordPresence } from './discord/DiscordPresence'
 import { defaultEnvCandidatePaths, loadFledgeEnvFiles } from './env/loadEnv'
 import { registerIpc } from './ipc/registerIpc'
 import { TokenVault } from './security/tokenVault'
-import { applyLightStartEnv, isLightStart, isUpdatedStart } from './startup/lightStart'
+import { applyLightStartEnv, isLightStart } from './startup/lightStart'
+import { preparePostUpdateSettings } from './startup/updateStartup'
 import { attachWindowSizeSync, createMainWindow, resolveFledgeRoot } from './windows/MainWindow'
 import { takeRootRecoveryNotice } from './paths/customRoot'
 
@@ -265,12 +266,9 @@ async function bootstrap(): Promise<void> {
         : new NoopUpdater(),
   })
 
-  const settings = await launcherApp.settings.get()
+  const settings = await preparePostUpdateSettings(launcherApp)
   cachedClientId = settings.msaClientId
   const lightStart = isLightStart()
-  if (!isUpdatedStart() && !settings.updateAckPending && settings.lastAppVersion !== APP_VERSION) {
-    void launcherApp.settings.set({ lastAppVersion: APP_VERSION })
-  }
   if (lightStart) {
     // インストール直後は Discord 接続を後回しにしてウィンドウ表示を優先
     setTimeout(() => {
