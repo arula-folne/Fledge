@@ -1,4 +1,4 @@
-**Fledge Ver.0.2.2** を公開しました。
+**Fledge Ver.0.2.3b** を公開しました。
 
 ## 主な変更
 
@@ -10,4 +10,4 @@
 - サイドバーメニューの文字・アイコンサイズを調整
 - **アップデート時にインスタンス等のデータが消えない**よう NSIS / パス解決を修正
 
-> 不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。
+> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。
