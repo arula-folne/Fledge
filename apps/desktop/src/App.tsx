@@ -5,6 +5,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { AppShell } from './components/layout/AppShell'
 import { CrystalClickEffect } from './components/effects/CrystalClickEffect'
 import { PrivacyNoticeDialog } from './components/PrivacyNoticeDialog'
+import { UpdateCompleteDialog } from './components/UpdateCompleteDialog'
+import { InstallOnboardingHost } from './features/onboarding/InstallOnboardingHost'
 import { RouteErrorBoundary } from './components/RouteErrorBoundary'
 import { WindowChrome } from './components/layout/WindowChrome'
 import { fledgeApi } from './api/fledgeApi'
@@ -114,6 +116,8 @@ export default function App() {
       <EventBridge />
       <DisableNonInputDrag />
       <CrystalClickEffect />
+      <InstallOnboardingHost />
+      <UpdateCompleteDialog />
       <PrivacyNoticeDialog />
       <WindowChrome>
         <RouteErrorBoundary

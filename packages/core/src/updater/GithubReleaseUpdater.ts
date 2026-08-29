@@ -194,6 +194,31 @@ export class GithubReleaseUpdater implements Updater {
     }
   }
 
+  async fetchReleaseNotes(version: string): Promise<string | undefined> {
+    const tag = version.startsWith('v') ? version : `v${version}`
+    const url = `https://api.github.com/repos/${UPDATER.owner}/${UPDATER.repo}/releases/tags/${encodeURIComponent(tag)}`
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), UPDATER.fetchTimeoutMs)
+
+    try {
+      const res = await fetch(url, {
+        signal: controller.signal,
+        redirect: 'follow',
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'User-Agent': fledgeUserAgent('updater-notes'),
+        },
+      })
+      if (!res.ok) return undefined
+      const release = (await res.json()) as GithubRelease
+      return normalizeNotes(release.body)
+    } catch {
+      return undefined
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
   private syncPending(channel: UpdateChannel, result: UpdateCheckResult): void {
     if (result.status === 'available' && result.downloadUrl) {
       const fileName = path.basename(new URL(result.downloadUrl).pathname)

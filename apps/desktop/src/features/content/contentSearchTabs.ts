@@ -24,3 +24,7 @@ export function defaultInstanceBrowseTab(): ContentSearchTab {
 export function defaultBrowsePageTab(): ContentSearchTab {
   return 'modpack'
 }
+
+export function contentTabsAsCategories(tabs: ContentSearchTab[]): ContentCategory[] {
+  return tabs.filter((tab): tab is ContentCategory => !isFavoritesTab(tab))
+}

@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { INSTALL_TUTORIAL_STEPS } from '../features/onboarding/installOnboardingSteps'
 import type {
   AuthStatus,
   LaunchPhase,
@@ -385,4 +386,57 @@ export const useInstanceCreateStore = create<InstanceCreateStore>((set, get) => 
     }),
   setLastError: (lastError) => set({ lastError }),
   isCreating: (id) => Boolean(get().creatingIds[id]),
+}))
+
+type InstallOnboardingStore = {
+  manualOpen: boolean
+  openManual: () => void
+  closeManual: () => void
+  interactiveActive: boolean
+  interactiveStepIndex: number
+  interactivePersistOnComplete: boolean
+  startInteractive: (opts?: { persistOnComplete?: boolean }) => void
+  stopInteractive: () => void
+  nextInteractiveStep: () => void
+  prevInteractiveStep: () => void
+  openManualInteractive: () => void
+}
+
+export const useInstallOnboardingStore = create<InstallOnboardingStore>((set, get) => ({
+  manualOpen: false,
+  openManual: () => set({ manualOpen: true }),
+  closeManual: () => set({ manualOpen: false }),
+  interactiveActive: false,
+  interactiveStepIndex: 0,
+  interactivePersistOnComplete: false,
+  startInteractive: (opts) =>
+    set({
+      interactiveActive: true,
+      interactiveStepIndex: 0,
+      interactivePersistOnComplete: opts?.persistOnComplete ?? false,
+      manualOpen: false,
+    }),
+  stopInteractive: () =>
+    set({
+      interactiveActive: false,
+      interactiveStepIndex: 0,
+      interactivePersistOnComplete: false,
+    }),
+  nextInteractiveStep: () => {
+    const { interactiveStepIndex } = get()
+    if (interactiveStepIndex >= INSTALL_TUTORIAL_STEPS.length - 1) return
+    set({ interactiveStepIndex: interactiveStepIndex + 1 })
+  },
+  prevInteractiveStep: () => {
+    const { interactiveStepIndex } = get()
+    if (interactiveStepIndex <= 0) return
+    set({ interactiveStepIndex: interactiveStepIndex - 1 })
+  },
+  openManualInteractive: () =>
+    set({
+      interactiveActive: true,
+      interactiveStepIndex: 0,
+      interactivePersistOnComplete: false,
+      manualOpen: false,
+    }),
 }))

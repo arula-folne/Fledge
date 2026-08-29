@@ -23,15 +23,15 @@ import appIcon from '../../assets/app-icon.png'
 
 const SIDEBAR_COLLAPSED_KEY = 'fledge.sidebarCollapsed'
 
-const navIcon = { size: 20, stroke: 1.7 } as const
+const navIcon = { size: 23, stroke: 1.75 } as const
 
 const navClass = (collapsed: boolean) =>
   ({ isActive }: { isActive: boolean }) =>
     [
-      'flex items-center text-sm transition-colors',
+      'flex items-center text-[16px] leading-tight transition-colors',
       collapsed
-        ? 'size-9 justify-center rounded-[var(--radius-sm)]'
-        : 'gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5',
+        ? 'size-10 justify-center rounded-[var(--radius-sm)]'
+        : 'gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2',
       isActive
         ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
         : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
@@ -82,10 +82,11 @@ export function AppShell() {
         style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
       >
         <aside
+          data-fledge-tutorial="tutorial-sidebar"
           className={[
             'season-shell-panel flex shrink-0 flex-col border-r border-[var(--color-border)] py-2',
             seasonId ? '' : 'bg-[var(--color-surface)]/90',
-            collapsed ? 'w-12 items-center px-1.5' : 'w-40 px-2',
+            collapsed ? 'w-14 items-center px-1.5' : 'w-44 px-2',
           ].join(' ')}
         >
           <div
@@ -95,8 +96,8 @@ export function AppShell() {
               <img
                 src={appIcon}
                 alt=""
-                width={22}
-                height={22}
+                width={24}
+                height={24}
                 className="mt-1 mb-1 shrink-0 rounded-[22%]"
                 draggable={false}
               />
@@ -107,11 +108,11 @@ export function AppShell() {
               aria-label={collapsed ? t('nav.expand') : t('nav.collapse')}
               onClick={() => setCollapsed((v) => !v)}
             >
-              <IconMenu2 size={18} stroke={1.75} />
+              <IconMenu2 size={20} stroke={1.75} />
             </button>
-            {collapsed ? null : <TextLogo compact showIcon={false} />}
+            {collapsed ? null : <TextLogo sidebar showIcon={false} />}
           </div>
-          <nav className={['flex flex-col', collapsed ? 'items-center gap-1' : 'gap-0.5'].join(' ')}>
+          <nav className={['flex flex-col', collapsed ? 'items-center gap-1.5' : 'gap-1'].join(' ')}>
             <NavLink to="/" end className={itemClass} aria-label={t('nav.home')}>
               <IconHome {...navIcon} aria-hidden />
               {collapsed ? null : t('nav.home')}

@@ -244,16 +244,18 @@ export function ContentTab({ instance }: Props) {
             <li
               key={item.id}
               className={[
-                'flex items-center gap-3 px-3 py-2',
+                'flex cursor-pointer items-stretch transition-colors hover:bg-[var(--color-hover)]/60',
                 index % 2 === 1 ? 'bg-[var(--color-zebra)]' : 'bg-[var(--color-surface)]',
               ].join(' ')}
+              onClick={() => openInstalledProject(item)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  openInstalledProject(item)
+                }
+              }}
             >
-              <button
-                type="button"
-                className="flex min-w-0 flex-1 items-center gap-3 text-left transition-colors hover:bg-[var(--color-hover)]/60 -mx-1 rounded-[var(--radius-sm)] px-1 py-0.5"
-                aria-label={t('content.openDetail', { name: item.name })}
-                onClick={() => openInstalledProject(item)}
-              >
+              <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2">
                 {item.iconUrl ? (
                   <img
                     src={item.iconUrl}
@@ -287,31 +289,41 @@ export function ContentTab({ instance }: Props) {
                     {!item.enabled ? ` · ${t('content.disabled')}` : ''}
                   </div>
                 </div>
-              </button>
-              {item.updateAvailable ? (
-                <Button
-                  variant="secondary"
-                  className="px-2.5 py-1 text-xs"
-                  disabled={installingProjectIds.has(item.projectId)}
-                  onClick={() => updateMutation.mutate(item)}
+              </div>
+              <div className="flex shrink-0 items-center gap-1 py-2 pr-2">
+                {item.updateAvailable ? (
+                  <Button
+                    variant="secondary"
+                    className="px-2.5 py-1 text-xs"
+                    disabled={installingProjectIds.has(item.projectId)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      updateMutation.mutate(item)
+                    }}
+                  >
+                    {t('content.update')}
+                  </Button>
+                ) : null}
+                <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                  <Switch
+                    checked={item.enabled}
+                    disabled={toggleMutation.isPending && toggleMutation.variables?.id === item.id}
+                    aria-label={item.enabled ? t('content.disable') : t('content.enable')}
+                    onChange={(enabled) => toggleMutation.mutate({ id: item.id, enabled })}
+                  />
+                </div>
+                <button
+                  type="button"
+                  className="inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/10"
+                  aria-label={t('content.remove')}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setRemoveTarget(item)
+                  }}
                 >
-                  {t('content.update')}
-                </Button>
-              ) : null}
-              <Switch
-                checked={item.enabled}
-                disabled={toggleMutation.isPending && toggleMutation.variables?.id === item.id}
-                aria-label={item.enabled ? t('content.disable') : t('content.enable')}
-                onChange={(enabled) => toggleMutation.mutate({ id: item.id, enabled })}
-              />
-              <button
-                type="button"
-                className="inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/10"
-                aria-label={t('content.remove')}
-                onClick={() => setRemoveTarget(item)}
-              >
-                <IconTrash size={24} stroke={1.25} aria-hidden />
-              </button>
+                  <IconTrash size={24} stroke={1.25} aria-hidden />
+                </button>
+              </div>
             </li>
           ))}
         </ul>

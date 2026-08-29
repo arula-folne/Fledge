@@ -18,10 +18,11 @@ import {
   type MrpackExportOptions,
   type Settings,
   type SkinModel,
+  type UpdateNotice,
 } from '@fledge/shared'
 import { snapshotMinecraftDebugOverlay, snapshotMinecraftInitialOptions, factoryReset, fetchActiveMinecraftSkin, hashSkinPng, type LauncherApp } from '@fledge/core'
 import { applyWindowUiScale } from '../windows/MainWindow'
-import { isLightStart } from '../startup/lightStart'
+import { isLightStart, isPostInstallStart, isUpdatedStart } from '../startup/lightStart'
 import {
   resolvePackagedInstallRoot,
   scheduleCompleteUninstall,
@@ -60,6 +61,28 @@ function applyLauncherWindowSize(win: BrowserWindow | null, settings: Settings):
 
 function toRendererSettings(settings: Settings): Settings {
   return settings
+}
+
+async function resolveUpdateNotice(appCtx: LauncherApp): Promise<UpdateNotice | null> {
+  if (!isUpdatedStart()) return null
+
+  const settings = await appCtx.settings.get()
+  const toVersion = APP_VERSION
+  const pending = settings.updateAckPending
+
+  const fromVersion = pending?.fromVersion ?? settings.lastAppVersion
+  if (!fromVersion) return null
+
+  let releaseNotes = pending?.releaseNotes
+  if (!releaseNotes?.trim()) {
+    releaseNotes = await appCtx.updater.fetchReleaseNotes(toVersion)
+  }
+
+  return {
+    fromVersion,
+    toVersion: pending?.toVersion ?? toVersion,
+    releaseNotes,
+  }
 }
 
 export function registerIpc(
@@ -453,8 +476,20 @@ export function registerIpc(
 
     const resolved =
       channel === 'prerelease' || channel === 'stable' ? channel : ('stable' as const)
+    const check = await appCtx.updater.check(resolved)
     const installerPath = await appCtx.updater.downloadInstaller(resolved)
     const installDir = path.dirname(app.getPath('exe'))
+
+    if (check.status === 'available' && check.nextVersion) {
+      await appCtx.settings.set({
+        lastAppVersion: APP_VERSION,
+        updateAckPending: {
+          fromVersion: APP_VERSION,
+          toVersion: check.nextVersion,
+          releaseNotes: check.releaseNotes,
+        },
+      })
+    }
 
     // インストールツリー内だと上書き中に消えるため、OS 一時領域へ退避する
     const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fledge-update-'))
@@ -608,6 +643,12 @@ export function registerIpc(
       scaleFactor: display.scaleFactor,
     }
   })
+
+  ipcMain.handle(IPC.appStartupInfo, async () => ({
+    isUpdatedStart: isUpdatedStart(),
+    isPostInstallStart: isPostInstallStart(),
+    updateNotice: await resolveUpdateNotice(appCtx),
+  }))
 
   ipcMain.handle(IPC.backupRun, async () => {
     const entry = await appCtx.backup.snapshot()

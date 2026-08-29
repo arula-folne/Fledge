@@ -12,7 +12,7 @@ const PROJECT_TYPE: Record<ContentCategory, string> = {
   plugin: 'plugin',
 }
 
-export function useModrinthTagIcons(category: ContentCategory) {
+export function useModrinthTagIcons(category: ContentCategory | 'all') {
   const query = useQuery({
     queryKey: ['modrinth-category-tags'],
     queryFn: () => fledgeApi.content.listCategoryTags(),
@@ -21,9 +21,9 @@ export function useModrinthTagIcons(category: ContentCategory) {
 
   const iconByTag = useMemo(() => {
     const map = new Map<string, string>()
-    const projectType = PROJECT_TYPE[category]
+    const projectType = category === 'all' ? null : PROJECT_TYPE[category]
     for (const tag of query.data ?? []) {
-      if (tag.projectType === projectType && tag.icon) {
+      if (tag.icon && (!projectType || tag.projectType === projectType)) {
         map.set(tag.name, tag.icon)
       }
     }

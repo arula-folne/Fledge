@@ -28,6 +28,7 @@ import {
   type WindowSizePreset,
 } from '@fledge/shared'
 import { fledgeApi } from '../api/fledgeApi'
+import { useInstallOnboardingStore, useUiStore } from '../stores/appStores'
 import { Button } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
@@ -49,7 +50,6 @@ import { startLogin } from '../features/auth/loginAction'
 import { McFaceAvatar } from '../features/auth/McFaceAvatar'
 import { mcFaceUrl } from '../features/auth/mcFace'
 import { cropSkinFaceDataUrl } from '../features/auth/skinFace'
-import { useUiStore } from '../stores/appStores'
 import { applyTheme, defaultThemeColorsForMode, type ThemeColorPair } from '../styles/theme'
 
 export default function SettingsPage() {
@@ -616,6 +616,7 @@ export default function SettingsPage() {
       {section === 'appTheme' ? (
         <>
           <Section title={t('settings.block.standardTheme')}>
+            <div data-fledge-tutorial="tutorial-settings-theme">
             <ThemeModePicker
               value={settings.themeFamily === 'standard' ? settings.themeMode : null}
               labels={{
@@ -653,6 +654,7 @@ export default function SettingsPage() {
                 onChange={handleThemeColorChange}
               />
             ) : null}
+            </div>
           </Section>
           <Section title={t('settings.block.seasonTheme')}>
             {settings.themeFamily === 'season' && settings.seasonThemeId ? (
@@ -798,6 +800,22 @@ export default function SettingsPage() {
               onSave={(partial) => saveMutation.mutate(partial)}
               onMessage={setMessage}
             />
+          </Section>
+          <Section title={t('settings.block.tutorial')}>
+            <div>
+              <h3 className="text-sm font-medium text-[var(--color-text)]">
+                {t('settings.installTutorial')}
+              </h3>
+              <p className="mt-1 mb-2 text-xs text-[var(--color-text-muted)]">
+                {t('settings.installTutorialHint')}
+              </p>
+              <Button
+                variant="secondary"
+                onClick={() => useInstallOnboardingStore.getState().openManual()}
+              >
+                {t('settings.startInstallTutorial')}
+              </Button>
+            </div>
           </Section>
           <Section title={t('settings.block.maintenance')}>
             <div>

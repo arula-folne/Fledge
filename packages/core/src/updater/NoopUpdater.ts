@@ -13,4 +13,8 @@ export class NoopUpdater implements Updater {
   async clearCache(): Promise<void> {
     /* noop */
   }
+
+  async fetchReleaseNotes(_version: string): Promise<string | undefined> {
+    return undefined
+  }
 }

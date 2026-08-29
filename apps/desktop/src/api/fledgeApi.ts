@@ -3,6 +3,7 @@ import type {
   AuthStatus,
   AuthStatusEvent,
   AppDirectoryInfo,
+  AppStartupInfo,
   BackupEntry,
   ContentCategory,
   ContentCategoryTag,
@@ -165,6 +166,7 @@ export type FledgeApi = {
     uninstall: () => Promise<void>
     relaunch: () => Promise<void>
     deviceSpecs: () => Promise<DeviceSpecs>
+    getStartupInfo: () => Promise<AppStartupInfo>
   }
   backup: {
     run: () => Promise<string>

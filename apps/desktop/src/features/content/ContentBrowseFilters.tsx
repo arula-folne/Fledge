@@ -19,8 +19,6 @@ type Props = {
   onLoaders: (next: ContentLoaderFilter[]) => void
   onTags: (next: string[]) => void
   onReset: () => void
-  /** お気に入りタブなど、ローダー・カテゴリ絞り込みを隠す */
-  hideSecondaryFilters?: boolean
 }
 
 function toggleValue<T>(list: T[], value: T): T[] {
@@ -83,13 +81,10 @@ export function ContentBrowseFilters({
   onLoaders,
   onTags,
   onReset,
-  hideSecondaryFilters = false,
 }: Props) {
   const { t, i18n } = useTranslation()
   const [versionQuery, setVersionQuery] = useState('')
-  const showLoaders =
-    !hideSecondaryFilters &&
-    (category === 'mod' || category === 'plugin' || category === 'modpack')
+  const showLoaders = category === 'mod' || category === 'plugin' || category === 'modpack'
   const availableTags = useMemo(() => filterTagsForCategory(category), [category])
   const iconByTag = useModrinthTagIcons(category)
   const filteredVersions = useMemo(() => {
@@ -186,8 +181,7 @@ export function ContentBrowseFilters({
         </FilterBlock>
       ) : null}
 
-      {!hideSecondaryFilters ? (
-        <FilterBlock title={t('content.filter.category')} flexible>
+      <FilterBlock title={t('content.filter.category')} flexible>
           {availableTags.map((tag) => {
             const checked = tags.includes(tag)
             return (
@@ -204,7 +198,6 @@ export function ContentBrowseFilters({
             )
           })}
         </FilterBlock>
-      ) : null}
     </aside>
   )
 }

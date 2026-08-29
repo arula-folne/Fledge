@@ -34,7 +34,9 @@ export function PrivacyNoticeDialog() {
   })
 
   const open =
-    settingsQuery.isSuccess && settingsQuery.data.privacyNoticeAcknowledged !== true
+    settingsQuery.isSuccess &&
+    settingsQuery.data.installOnboardingCompleted === true &&
+    settingsQuery.data.privacyNoticeAcknowledged !== true
 
   return (
     <Dialog

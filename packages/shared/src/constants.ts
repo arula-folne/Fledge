@@ -103,6 +103,7 @@ export const IPC = {
   appUninstall: 'app:uninstall',
   appRelaunch: 'app:relaunch',
   appDeviceSpecs: 'app:device-specs',
+  appStartupInfo: 'app:startup-info',
   backupRun: 'backup:run',
   backupList: 'backup:list',
   backupRestore: 'backup:restore',

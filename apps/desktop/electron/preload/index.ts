@@ -7,6 +7,7 @@ import {
   type AuthStatus,
   type AuthStatusEvent,
   type AppDirectoryInfo,
+  type AppStartupInfo,
   type ContentCategory,
   type ContentCategoryTag,
   type ContentCreateInstanceRequest,
@@ -168,6 +169,7 @@ export type FledgeApi = {
     uninstall: () => Promise<void>
     relaunch: () => Promise<void>
     deviceSpecs: () => Promise<DeviceSpecs>
+    getStartupInfo: () => Promise<AppStartupInfo>
   }
   backup: {
     run: () => Promise<string>
@@ -303,6 +305,7 @@ const api: FledgeApi = {
     uninstall: () => ipcRenderer.invoke(IPC.appUninstall),
     relaunch: () => ipcRenderer.invoke(IPC.appRelaunch),
     deviceSpecs: () => ipcRenderer.invoke(IPC.appDeviceSpecs),
+    getStartupInfo: () => ipcRenderer.invoke(IPC.appStartupInfo),
   },
   backup: {
     run: () => ipcRenderer.invoke(IPC.backupRun),

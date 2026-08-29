@@ -135,7 +135,10 @@ export function HomeLibrarySection({ instances }: Props) {
   }
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+    <section
+      data-fledge-tutorial="tutorial-home-library"
+      className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden"
+    >
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-medium text-[var(--color-text-muted)]">{t('library.title')}</h2>
         <div className="flex flex-wrap items-center gap-2">
@@ -156,7 +159,11 @@ export function HomeLibrarySection({ instances }: Props) {
               </select>
             </label>
           ) : null}
-          <Button variant="secondary" onClick={() => setWizardOpen(true)}>
+          <Button
+            data-fledge-tutorial="tutorial-home-create"
+            variant="secondary"
+            onClick={() => setWizardOpen(true)}
+          >
             <IconPlus size={16} stroke={1.75} />
             {t('library.create')}
           </Button>

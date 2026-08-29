@@ -254,6 +254,65 @@ textarea {
   margin: 0.55em 0;
 }
 
+/* アップデート完了ダイアログ: 色分けせず本文色で統一 */
+.content-md.changelog-plain {
+  font-size: 0.8125rem;
+  line-height: 1.65;
+  color: var(--color-text);
+}
+.content-md.changelog-plain h1,
+.content-md.changelog-plain h2,
+.content-md.changelog-plain h3,
+.content-md.changelog-plain h4 {
+  margin: 0.65em 0 0.3em;
+  font-size: inherit;
+  font-weight: 600;
+  color: var(--color-text);
+  letter-spacing: normal;
+}
+.content-md.changelog-plain h1:first-child,
+.content-md.changelog-plain h2:first-child,
+.content-md.changelog-plain h3:first-child,
+.content-md.changelog-plain h4:first-child {
+  margin-top: 0;
+}
+.content-md.changelog-plain strong,
+.content-md.changelog-plain em {
+  color: inherit;
+  font-weight: 600;
+}
+.content-md.changelog-plain a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.content-md.changelog-plain ul {
+  margin: 0.2em 0 0;
+  padding-left: 1.15em;
+  list-style: disc;
+}
+.content-md.changelog-plain li {
+  margin: 0.4em 0;
+  color: var(--color-text);
+}
+.content-md.changelog-plain blockquote {
+  margin: 0.65em 0 0;
+  padding: 0.45em 0 0.45em 0.7em;
+  border-left: 2px solid var(--color-border);
+  border-radius: 0;
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 0.95em;
+}
+.content-md.changelog-plain p {
+  margin: 0.35em 0;
+  color: var(--color-text);
+}
+.content-md.changelog-plain code {
+  background: var(--color-hover);
+  color: var(--color-text);
+}
+
 /* folne web 同款: クリック時のクリスタルエフェクト */
 .crystal-click-canvas {
   position: fixed;

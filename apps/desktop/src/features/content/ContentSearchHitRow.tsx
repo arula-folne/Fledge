@@ -18,6 +18,10 @@ type Props = {
   index?: number
   favorited?: boolean
   onToggleFavorite?: () => void
+  /** 対象ゲームバージョンに非対応 */
+  incompatible?: boolean
+  /** 互換判定のデバッグ行（お気に入り確認用） */
+  compatDebug?: string | null
 }
 
 /**
@@ -34,6 +38,8 @@ export function ContentSearchHitRow({
   index = 0,
   favorited = false,
   onToggleFavorite,
+  incompatible = false,
+  compatDebug = null,
 }: Props) {
   const { t } = useTranslation()
   const zebra = index % 2 === 1
@@ -43,6 +49,7 @@ export function ContentSearchHitRow({
         className={[
           'flex h-[5.75rem] items-center gap-4 overflow-hidden px-4 py-3',
           zebra ? 'bg-[var(--color-zebra)]' : 'bg-[var(--color-surface)]',
+          incompatible ? 'opacity-55' : '',
         ].join(' ')}
       >
         <button
@@ -58,7 +65,10 @@ export function ContentSearchHitRow({
               height={48}
               loading="lazy"
               decoding="async"
-              className="size-12 shrink-0 rounded-[var(--radius-sm)] object-cover"
+              className={[
+                'size-12 shrink-0 rounded-[var(--radius-sm)] object-cover',
+                incompatible ? 'grayscale' : '',
+              ].join(' ')}
             />
           ) : (
             <div className="size-12 shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)]" />
@@ -71,19 +81,32 @@ export function ContentSearchHitRow({
                   {hit.author}
                 </span>
               ) : null}
+              {incompatible ? (
+                <span className="shrink-0 rounded-full bg-[var(--color-text-muted)]/15 px-2 py-0.5 text-[11px] font-semibold leading-none text-[var(--color-text-muted)]">
+                  {t('content.favorite.incompatible')}
+                </span>
+              ) : null}
               <span className="ml-auto shrink-0 text-sm tabular-nums leading-snug text-[var(--color-text-muted)]">
                 {formatJaCount(hit.downloads)}
               </span>
             </div>
             <p className="truncate text-sm leading-5 text-[var(--color-text-muted)]">
-              {hit.description?.trim() || '\u00a0'}
+              {incompatible
+                ? t('content.favorite.incompatible')
+                : hit.description?.trim() || '\u00a0'}
             </p>
             <div className="min-h-5 overflow-hidden leading-5">
-              <ProjectTagRow
-                categories={hit.displayCategories ?? []}
-                loaders={hit.loaders ?? []}
-                tagIcons={tagIcons}
-              />
+              {compatDebug ? (
+                <p className="truncate font-mono text-[11px] leading-5 text-[var(--color-text-muted)]">
+                  {compatDebug}
+                </p>
+              ) : (
+                <ProjectTagRow
+                  categories={hit.displayCategories ?? []}
+                  loaders={hit.loaders ?? []}
+                  tagIcons={tagIcons}
+                />
+              )}
             </div>
           </div>
         </button>
@@ -115,6 +138,7 @@ export function ContentSearchHitRow({
             mode={mode}
             installing={installing}
             installed={installed}
+            disabled={incompatible}
             onInstall={onInstall}
           />
         </div>

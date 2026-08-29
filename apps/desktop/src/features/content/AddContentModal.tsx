@@ -7,7 +7,6 @@ import {
   type ContentLoaderFilter,
   type ContentProject,
   type ContentSearchQuery,
-  type ContentSearchSort,
   type InstanceProfile,
   loaderToContentFilters,
 } from '@fledge/shared'
@@ -16,12 +15,28 @@ import { Dialog } from '../../components/ui/Dialog'
 import { PageNav } from '../../components/ui/PageNav'
 import { useTransferStore } from '../../stores/appStores'
 import { ContentBrowseFilters } from './ContentBrowseFilters'
-import { listFavoriteProjects } from './contentFavoritesList'
+import {
+  countFavoriteCategories,
+  favoriteFilterTabs,
+  filterFavoriteProjects,
+  formatGameVersionList,
+  listFavoriteProjects,
+  projectSupportsGameVersion,
+  CONTENT_SEARCH_SORTS,
+  FAVORITE_SORTS,
+  isFavoriteNameSort,
+  toContentSearchSort,
+  type FavoriteCategoryFilter,
+  type FavoriteSort,
+} from './contentFavoritesList'
 import { ContentSearchCategoryTabs } from './ContentSearchCategoryTabs'
+import { ContentSearchHitList } from './ContentSearchHitList'
 import { ContentSearchHitRow } from './ContentSearchHitRow'
+import { FavoriteCategoryFilters } from './FavoriteCategoryFilters'
 import {
   defaultInstanceBrowseTab,
   instanceBrowseSearchTabs,
+  contentTabsAsCategories,
   isFavoritesTab,
   type ContentSearchTab,
 } from './contentSearchTabs'
@@ -35,7 +50,7 @@ const ContentProjectView = lazy(() =>
 
 const PAGE_SIZES = [10, 20, 30, 40, 50] as const
 const DEFAULT_PAGE_SIZE: (typeof PAGE_SIZES)[number] = 20
-const SORTS: ContentSearchSort[] = ['relevance', 'downloads', 'follows', 'newest', 'updated']
+const SORTS = CONTENT_SEARCH_SORTS
 
 const selectClass =
   'rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-2 py-1 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]'
@@ -46,7 +61,7 @@ function buildContentSearchInput(input: {
   gameVersion: string
   loaders: ContentLoaderFilter[]
   tags: string[]
-  sort: ContentSearchSort
+  sort: FavoriteSort
   page: number
   pageSize: number
 }): ContentSearchQuery {
@@ -58,7 +73,7 @@ function buildContentSearchInput(input: {
     tags: input.tags,
     environments: [],
     provider: 'modrinth',
-    sort: input.sort,
+    sort: toContentSearchSort(input.sort),
     offset: (input.page - 1) * input.pageSize,
     limit: input.pageSize,
   }
@@ -110,18 +125,20 @@ export function AddContentModal({
   const wasBrowseOpenRef = useRef(false)
   const prevInstanceIdRef = useRef(instance.id)
   const [searchTab, setSearchTab] = useState<ContentSearchTab>(defaultInstanceBrowseTab())
+  const [favoriteCategory, setFavoriteCategory] = useState<FavoriteCategoryFilter>('all')
   const [query, setQuery] = useState('')
   const [gameVersion, setGameVersion] = useState(instance.minecraftVersion)
   const [loaders, setLoaders] = useState<ContentLoaderFilter[]>(() =>
     loaderToContentFilters(instance.loader),
   )
   const [tags, setTags] = useState<string[]>([])
-  const [sort, setSort] = useState<ContentSearchSort>('relevance')
+  const [sort, setSort] = useState<FavoriteSort>('relevance')
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(DEFAULT_PAGE_SIZE)
   const [page, setPage] = useState(1)
   const listScrollRef = useRef<HTMLDivElement>(null)
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [bulkInstalling, setBulkInstalling] = useState(false)
   const jobs = useTransferStore((s) => s.jobs)
   const { mark, unmark, reset, showsInstalled, pendingVersionId, pendingProjectIds } =
     useOptimisticContentInstalls()
@@ -140,9 +157,10 @@ export function AddContentModal({
     return ids
   }, [jobs, instance.id])
   const { favorites, isFavorite, toggleFavorite } = useContentFavorites()
-  const tagCategory = isFavoritesTab(searchTab) ? 'mod' : searchTab
+  const favoriteScope: FavoriteCategoryFilter = isFavoritesTab(searchTab) ? favoriteCategory : searchTab
+  const tagCategory = favoriteScope === 'all' ? 'all' : favoriteScope
   const tagIcons = useModrinthTagIcons(tagCategory)
-  const filterCategory = isFavoritesTab(searchTab) ? 'mod' : searchTab
+  const filterCategory = tagCategory === 'all' ? 'mod' : tagCategory
 
   const versionsQuery = useQuery({
     queryKey: ['versions-minecraft', false],
@@ -158,6 +176,8 @@ export function AddContentModal({
     }
     if (open && browseMode && !wasBrowseOpenRef.current) {
       setSearchTab(defaultInstanceBrowseTab())
+      setFavoriteCategory('all')
+      setBulkInstalling(false)
       setGameVersion(instance.minecraftVersion)
       setLoaders(loaderToContentFilters(instance.loader))
       setTags([])
@@ -183,7 +203,7 @@ export function AddContentModal({
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedQuery, searchTab, gameVersion, loaders, tags, sort, pageSize])
+  }, [debouncedQuery, searchTab, favoriteCategory, gameVersion, loaders, tags, sort, pageSize])
 
   useEffect(() => {
     listScrollRef.current?.scrollTo({ top: 0 })
@@ -191,7 +211,13 @@ export function AddContentModal({
 
   useEffect(() => {
     setTags([])
-  }, [searchTab])
+  }, [searchTab, favoriteCategory])
+
+  useEffect(() => {
+    if (!isFavoritesTab(searchTab) && isFavoriteNameSort(sort)) {
+      setSort('relevance')
+    }
+  }, [searchTab, sort])
 
   const prefetchCategorySearch = useCallback(
     (cat: ContentCategory, searchTags: string[] = []) => {
@@ -371,13 +397,105 @@ export function AddContentModal({
     () =>
       listFavoriteProjects(favorites, {
         query: debouncedQuery,
-        gameVersion,
         sort,
         page,
         pageSize,
+        category: favoriteCategory,
+        loaders,
+        tags,
       }),
-    [favorites, debouncedQuery, gameVersion, sort, page, pageSize],
+    [favorites, debouncedQuery, sort, page, pageSize, favoriteCategory, loaders, tags],
   )
+  const favoritePool = useMemo(
+    () =>
+      filterFavoriteProjects(favorites, {
+        query: debouncedQuery,
+        sort,
+        category: 'all',
+      }),
+    [favorites, debouncedQuery, sort],
+  )
+  const favoriteCategoryCounts = useMemo(() => countFavoriteCategories(favoritePool), [favoritePool])
+  const favoriteCategoryTabs = useMemo(
+    () =>
+      favoriteFilterTabs(
+        contentTabsAsCategories(instanceBrowseSearchTabs()),
+        favoritePool.map((p) => p.projectType),
+      ),
+    [favoritePool],
+  )
+
+  useEffect(() => {
+    if (!isFavoritesTab(searchTab)) return
+    if (favoriteCategory !== 'all' && !favoriteCategoryTabs.includes(favoriteCategory)) {
+      setFavoriteCategory('all')
+    }
+  }, [searchTab, favoriteCategory, favoriteCategoryTabs])
+
+  const instanceGameVersion = instance.minecraftVersion
+  const pendingFavoriteInstalls = useMemo(() => {
+    if (!isFavoritesTab(searchTab)) return []
+    return favoriteResults.hits.filter(
+      (project) =>
+        project.projectType !== 'modpack' &&
+        !resolveInstalled(project.id) &&
+        projectSupportsGameVersion(project, instanceGameVersion),
+    )
+  }, [searchTab, favoriteResults.hits, resolveInstalled, instanceGameVersion])
+
+  const favoriteCompatSummary = useMemo(() => {
+    let ok = 0
+    let ng = 0
+    for (const project of favoriteResults.all) {
+      if (projectSupportsGameVersion(project, instanceGameVersion)) ok += 1
+      else ng += 1
+    }
+    return { ok, ng }
+  }, [favoriteResults.all, instanceGameVersion])
+
+  const requestInstallFavorites = useCallback(async () => {
+    if (pendingFavoriteInstalls.length === 0 || bulkInstalling) return
+    setError(null)
+    setBulkInstalling(true)
+    const targets = [...pendingFavoriteInstalls]
+    for (const project of targets) {
+      mark(project.id)
+    }
+    let failed = 0
+    for (const project of targets) {
+      try {
+        await fledgeApi.content.install({
+          instanceId: instance.id,
+          provider: 'modrinth',
+          projectId: project.id,
+          category: project.projectType,
+          gameVersion: gameVersion.trim() || undefined,
+          loaders:
+            project.projectType === 'mod' || project.projectType === 'plugin' ? loaders : [],
+        })
+      } catch {
+        unmark(project.id)
+        failed += 1
+      }
+    }
+    await refreshInstalled()
+    onInstalled()
+    setBulkInstalling(false)
+    if (failed > 0) {
+      setError(t('content.favoritesInstallAllError', { n: failed }))
+    }
+  }, [
+    pendingFavoriteInstalls,
+    bulkInstalling,
+    mark,
+    unmark,
+    instance.id,
+    gameVersion,
+    loaders,
+    refreshInstalled,
+    onInstalled,
+    t,
+  ])
 
   const hits = isFavoritesTab(searchTab) ? favoriteResults.hits : (searchQuery.data?.hits ?? [])
   const selectedFromHits = useMemo(() => {
@@ -450,7 +568,6 @@ export function AddContentModal({
             loaders={loaders}
             tags={tags}
             versionOptions={versionOptions}
-            hideSecondaryFilters={isFavoritesTab(searchTab)}
             onGameVersion={setGameVersion}
             onLoaders={setLoaders}
             onTags={setTags}
@@ -473,6 +590,20 @@ export function AddContentModal({
                 void prefetchCategorySearch(tab, tab === searchTab ? tags : [])
               }}
             />
+            {isFavoritesTab(searchTab) ? (
+              <FavoriteCategoryFilters
+                categories={favoriteCategoryTabs}
+                counts={favoriteCategoryCounts}
+                active={favoriteCategory}
+                onChange={setFavoriteCategory}
+                bulkInstall={{
+                  pendingCount: pendingFavoriteInstalls.length,
+                  installing: bulkInstalling,
+                  disabled: installMutation.isPending,
+                  onInstall: () => void requestInstallFavorites(),
+                }}
+              />
+            ) : null}
 
             <div className="flex shrink-0 flex-wrap items-center gap-2">
               <div className="relative min-w-[14rem] flex-1">
@@ -499,10 +630,10 @@ export function AddContentModal({
                 {t('content.sort.label')}
                 <select
                   value={sort}
-                  onChange={(e) => setSort(e.target.value as ContentSearchSort)}
+                  onChange={(e) => setSort(e.target.value as FavoriteSort)}
                   className={selectClass}
                 >
-                  {SORTS.map((s) => (
+                  {(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => (
                     <option key={s} value={s}>
                       {t(`content.sort.${s}`)}
                     </option>
@@ -551,6 +682,16 @@ export function AddContentModal({
               </div>
             ) : null}
 
+            {isFavoritesTab(searchTab) ? (
+              <p className="rounded-[var(--radius-sm)] border border-dashed border-[var(--color-border)] bg-[var(--color-bg)]/60 px-2.5 py-1.5 font-mono text-[11px] leading-snug text-[var(--color-text-muted)]">
+                {t('content.favorite.compatDebugBanner', {
+                  version: instanceGameVersion,
+                  ok: favoriteCompatSummary.ok,
+                  ng: favoriteCompatSummary.ng,
+                })}
+              </p>
+            ) : null}
+
             <div
               ref={listScrollRef}
               className={[
@@ -562,11 +703,19 @@ export function AddContentModal({
                 <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
               ) : searchQuery.isError && hits.length === 0 ? null : hits.length === 0 ? (
                 <p className="text-sm text-[var(--color-text-muted)]">
-                  {isFavoritesTab(searchTab) ? t('content.favoritesEmpty') : t('content.noResults')}
+                  {isFavoritesTab(searchTab)
+                    ? favoritePool.length === 0
+                      ? t('content.favoritesEmpty')
+                      : t('content.favoritesEmptyCategory')
+                    : t('content.noResults')}
                 </p>
               ) : (
-                <ul className="divide-y divide-[var(--color-border)] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
-                  {hits.map((hit, index) => (
+                <ContentSearchHitList
+                  hits={hits}
+                  groupByCategory={isFavoritesTab(searchTab) && favoriteCategory === 'all'}
+                  renderRow={(hit, index) => {
+                    const compatible = projectSupportsGameVersion(hit, instanceGameVersion)
+                    return (
                     <ContentSearchHitRow
                       key={`${hit.provider}:${hit.id}`}
                       hit={hit}
@@ -574,14 +723,25 @@ export function AddContentModal({
                       tagIcons={tagIcons}
                       installed={resolveInstalled(hit.id)}
                       favorited={isFavorite(hit.id)}
+                      incompatible={!compatible}
+                      compatDebug={t('content.favorite.compatDebug', {
+                        status: compatible
+                          ? hit.gameVersions.length === 0
+                            ? t('content.favorite.compatUnknown')
+                            : t('content.favorite.compatOk')
+                          : t('content.favorite.compatNg'),
+                        version: instanceGameVersion,
+                        versions: formatGameVersionList(hit.gameVersions),
+                      })}
                       onToggleFavorite={() => toggleFavorite(hit)}
                       onOpen={() => onSelectProject(hit)}
                       onInstall={() =>
                         requestInstall({ id: hit.id, category: hit.projectType })
                       }
                     />
-                  ))}
-                </ul>
+                    )
+                  }}
+                />
               )}
             </div>
 

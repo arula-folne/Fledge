@@ -8,17 +8,32 @@ import {
   type ContentLoaderFilter,
   type ContentProject,
   type ContentSearchQuery,
-  type ContentSearchSort,
 } from '@fledge/shared'
 import { fledgeApi } from '../api/fledgeApi'
 import { PageNav } from '../components/ui/PageNav'
 import { ListPickDialog } from '../components/ui/ListPickDialog'
 import { ContentBrowseFilters } from '../features/content/ContentBrowseFilters'
-import { listFavoriteProjects } from '../features/content/contentFavoritesList'
+import {
+  countFavoriteCategories,
+  favoriteFilterTabs,
+  filterFavoriteProjects,
+  formatGameVersionList,
+  listFavoriteProjects,
+  projectSupportsGameVersion,
+  CONTENT_SEARCH_SORTS,
+  FAVORITE_SORTS,
+  isFavoriteNameSort,
+  toContentSearchSort,
+  type FavoriteCategoryFilter,
+  type FavoriteSort,
+} from '../features/content/contentFavoritesList'
 import { ContentSearchCategoryTabs } from '../features/content/ContentSearchCategoryTabs'
+import { ContentSearchHitList } from '../features/content/ContentSearchHitList'
 import { ContentSearchHitRow } from '../features/content/ContentSearchHitRow'
+import { FavoriteCategoryFilters } from '../features/content/FavoriteCategoryFilters'
 import {
   browsePageSearchTabs,
+  contentTabsAsCategories,
   defaultBrowsePageTab,
   isFavoritesTab,
   type ContentSearchTab,
@@ -33,7 +48,7 @@ const ContentProjectView = lazy(() =>
 
 const PAGE_SIZES = [10, 20, 30, 40, 50] as const
 const DEFAULT_PAGE_SIZE: (typeof PAGE_SIZES)[number] = 20
-const SORTS: ContentSearchSort[] = ['relevance', 'downloads', 'follows', 'newest', 'updated']
+const SORTS = CONTENT_SEARCH_SORTS
 
 const selectClass =
   'rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-2 py-1 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]'
@@ -48,7 +63,7 @@ function buildSearchInput(input: {
   gameVersion: string
   loaders: ContentLoaderFilter[]
   tags: string[]
-  sort: ContentSearchSort
+  sort: FavoriteSort
   page: number
   pageSize: number
 }): ContentSearchQuery {
@@ -60,7 +75,7 @@ function buildSearchInput(input: {
     tags: input.tags,
     environments: [],
     provider: 'modrinth',
-    sort: input.sort,
+    sort: toContentSearchSort(input.sort),
     offset: (input.page - 1) * input.pageSize,
     limit: input.pageSize,
   }
@@ -71,11 +86,12 @@ export default function BrowsePage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchTab, setSearchTab] = useState<ContentSearchTab>(defaultBrowsePageTab())
+  const [favoriteCategory, setFavoriteCategory] = useState<FavoriteCategoryFilter>('all')
   const [query, setQuery] = useState('')
   const [gameVersion, setGameVersion] = useState('')
   const [loaders, setLoaders] = useState<ContentLoaderFilter[]>(['fabric', 'neoforge', 'forge', 'quilt'])
   const [tags, setTags] = useState<string[]>([])
-  const [sort, setSort] = useState<ContentSearchSort>('downloads')
+  const [sort, setSort] = useState<FavoriteSort>('downloads')
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(DEFAULT_PAGE_SIZE)
   const [page, setPage] = useState(1)
   const listScrollRef = useRef<HTMLDivElement>(null)
@@ -86,9 +102,10 @@ export default function BrowsePage() {
   const attemptedVersionTarget = useRef<ContentProject | null>(null)
 
   const { favorites, isFavorite, toggleFavorite } = useContentFavorites()
-  const tagCategory = isFavoritesTab(searchTab) ? 'mod' : searchTab
+  const favoriteScope: FavoriteCategoryFilter = isFavoritesTab(searchTab) ? favoriteCategory : searchTab
+  const tagCategory = favoriteScope === 'all' ? 'all' : favoriteScope
   const tagIcons = useModrinthTagIcons(tagCategory)
-  const filterCategory = isFavoritesTab(searchTab) ? 'mod' : searchTab
+  const filterCategory = tagCategory === 'all' ? 'mod' : tagCategory
 
   const versionsQuery = useQuery({
     queryKey: ['versions-minecraft', false],
@@ -103,7 +120,7 @@ export default function BrowsePage() {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedQuery, searchTab, gameVersion, loaders, tags, sort, pageSize])
+  }, [debouncedQuery, searchTab, favoriteCategory, gameVersion, loaders, tags, sort, pageSize])
 
   useEffect(() => {
     listScrollRef.current?.scrollTo({ top: 0 })
@@ -118,7 +135,13 @@ export default function BrowsePage() {
 
   useEffect(() => {
     setTags([])
-  }, [searchTab])
+  }, [searchTab, favoriteCategory])
+
+  useEffect(() => {
+    if (!isFavoritesTab(searchTab) && isFavoriteNameSort(sort)) {
+      setSort('downloads')
+    }
+  }, [searchTab, sort])
 
   const versionOptions = useMemo(
     () => (versionsQuery.data?.versions ?? []).map((v) => v.id),
@@ -267,13 +290,36 @@ export default function BrowsePage() {
     () =>
       listFavoriteProjects(favorites, {
         query: debouncedQuery,
-        gameVersion,
         sort,
         page,
         pageSize,
+        category: favoriteCategory,
+        loaders,
+        tags,
       }),
-    [favorites, debouncedQuery, gameVersion, sort, page, pageSize],
+    [favorites, debouncedQuery, sort, page, pageSize, favoriteCategory, loaders, tags],
   )
+  const favoritePool = useMemo(
+    () =>
+      filterFavoriteProjects(favorites, {
+        query: debouncedQuery,
+        sort,
+        category: 'all',
+      }),
+    [favorites, debouncedQuery, sort],
+  )
+  const favoriteCategoryCounts = useMemo(() => countFavoriteCategories(favoritePool), [favoritePool])
+  const favoriteCategoryTabs = useMemo(
+    () => favoriteFilterTabs(contentTabsAsCategories(browsePageSearchTabs()), favoritePool.map((p) => p.projectType)),
+    [favoritePool],
+  )
+
+  useEffect(() => {
+    if (!isFavoritesTab(searchTab)) return
+    if (favoriteCategory !== 'all' && !favoriteCategoryTabs.includes(favoriteCategory)) {
+      setFavoriteCategory('all')
+    }
+  }, [searchTab, favoriteCategory, favoriteCategoryTabs])
 
   const hits = isFavoritesTab(searchTab) ? favoriteResults.hits : (searchQuery.data?.hits ?? [])
   const total = isFavoritesTab(searchTab) ? favoriteResults.total : (searchQuery.data?.total ?? 0)
@@ -283,6 +329,15 @@ export default function BrowsePage() {
   const typeLabel = isFavoritesTab(searchTab)
     ? t('content.category.favorites')
     : t(`content.category.${searchTab}`)
+  const favoriteCompatSummary = useMemo(() => {
+    let ok = 0
+    let ng = 0
+    for (const project of favoriteResults.all) {
+      if (projectSupportsGameVersion(project, gameVersion)) ok += 1
+      else ng += 1
+    }
+    return { ok, ng }
+  }, [favoriteResults.all, gameVersion])
 
   const searchErrorMessage = (() => {
     if (!searchQuery.isError) return null
@@ -342,7 +397,6 @@ export default function BrowsePage() {
           loaders={loaders}
           tags={tags}
           versionOptions={versionOptions}
-          hideSecondaryFilters={isFavoritesTab(searchTab)}
           onGameVersion={setGameVersion}
           onLoaders={setLoaders}
           onTags={setTags}
@@ -353,14 +407,24 @@ export default function BrowsePage() {
           }}
         />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
-          <ContentSearchCategoryTabs
-            tabs={browsePageSearchTabs()}
-            active={searchTab}
-            onChange={(next) => {
-              setTags([])
-              setSearchTab(next)
-            }}
-          />
+          <div data-fledge-tutorial="tutorial-browse-tabs">
+            <ContentSearchCategoryTabs
+              tabs={browsePageSearchTabs()}
+              active={searchTab}
+              onChange={(next) => {
+                setTags([])
+                setSearchTab(next)
+              }}
+            />
+          </div>
+          {isFavoritesTab(searchTab) ? (
+            <FavoriteCategoryFilters
+              categories={favoriteCategoryTabs}
+              counts={favoriteCategoryCounts}
+              active={favoriteCategory}
+              onChange={setFavoriteCategory}
+            />
+          ) : null}
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
             <div className="relative min-w-[14rem] flex-1">
@@ -387,10 +451,10 @@ export default function BrowsePage() {
               {t('content.sort.label')}
               <select
                 value={sort}
-                onChange={(e) => setSort(e.target.value as ContentSearchSort)}
+                onChange={(e) => setSort(e.target.value as FavoriteSort)}
                 className={selectClass}
               >
-                {SORTS.map((s) => (
+                {(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => (
                   <option key={s} value={s}>
                     {t(`content.sort.${s}`)}
                   </option>
@@ -439,6 +503,18 @@ export default function BrowsePage() {
             </div>
           ) : null}
 
+          {isFavoritesTab(searchTab) ? (
+            <p className="rounded-[var(--radius-sm)] border border-dashed border-[var(--color-border)] bg-[var(--color-bg)]/60 px-2.5 py-1.5 font-mono text-[11px] leading-snug text-[var(--color-text-muted)]">
+              {gameVersion.trim()
+                ? t('content.favorite.compatDebugBanner', {
+                    version: gameVersion,
+                    ok: favoriteCompatSummary.ok,
+                    ng: favoriteCompatSummary.ng,
+                  })
+                : t('content.favorite.compatDebugNoTarget')}
+            </p>
+          ) : null}
+
           <div
             ref={listScrollRef}
             className={[
@@ -450,11 +526,19 @@ export default function BrowsePage() {
               <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
             ) : searchQuery.isError && hits.length === 0 ? null : hits.length === 0 ? (
               <p className="text-sm text-[var(--color-text-muted)]">
-                {isFavoritesTab(searchTab) ? t('content.favoritesEmpty') : t('content.noResults')}
+                {isFavoritesTab(searchTab)
+                  ? favoritePool.length === 0
+                    ? t('content.favoritesEmpty')
+                    : t('content.favoritesEmptyCategory')
+                  : t('content.noResults')}
               </p>
             ) : (
-              <ul className="divide-y divide-[var(--color-border)] overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
-                {hits.map((hit, index) => (
+              <ContentSearchHitList
+                hits={hits}
+                groupByCategory={isFavoritesTab(searchTab) && favoriteCategory === 'all'}
+                renderRow={(hit, index) => {
+                  const compatible = projectSupportsGameVersion(hit, gameVersion)
+                  return (
                   <ContentSearchHitRow
                     key={`${hit.provider}:${hit.id}`}
                     hit={hit}
@@ -466,6 +550,20 @@ export default function BrowsePage() {
                     }
                     installed={false}
                     favorited={isFavorite(hit.id)}
+                    incompatible={isFavoritesTab(searchTab) && !compatible}
+                    compatDebug={
+                      isFavoritesTab(searchTab)
+                        ? t('content.favorite.compatDebug', {
+                            status: compatible
+                              ? hit.gameVersions.length === 0
+                                ? t('content.favorite.compatUnknown')
+                                : t('content.favorite.compatOk')
+                              : t('content.favorite.compatNg'),
+                            version: gameVersion.trim() || '—',
+                            versions: formatGameVersionList(hit.gameVersions),
+                          })
+                        : null
+                    }
                     onToggleFavorite={() => toggleFavorite(hit)}
                     onOpen={() => {
                       setError(null)
@@ -473,8 +571,9 @@ export default function BrowsePage() {
                     }}
                     onInstall={() => requestCreateWithVersion(hit)}
                   />
-                ))}
-              </ul>
+                  )
+                }}
+              />
             )}
           </div>
 

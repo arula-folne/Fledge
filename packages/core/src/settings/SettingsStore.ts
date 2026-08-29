@@ -89,6 +89,10 @@ export class SettingsStore {
         parsed.themeAccentColor = { r: 91, g: 164, b: 217 }
         hadLegacyWindowSize = true
       }
+      // 既存ユーザーの settings.json にはインストールチュートリアル未実施扱いにしない
+      if (parsed.installOnboardingCompleted === undefined) {
+        parsed.installOnboardingCompleted = true
+      }
       this.cache = SettingsSchema.parse({ ...DEFAULT_SETTINGS, ...parsed })
       if (hadLegacySecret || hadLegacyConcurrency || hadLegacyWindowSize) await this.save(this.cache)
     } catch (err) {

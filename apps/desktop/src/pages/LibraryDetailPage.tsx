@@ -492,7 +492,7 @@ export default function LibraryDetailPage() {
           )
         : null}
 
-      <nav className="flex shrink-0 flex-wrap gap-0.5">
+      <nav className="flex shrink-0 flex-wrap gap-0.5" data-fledge-tutorial="tutorial-content-tabs">
         {tabs.map((item) => (
           <TabButton
             key={item.id}

@@ -10,6 +10,14 @@ export function isLightStart(): boolean {
   )
 }
 
+export function isUpdatedStart(): boolean {
+  return process.argv.includes('--updated')
+}
+
+export function isPostInstallStart(): boolean {
+  return process.argv.includes('--fledge-post-install')
+}
+
 export function applyLightStartEnv(): void {
   if (isLightStart()) {
     process.env.FLEDGE_LIGHT_START = '1'

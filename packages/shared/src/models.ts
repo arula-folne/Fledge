@@ -27,6 +27,21 @@ export type AuthStatusEvent = {
   account?: AccountView | null
 }
 
+export const UpdateNoticeSchema = z.object({
+  fromVersion: z.string(),
+  toVersion: z.string(),
+  releaseNotes: z.string().optional(),
+})
+export type UpdateNotice = z.infer<typeof UpdateNoticeSchema>
+
+export const AppStartupInfoSchema = z.object({
+  isUpdatedStart: z.boolean(),
+  isPostInstallStart: z.boolean(),
+  updateNotice: UpdateNoticeSchema.nullable().optional(),
+})
+
+export type AppStartupInfo = z.infer<typeof AppStartupInfoSchema>
+
 export const LoaderSchema = z.enum(['vanilla', 'fabric', 'forge', 'neoforge', 'quilt'])
 export type Loader = z.infer<typeof LoaderSchema>
 
@@ -337,6 +352,14 @@ export const SettingsSchemaBase = z.object({
   discordRichPresence: z.boolean().default(false),
   /** 初回プライバシー注意の確認済み */
   privacyNoticeAcknowledged: z.boolean().default(false),
+  /** インストール後チュートリアル（利用規約・操作案内）完了 */
+  installOnboardingCompleted: z.boolean().default(false),
+  /** アプリ内で利用規約に同意済み */
+  termsAcceptedInApp: z.boolean().default(false),
+  /** 最後に起動したアプリ版（更新通知の比較用） */
+  lastAppVersion: z.string().optional(),
+  /** 更新適用直後ダイアログ用（表示後 null） */
+  updateAckPending: UpdateNoticeSchema.nullable().default(null),
 
   // Java（管理対象メジャーのメモ。実際の導入は Java 設定画面から）
   javaPreferredMajors: z
