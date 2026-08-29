@@ -134,6 +134,8 @@ export const IPC = {
   contentRemove: 'content:remove',
   contentCheckUpdates: 'content:check-updates',
   contentListMedia: 'content:list-media',
+  contentDeleteMedia: 'content:delete-media',
+  contentCopyScreenshot: 'content:copy-screenshot',
   contentReadLog: 'content:read-log',
   contentProviders: 'content:providers',
   contentListCategoryTags: 'content:list-category-tags',

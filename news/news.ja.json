@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.2.5b",
+    "title": "【バージョンアップ】Fledge Ver.0.2.5b",
+    "body": "**Fledge Ver.0.2.5b** を公開しました。\n\n## 主な変更\n\n- インスタンス詳細の **スクリーンショット** をギャラリー表示に刷新（Mod ギャラリーと同様のグリッド／拡大表示）\n- スクリーンショットの右クリックから **クリップボードへコピー**／**削除** ができるように\n- Ver.0.2.4b までの更新チェック改善・アップデート後ダイアログ・チュートリアル修正を含む\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-29T15:30:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.2.5b"
+  },
+  {
     "id": "v0.2.4b",
     "title": "【バージョンアップ】Fledge Ver.0.2.4b",
     "body": "**Fledge Ver.0.2.4b** を公開しました。\n\n## 主な変更\n\n- **更新チェック**を改善（「最新」キャッシュで新リリースを見逃さないよう修正）\n- **アップデート後の自動起動**で変更点ダイアログを確実に表示\n- 更新後に誤って **インストールチュートリアル**が出ないよう修正\n- 初回インストールチュートリアル、お気に入り UI 改善など Ver.0.2.3b までの変更を含む\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

@@ -1325,9 +1325,14 @@ export class ContentService {
     kind: 'screenshots' | 'logs',
   ): Promise<ContentMediaItem[]> {
     const dir = path.join(this.instances.instanceDir(instanceId), kind)
+    const imageExt = /\.(png|jpe?g|webp|gif)$/i
     try {
       const entries = await fs.readdir(dir, { withFileTypes: true })
-      const files = entries.filter((e) => e.isFile())
+      const files = entries.filter((e) => {
+        if (!e.isFile()) return false
+        if (kind === 'screenshots') return imageExt.test(e.name)
+        return true
+      })
       const items = await Promise.all(
         files.map(async (e) => {
           const full = path.join(dir, e.name)
@@ -1344,6 +1349,37 @@ export class ContentService {
     } catch {
       return []
     }
+  }
+
+  /** screenshots/ 内の画像パスを安全に解決する */
+  resolveScreenshotPath(instanceId: string, fileName: string): string {
+    const base = path.basename(fileName)
+    if (!base || base !== fileName.replaceAll('\\', '/').split('/').pop()) {
+      throw new Error('Invalid screenshot file name')
+    }
+    if (base.includes('\0') || base === '.' || base === '..') {
+      throw new Error('Invalid screenshot file name')
+    }
+    if (!/\.(png|jpe?g|webp|gif)$/i.test(base)) {
+      throw new Error('Invalid screenshot file name')
+    }
+    const dir = path.resolve(this.instances.instanceDir(instanceId), 'screenshots')
+    const full = path.resolve(dir, base)
+    const rel = path.relative(dir, full)
+    if (rel.startsWith('..') || path.isAbsolute(rel)) {
+      throw new Error('Invalid screenshot file name')
+    }
+    return full
+  }
+
+  async deleteMedia(
+    instanceId: string,
+    kind: 'screenshots',
+    fileName: string,
+  ): Promise<void> {
+    if (kind !== 'screenshots') throw new Error('Unsupported media kind')
+    const full = this.resolveScreenshotPath(instanceId, fileName)
+    await fs.unlink(full)
   }
 
   /** インスタンス logs/ 配下のテキストを読む（.gz は展開。大きなファイルは末尾のみ） */

@@ -91,6 +91,8 @@ export type FledgeApi = {
       instanceId: string,
       kind: 'screenshots' | 'logs',
     ) => Promise<ContentMediaItem[]>
+    deleteMedia: (instanceId: string, kind: 'screenshots', fileName: string) => Promise<void>
+    copyScreenshot: (instanceId: string, fileName: string) => Promise<void>
     readLog: (
       instanceId: string,
       fileName: string,

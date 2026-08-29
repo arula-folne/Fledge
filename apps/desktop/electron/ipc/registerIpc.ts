@@ -1,4 +1,4 @@
-import { app, dialog, ipcMain, screen, shell } from 'electron'
+import { app, clipboard, dialog, ipcMain, nativeImage, screen, shell } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
@@ -289,6 +289,27 @@ export function registerIpc(
     IPC.contentListMedia,
     async (_e, instanceId: string, kind: 'screenshots' | 'logs') =>
       appCtx.content.listMedia(instanceId, kind),
+  )
+  ipcMain.handle(
+    IPC.contentDeleteMedia,
+    async (_e, instanceId: unknown, kind: unknown, fileName: unknown) => {
+      if (typeof instanceId !== 'string' || !instanceId) throw new Error('Invalid instance id')
+      if (kind !== 'screenshots') throw new Error('Unsupported media kind')
+      if (typeof fileName !== 'string' || !fileName) throw new Error('Invalid file name')
+      await appCtx.content.deleteMedia(instanceId, 'screenshots', fileName)
+      touchBackup()
+    },
+  )
+  ipcMain.handle(
+    IPC.contentCopyScreenshot,
+    async (_e, instanceId: unknown, fileName: unknown) => {
+      if (typeof instanceId !== 'string' || !instanceId) throw new Error('Invalid instance id')
+      if (typeof fileName !== 'string' || !fileName) throw new Error('Invalid file name')
+      const full = appCtx.content.resolveScreenshotPath(instanceId, fileName)
+      const image = nativeImage.createFromPath(full)
+      if (image.isEmpty()) throw new Error('library.screenshotCopyFailed')
+      clipboard.writeImage(image)
+    },
   )
   ipcMain.handle(IPC.contentReadLog, async (_e, instanceId: unknown, fileName: unknown) => {
     if (typeof instanceId !== 'string' || !instanceId) throw new Error('Invalid instance id')

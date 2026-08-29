@@ -32,6 +32,7 @@ import {
 } from '../features/instances/instanceIconPresets'
 import { InstanceLaunchButton, InstanceLaunchProgress } from '../features/instances/InstanceLaunchButton'
 import { InstanceLogConsole } from '../features/instances/InstanceLogConsole'
+import { ScreenshotsTab } from '../features/instances/ScreenshotsTab'
 import { ExportMrpackDialog } from '../features/content/ExportMrpackDialog'
 import { formatLastPlayed, formatLoaderLabel } from '../features/instances/instanceMeta'
 import { parseLibraryTab, writeLibraryTab } from '../navigation/libraryDetailSearch'
@@ -133,12 +134,6 @@ export default function LibraryDetailPage() {
     queryKey: ['instances', instanceId],
     queryFn: () => fledgeApi.instances.get(instanceId),
     enabled: Boolean(instanceId),
-  })
-
-  const screenshotsQuery = useQuery({
-    queryKey: ['content-media', instanceId, 'screenshots'],
-    queryFn: () => fledgeApi.content.listMedia(instanceId, 'screenshots'),
-    enabled: Boolean(instanceId) && tab === 'screenshots',
   })
 
   const logsQuery = useQuery({
@@ -506,7 +501,7 @@ export default function LibraryDetailPage() {
       <div
         className={[
           'min-h-0 flex-1',
-          tab === 'content' ? 'overflow-hidden' : 'overflow-auto',
+          tab === 'content' || tab === 'screenshots' ? 'overflow-hidden' : 'overflow-auto',
         ].join(' ')}
       >
       {tab === 'content' ? (
@@ -527,28 +522,8 @@ export default function LibraryDetailPage() {
       ) : null}
 
       {tab === 'screenshots' ? (
-        <div className="space-y-3">
-          <div className="flex justify-end">
-            <Button variant="secondary" onClick={() => openSub('screenshots')}>
-              <IconFolderOpen size={16} stroke={1.75} />
-              {t('instances.openScreenshots')}
-            </Button>
-          </div>
-          {(screenshotsQuery.data ?? []).length === 0 ? (
-            <p className="text-sm text-[var(--color-text-muted)]">{t('library.screenshotsEmpty')}</p>
-          ) : (
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {(screenshotsQuery.data ?? []).map((file) => (
-                <li
-                  key={file.path}
-                  className="rounded-[var(--radius-md)] border border-[var(--color-border)] px-3 py-2 text-sm"
-                >
-                  <div className="truncate font-medium">{file.name}</div>
-                  <div className="text-xs text-[var(--color-text-muted)]">{file.mtime}</div>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div className="h-full min-h-0">
+          <ScreenshotsTab instanceId={instance.id} />
         </div>
       ) : null}
 

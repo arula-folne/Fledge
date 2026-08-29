@@ -174,6 +174,16 @@ protocol.registerSchemesAsPrivileged([
       stream: true,
     },
   },
+  {
+    scheme: 'fledge-screenshot',
+    privileges: {
+      standard: true,
+      secure: true,
+      supportFetchAPI: true,
+      corsEnabled: true,
+      stream: true,
+    },
+  },
 ])
 
 async function syncPresenceFromLaunchState(e: LaunchStateEvent): Promise<void> {
@@ -345,6 +355,39 @@ app.whenReady().then(() => {
     }
     const file = path.join(resolveBundledSkinsDir(), name)
     return net.fetch(pathToFileURL(file).href)
+  })
+  protocol.handle('fledge-screenshot', (request) => {
+    try {
+      const url = new URL(request.url)
+      const parts = url.pathname.split('/').filter(Boolean)
+      // fledge-screenshot://local/{instanceId}/{fileName}
+      if (parts.length < 2) {
+        return new Response('Not found', { status: 404 })
+      }
+      const instanceId = decodeURIComponent(parts[0]!)
+      const fileName = decodeURIComponent(parts.slice(1).join('/'))
+      if (!/^[a-zA-Z0-9._-]+$/.test(instanceId)) {
+        return new Response('Not found', { status: 404 })
+      }
+      const base = path.basename(fileName)
+      if (!base || base !== fileName || base.includes('..')) {
+        return new Response('Not found', { status: 404 })
+      }
+      if (!/\.(png|jpe?g|webp|gif)$/i.test(base)) {
+        return new Response('Not found', { status: 404 })
+      }
+      const screenshotsDir = launcherApp
+        ? path.resolve(launcherApp.instances.instanceDir(instanceId), 'screenshots')
+        : path.resolve(resolveFledgeRoot(), 'Instances', instanceId, 'screenshots')
+      const full = path.resolve(screenshotsDir, base)
+      const rel = path.relative(screenshotsDir, full)
+      if (rel.startsWith('..') || path.isAbsolute(rel)) {
+        return new Response('Not found', { status: 404 })
+      }
+      return net.fetch(pathToFileURL(full).href)
+    } catch {
+      return new Response('Not found', { status: 404 })
+    }
   })
   Menu.setApplicationMenu(null)
   void bootstrap().catch((err) => {

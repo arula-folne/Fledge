@@ -17,7 +17,7 @@
  * 4. RELEASE_NOTES.md に GitHub Release 用の更新内容を書く（リリースページ本文）
  * 5. main へマージ後、`v{APP_VERSION}` タグを push（例: v0.1.9a）
  */
-export const APP_VERSION = '0.2.4b' as const
+export const APP_VERSION = '0.2.5b' as const
 
 /** UI 表示用（`Ver.X.X.X[a|b]`） */
 export const APP_VERSION_LABEL = `Ver.${APP_VERSION}` as const
