@@ -1,6 +1,7 @@
 import { app, clipboard, dialog, ipcMain, nativeImage, screen, shell } from 'electron'
 import type { BrowserWindow } from 'electron'
 import { spawnInstallerAfterAppExit } from '../updater/spawnDeferredInstaller.js'
+import { stageUpdateInstaller } from '../updater/staging.js'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
@@ -491,10 +492,8 @@ export function registerIpc(
       })
     }
 
-    // インストールツリー内だと上書き中に消えるため、OS 一時領域へ退避する
-    const stagingDir = await fs.mkdtemp(path.join(os.tmpdir(), 'fledge-update-'))
-    const stagedInstaller = path.join(stagingDir, path.basename(installerPath))
-    await fs.copyFile(installerPath, stagedInstaller)
+    // インストールツリー外かつ %LOCALAPPDATA%\fledge\updater へ退避（NSIS 上書きで消えない）
+    const stagedInstaller = await stageUpdateInstaller(installerPath)
     await appCtx.updater.clearCache()
 
     // 自プロセス終了後に NSIS を走らせる（実行中だと Data/Instances の退避 Rename が失敗し得る）

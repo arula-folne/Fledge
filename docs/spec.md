@@ -114,6 +114,7 @@ Main (Electron)
   custom-root.json
 
 %LOCALAPPDATA%\fledge\   sessionData（ブラウザキャッシュ。消えても再生成）
+  updater/               アプリ内更新用インストーラー退避（%TEMP% に散らさない）
 ```
 
 `packages/core/src/app/paths.ts` の `resolvePathLayout(configRoot, settingsRoot)` がこの配置を組み立てます。  

@@ -13,6 +13,7 @@ import { applyLightStartEnv, isLightStart } from './startup/lightStart'
 import { preparePostUpdateSettings } from './startup/updateStartup'
 import { attachWindowSizeSync, createMainWindow, resolveFledgeRoot } from './windows/MainWindow'
 import { configureAppDataPaths } from './paths/configureAppDataPaths'
+import { cleanupLegacyTempUpdateDirs } from './updater/staging'
 import { getSettingsRoot, resolveSettingsFileCandidates } from './paths/customRoot'
 import { takeRootRecoveryNotice } from './paths/customRoot'
 
@@ -354,6 +355,7 @@ async function bootstrap(): Promise<void> {
 }
 
 app.whenReady().then(() => {
+  void cleanupLegacyTempUpdateDirs()
   protocol.handle('fledge-skin', (request) => {
     const name = path.basename(new URL(request.url).pathname)
     if (!DEFAULT_SKIN_FILE.test(name)) {

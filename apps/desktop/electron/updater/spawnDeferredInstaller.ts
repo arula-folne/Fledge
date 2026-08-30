@@ -12,8 +12,10 @@ export async function spawnInstallerAfterAppExit(
   installerPath: string,
   installDir: string,
 ): Promise<void> {
-  const scriptPath = path.join(path.dirname(installerPath), 'fledge-run-installer.cmd')
+  const scriptPath = path.join(path.dirname(installerPath), 'run-installer.cmd')
   const quotedInstaller = `"${installerPath.replace(/"/g, '""')}"`
+  // /D= は末尾バックスラッシュがあると NSIS が壊れることがある
+  const installDirArg = installDir.replace(/[\\/]+$/, '')
   const content = [
     '@echo off',
     'setlocal EnableExtensions',
@@ -23,7 +25,7 @@ export async function spawnInstallerAfterAppExit(
     '  timeout /t 1 /nobreak >nul',
     '  goto wait',
     ')',
-    `${quotedInstaller} --updated /S --force-run /D=${installDir}`,
+    `${quotedInstaller} --updated /S --force-run /D=${installDirArg}`,
     '(del "%~f0") >nul 2>&1',
     '',
   ].join('\r\n')
@@ -35,6 +37,7 @@ export async function spawnInstallerAfterAppExit(
       detached: true,
       stdio: 'ignore',
       windowsHide: true,
+      cwd: path.dirname(installerPath),
     })
     child.once('error', reject)
     child.once('spawn', () => {
