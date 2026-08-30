@@ -140,9 +140,9 @@
   IfFileExists "${src}" 0 ${skipLabel}
     Rename "${src}" "${dest}"
     IfErrors 0 ${skipLabel}_done
-    IfFileExists "${dest}" 0 fledge_preserve_rename_failed
+    IfFileExists "${dest}" 0 ${skipLabel}_fail
     IfFileExists "${src}" 0 ${skipLabel}_done
-    fledge_preserve_rename_failed:
+    ${skipLabel}_fail:
       !insertmacro fledgeAbortUpdatePreserveFailed
     ${skipLabel}_done:
   ${skipLabel}:
@@ -152,9 +152,9 @@
   IfFileExists "${src}" 0 ${skipLabel}
     Rename "${src}" "${dest}"
     IfErrors 0 ${skipLabel}_done
-    IfFileExists "${dest}" 0 fledge_preserve_file_failed
+    IfFileExists "${dest}" 0 ${skipLabel}_fail
     IfFileExists "${src}" 0 ${skipLabel}_done
-    fledge_preserve_file_failed:
+    ${skipLabel}_fail:
       !insertmacro fledgeAbortUpdatePreserveFailed
     ${skipLabel}_done:
   ${skipLabel}:
