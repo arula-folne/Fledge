@@ -188,74 +188,47 @@
   ${endIf}
 !macroend
 
-; electron-builder 既定は更新時に INSTDIR 一式を一時退避してから丸ごと削除する。
-; exe 横のレガシー Data/Instances / data-root.json を退避→復元（Modrinth 型移行ユーザー向け）。
-; 退避に失敗したまま RMDir するとデータ消失になるため、失敗時は更新を中断する。
-!macro fledgeAbortUpdatePreserveFailed
-  ${ifNot} ${Silent}
-    MessageBox MB_OK|MB_ICONSTOP "${U+66F4}${U+65B0}${U+3092}${U+4E2D}${U+65AD}${U+3057}${U+307E}${U+3057}${U+305F}${U+3002}${U+30C7}${U+30FC}${U+30BF}${U+306E}${U+4FDD}${U+5B58}${U+306B}${U+5931}${U+6557}${U+3057}${U+307E}${U+3057}${U+305F}${U+3002} Fledge ${U+3092}${U+9589}${U+3058}${U+3066}${U+3082}${U+3046}${U+4E00}${U+5EA6}${U+304A}${U+8A66}${U+3057}${U+304F}${U+3060}${U+3055}${U+3044}${U+3002}"
-  ${endIf}
-  Abort
+; 旧 Uninstall（別ドライブへ data を Rename する版）が exit 2 でも更新を止めない。
+; 実ファイル差し替えは新しい側の customRemoveFiles が行う。
+!macro customUnInstallCheck
+  ClearErrors
+  StrCpy $R0 0
 !macroend
 
-!macro fledgePreserveDir src dest skipLabel
-  IfFileExists "${src}" 0 ${skipLabel}
-    Rename "${src}" "${dest}"
-    IfErrors 0 ${skipLabel}_done
-    IfFileExists "${dest}" 0 ${skipLabel}_fail
-    IfFileExists "${src}" 0 ${skipLabel}_done
-    ${skipLabel}_fail:
-      !insertmacro fledgeAbortUpdatePreserveFailed
-    ${skipLabel}_done:
-  ${skipLabel}:
+!macro customUnInstallCheckCurrentUser
+  !insertmacro customUnInstallCheck
 !macroend
 
-!macro fledgePreserveFile src dest skipLabel
-  IfFileExists "${src}" 0 ${skipLabel}
-    Rename "${src}" "${dest}"
-    IfErrors 0 ${skipLabel}_done
-    IfFileExists "${dest}" 0 ${skipLabel}_fail
-    IfFileExists "${src}" 0 ${skipLabel}_done
-    ${skipLabel}_fail:
-      !insertmacro fledgeAbortUpdatePreserveFailed
-    ${skipLabel}_done:
-  ${skipLabel}:
-!macroend
-
+; 更新時は INSTDIR 丸ごとを %TEMP%（別ドライブになり得る）へ Rename しない。
+; D: 安装 + C: TEMP だと Rename が失敗し Abort→「古いアプリケーション…: 2」になる。
+; 差し替え対象だけ消し、instances 等の data は同じ場所に残す。
 !macro customRemoveFiles
   ${if} ${isUpdated}
-    ; runtime を先に消すと、退避失敗時に起動不能になる。data ごと退避し、
-    ; 新 runtime は customInstall の fledgeRelocateRuntime が入れ替える。
-    !insertmacro fledgePreserveDir "$INSTDIR\Data" "$PLUGINSDIR\fledge-keep-Data" fledge_skip_keep_data
-    !insertmacro fledgePreserveDir "$INSTDIR\Instances" "$PLUGINSDIR\fledge-keep-Instances" fledge_skip_keep_instances
-    !insertmacro fledgePreserveDir "$INSTDIR\data" "$PLUGINSDIR\fledge-keep-data-new" fledge_skip_keep_data_new
-    !insertmacro fledgePreserveDir "$INSTDIR\instances" "$PLUGINSDIR\fledge-keep-instances-new" fledge_skip_keep_instances_new
-    !insertmacro fledgePreserveDir "$INSTDIR\profiles" "$PLUGINSDIR\fledge-keep-profiles" fledge_skip_keep_profiles
-    !insertmacro fledgePreserveDir "$INSTDIR\Instance" "$PLUGINSDIR\fledge-keep-Instance" fledge_skip_keep_Instance
-    !insertmacro fledgePreserveFile "$INSTDIR\data-root.json" "$PLUGINSDIR\fledge-keep-data-root.json" fledge_skip_keep_pointer
-    RMDir /r "$INSTDIR"
-    CreateDirectory "$INSTDIR"
-    IfFileExists "$PLUGINSDIR\fledge-keep-Data" 0 fledge_skip_restore_data
-      Rename "$PLUGINSDIR\fledge-keep-Data" "$INSTDIR\Data"
-    fledge_skip_restore_data:
-    IfFileExists "$PLUGINSDIR\fledge-keep-Instances" 0 fledge_skip_restore_instances
-      Rename "$PLUGINSDIR\fledge-keep-Instances" "$INSTDIR\Instances"
-    fledge_skip_restore_instances:
-    IfFileExists "$PLUGINSDIR\fledge-keep-data-new" 0 fledge_skip_restore_data_new
-      Rename "$PLUGINSDIR\fledge-keep-data-new" "$INSTDIR\data"
-    fledge_skip_restore_data_new:
-    IfFileExists "$PLUGINSDIR\fledge-keep-instances-new" 0 fledge_skip_restore_instances_new
-      Rename "$PLUGINSDIR\fledge-keep-instances-new" "$INSTDIR\instances"
-    fledge_skip_restore_instances_new:
-    IfFileExists "$PLUGINSDIR\fledge-keep-profiles" 0 fledge_skip_restore_profiles
-      Rename "$PLUGINSDIR\fledge-keep-profiles" "$INSTDIR\profiles"
-    fledge_skip_restore_profiles:
-    IfFileExists "$PLUGINSDIR\fledge-keep-Instance" 0 fledge_skip_restore_Instance
-      Rename "$PLUGINSDIR\fledge-keep-Instance" "$INSTDIR\Instance"
-    fledge_skip_restore_Instance:
-    IfFileExists "$PLUGINSDIR\fledge-keep-data-root.json" 0 fledge_skip_restore_pointer
-      Rename "$PLUGINSDIR\fledge-keep-data-root.json" "$INSTDIR\data-root.json"
-    fledge_skip_restore_pointer:
+    RMDir /r "$INSTDIR\data\meta\runtime"
+    RMDir /r "$INSTDIR\app"
+    Delete "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+    Delete "$INSTDIR\_fledge-launch.exe"
+    Delete "$INSTDIR\Uninstall Fledge.exe"
+    Delete "$INSTDIR\uninstall.exe"
+    Delete "$INSTDIR\uninstallerIcon.ico"
+    Delete "$INSTDIR\LICENSE.electron.txt"
+    Delete "$INSTDIR\LICENSES.chromium.html"
+    Delete "$INSTDIR\chrome_100_percent.pak"
+    Delete "$INSTDIR\chrome_200_percent.pak"
+    Delete "$INSTDIR\resources.pak"
+    Delete "$INSTDIR\snapshot_blob.bin"
+    Delete "$INSTDIR\v8_context_snapshot.bin"
+    Delete "$INSTDIR\icudtl.dat"
+    Delete "$INSTDIR\d3dcompiler_47.dll"
+    Delete "$INSTDIR\ffmpeg.dll"
+    Delete "$INSTDIR\libEGL.dll"
+    Delete "$INSTDIR\libGLESv2.dll"
+    Delete "$INSTDIR\vk_swiftshader.dll"
+    Delete "$INSTDIR\vk_swiftshader_icd.json"
+    Delete "$INSTDIR\vulkan-1.dll"
+    RMDir /r "$INSTDIR\locales"
+    RMDir /r "$INSTDIR\resources"
+    ; レガシー: ルートに残った Electron 残骸だけ消す（data / Instances は触らない）
   ${else}
     RMDir /r $INSTDIR
   ${endIf}

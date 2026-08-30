@@ -7,16 +7,19 @@
 ## 確認手順
 
 1. **最新の Ver.0.3.0ut** を入れ直す  
-   https://github.com/arula-folne/Fledge/releases/tag/v0.3.0ut
-2. ヘッダーの更新から **0.3.0up** へ（進捗 → 終了 → インストール → 自動起動）
+   https://github.com/arula-folne/Fledge/releases/tag/v0.3.0ut  
+   （既に `D:\Games\Minecraft\Clients\Fledge` がある場合も、上書きインストールで可）
+2. ヘッダーの更新から **0.3.0up** へ
 3. instances / 設定が残っているか確認
 
+## 修正（「古いアプリケーション…: 2」）
+
+インストール先が **D:**、一時領域が **C:** のとき、更新処理が `data` を別ドライブへ `Rename` しようとして失敗していました（エラー 2 = Abort）。
+
+- 更新時は **runtime / ルート exe だけ差し替え**、`data\instances` 等はその場に残す
+- `uninstallerIcon.ico` をルートに残す
+- NSIS 失敗時はアプリを起動しない
+
 ログ: `%LOCALAPPDATA%\\fledge\\updater\\update-log.txt`
-
-## 修正（更新が動かなかった件）
-
-- コンソール無しだと **`timeout` が cmd ごと終了**し、インストーラーまで届かなかった → `ping` 待ちに変更
-- 更新後の再起動を **スクリプト側で Fledge.exe を起動**するよう追加
-- 黒窓が一瞬出ないよう **wscript 非表示起動**
 
 > stable Latest は Ver.0.2.6b のままです。
