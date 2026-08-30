@@ -3,12 +3,14 @@
  * packages/shared/src/version.ts の APP_VERSION を正本として、
  * 各 package.json と README / spec を同期する。
  *
- * 表示: Ver.0.1.4a / Ver.0.1.4b / Ver.0.1.4
- * package.json: 有効な semver のため 0.1.4-a / 0.1.4-b / 0.1.4
+ * 表示: Ver.0.3.0ut / Ver.0.1.4b / Ver.0.1.4
+ * package.json: 有効な semver のため 0.3.0-ut / 0.1.4-b / 0.1.4
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+
+const KNOWN_SUFFIXES = ['ut', 'up', 'rc', 'a', 'b', 'f']
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const versionFile = path.join(root, 'packages/shared/src/version.ts')
@@ -22,15 +24,24 @@ if (!versionMatch) {
 
 const version = versionMatch[1]
 
-const semverMatch = version.match(/^(\d+\.\d+\.\d+)(a|b)?$/)
-if (!semverMatch) {
+function parseAppVersion(raw) {
+  const baseMatch = raw.match(/^(\d+\.\d+\.\d+)([a-z]+)?$/)
+  if (!baseMatch) return null
+  const [, base, suffix = ''] = baseMatch
+  if (suffix && !KNOWN_SUFFIXES.includes(suffix)) return null
+  return { base, suffix }
+}
+
+const parsed = parseAppVersion(version)
+if (!parsed) {
   console.error(
-    `APP_VERSION '${version}' is not <major>.<minor>.<patch>[a|b]\n` +
-      '  alpha: 0.0.0a / beta: 0.0.0b / release: 0.0.0',
+    `APP_VERSION '${version}' is not <major>.<minor>.<patch>[suffix]\n` +
+      `  known suffixes: ${KNOWN_SUFFIXES.join(', ')}`,
   )
   process.exit(1)
 }
-const semver = semverMatch[2] ? `${semverMatch[1]}-${semverMatch[2]}` : semverMatch[1]
+
+const semver = parsed.suffix ? `${parsed.base}-${parsed.suffix}` : parsed.base
 const label = `Ver.${version}`
 
 const packageJsonPaths = [
@@ -55,7 +66,7 @@ for (const rel of packageJsonPaths) {
 
 const readmePath = path.join(root, 'README.md')
 let readme = fs.readFileSync(readmePath, 'utf8')
-const readmeNext = readme.replace(/\*\*Ver\.[\d.]+(?:a|b|rc)?(?: - [^*]+)?\*\*/, `**${label}**`)
+const readmeNext = readme.replace(/\*\*Ver\.[\d.]+(?:[a-z]+)?(?: - [^*]+)?\*\*/, `**${label}**`)
 if (readmeNext !== readme) {
   fs.writeFileSync(readmePath, readmeNext)
   console.log('updated README.md')
@@ -64,7 +75,7 @@ if (readmeNext !== readme) {
 const specPath = path.join(root, 'docs/spec.md')
 let spec = fs.readFileSync(specPath, 'utf8')
 const specNext = spec.replace(
-  /バージョン \*\*(?:Ver\.)?[\d.]+(?:a|b|rc)?(?:（[^）]+）)?\*\*/,
+  /バージョン \*\*(?:Ver\.)?[\d.]+(?:[a-z]+)?(?:（[^）]+）)?\*\*/,
   `バージョン **${label}**`,
 )
 if (specNext !== spec) {

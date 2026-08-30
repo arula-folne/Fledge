@@ -127,18 +127,44 @@
 !macroend
 
 ; electron-builder 既定は更新時に INSTDIR 一式を一時退避してから丸ごと削除する。
-; Data / Instances / data-root.json を退避→復元し、アプリ本体だけ入れ替える。
+; exe 横のレガシー Data/Instances / data-root.json を退避→復元（Modrinth 型移行ユーザー向け）。
+; 退避に失敗したまま RMDir するとデータ消失になるため、失敗時は更新を中断する。
+!macro fledgeAbortUpdatePreserveFailed
+  ${ifNot} ${Silent}
+    MessageBox MB_OK|MB_ICONSTOP "${U+66F4}${U+65B0}${U+3092}${U+4E2D}${U+65AD}${U+3057}${U+307E}${U+3057}${U+305F}${U+3002}${U+30C7}${U+30FC}${U+30BF}${U+306E}${U+4FDD}${U+5B58}${U+306B}${U+5931}${U+6557}${U+3057}${U+307E}${U+3057}${U+305F}${U+3002} Fledge ${U+3092}${U+9589}${U+3058}${U+3066}${U+3082}${U+3046}${U+4E00}${U+5EA6}${U+304A}${U+8A66}${U+3057}${U+304F}${U+3060}${U+3055}${U+3044}${U+3002}"
+  ${endIf}
+  Abort
+!macroend
+
+!macro fledgePreserveDir src dest skipLabel
+  IfFileExists "${src}" 0 ${skipLabel}
+    Rename "${src}" "${dest}"
+    IfErrors 0 ${skipLabel}_done
+    IfFileExists "${dest}" 0 ${skipLabel}_fail
+    IfFileExists "${src}" 0 ${skipLabel}_done
+    ${skipLabel}_fail:
+      !insertmacro fledgeAbortUpdatePreserveFailed
+    ${skipLabel}_done:
+  ${skipLabel}:
+!macroend
+
+!macro fledgePreserveFile src dest skipLabel
+  IfFileExists "${src}" 0 ${skipLabel}
+    Rename "${src}" "${dest}"
+    IfErrors 0 ${skipLabel}_done
+    IfFileExists "${dest}" 0 ${skipLabel}_fail
+    IfFileExists "${src}" 0 ${skipLabel}_done
+    ${skipLabel}_fail:
+      !insertmacro fledgeAbortUpdatePreserveFailed
+    ${skipLabel}_done:
+  ${skipLabel}:
+!macroend
+
 !macro customRemoveFiles
   ${if} ${isUpdated}
-    IfFileExists "$INSTDIR\Data" 0 fledge_skip_keep_data
-      Rename "$INSTDIR\Data" "$PLUGINSDIR\fledge-keep-Data"
-    fledge_skip_keep_data:
-    IfFileExists "$INSTDIR\Instances" 0 fledge_skip_keep_instances
-      Rename "$INSTDIR\Instances" "$PLUGINSDIR\fledge-keep-Instances"
-    fledge_skip_keep_instances:
-    IfFileExists "$INSTDIR\data-root.json" 0 fledge_skip_keep_pointer
-      Rename "$INSTDIR\data-root.json" "$PLUGINSDIR\fledge-keep-data-root.json"
-    fledge_skip_keep_pointer:
+    !insertmacro fledgePreserveDir "$INSTDIR\Data" "$PLUGINSDIR\fledge-keep-Data" fledge_skip_keep_data
+    !insertmacro fledgePreserveDir "$INSTDIR\Instances" "$PLUGINSDIR\fledge-keep-Instances" fledge_skip_keep_instances
+    !insertmacro fledgePreserveFile "$INSTDIR\data-root.json" "$PLUGINSDIR\fledge-keep-data-root.json" fledge_skip_keep_pointer
     RMDir /r "$INSTDIR"
     CreateDirectory "$INSTDIR"
     IfFileExists "$PLUGINSDIR\fledge-keep-Data" 0 fledge_skip_restore_data

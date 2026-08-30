@@ -4,12 +4,27 @@ type Segment = {
   suffix: string
 }
 
-/** プレリリース順位: a < b < （製品版）。rc は旧リリース読み取り用の legacy */
+/**
+ * プレリリース順位（同一 patch 内）:
+ * a < b < ut < up < f < rc < （製品版）
+ *
+ * | 接尾辞 | 用途 |
+ * |--------|------|
+ * | a      | アルファ |
+ * | b      | ベータ |
+ * | ut     | アップデートテスター（更新実験の元データ） |
+ * | up     | アップデートチェック（ut から更新後の確認用） |
+ * | f      | 更新止め用ファイナル |
+ * | rc     | legacy |
+ */
 function suffixRank(suffix: string): number {
-  if (suffix === '') return 4
+  if (suffix === '') return 7
   if (suffix === 'a') return 1
   if (suffix === 'b') return 2
-  if (suffix === 'rc') return 3
+  if (suffix === 'ut') return 3
+  if (suffix === 'up') return 4
+  if (suffix === 'f') return 5
+  if (suffix === 'rc') return 6
   // 未知のサフィックスはアルファ寄りに倒す
   return 0
 }
@@ -36,7 +51,7 @@ function parseSegments(version: string): Segment[] {
 
 /**
  * a が b より古いとき -1、同じ 0、新しいとき 1。
- * 例: 0.1.4a < 0.1.4b < 0.1.4
+ * 例: 0.1.4a < 0.1.4b < 0.1.4ut < 0.1.4up < 0.1.4f < 0.1.4
  */
 export function compareVersions(a: string, b: string): -1 | 0 | 1 {
   const pa = parseSegments(a)

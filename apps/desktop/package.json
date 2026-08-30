@@ -1,6 +1,6 @@
 {
   "name": "@fledge/desktop",
-  "version": "0.3.0-a",
+  "version": "0.3.0-ut",
   "private": true,
   "description": "Fledge desktop application",
   "main": "./out/main/index.js",
@@ -91,7 +91,7 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "runAfterFinish": true,
-      "deleteAppDataOnUninstall": true,
+      "deleteAppDataOnUninstall": false,
       "uninstallDisplayName": "Fledge",
       "unicode": true,
       "installerLanguages": [

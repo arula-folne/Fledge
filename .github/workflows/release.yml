@@ -37,7 +37,7 @@ jobs:
             throw 'APP_VERSION not found'
           }
           $appVersion = $Matches[1]
-          $tagVersion = "${{ github.ref_name }}".TrimStart('v') -replace '-(a|b|rc)$', '$1'
+          $tagVersion = "${{ github.ref_name }}".TrimStart('v')
           if ($appVersion -ne $tagVersion) {
             throw "Release tag version '$tagVersion' does not match APP_VERSION '$appVersion'"
           }
@@ -77,12 +77,12 @@ jobs:
           gh release view $tag *> $null
           if ($LASTEXITCODE -ne 0) {
             $ver = $tag.TrimStart('v')
-            # アルファ（a）はプレリリース。ベータ／製品版は Latest（folne web の /releases/latest 用）
+            # a/b/ut/up はプレリリース。f・製品版は Latest（folne web の /releases/latest 用）
             $notesFile = 'RELEASE_NOTES.md'
             if (-not (Test-Path $notesFile)) {
               throw "Missing $notesFile (write release notes before tagging)"
             }
-            if ($ver -match 'a$') {
+            if ($ver -match '(a|b|ut|up)$') {
               gh release create $tag --title "Fledge Ver.$ver" --notes-file $notesFile --prerelease
             } else {
               gh release create $tag --title "Fledge Ver.$ver" --notes-file $notesFile

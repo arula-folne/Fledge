@@ -2,24 +2,27 @@
  * アプリバージョンの正本（Single Source of Truth）。
  *
  * ## 表記法
- * 表示は常に `Ver.` + APP_VERSION（例: Ver.0.1.4a）
+ * 表示は常に `Ver.` + APP_VERSION（例: Ver.0.3.0ut）
  *
- * | 区分           | 例           |
- * |----------------|--------------|
- * | アルファ版     | `0.0.0a`     |
- * | ベータ版       | `0.0.0b`     |
- * | 製品版         | `0.0.0`      |
+ * | 区分 | 例 | 説明 |
+ * |------|-----|------|
+ * | アルファ版 | `0.0.0a` | 通常プレリリース |
+ * | ベータ版 | `0.0.0b` | ベータ |
+ * | アップデートテスター | `0.0.0ut` | 更新実験の **元** データを載せる版 |
+ * | アップデートチェック | `0.0.0up` | `ut` から更新し、データが残ったか **確認** する版 |
+ * | 更新止めファイナル | `0.0.0f` | その系統の最終版（それ以上は自動更新しない） |
+ * | 製品版 | `0.0.0` | 接尾辞なし |
  *
  * バージョンを上げるとき:
- * 1. APP_VERSION だけを編集（接尾辞 a / b を含める）
+ * 1. APP_VERSION だけを編集
  * 2. リポジトリルートで `pnpm version:sync` を実行
  * 3. お知らせ（news/news.ja.json）にリリース条目を手動追加
- * 4. RELEASE_NOTES.md に GitHub Release 用の更新内容を書く（リリースページ本文）
- * 5. main へマージ後、`v{APP_VERSION}` タグを push（例: v0.1.9a）
+ * 4. RELEASE_NOTES.md に GitHub Release 用の更新内容を書く
+ * 5. `v{APP_VERSION}` タグを push（例: v0.3.0ut）
  */
-export const APP_VERSION = '0.3.0a' as const
+export const APP_VERSION = '0.3.0ut' as const
 
-/** UI 表示用（`Ver.X.X.X[a|b]`） */
+/** UI 表示用（`Ver.X.X.X[suffix]`） */
 export const APP_VERSION_LABEL = `Ver.${APP_VERSION}` as const
 export const APP_VERSION_FULL = `Fledge ${APP_VERSION_LABEL}` as const
 

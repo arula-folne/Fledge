@@ -1,6 +1,11 @@
 [
   {
-    "id": "v0.2.6b",
+    "id": "v0.3.0ut",
+    "title": "【テスト版】Fledge Ver.0.3.0ut",
+    "body": "**Fledge Ver.0.3.0ut** を公開しました（第2世代・アップデートテスター）。\n\n## 目的\n\nアプリ内更新で **Data / Instances が消えないか** を検証するための版です。この版でテスト用データを作成し、続く **Ver.0.3.0up** へ更新して残存を確認します。\n\n## 主な内容\n\n- **データ配置を Modrinth 型に変更**（設定・アカウント → AppData）\n- 旧レイアウト（exe 横）からの自動移行\n- 更新時のデータ保全（終了後インストーラー起動・退避失敗時は更新中断）\n\n> 更新実験用プレリリースです。stable Latest は Ver.0.2.6b のままです。",
+    "publishedAt": "2026-08-30T06:00:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.3.0ut"
+  },
     "title": "【バージョンアップ】Fledge Ver.0.2.6b",
     "body": "**Fledge Ver.0.2.6b** を公開しました（第1世代ファイナル）。\n\n## 主な変更\n\n- **アプリ内更新で Data / Instances が消える問題を修正**（終了後にインストーラー起動・退避失敗時は更新中断）\n- Ver.0.2.5b までの改善（0.2.4b からの自動更新・0.3 系歯止め・更新時データ保全）を含む\n\n> 第1世代（0.2.x）の最終版です。Ver.0.2.5b でデータが消えた場合は、インストール先の「以前のバージョン」復元をお試しください。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
     "publishedAt": "2026-08-30T05:30:00.000Z",

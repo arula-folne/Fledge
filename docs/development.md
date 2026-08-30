@@ -32,15 +32,21 @@ pnpm dev
 
 ## バージョン表記
 
-正本は `packages/shared/src/version.ts` の `APP_VERSION` です。表示は常に `Ver.` 付きです。
+正本は `packages/shared/src/version.ts` の `APP_VERSION` です。表示は常に `Ver.` 付きです。  
+同一 patch 内の順序は `packages/shared/src/compareVersions.ts` の `suffixRank` に従います。
 
-| 区分 | `APP_VERSION` | 表示例 |
-|------|---------------|--------|
-| アルファ版 | `0.0.0a` | Ver.0.0.0a |
-| ベータ版 | `0.0.0b` | Ver.0.0.0b |
-| 製品版 | `0.0.0` | Ver.0.0.0 |
+| 区分 | `APP_VERSION` | 表示例 | 用途 |
+|------|---------------|--------|------|
+| アルファ版 | `0.0.0a` | Ver.0.0.0a | 通常プレリリース |
+| ベータ版 | `0.0.0b` | Ver.0.0.0b | ベータ |
+| アップデートテスター | `0.0.0ut` | Ver.0.0.0ut | 更新実験の **元**（テスト用データを載せる） |
+| アップデートチェック | `0.0.0up` | Ver.0.0.0up | `ut` から更新し、データ残存を **確認** |
+| 更新止めファイナル | `0.0.0f` | Ver.0.0.0f | 系統の最終版（それ以上は自動更新しない） |
+| 製品版 | `0.0.0` | Ver.0.0.0 | 接尾辞なし |
 
-変更後は `pnpm version:sync` で package.json / README / spec を同期します（npm semver 用に `0.1.4a` → `0.1.4-a` へ変換されます）。
+**更新実験の流れ:** `…ut` をインストール → テストデータ作成 → `…up` をアプリ内更新 → Instances / 設定が残っているか確認。
+
+変更後は `pnpm version:sync` で package.json / README / spec を同期します（npm semver 用に `0.3.0ut` → `0.3.0-ut` へ変換されます）。
 
 ## よく使うスクリプト
 
