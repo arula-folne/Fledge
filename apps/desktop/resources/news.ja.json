@@ -1,10 +1,10 @@
 [
   {
-    "id": "v0.2.5b",
-    "title": "【バージョンアップ】Fledge Ver.0.2.5b",
-    "body": "**Fledge Ver.0.2.5b** を公開しました（第1世代ファイナル）。\n\n## 主な変更\n\n- **Ver.0.2.4b から自動更新できるよう版号を 0.2.5b に変更**（Ver.0.2.4f と同内容）\n- **アップデート時に Data / Instances が消えないよう修正**（更新前に退避・復元）\n- **0.3 系へは自動更新しない**上限を追加\n- Ver.0.2.4b までの改善を含む\n\n> 第1世代（0.2.x）の最終版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
-    "publishedAt": "2026-08-30T05:00:00.000Z",
-    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.2.5b"
+    "id": "v0.2.6b",
+    "title": "【バージョンアップ】Fledge Ver.0.2.6b",
+    "body": "**Fledge Ver.0.2.6b** を公開しました（第1世代ファイナル）。\n\n## 主な変更\n\n- **アプリ内更新で Data / Instances が消える問題を修正**（終了後にインストーラー起動・退避失敗時は更新中断）\n- Ver.0.2.5b までの改善（0.2.4b からの自動更新・0.3 系歯止め・更新時データ保全）を含む\n\n> 第1世代（0.2.x）の最終版です。Ver.0.2.5b でデータが消えた場合は、インストール先の「以前のバージョン」復元をお試しください。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-30T05:30:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.2.6b"
   },
   {
     "id": "v0.2.4b",

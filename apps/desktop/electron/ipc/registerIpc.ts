@@ -1,6 +1,6 @@
 import { app, dialog, ipcMain, screen, shell } from 'electron'
 import type { BrowserWindow } from 'electron'
-import { spawn } from 'node:child_process'
+import { spawnInstallerAfterAppExit } from '../updater/spawnDeferredInstaller.js'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import os from 'node:os'
@@ -475,25 +475,9 @@ export function registerIpc(
     await fs.copyFile(installerPath, stagedInstaller)
     await appCtx.updater.clearCache()
 
-    // electron-builder の更新契約に合わせる。/D は必ず最後・引用符なし。
-    await new Promise<void>((resolve, reject) => {
-      const child = spawn(
-        stagedInstaller,
-        ['--updated', '/S', '--force-run', `/D=${installDir}`],
-        {
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: true,
-        },
-      )
-      child.once('error', (err) => reject(err))
-      child.once('spawn', () => {
-        child.unref()
-        resolve()
-      })
-    })
+    // 自プロセス終了後に NSIS を走らせる（実行中だと Data/Instances の退避 Rename が失敗し得る）
+    await spawnInstallerAfterAppExit(stagedInstaller, installDir)
 
-    // 実行中のままだと Fledge.exe がロックされ旧版のまま残る
     hooks?.onQuitForUpdate?.()
   })
 
