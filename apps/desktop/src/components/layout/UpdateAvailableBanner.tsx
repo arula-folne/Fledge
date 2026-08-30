@@ -14,16 +14,25 @@ type PromptState = {
 }
 
 /**
- * ヘッダー右: GitHub Releases /latest に新しい版があるときに案内する。
+ * a / b / ut / up は GitHub プレリリースのため /releases/latest では見えない。
+ * これらのビルドでは prerelease チャネルを見る。
+ */
+function updateChannelForBuild(): UpdateChannel {
+  return /(?:a|b|ut|up)$/i.test(APP_VERSION) ? 'prerelease' : 'stable'
+}
+
+/**
+ * ヘッダー右: GitHub Releases に新しい版があるときに案内する。
  */
 export function UpdateAvailableBanner() {
   const { t } = useTranslation()
+  const channel = updateChannelForBuild()
   const [prompt, setPrompt] = useState<PromptState | null>(null)
   const [applyError, setApplyError] = useState<string | null>(null)
 
-  const stableQuery = useQuery({
-    queryKey: ['updater', 'check', 'stable'],
-    queryFn: () => fledgeApi.updater.check('stable'),
+  const updateQuery = useQuery({
+    queryKey: ['updater', 'check', channel],
+    queryFn: () => fledgeApi.updater.check(channel),
     // 起動のたびに取り直し。up-to-date キャッシュで新リリースを見逃さない
     staleTime: 60 * 1000,
     refetchOnWindowFocus: true,
@@ -31,7 +40,7 @@ export function UpdateAvailableBanner() {
   })
 
   const applyMutation = useMutation({
-    mutationFn: () => fledgeApi.updater.apply('stable'),
+    mutationFn: () => fledgeApi.updater.apply(channel),
     onMutate: () => setApplyError(null),
     onSuccess: () => setPrompt(null),
     onError: (err) => {
@@ -40,14 +49,14 @@ export function UpdateAvailableBanner() {
     },
   })
 
-  const stable = stableQuery.data
-  const showStable = stable?.status === 'available' && Boolean(stable.nextVersion)
+  const update = updateQuery.data
+  const showUpdate = update?.status === 'available' && Boolean(update.nextVersion)
 
-  if (!showStable) return null
+  if (!showUpdate) return null
 
   const openDialog = (result: UpdateCheckResult) => {
     setApplyError(null)
-    setPrompt({ channel: 'stable', result })
+    setPrompt({ channel, result })
   }
   const closeDialog = () => {
     if (applyMutation.isPending) return
@@ -59,12 +68,12 @@ export function UpdateAvailableBanner() {
   return (
     <>
       <div className="flex min-w-0 shrink-0 items-center gap-1">
-        {stable?.nextVersion ? (
+        {update?.nextVersion ? (
           <button
             type="button"
             className="flex min-w-0 items-center gap-1.5 rounded-full border border-[var(--color-accent)]/35 bg-[var(--color-accent)]/10 px-3 py-1 text-[11px] font-medium leading-none text-[var(--color-accent)] transition hover:bg-[var(--color-accent)]/18"
             aria-label={t('header.updateAvailable')}
-            onClick={() => openDialog(stable)}
+            onClick={() => openDialog(update)}
           >
             <IconDownload size={13} stroke={1.75} className="shrink-0" aria-hidden />
             <span className="truncate">{t('header.updateAvailable')}</span>
