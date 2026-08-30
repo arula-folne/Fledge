@@ -25,9 +25,13 @@ exports.default = async function afterPack(context) {
 
   const src = path.join(__dirname, 'launcher', 'FledgeLauncher.cs')
   const out = path.join(context.appOutDir, '_fledge-launch.exe')
+  const icon = path.join(__dirname, 'icon.ico')
+  if (!fs.existsSync(icon)) {
+    throw new Error(`起動 exe 用アイコンが見つかりません: ${icon}`)
+  }
   execFileSync(
     csc,
-    ['/nologo', '/target:winexe', '/optimize+', `/out:${out}`, src],
+    ['/nologo', '/target:winexe', '/optimize+', `/win32icon:${icon}`, `/out:${out}`, src],
     { stdio: 'inherit' },
   )
 }
