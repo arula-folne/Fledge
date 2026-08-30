@@ -85,32 +85,37 @@ Main (Electron)
 
 本番は **Modrinth 型**の二層配置です。
 
-- **settingsRoot**（本番: `%APPDATA%\\fledge`）: ランチャー設定・アカウント
-- **configRoot**（既定: `%APPDATA%\\fledge\\data`。設定で変更可）: インスタンス・Minecraft 本体・キャッシュ等
-- **installDir**（インストール先）: ルートは `app/`（実行ファイル一式）・`Uninstall Fledge.exe`・`data-root.json` のみ
+- **settingsRoot**（本番: `%APPDATA%\\fledge`）: ランチャー設定・アカウント・ログ
+- **configRoot**（既定: `<installDir>/Instance`。設定で変更可）: profiles / meta / caches / synced-options
+- **installDir**（インストーラで選ぶフォルダ）: `app/`（実行ファイル）・`Uninstall Fledge.exe`・`Instance/`・`data-root.json`
 
 開発時は settingsRoot が `apps/desktop/.fledge-root/`、configRoot が `apps/desktop/.fledge-root/data/` です。
 
 ```
-<settingsRoot>/                         %APPDATA%\fledge（更新でも消えない）
+<installDir>/                              インストーラで選ぶフォルダ
+  app/                   Fledge.exe と Electron ランタイム
+  Uninstall Fledge.exe
+  data-root.json         データルートへのポインタ
+  Instance/              ゲームデータ（Modrinth の Instance 相当）
+    profiles/            インスタンス
+    meta/                libraries / assets / versions / natives / java_versions
+    caches/
+    synced-options/
+    skins/
+    temp/
+
+<settingsRoot>/                            %APPDATA%\fledge（更新でも消えない）
   Settings/            settings.json
   Accounts/            アカウント一覧 + secrets/
   launcher_logs/       ランチャーログ
   news/                お知らせキャッシュ
-  custom-root.json     config ルートへのポインタ（任意）
-
-<configRoot>/                           設定の「データディレクトリ」（変更可）
-  profiles/            インスタンス（Modrinth の profiles 相当）
-  meta/                libraries / assets / versions / natives / java_versions
-  caches/
-  skins/
-  temp/
+  custom-root.json     データディレクトリ変更時のポインタ
 ```
 
 `packages/core/src/app/paths.ts` の `resolvePathLayout(configRoot, settingsRoot)` がこの配置を組み立てます。  
-Minecraft 本体・ライブラリ・アセットは `meta/` で共有します。  
+Minecraft 本体・ライブラリ・アセット・Java は `meta/` で共有します。  
 ワールド、Mod、ゲーム内設定（`options.txt`）、Mod 設定（`config/`）などは `profiles/<id>/` です。  
-テーマ・アカウントは settingsRoot、スキンは config の `skins/` です。
+テーマ・アカウントは settingsRoot、スキンは Instance の `skins/` です。
 
 インスタンス配下で開いてよいサブフォルダ（`INSTANCE_SUBFOLDERS`）:
 

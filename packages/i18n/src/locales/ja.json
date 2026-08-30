@@ -751,7 +751,7 @@
   "settings.java.verify.detail.ok": "問題なし",
   "settings.java.installFailed": "インストールに失敗しました",
   "settings.appDirectory": "データディレクトリ",
-  "settings.appDirectoryHint": "インスタンス（profiles）・Minecraft 本体（meta）・キャッシュなどを置く場所です。設定で自由に変えられます（Modrinth App の App directory と同じ役割）。ランチャー設定・アカウント・ログは %APPDATA%\\fledge に残り、アプリ更新でも消えません。変更は再起動後に反映されます。",
+  "settings.appDirectoryHint": "既定はインストール先の Instance フォルダです（Modrinth App と同じ）。中に profiles / meta / caches / synced-options が入ります。別フォルダにも変更できます。ランチャー設定・アカウント・ログは %APPDATA%\\fledge に残り、アプリ更新でも Instance のデータは消えません。変更は再起動後に反映されます。",
   "settings.appDirectoryBrowse": "フォルダを選ぶ",
   "settings.appDirectoryReset": "既定に戻す",
   "settings.openAppDirectory": "フォルダを開く",

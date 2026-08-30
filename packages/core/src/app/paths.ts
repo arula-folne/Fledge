@@ -8,7 +8,7 @@ export type PathLayout = PathInfo
  * PathLayout を組み立てる（Modrinth App と同じ二層）。
  *
  * - `settingsRoot`（AppData）: 設定・アカウント・ランチャーログ・お知らせキャッシュ
- * - `root`（config / データディレクトリ・変更可）: profiles / meta / caches 等
+ * - `root`（config / 既定は installDir/Instance）: profiles / meta / caches / synced-options
  */
 export function resolvePathLayout(root: string, settingsRoot: string = root): PathLayout {
   return {
@@ -42,6 +42,7 @@ export async function ensurePathLayout(layout: PathLayout): Promise<void> {
     layout.temp,
     layout.skins,
     layout.instances,
+    path.join(layout.root, 'synced-options'),
   ]
   await Promise.all(dirs.map((dir) => fs.mkdir(dir, { recursive: true })))
 }

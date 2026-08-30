@@ -6,6 +6,8 @@ import path from 'node:path'
 const STORE_FILE = 'custom-root.json'
 /** インストール先（exe 横）の冗長ポインタ。userData の custom-root.json が消えても復元できる */
 const INSTALL_POINTER_FILE = 'data-root.json'
+/** Modrinth App の Instance 相当。インストール先直下のゲームデータフォルダ名 */
+export const INSTANCE_BUNDLE_DIR = 'Instance'
 
 type RootPointerStore = {
   root?: string
@@ -111,14 +113,14 @@ export function readInstallDirPointer(): string | null {
 }
 
 /**
- * ゲームデータ（instances / meta 等）の既定ルート。
- * 本番は %APPDATA%\\fledge\\data。開発は `.fledge-root/data`。
+ * ゲームデータ（profiles / meta / caches 等）の既定ルート。
+ * 本番は `<installDir>/Instance`（Modrinth と同じく exe 横）。開発は `.fledge-root/data`。
  */
 export function getDefaultFledgeRoot(): string {
   if (!app.isPackaged) {
     return path.join(app.getAppPath(), '.fledge-root', 'data')
   }
-  return path.join(app.getPath('userData'), 'data')
+  return path.join(getInstallDir(), INSTANCE_BUNDLE_DIR)
 }
 
 export function readCustomRoot(): string | null {
@@ -187,10 +189,34 @@ function hasPersistedUserData(root: string): boolean {
   return false
 }
 
+function migrateLegacyBundlesIntoInstance(): void {
+  if (!app.isPackaged) return
+  const install = getInstallDir()
+  const instanceRoot = path.join(install, INSTANCE_BUNDLE_DIR)
+
+  // 旧既定 install/data → Instance
+  renameIfExists(path.join(install, 'data'), instanceRoot)
+
+  // 旧既定 AppData/fledge/data → Instance（中身だけ移す）
+  const legacyAppData = path.join(getSettingsRoot(), 'data')
+  if (!pathExists(legacyAppData)) return
+  if (hasPersistedUserData(instanceRoot)) return
+  if (!hasPersistedUserData(legacyAppData)) return
+  fs.mkdirSync(instanceRoot, { recursive: true })
+  try {
+    for (const name of fs.readdirSync(legacyAppData)) {
+      renameIfExists(path.join(legacyAppData, name), path.join(instanceRoot, name))
+    }
+  } catch {
+    /* best effort */
+  }
+}
+
 function finalizeConfigRoot(root: string): string {
   const settingsRoot = getSettingsRoot()
   const defaultPath = getDefaultFledgeRoot()
 
+  migrateLegacyBundlesIntoInstance()
   migrateSettingsAndAccounts(root)
   migrateUserDataRootToDataSubfolder(settingsRoot)
 
@@ -199,6 +225,17 @@ function finalizeConfigRoot(root: string): string {
   if (!custom && path.resolve(root) === path.resolve(settingsRoot)) {
     effective = defaultPath
     fs.mkdirSync(effective, { recursive: true })
+  }
+
+  // ポインタ無しで既定のときは常に Instance を実効ルートにする
+  if (!custom && path.resolve(effective) !== path.resolve(defaultPath)) {
+    const install = getInstallDir()
+    if (path.resolve(effective) === path.resolve(path.join(settingsRoot, 'data'))) {
+      effective = defaultPath
+      fs.mkdirSync(effective, { recursive: true })
+    } else if (path.resolve(effective) === path.resolve(path.join(install, 'data'))) {
+      effective = defaultPath
+    }
   }
 
   migrateConfigLayout(effective, settingsRoot)
