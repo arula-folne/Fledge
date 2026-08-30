@@ -85,9 +85,9 @@ Main (Electron)
 
 本番は **Modrinth 型**の二層配置です。
 
-- **settingsRoot**（本番: `%APPDATA%\\Fledge`）: ランチャー設定・アカウント
-- **configRoot**（既定: `%APPDATA%\\Fledge\\data`。設定で変更可）: インスタンス・Minecraft 本体・キャッシュ等
-- **installDir**（`Fledge.exe` 横）: アプリ本体のみ（既定ではユーザーデータを置かない）
+- **settingsRoot**（本番: `%APPDATA%\\fledge`）: ランチャー設定・アカウント
+- **configRoot**（既定: `%APPDATA%\\fledge\\data`。設定で変更可）: インスタンス・Minecraft 本体・キャッシュ等
+- **installDir**（インストール先）: ルートは `app/`（実行ファイル一式）・`Uninstall Fledge.exe`・`data-root.json` のみ
 
 開発時は settingsRoot が `apps/desktop/.fledge-root/`、configRoot が `apps/desktop/.fledge-root/data/` です。
 

@@ -67,12 +67,19 @@ function renameIfExists(from: string, to: string): void {
   }
 }
 
-/** アプリ本体のインストール先（Data を置かない） */
+/**
+ * アプリ本体のインストール先（Data を置かない）。
+ * 本番レイアウトは `<install>/app/Fledge.exe` のため、exe 親が `app` ならその親を返す。
+ */
 export function getInstallDir(): string {
   if (!app.isPackaged) {
     return path.join(app.getAppPath())
   }
-  return path.dirname(app.getPath('exe'))
+  const exeDir = path.dirname(app.getPath('exe'))
+  if (path.basename(exeDir).toLowerCase() === 'app') {
+    return path.dirname(exeDir)
+  }
+  return exeDir
 }
 
 /**
@@ -105,7 +112,7 @@ export function readInstallDirPointer(): string | null {
 
 /**
  * ゲームデータ（instances / meta 等）の既定ルート。
- * 本番は %APPDATA%\\Fledge\\data。開発は `.fledge-root/data`。
+ * 本番は %APPDATA%\\fledge\\data。開発は `.fledge-root/data`。
  */
 export function getDefaultFledgeRoot(): string {
   if (!app.isPackaged) {

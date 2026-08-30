@@ -85,11 +85,78 @@
     FunctionEnd
   !macroend
 
+  ; Electron ランタイムを $INSTDIR\app\ へ移し、ルートを見やすくする
+  !macro fledgeMoveIntoApp entry
+    IfFileExists "$INSTDIR\${entry}" 0 +2
+      Rename "$INSTDIR\${entry}" "$INSTDIR\app\${entry}"
+  !macroend
+
+  !macro fledgeNestRuntimeIntoApp
+    ${If} ${FileExists} "$INSTDIR\app\${APP_EXECUTABLE_FILENAME}"
+      Goto fledge_nest_done
+    ${EndIf}
+    ${IfNot} ${FileExists} "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+      Goto fledge_nest_done
+    ${EndIf}
+
+    CreateDirectory "$INSTDIR\app"
+    !insertmacro fledgeMoveIntoApp "${APP_EXECUTABLE_FILENAME}"
+    !insertmacro fledgeMoveIntoApp "locales"
+    !insertmacro fledgeMoveIntoApp "resources"
+    !insertmacro fledgeMoveIntoApp "chrome_100_percent.pak"
+    !insertmacro fledgeMoveIntoApp "chrome_200_percent.pak"
+    !insertmacro fledgeMoveIntoApp "d3dcompiler_47.dll"
+    !insertmacro fledgeMoveIntoApp "ffmpeg.dll"
+    !insertmacro fledgeMoveIntoApp "icudtl.dat"
+    !insertmacro fledgeMoveIntoApp "libEGL.dll"
+    !insertmacro fledgeMoveIntoApp "libGLESv2.dll"
+    !insertmacro fledgeMoveIntoApp "LICENSE.electron.txt"
+    !insertmacro fledgeMoveIntoApp "LICENSES.chromium.html"
+    !insertmacro fledgeMoveIntoApp "resources.pak"
+    !insertmacro fledgeMoveIntoApp "snapshot_blob.bin"
+    !insertmacro fledgeMoveIntoApp "v8_context_snapshot.bin"
+    !insertmacro fledgeMoveIntoApp "vk_swiftshader.dll"
+    !insertmacro fledgeMoveIntoApp "vk_swiftshader_icd.json"
+    !insertmacro fledgeMoveIntoApp "vulkan-1.dll"
+    !insertmacro fledgeMoveIntoApp "dxcompiler.dll"
+    !insertmacro fledgeMoveIntoApp "dxil.dll"
+
+    fledge_nest_done:
+  !macroend
+
   !macro customInstall
-    ${If} $fledgeDesktopShortcut == "0"
+    !insertmacro fledgeNestRuntimeIntoApp
+    StrCpy $appExe "$INSTDIR\app\${APP_EXECUTABLE_FILENAME}"
+    ${IfNot} ${FileExists} "$appExe"
+      StrCpy $appExe "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+    ${EndIf}
+
+    ${If} $newStartMenuLink != ""
+      Delete "$newStartMenuLink"
+      ${If} ${FileExists} "$appExe"
+        CreateShortCut "$newStartMenuLink" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
+      ${EndIf}
+    ${EndIf}
+
+    ${If} $fledgeDesktopShortcut == "1"
+      ${If} $newDesktopLink != ""
+        Delete "$newDesktopLink"
+        ${If} ${FileExists} "$appExe"
+          CreateShortCut "$newDesktopLink" "$appExe" "" "$appExe" 0 "" "" "${APP_DESCRIPTION}"
+        ${EndIf}
+      ${EndIf}
+    ${Else}
       ${If} $newDesktopLink != ""
         Delete "$newDesktopLink"
       ${EndIf}
+    ${EndIf}
+
+    ${If} ${FileExists} "$newStartMenuLink"
+      StrCpy $launchLink "$newStartMenuLink"
+    ${ElseIf} ${FileExists} "$newDesktopLink"
+      StrCpy $launchLink "$newDesktopLink"
+    ${Else}
+      StrCpy $launchLink "$appExe"
     ${EndIf}
   !macroend
 
@@ -100,6 +167,15 @@
       ${else}
         StrCpy $1 "--fledge-post-install"
       ${endif}
+      StrCpy $appExe "$INSTDIR\app\${APP_EXECUTABLE_FILENAME}"
+      ${IfNot} ${FileExists} "$appExe"
+        StrCpy $appExe "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+      ${EndIf}
+      ${If} ${FileExists} "$newStartMenuLink"
+        StrCpy $launchLink "$newStartMenuLink"
+      ${Else}
+        StrCpy $launchLink "$appExe"
+      ${EndIf}
       ${StdUtils.ExecShellAsUser} $0 "$launchLink" "open" "$1"
     FunctionEnd
 
@@ -119,6 +195,9 @@
   ${ifNot} ${isUpdated}
     RMDir /r "$INSTDIR\Data"
     RMDir /r "$INSTDIR\Instances"
+    RMDir /r "$INSTDIR\data"
+    RMDir /r "$INSTDIR\instances"
+    RMDir /r "$INSTDIR\app"
     Delete "$INSTDIR\data-root.json"
     Delete "$INSTDIR\Fledge-first-run.cmd"
     DeleteRegKey HKCU "Software\Fledge"
@@ -164,6 +243,8 @@
   ${if} ${isUpdated}
     !insertmacro fledgePreserveDir "$INSTDIR\Data" "$PLUGINSDIR\fledge-keep-Data" fledge_skip_keep_data
     !insertmacro fledgePreserveDir "$INSTDIR\Instances" "$PLUGINSDIR\fledge-keep-Instances" fledge_skip_keep_instances
+    !insertmacro fledgePreserveDir "$INSTDIR\data" "$PLUGINSDIR\fledge-keep-data-new" fledge_skip_keep_data_new
+    !insertmacro fledgePreserveDir "$INSTDIR\instances" "$PLUGINSDIR\fledge-keep-instances-new" fledge_skip_keep_instances_new
     !insertmacro fledgePreserveFile "$INSTDIR\data-root.json" "$PLUGINSDIR\fledge-keep-data-root.json" fledge_skip_keep_pointer
     RMDir /r "$INSTDIR"
     CreateDirectory "$INSTDIR"
@@ -173,6 +254,12 @@
     IfFileExists "$PLUGINSDIR\fledge-keep-Instances" 0 fledge_skip_restore_instances
       Rename "$PLUGINSDIR\fledge-keep-Instances" "$INSTDIR\Instances"
     fledge_skip_restore_instances:
+    IfFileExists "$PLUGINSDIR\fledge-keep-data-new" 0 fledge_skip_restore_data_new
+      Rename "$PLUGINSDIR\fledge-keep-data-new" "$INSTDIR\data"
+    fledge_skip_restore_data_new:
+    IfFileExists "$PLUGINSDIR\fledge-keep-instances-new" 0 fledge_skip_restore_instances_new
+      Rename "$PLUGINSDIR\fledge-keep-instances-new" "$INSTDIR\instances"
+    fledge_skip_restore_instances_new:
     IfFileExists "$PLUGINSDIR\fledge-keep-data-root.json" 0 fledge_skip_restore_pointer
       Rename "$PLUGINSDIR\fledge-keep-data-root.json" "$INSTDIR\data-root.json"
     fledge_skip_restore_pointer:

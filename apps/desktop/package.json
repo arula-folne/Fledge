@@ -48,7 +48,11 @@
   "build": {
     "appId": "net.folne.fledge",
     "productName": "Fledge",
+    "executableName": "Fledge",
     "npmRebuild": false,
+    "extraMetadata": {
+      "name": "fledge"
+    },
     "directories": {
       "output": "release",
       "buildResources": "build"

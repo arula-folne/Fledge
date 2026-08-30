@@ -30,6 +30,7 @@ import {
 import {
   getAppDirectoryInfo,
   getDefaultFledgeRoot,
+  getInstallDir,
   readCustomRoot,
   writeCustomRoot,
 } from '../paths/customRoot'
@@ -477,7 +478,7 @@ export function registerIpc(
       channel === 'prerelease' || channel === 'stable' ? channel : ('stable' as const)
     const check = await appCtx.updater.check(resolved)
     const installerPath = await appCtx.updater.downloadInstaller(resolved)
-    const installDir = path.dirname(app.getPath('exe'))
+    const installDir = getInstallDir()
 
     if (check.status === 'available' && check.nextVersion) {
       await appCtx.settings.set({

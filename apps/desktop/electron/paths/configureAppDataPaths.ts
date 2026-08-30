@@ -2,9 +2,9 @@ import { app } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 
-const APP_DATA_DIR_NAME = 'Fledge'
+/** %APPDATA%\\fledge（小文字。npm スコープ @fledge は使わない） */
+const APP_DATA_DIR_NAME = 'fledge'
 
-/** Electron userData の表示名（%APPDATA%\\Fledge）。@fledge/desktop を使わない */
 export function getAppDataDirName(): string {
   return APP_DATA_DIR_NAME
 }
@@ -18,8 +18,16 @@ function copyTreeIfMissing(from: string, to: string): void {
 
 function migrateLegacyUserDataDir(from: string, to: string): void {
   if (!fs.existsSync(from)) return
-  if (path.resolve(from) === path.resolve(to)) return
+  // Windows は大文字小文字を同一視するため、実パス比較では足りない
   try {
+    if (fs.realpathSync.native(from).toLowerCase() === fs.realpathSync.native(to).toLowerCase()) {
+      return
+    }
+  } catch {
+    if (path.resolve(from).toLowerCase() === path.resolve(to).toLowerCase()) return
+  }
+  try {
+    fs.mkdirSync(to, { recursive: true })
     const entries = fs.readdirSync(from, { withFileTypes: true })
     for (const entry of entries) {
       const src = path.join(from, entry.name)
@@ -38,16 +46,50 @@ function migrateLegacyUserDataDir(from: string, to: string): void {
   }
 }
 
+/** Windows で Fledge → fledge のように表示名の大文字小文字だけ直す */
+function ensureAppDataDirCase(appData: string, desiredName: string): string {
+  const target = path.join(appData, desiredName)
+  try {
+    const existing = fs.readdirSync(appData).find((name) => name.toLowerCase() === desiredName.toLowerCase())
+    if (existing && existing !== desiredName) {
+      const from = path.join(appData, existing)
+      const tmp = path.join(appData, `${desiredName}.__tmp_rename__`)
+      fs.renameSync(from, tmp)
+      fs.renameSync(tmp, target)
+    }
+  } catch {
+    /* ignore */
+  }
+  return target
+}
+
+function removeScopedAtFledge(appData: string): void {
+  const scoped = path.join(appData, '@fledge')
+  if (!fs.existsSync(scoped)) return
+  try {
+    fs.rmSync(scoped, { recursive: true, force: true })
+  } catch {
+    /* ロック中は次回。エクスプローラーから手動削除も可 */
+  }
+}
+
 /**
- * userData を %APPDATA%\\Fledge に固定する。app.whenReady() より前に 1 回だけ呼ぶ。
+ * userData を %APPDATA%\\fledge に固定する。app.whenReady() より前に 1 回だけ呼ぶ。
+ * package.json の name が @fledge/desktop でも、ここが優先される。
  */
 export function configureAppDataPaths(): void {
-  if (!app.isPackaged) return
-
-  const target = path.join(app.getPath('appData'), APP_DATA_DIR_NAME)
-  if (app.getPath('userData') !== target) {
-    app.setPath('userData', target)
+  try {
+    app.setName('fledge')
+  } catch {
+    /* ignore */
   }
 
-  migrateLegacyUserDataDir(path.join(app.getPath('appData'), '@fledge', 'desktop'), target)
+  if (!app.isPackaged) return
+
+  const appData = app.getPath('appData')
+  const target = ensureAppDataDirCase(appData, APP_DATA_DIR_NAME)
+  app.setPath('userData', target)
+
+  migrateLegacyUserDataDir(path.join(appData, '@fledge', 'desktop'), target)
+  removeScopedAtFledge(appData)
 }
