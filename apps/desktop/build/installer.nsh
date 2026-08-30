@@ -224,7 +224,8 @@
 
 !macro customRemoveFiles
   ${if} ${isUpdated}
-    RMDir /r "$INSTDIR\data\meta\runtime"
+    ; runtime を先に消すと、退避失敗時に起動不能になる。data ごと退避し、
+    ; 新 runtime は customInstall の fledgeRelocateRuntime が入れ替える。
     !insertmacro fledgePreserveDir "$INSTDIR\Data" "$PLUGINSDIR\fledge-keep-Data" fledge_skip_keep_data
     !insertmacro fledgePreserveDir "$INSTDIR\Instances" "$PLUGINSDIR\fledge-keep-Instances" fledge_skip_keep_instances
     !insertmacro fledgePreserveDir "$INSTDIR\data" "$PLUGINSDIR\fledge-keep-data-new" fledge_skip_keep_data_new

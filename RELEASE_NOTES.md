@@ -6,18 +6,20 @@
 
 ## 確認手順
 
-1. **Ver.0.3.0ut** を入れ、テスト用インスタンスや設定を用意する  
-   （まだの場合は [v0.3.0ut](https://github.com/arula-folne/Fledge/releases/tag/v0.3.0ut) を再インストール）
-2. ヘッダーの更新案内から **Ver.0.3.0up** へ更新する
-3. 起動後に次を確認する
+1. **最新の Ver.0.3.0ut** を入れ直す（更新待ちの不具合修正済み）  
+   https://github.com/arula-folne/Fledge/releases/tag/v0.3.0ut
+2. テスト用インスタンスや設定を用意する
+3. ヘッダーの更新案内から **Ver.0.3.0up** へ更新する
+4. 起動後に次を確認する
    - `instances` が残っている
    - 設定・アカウントが残っている
    - インストール先ルートが `Fledge.exe` / `Uninstall Fledge.exe` / `data/` のまま
-   - `%LOCALAPPDATA%\\fledge\\updater` に更新用ファイルがある（%TEMP% に `fledge-update-*` が増えない）
 
 ## この版の内容
 
 - 0.3.0ut 時点の第2世代配置・更新保全を引き継ぎ
+- **更新待ちを PID ベースに変更**（`find Fledge.exe` の cmd 張り付き／途中失敗で起動不能になる問題を修正）
+- 更新時に `runtime` を先消ししない（退避失敗でも起動ファイルが残る）
 - ルート起動 exe のアイコン埋め込み
 - 更新インストーラー退避先を `%LOCALAPPDATA%\\fledge\\updater` に集約
 - a / b / ut / up ビルドはプレリリースチャネルで更新を検出

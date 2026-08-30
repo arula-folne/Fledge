@@ -497,7 +497,7 @@ export function registerIpc(
     await appCtx.updater.clearCache()
 
     // 自プロセス終了後に NSIS を走らせる（実行中だと Data/Instances の退避 Rename が失敗し得る）
-    await spawnInstallerAfterAppExit(stagedInstaller, installDir)
+    await spawnInstallerAfterAppExit(stagedInstaller, installDir, process.pid)
 
     hooks?.onQuitForUpdate?.()
   })
