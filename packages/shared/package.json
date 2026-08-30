@@ -1,6 +1,6 @@
 {
   "name": "@fledge/shared",
-  "version": "0.3.0-up",
+  "version": "0.3.0-b",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
