@@ -34,5 +34,9 @@ export async function factoryReset(app: LauncherApp): Promise<void> {
   // 旧レイアウト
   await rmRetry(path.join(p.root, 'Data'))
   await rmRetry(path.join(p.root, 'Instances'))
+  await rmRetry(path.join(p.root, 'instances'))
+  await rmRetry(path.join(p.root, 'java'))
+  await rmRetry(path.join(p.root, 'logs'))
+  await rmRetry(path.join(p.root, 'news'))
   app.logger.info('system', 'Factory reset completed')
 }

@@ -149,7 +149,7 @@ export function writeCustomRoot(root: string | null): void {
 }
 
 function countInstanceProfiles(root: string): number {
-  for (const dirName of ['instances', 'Instances']) {
+  for (const dirName of ['profiles', 'instances', 'Instances']) {
     const instancesDir = path.join(root, dirName)
     try {
       const entries = fs.readdirSync(instancesDir, { withFileTypes: true })
@@ -201,9 +201,9 @@ function finalizeConfigRoot(root: string): string {
     fs.mkdirSync(effective, { recursive: true })
   }
 
-  migrateConfigLayout(effective)
+  migrateConfigLayout(effective, settingsRoot)
   if (path.resolve(effective) !== path.resolve(root)) {
-    migrateConfigLayout(root)
+    migrateConfigLayout(root, settingsRoot)
   }
 
   return effective

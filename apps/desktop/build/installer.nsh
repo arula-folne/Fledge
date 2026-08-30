@@ -197,6 +197,7 @@
     RMDir /r "$INSTDIR\Instances"
     RMDir /r "$INSTDIR\data"
     RMDir /r "$INSTDIR\instances"
+    RMDir /r "$INSTDIR\profiles"
     RMDir /r "$INSTDIR\app"
     Delete "$INSTDIR\data-root.json"
     Delete "$INSTDIR\Fledge-first-run.cmd"
@@ -245,6 +246,7 @@
     !insertmacro fledgePreserveDir "$INSTDIR\Instances" "$PLUGINSDIR\fledge-keep-Instances" fledge_skip_keep_instances
     !insertmacro fledgePreserveDir "$INSTDIR\data" "$PLUGINSDIR\fledge-keep-data-new" fledge_skip_keep_data_new
     !insertmacro fledgePreserveDir "$INSTDIR\instances" "$PLUGINSDIR\fledge-keep-instances-new" fledge_skip_keep_instances_new
+    !insertmacro fledgePreserveDir "$INSTDIR\profiles" "$PLUGINSDIR\fledge-keep-profiles" fledge_skip_keep_profiles
     !insertmacro fledgePreserveFile "$INSTDIR\data-root.json" "$PLUGINSDIR\fledge-keep-data-root.json" fledge_skip_keep_pointer
     RMDir /r "$INSTDIR"
     CreateDirectory "$INSTDIR"
@@ -260,6 +262,9 @@
     IfFileExists "$PLUGINSDIR\fledge-keep-instances-new" 0 fledge_skip_restore_instances_new
       Rename "$PLUGINSDIR\fledge-keep-instances-new" "$INSTDIR\instances"
     fledge_skip_restore_instances_new:
+    IfFileExists "$PLUGINSDIR\fledge-keep-profiles" 0 fledge_skip_restore_profiles
+      Rename "$PLUGINSDIR\fledge-keep-profiles" "$INSTDIR\profiles"
+    fledge_skip_restore_profiles:
     IfFileExists "$PLUGINSDIR\fledge-keep-data-root.json" 0 fledge_skip_restore_pointer
       Rename "$PLUGINSDIR\fledge-keep-data-root.json" "$INSTDIR\data-root.json"
     fledge_skip_restore_pointer:

@@ -7,10 +7,11 @@
 
 ## 主な内容
 
-- **データ配置を Modrinth 型に変更**（設定・アカウント → `%APPDATA%\\fledge`、ゲームデータ → `%APPDATA%\\fledge\\data` またはカスタムフォルダ）
-- config ルート直下を `instances/` `meta/` `caches/` 等のフォルダのみに整理（旧 `Data/` `Instances/` から自動移行）
+- **データ配置を Modrinth 型に変更**（設定・アカウント・ログ → `%APPDATA%\\fledge`、ゲームデータ → 変更可能なデータディレクトリ）
+- データディレクトリ直下は `profiles/` `meta/` `caches/` 等（Modrinth の App directory 相当。設定から変更可）
 - AppData は `fledge` のみ（`@fledge` は使わない／起動時に削除を試行）
 - インストール先ルートは `app/` に Electron ランタイムをまとめ、散らかりを軽減
+- アプリ更新ではデータディレクトリ・AppData のユーザーデータを消さない
 - 旧レイアウト（exe 横）からの自動移行
 - スクリーンショットギャラリー等を含む
 

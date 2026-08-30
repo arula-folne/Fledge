@@ -92,25 +92,24 @@ Main (Electron)
 開発時は settingsRoot が `apps/desktop/.fledge-root/`、configRoot が `apps/desktop/.fledge-root/data/` です。
 
 ```
-<settingsRoot>/
+<settingsRoot>/                         %APPDATA%\fledge（更新でも消えない）
   Settings/            settings.json
-  Accounts/            アカウント一覧 + secrets/（暗号化トークン）
+  Accounts/            アカウント一覧 + secrets/
+  launcher_logs/       ランチャーログ
+  news/                お知らせキャッシュ
   custom-root.json     config ルートへのポインタ（任意）
 
-<configRoot>/
-  instances/           インスタンスごと（mods / saves / config / options.txt / screenshots 等）
-  meta/                共有 libraries / assets / versions / natives
+<configRoot>/                           設定の「データディレクトリ」（変更可）
+  profiles/            インスタンス（Modrinth の profiles 相当）
+  meta/                libraries / assets / versions / natives / java_versions
   caches/
-  java/                java8 / java17 / java21 / java25（各配下に bin/ と jdk-*.md）
-  logs/
-  news/
-  skins/               アップロードスキン + uploaded.json
+  skins/
   temp/
 ```
 
 `packages/core/src/app/paths.ts` の `resolvePathLayout(configRoot, settingsRoot)` がこの配置を組み立てます。  
 Minecraft 本体・ライブラリ・アセットは `meta/` で共有します。  
-ワールド、Mod、ゲーム内設定（`options.txt`）、Mod 設定（`config/`）などは `instances/<id>/` です。  
+ワールド、Mod、ゲーム内設定（`options.txt`）、Mod 設定（`config/`）などは `profiles/<id>/` です。  
 テーマ・アカウントは settingsRoot、スキンは config の `skins/` です。
 
 インスタンス配下で開いてよいサブフォルダ（`INSTANCE_SUBFOLDERS`）:

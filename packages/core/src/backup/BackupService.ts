@@ -154,9 +154,11 @@ export class BackupService {
     const skinsSrc = (await exists(path.join(resolved, 'skins')))
       ? path.join(resolved, 'skins')
       : skinsSrcLegacy
-    const instancesSrc = (await exists(path.join(resolved, 'instances')))
-      ? path.join(resolved, 'instances')
-      : path.join(resolved, 'Instances')
+    const instancesSrc = (await exists(path.join(resolved, 'profiles')))
+      ? path.join(resolved, 'profiles')
+      : (await exists(path.join(resolved, 'instances')))
+        ? path.join(resolved, 'instances')
+        : path.join(resolved, 'Instances')
     const hasManifest = await exists(path.join(resolved, MANIFEST))
     const hasSettings =
       (await exists(path.join(settingsSrc, 'settings.json'))) ||
@@ -196,7 +198,7 @@ export class BackupService {
     await fs.mkdir(dest, { recursive: true })
     await mirrorDir(this.layout.settings, path.join(dest, 'settings'))
     await mirrorDir(this.layout.skins, path.join(dest, 'skins'))
-    await mirrorDir(this.layout.instances, path.join(dest, 'instances'))
+    await mirrorDir(this.layout.instances, path.join(dest, 'profiles'))
     const manifest: Manifest = {
       kind,
       createdAt: new Date().toISOString(),

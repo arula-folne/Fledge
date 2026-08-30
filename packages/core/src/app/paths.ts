@@ -5,10 +5,10 @@ import type { PathInfo } from '@fledge/shared'
 export type PathLayout = PathInfo
 
 /**
- * PathLayout を組み立てる。
+ * PathLayout を組み立てる（Modrinth App と同じ二層）。
  *
- * - `root`（config）: instances / meta / caches 等（Modrinth 型のフラット構成）
- * - `settingsRoot`: 設定・アカウント（未指定時は root と同じ）
+ * - `settingsRoot`（AppData）: 設定・アカウント・ランチャーログ・お知らせキャッシュ
+ * - `root`（config / データディレクトリ・変更可）: profiles / meta / caches 等
  */
 export function resolvePathLayout(root: string, settingsRoot: string = root): PathLayout {
   return {
@@ -18,12 +18,12 @@ export function resolvePathLayout(root: string, settingsRoot: string = root): Pa
     accounts: path.join(settingsRoot, 'Accounts'),
     cache: path.join(root, 'caches'),
     minecraft: path.join(root, 'meta'),
-    java: path.join(root, 'java'),
-    logs: path.join(root, 'logs'),
-    news: path.join(root, 'news'),
+    java: path.join(root, 'meta', 'java_versions'),
+    logs: path.join(settingsRoot, 'launcher_logs'),
+    news: path.join(settingsRoot, 'news'),
     temp: path.join(root, 'temp'),
     skins: path.join(root, 'skins'),
-    instances: path.join(root, 'instances'),
+    instances: path.join(root, 'profiles'),
   }
 }
 
