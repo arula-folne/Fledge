@@ -53,6 +53,7 @@
     "extraMetadata": {
       "name": "fledge"
     },
+    "afterPack": "./build/afterPack.cjs",
     "directories": {
       "output": "release",
       "buildResources": "build"

@@ -70,16 +70,25 @@ function renameIfExists(from: string, to: string): void {
 }
 
 /**
- * アプリ本体のインストール先（ゲームデータの data/ の親）。
- * 現行は `<install>/Fledge.exe`。旧実験レイアウト `<install>/app/Fledge.exe` も親を返す。
+ * アプリ本体のインストール先（`data/` の親）。
+ * 現行: `<install>/data/meta/runtime/Fledge.exe` または `<install>/Fledge.exe`（起動スタブ）。
  */
 export function getInstallDir(): string {
   if (!app.isPackaged) {
     return path.join(app.getAppPath())
   }
   const exeDir = path.dirname(app.getPath('exe'))
+  const parent = path.dirname(exeDir)
+  const grand = path.dirname(parent)
+  // .../data/meta/runtime
+  if (
+    path.basename(exeDir).toLowerCase() === 'runtime' &&
+    path.basename(parent).toLowerCase() === 'meta'
+  ) {
+    return path.dirname(grand)
+  }
   if (path.basename(exeDir).toLowerCase() === 'app') {
-    return path.dirname(exeDir)
+    return parent
   }
   return exeDir
 }
@@ -96,7 +105,7 @@ export function getSettingsRoot(): string {
 }
 
 function installPointerPath(): string {
-  return path.join(getInstallDir(), INSTALL_POINTER_FILE)
+  return path.join(getInstallDir(), GAME_DATA_DIR, INSTALL_POINTER_FILE)
 }
 
 /** インストール先/exe 横へ実効 config ルートを記録（更新後の復元用） */

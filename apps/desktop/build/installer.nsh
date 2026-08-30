@@ -85,17 +85,34 @@
     FunctionEnd
   !macroend
 
-  !macro customInstall
-    ; Fledge.exe は $INSTDIR\Fledge.exe（インストール先直下）
-    ; ゲームデータは exe 横の data/
+  ; Electron 本体（dll / pak / dat 等）は data\meta\runtime へ。ルートは Fledge.exe（起動）と Uninstall と data のみ。
+  !macro fledgeRelocateRuntime
+    RMDir /r "$INSTDIR\data\meta\runtime"
     CreateDirectory "$INSTDIR\data"
-    CreateDirectory "$INSTDIR\data\caches"
     CreateDirectory "$INSTDIR\data\meta"
+    CreateDirectory "$INSTDIR\data\meta\runtime"
     CreateDirectory "$INSTDIR\data\meta\java"
     CreateDirectory "$INSTDIR\data\instances"
+    CreateDirectory "$INSTDIR\data\caches"
     CreateDirectory "$INSTDIR\data\skins"
     CreateDirectory "$INSTDIR\data\temp"
 
+    File "/oname=$PLUGINSDIR\fledge-relocate.cmd" "${BUILD_RESOURCES_DIR}\relocate-runtime.cmd"
+    nsExec::ExecToLog '"$PLUGINSDIR\fledge-relocate.cmd" "$INSTDIR"'
+    Pop $0
+
+    IfFileExists "$INSTDIR\data-root.json" 0 fledge_skip_move_pointer
+      Rename "$INSTDIR\data-root.json" "$INSTDIR\data\data-root.json"
+    fledge_skip_move_pointer:
+
+    ${If} ${FileExists} "$INSTDIR\_fledge-launch.exe"
+      Delete "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+      Rename "$INSTDIR\_fledge-launch.exe" "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
+    ${EndIf}
+  !macroend
+
+  !macro customInstall
+    !insertmacro fledgeRelocateRuntime
     StrCpy $appExe "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
 
     ${If} $newStartMenuLink != ""
@@ -207,6 +224,7 @@
 
 !macro customRemoveFiles
   ${if} ${isUpdated}
+    RMDir /r "$INSTDIR\data\meta\runtime"
     !insertmacro fledgePreserveDir "$INSTDIR\Data" "$PLUGINSDIR\fledge-keep-Data" fledge_skip_keep_data
     !insertmacro fledgePreserveDir "$INSTDIR\Instances" "$PLUGINSDIR\fledge-keep-Instances" fledge_skip_keep_instances
     !insertmacro fledgePreserveDir "$INSTDIR\data" "$PLUGINSDIR\fledge-keep-data-new" fledge_skip_keep_data_new

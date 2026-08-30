@@ -751,7 +751,7 @@
   "settings.java.verify.detail.ok": "問題なし",
   "settings.java.installFailed": "インストールに失敗しました",
   "settings.appDirectory": "データディレクトリ",
-  "settings.appDirectoryHint": "既定はインストール先の data フォルダです。中に instances / meta / caches などが入ります。別フォルダにも変更できます。ランチャー設定・アカウントは %APPDATA%\\fledge、アプリの一時キャッシュは %LOCALAPPDATA%\\fledge にあり、アプリ更新でも data 内のデータは消えません。変更は再起動後に反映されます。",
+  "settings.appDirectoryHint": "既定はインストール先の data フォルダです。中に instances / meta / caches などが入ります。アプリ本体の dll などは data\\meta\\runtime にあります。別フォルダにも変更できます。ランチャー設定は %APPDATA%\\fledge、一時キャッシュは %LOCALAPPDATA%\\fledge です。アプリ更新でも instances 等は消えません。変更は再起動後に反映されます。",
   "settings.appDirectoryBrowse": "フォルダを選ぶ",
   "settings.appDirectoryReset": "既定に戻す",
   "settings.openAppDirectory": "フォルダを開く",

@@ -57,8 +57,16 @@ export async function scheduleCompleteUninstall(installRoot: string): Promise<vo
 
 export function resolvePackagedInstallRoot(): string {
   const exeDir = path.dirname(app.getPath('exe'))
+  const parent = path.dirname(exeDir)
+  const grand = path.dirname(parent)
+  if (
+    path.basename(exeDir).toLowerCase() === 'runtime' &&
+    path.basename(parent).toLowerCase() === 'meta'
+  ) {
+    return path.dirname(grand)
+  }
   if (path.basename(exeDir).toLowerCase() === 'app') {
-    return path.dirname(exeDir)
+    return parent
   }
   return exeDir
 }
