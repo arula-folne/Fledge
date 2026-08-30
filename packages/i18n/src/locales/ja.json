@@ -751,7 +751,7 @@
   "settings.java.verify.detail.ok": "問題なし",
   "settings.java.installFailed": "インストールに失敗しました",
   "settings.appDirectory": "データディレクトリ",
-  "settings.appDirectoryHint": "インスタンスや Minecraft 本体・キャッシュなどを保存する場所です。ランチャー設定とアカウントは AppData に別保存され、アプリ更新では消えません。変更は再起動後に反映されます。",
+  "settings.appDirectoryHint": "インスタンスや Minecraft 本体・キャッシュなどを保存する場所です（既定は %APPDATA%\\Fledge\\data）。ランチャー設定とアカウントは AppData\\Fledge に別保存され、アプリ更新では消えません。変更は再起動後に反映されます。",
   "settings.appDirectoryBrowse": "フォルダを選ぶ",
   "settings.appDirectoryReset": "既定に戻す",
   "settings.openAppDirectory": "フォルダを開く",

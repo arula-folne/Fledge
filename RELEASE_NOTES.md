@@ -7,7 +7,9 @@
 
 ## 主な内容
 
-- **データ配置を Modrinth 型に変更**（設定・アカウント → AppData、Instances 等 → データディレクトリ）
+- **データ配置を Modrinth 型に変更**（設定・アカウント → `%APPDATA%\\Fledge`、ゲームデータ → `%APPDATA%\\Fledge\\data` またはカスタムフォルダ）
+- config ルート直下を `instances/` `meta/` `caches/` 等のフォルダのみに整理（旧 `Data/` `Instances/` から自動移行）
+- `@fledge/desktop` ではなく `Fledge` を AppData 名に使用
 - 旧レイアウト（exe 横）からの自動移行
 - スクリーンショットギャラリー等を含む
 

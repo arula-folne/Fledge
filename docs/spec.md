@@ -85,11 +85,11 @@ Main (Electron)
 
 本番は **Modrinth 型**の二層配置です。
 
-- **settingsRoot**（本番: Electron `userData` / AppData）: ランチャー設定・アカウント
-- **configRoot**（既定: 同上。設定で変更可）: インスタンス・Minecraft 本体・キャッシュ等
+- **settingsRoot**（本番: `%APPDATA%\\Fledge`）: ランチャー設定・アカウント
+- **configRoot**（既定: `%APPDATA%\\Fledge\\data`。設定で変更可）: インスタンス・Minecraft 本体・キャッシュ等
 - **installDir**（`Fledge.exe` 横）: アプリ本体のみ（既定ではユーザーデータを置かない）
 
-開発時は両方とも `apps/desktop/.fledge-root/` です。
+開発時は settingsRoot が `apps/desktop/.fledge-root/`、configRoot が `apps/desktop/.fledge-root/data/` です。
 
 ```
 <settingsRoot>/
@@ -98,21 +98,20 @@ Main (Electron)
   custom-root.json     config ルートへのポインタ（任意）
 
 <configRoot>/
-  Data/
-    Cache/
-    java-version/      java8 / java17 / java21 / java25（各配下に bin/ と jdk-*.md）
-    Logs/
-    Minecraft/         共有 libraries / assets / versions / natives
-    News/
-    Skins/             アップロードスキン + uploaded.json
-    Temp/
-  Instances/           インスタンスごと（mods / saves / config / options.txt / screenshots 等）
+  instances/           インスタンスごと（mods / saves / config / options.txt / screenshots 等）
+  meta/                共有 libraries / assets / versions / natives
+  caches/
+  java/                java8 / java17 / java21 / java25（各配下に bin/ と jdk-*.md）
+  logs/
+  news/
+  skins/               アップロードスキン + uploaded.json
+  temp/
 ```
 
 `packages/core/src/app/paths.ts` の `resolvePathLayout(configRoot, settingsRoot)` がこの配置を組み立てます。  
-Minecraft 本体・ライブラリ・アセットは `Data/Minecraft` で共有します。  
-ワールド、Mod、ゲーム内設定（`options.txt`）、Mod 設定（`config/`）などは `Instances/<id>/` です。  
-テーマ・アカウントは settingsRoot、スキンは config の `Data/Skins` です。
+Minecraft 本体・ライブラリ・アセットは `meta/` で共有します。  
+ワールド、Mod、ゲーム内設定（`options.txt`）、Mod 設定（`config/`）などは `instances/<id>/` です。  
+テーマ・アカウントは settingsRoot、スキンは config の `skins/` です。
 
 インスタンス配下で開いてよいサブフォルダ（`INSTANCE_SUBFOLDERS`）:
 
@@ -139,7 +138,7 @@ Minecraft 本体・ライブラリ・アセットは `Data/Minecraft` で共有�
 
 1. `auth` — 資格情報の確認。選択中スキン適用は起動と並行（ログイン時）
 2. `java` / `install` — Java 確認とクライアント準備を並行。導入済みならネット確認を省略
-3. ネイティブは `Data/Minecraft/natives/<versionId>/` に残し、次回は再展開しない
+3. ネイティブは `meta/natives/<versionId>/` に残し、次回は再展開しない
 4. 新規インスタンスなら最新の `minecraftInitialSettings` を `options.txt` に強制マージ（初回のみ。Modpack 同梱より優先）
 5. `spawn` — ゲームプロセス起動
 6. `running`

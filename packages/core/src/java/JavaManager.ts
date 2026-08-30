@@ -77,11 +77,11 @@ export class JavaManager {
   }
 
   private legacyInstallDir(major: number): string {
-    return path.join(this.layout.data, 'Java', `temurin-${major}`)
+    return path.join(this.layout.root, 'Data', 'Java', `temurin-${major}`)
   }
 
   private legacyMarkerPath(major: number): string {
-    return path.join(this.layout.data, 'Java', `java-${major}.path`)
+    return path.join(this.layout.root, 'Data', 'Java', `java-${major}.path`)
   }
 
   async listRuntimes(): Promise<JavaRuntimeView[]> {

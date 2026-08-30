@@ -1,4 +1,5 @@
 import { app } from 'electron'
+import { migrateConfigLayout, migrateUserDataRootToDataSubfolder } from './migrateConfigLayout.js'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -103,14 +104,14 @@ export function readInstallDirPointer(): string | null {
 }
 
 /**
- * ゲームデータ（Instances / Minecraft 等）の既定ルート。
- * 本番は userData（インストール先の外）。開発は `.fledge-root`。
+ * ゲームデータ（instances / meta 等）の既定ルート。
+ * 本番は %APPDATA%\\Fledge\\data。開発は `.fledge-root/data`。
  */
 export function getDefaultFledgeRoot(): string {
   if (!app.isPackaged) {
-    return path.join(app.getAppPath(), '.fledge-root')
+    return path.join(app.getAppPath(), '.fledge-root', 'data')
   }
-  return app.getPath('userData')
+  return path.join(app.getPath('userData'), 'data')
 }
 
 export function readCustomRoot(): string | null {
@@ -141,28 +142,33 @@ export function writeCustomRoot(root: string | null): void {
 }
 
 function countInstanceProfiles(root: string): number {
-  const instancesDir = path.join(root, 'Instances')
-  try {
-    const entries = fs.readdirSync(instancesDir, { withFileTypes: true })
-    let count = 0
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue
-      try {
-        fs.accessSync(path.join(instancesDir, entry.name, 'profile.json'))
-        count++
-      } catch {
-        /* no profile */
+  for (const dirName of ['instances', 'Instances']) {
+    const instancesDir = path.join(root, dirName)
+    try {
+      const entries = fs.readdirSync(instancesDir, { withFileTypes: true })
+      let count = 0
+      for (const entry of entries) {
+        if (!entry.isDirectory()) continue
+        try {
+          fs.accessSync(path.join(instancesDir, entry.name, 'profile.json'))
+          count++
+        } catch {
+          /* no profile */
+        }
       }
+      if (count > 0) return count
+    } catch {
+      /* try next */
     }
-    return count
-  } catch {
-    return 0
   }
+  return 0
 }
 
 function hasPersistedUserData(root: string): boolean {
   if (countInstanceProfiles(root) > 0) return true
   const markers = [
+    path.join(root, 'meta', 'versions'),
+    path.join(root, 'Data', 'Minecraft', 'versions'),
     path.join(root, 'Data', 'Settings', 'settings.json'),
     path.join(root, 'Settings', 'settings.json'),
     path.join(root, 'Data', 'Accounts', 'index.json'),
@@ -172,6 +178,28 @@ function hasPersistedUserData(root: string): boolean {
     if (pathExists(file)) return true
   }
   return false
+}
+
+function finalizeConfigRoot(root: string): string {
+  const settingsRoot = getSettingsRoot()
+  const defaultPath = getDefaultFledgeRoot()
+
+  migrateSettingsAndAccounts(root)
+  migrateUserDataRootToDataSubfolder(settingsRoot)
+
+  let effective = root
+  const custom = readCustomRoot()
+  if (!custom && path.resolve(root) === path.resolve(settingsRoot)) {
+    effective = defaultPath
+    fs.mkdirSync(effective, { recursive: true })
+  }
+
+  migrateConfigLayout(effective)
+  if (path.resolve(effective) !== path.resolve(root)) {
+    migrateConfigLayout(root)
+  }
+
+  return effective
 }
 
 function uniqueRoots(roots: Array<string | null | undefined>): string[] {
@@ -237,8 +265,7 @@ export function resolveFledgeRoot(): string {
   const fromEnv = process.env.FLEDGE_ROOT?.trim()
   if (fromEnv) {
     const resolved = path.resolve(fromEnv)
-    migrateSettingsAndAccounts(resolved)
-    return resolved
+    return finalizeConfigRoot(resolved)
   }
 
   const defaultPath = getDefaultFledgeRoot()
@@ -256,8 +283,7 @@ export function resolveFledgeRoot(): string {
 
   if (hasPersistedUserData(root)) {
     writeInstallDirPointer(root)
-    migrateSettingsAndAccounts(root)
-    return root
+    return finalizeConfigRoot(root)
   }
 
   // 旧既定（exe 横）にデータが残っていればそちらを優先（0.2.5b 以前からの移行）
@@ -267,14 +293,12 @@ export function resolveFledgeRoot(): string {
     if (hasPersistedUserData(candidate)) {
       recoveredRootFrom = candidate
       persistResolvedRoot(candidate)
-      migrateSettingsAndAccounts(candidate)
-      return candidate
+      return finalizeConfigRoot(candidate)
     }
   }
 
   writeInstallDirPointer(root)
-  migrateSettingsAndAccounts(root)
-  return root
+  return finalizeConfigRoot(root)
 }
 
 export type AppDirectoryInfo = {

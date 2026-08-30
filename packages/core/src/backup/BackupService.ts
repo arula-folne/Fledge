@@ -146,11 +146,21 @@ export class BackupService {
     }
 
     const dataDir = path.join(resolved, 'Data')
-    const settingsSrc = path.join(dataDir, 'Settings')
-    const skinsSrc = path.join(dataDir, 'Skins')
-    const instancesSrc = path.join(resolved, 'Instances')
+    const settingsSrcLegacy = path.join(dataDir, 'Settings')
+    const skinsSrcLegacy = path.join(dataDir, 'Skins')
+    const settingsSrc = (await exists(path.join(resolved, 'settings', 'settings.json')))
+      ? path.join(resolved, 'settings')
+      : settingsSrcLegacy
+    const skinsSrc = (await exists(path.join(resolved, 'skins')))
+      ? path.join(resolved, 'skins')
+      : skinsSrcLegacy
+    const instancesSrc = (await exists(path.join(resolved, 'instances')))
+      ? path.join(resolved, 'instances')
+      : path.join(resolved, 'Instances')
     const hasManifest = await exists(path.join(resolved, MANIFEST))
-    const hasSettings = await exists(path.join(settingsSrc, 'settings.json'))
+    const hasSettings =
+      (await exists(path.join(settingsSrc, 'settings.json'))) ||
+      (await exists(path.join(settingsSrcLegacy, 'settings.json')))
     if (!hasManifest && !hasSettings) {
       throw new Error('このフォルダは Fledge のバックアップではありません')
     }
@@ -184,11 +194,9 @@ export class BackupService {
 
   private async writePayload(dest: string, kind: BackupKind): Promise<void> {
     await fs.mkdir(dest, { recursive: true })
-    const dataDest = path.join(dest, 'Data')
-    await fs.mkdir(dataDest, { recursive: true })
-    await mirrorDir(this.layout.settings, path.join(dataDest, 'Settings'))
-    await mirrorDir(this.layout.skins, path.join(dataDest, 'Skins'))
-    await mirrorDir(this.layout.instances, path.join(dest, 'Instances'))
+    await mirrorDir(this.layout.settings, path.join(dest, 'settings'))
+    await mirrorDir(this.layout.skins, path.join(dest, 'skins'))
+    await mirrorDir(this.layout.instances, path.join(dest, 'instances'))
     const manifest: Manifest = {
       kind,
       createdAt: new Date().toISOString(),

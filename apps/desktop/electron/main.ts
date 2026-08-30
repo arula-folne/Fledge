@@ -12,9 +12,11 @@ import { TokenVault } from './security/tokenVault'
 import { applyLightStartEnv, isLightStart } from './startup/lightStart'
 import { preparePostUpdateSettings } from './startup/updateStartup'
 import { attachWindowSizeSync, createMainWindow, resolveFledgeRoot } from './windows/MainWindow'
+import { configureAppDataPaths } from './paths/configureAppDataPaths'
 import { getSettingsRoot, resolveSettingsFileCandidates } from './paths/customRoot'
 import { takeRootRecoveryNotice } from './paths/customRoot'
 
+configureAppDataPaths()
 applyLightStartEnv()
 
 // ready 前: 使わない Chromium 機能を落としてベースメモリを抑える
@@ -382,7 +384,7 @@ app.whenReady().then(() => {
       }
       const screenshotsDir = launcherApp
         ? path.resolve(launcherApp.instances.instanceDir(instanceId), 'screenshots')
-        : path.resolve(resolveFledgeRoot(), 'Instances', instanceId, 'screenshots')
+        : path.resolve(resolveFledgeRoot(), 'instances', instanceId, 'screenshots')
       const full = path.resolve(screenshotsDir, base)
       const rel = path.relative(screenshotsDir, full)
       if (rel.startsWith('..') || path.isAbsolute(rel)) {

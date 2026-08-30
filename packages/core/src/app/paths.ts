@@ -7,32 +7,28 @@ export type PathLayout = PathInfo
 /**
  * PathLayout を組み立てる。
  *
- * - `root`（config）: Instances / Minecraft 本体 / キャッシュ等
+ * - `root`（config）: instances / meta / caches 等（Modrinth 型のフラット構成）
  * - `settingsRoot`: 設定・アカウント（未指定時は root と同じ）
- *
- * Modrinth 型: 設定は AppData、ゲームデータは設定可能な config ルート。
  */
 export function resolvePathLayout(root: string, settingsRoot: string = root): PathLayout {
-  const data = path.join(root, 'Data')
   return {
     root,
-    data,
+    data: root,
     settings: path.join(settingsRoot, 'Settings'),
     accounts: path.join(settingsRoot, 'Accounts'),
-    cache: path.join(data, 'Cache'),
-    minecraft: path.join(data, 'Minecraft'),
-    java: path.join(data, 'java-version'),
-    logs: path.join(data, 'Logs'),
-    news: path.join(data, 'News'),
-    temp: path.join(data, 'Temp'),
-    skins: path.join(data, 'Skins'),
-    instances: path.join(root, 'Instances'),
+    cache: path.join(root, 'caches'),
+    minecraft: path.join(root, 'meta'),
+    java: path.join(root, 'java'),
+    logs: path.join(root, 'logs'),
+    news: path.join(root, 'news'),
+    temp: path.join(root, 'temp'),
+    skins: path.join(root, 'skins'),
+    instances: path.join(root, 'instances'),
   }
 }
 
 export async function ensurePathLayout(layout: PathLayout): Promise<void> {
   const dirs = [
-    layout.data,
     layout.settings,
     layout.accounts,
     layout.cache,
