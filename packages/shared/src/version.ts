@@ -8,7 +8,7 @@
  * |----------------|--------------|
  * | アルファ版     | `0.0.0a`     |
  * | ベータ版       | `0.0.0b`     |
- * | 第1世代ファイナル | `0.0.0f`  | … 0.2.4f など。第2世代（0.3+）へは自動更新しない |
+ * | 第1世代ファイナル | `0.0.0b`  | … 0.2.5b など。第2世代（0.3+）へは自動更新しない |
  * | 製品版         | `0.0.0`      |
  *
  * バージョンを上げるとき:
@@ -18,9 +18,9 @@
  * 4. RELEASE_NOTES.md に GitHub Release 用の更新内容を書く（リリースページ本文）
  * 5. main へマージ後、`v{APP_VERSION}` タグを push（例: v0.1.9a）
  */
-export const APP_VERSION = '0.2.4f' as const
+export const APP_VERSION = '0.2.5b' as const
 
-/** UI 表示用（`Ver.X.X.X[a|b|f]`） */
+/** UI 表示用（`Ver.X.X.X[a|b]`） */
 export const APP_VERSION_LABEL = `Ver.${APP_VERSION}` as const
 export const APP_VERSION_FULL = `Fledge ${APP_VERSION_LABEL}` as const
 

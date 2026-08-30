@@ -1,8 +1,8 @@
 {
-  "description": "第1世代 Ver.0.2.4f 向けテスト用仮データ（0.2.4b レイアウト + 更新上限）",
+  "description": "第1世代 Ver.0.2.5b 向けテスト用仮データ（0.2.4b レイアウト + 更新上限）",
   "generation": 1,
   "simulatedAppVersionBeforePatch": "0.2.4b",
-  "patchedFinalVersion": "0.2.4f",
+  "patchedFinalVersion": "0.2.5b",
   "updateCeilingExclusive": "0.3.x",
   "layout": "install-layout",
   "notes": "0.3.0 以上の GitHub Release は第1世代アプリから案内しない"
