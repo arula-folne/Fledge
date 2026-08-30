@@ -313,8 +313,8 @@ async function bootstrap(): Promise<void> {
       void scheduleAppRelaunch()
     },
     onQuitForUpdate: () => {
-      // WMI で待機スクリプト起動済み。ロック解除の猶予だけ置いて終了（NSIS が新版を起動）
-      void scheduleAppExit({ relaunch: false, delayMs: 800 })
+      // WMI で待機スクリプト起動済み。すぐ終了して NSIS 待ち時間を短くする
+      void scheduleAppExit({ relaunch: false, delayMs: 300 })
     },
     onUninstall: () => {
       void scheduleAppExit({ relaunch: false, skipBackupFlush: true, delayMs: 400 })
@@ -355,7 +355,14 @@ async function bootstrap(): Promise<void> {
 }
 
 app.whenReady().then(() => {
-  void cleanupLegacyTempUpdateDirs()
+  // 更新直後はウィンドウ表示を優先（TEMP 掃除は後回し）
+  if (isLightStart()) {
+    setTimeout(() => {
+      void cleanupLegacyTempUpdateDirs()
+    }, 15_000)
+  } else {
+    void cleanupLegacyTempUpdateDirs()
+  }
   protocol.handle('fledge-skin', (request) => {
     const name = path.basename(new URL(request.url).pathname)
     if (!DEFAULT_SKIN_FILE.test(name)) {

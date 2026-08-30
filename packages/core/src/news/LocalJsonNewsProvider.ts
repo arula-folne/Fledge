@@ -51,11 +51,16 @@ export class LocalJsonNewsProvider implements NewsProvider {
   async list(): Promise<NewsItem[]> {
     const local = await this.readLocal()
     this.lastFingerprint ||= fingerprint(local)
+    // 更新・インストール直後はリモート待ちしない（最大4秒の体感遅延を避ける）
+    if (process.env.FLEDGE_LIGHT_START === '1') {
+      void this.refreshRemote()
+      return local
+    }
     const remote = this.refreshRemote()
     // 可能なら今回の呼び出しでリモートを待ち、古いキャッシュだけを返さない
     const raced = await Promise.race([
       remote,
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 4_000)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 800)),
     ])
     if (raced?.length) return raced
     return local

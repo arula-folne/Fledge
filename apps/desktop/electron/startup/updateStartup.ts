@@ -83,7 +83,8 @@ export async function resolveUpdateNotice(appCtx: LauncherApp): Promise<UpdateNo
 
   const fromVersion = (pending?.fromVersion || last || '').trim()
   let releaseNotes = pending?.releaseNotes
-  if (!releaseNotes?.trim()) {
+  // 更新直後はウィンドウ表示を優先。GitHub 取得は通常起動やノート欠落時のみ
+  if (!releaseNotes?.trim() && !updatedArg) {
     releaseNotes = await appCtx.updater.fetchReleaseNotes(APP_VERSION)
   }
 

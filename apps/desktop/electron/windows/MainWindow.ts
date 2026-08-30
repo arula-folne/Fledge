@@ -114,8 +114,15 @@ export function createMainWindow(opts?: {
 
   win.once('ready-to-show', () => {
     applyWindowUiScale(win)
-    win.show()
+    if (!win.isDestroyed() && !win.isVisible()) win.show()
   })
+  // ready-to-show が遅い環境でも先に出す（更新直後の体感を短く）
+  setTimeout(() => {
+    if (!win.isDestroyed() && !win.isVisible()) {
+      applyWindowUiScale(win)
+      win.show()
+    }
+  }, 900)
 
   // 開発時: F12 / Ctrl+Shift+I で DevTools（リサイズ時の右上サイズ表示は DevTools 開時のみ）
   if (!app.isPackaged) {
