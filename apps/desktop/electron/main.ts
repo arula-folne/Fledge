@@ -313,8 +313,8 @@ async function bootstrap(): Promise<void> {
       void scheduleAppRelaunch()
     },
     onQuitForUpdate: () => {
-      // ジョブ外の更新スクリプト起動を待ってから終了。relaunch はせず NSIS に任せる
-      void scheduleAppExit({ relaunch: false, delayMs: 1200 })
+      // WMI で待機スクリプト起動済み。ロック解除の猶予だけ置いて終了（NSIS が新版を起動）
+      void scheduleAppExit({ relaunch: false, delayMs: 800 })
     },
     onUninstall: () => {
       void scheduleAppExit({ relaunch: false, skipBackupFlush: true, delayMs: 400 })
