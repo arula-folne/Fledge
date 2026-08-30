@@ -3,11 +3,14 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 /**
- * Electron は Job Object（KILL_ON_JOB_CLOSE）で子プロセスをまとめて落とす。
- * `detached` / `cmd start` だけでは足りないことがあるため、
- * WMI Win32_Process.Create でジョブ外に待機スクリプトを作ってから終了する。
+ * Electron の Job Object 外で「終了待ち → NSIS → 再起動」を走らせる。
  *
- * NSIS の /D= は最後の引数で、パスにスペースがあっても引用符を付けない。
+ * 重要:
+ * - WMI 起動の cmd にはコンソールが無く、`timeout` はプロセスごと終了する
+ *   （ログが settling で止まる原因）。待ちは `ping` のみ使う。
+ * - 日付の「(日)」が batch の `()` ブロックを壊すので、ログに %date% を出さない。
+ * - サイレント更新では Finish ページが飛ばされ `--force-run` が効かないことがあるため、
+ *   NSIS 後にルートの Fledge.exe をこちらから起動する。
  */
 export async function spawnInstallerAfterAppExit(
   installerPath: string,
@@ -18,10 +21,9 @@ export async function spawnInstallerAfterAppExit(
   await fs.mkdir(dir, { recursive: true })
 
   const scriptPath = path.join(dir, 'run-installer.cmd')
+  const vbsPath = path.join(dir, 'run-installer.vbs')
   const logPath = path.join(dir, 'update-log.txt')
   const installDirArg = installDir.replace(/[\\/]+$/, '')
-
-  // batch の set "VAR=..." 用（" を除去）
   const batSet = (s: string) => s.replace(/"/g, '')
 
   const content = [
@@ -31,42 +33,58 @@ export async function spawnInstallerAfterAppExit(
     `set "INSTALLER=${batSet(installerPath)}"`,
     `set "INSTALLDIR=${batSet(installDirArg)}"`,
     `set "LOG=${batSet(logPath)}"`,
-    'echo [%date% %time%] wait pid=!TARGET_PID!>>"!LOG!"',
-    'echo [%date% %time%] installer=!INSTALLER!>>"!LOG!"',
-    'echo [%date% %time%] installDir=!INSTALLDIR!>>"!LOG!"',
+    `set "APP=!INSTALLDIR!\\Fledge.exe"`,
+    'echo wait pid=!TARGET_PID!>>"!LOG!"',
+    'echo installer=!INSTALLER!>>"!LOG!"',
+    'echo installDir=!INSTALLDIR!>>"!LOG!"',
     ':wait',
     'tasklist /FI "PID eq !TARGET_PID!" /NH 2>NUL | find "!TARGET_PID!" >NUL',
     'if not errorlevel 1 (',
-    '  timeout /t 1 /nobreak >nul',
+    '  ping -n 2 127.0.0.1 >nul',
     '  goto wait',
     ')',
-    'echo [%date% %time%] pid exited, settling...>>"!LOG!"',
-    'timeout /t 2 /nobreak >nul',
+    'echo pid exited, settling>>"!LOG!"',
+    // timeout はコンソール無しだと cmd 自体を終了させる。ping で待つ。
+    'ping -n 3 127.0.0.1 >nul',
     'if not exist "!INSTALLER!" (',
-    '  echo [%date% %time%] ERROR installer missing>>"!LOG!"',
+    '  echo ERROR installer missing>>"!LOG!"',
     '  exit /b 2',
     ')',
-    'echo [%date% %time%] launching NSIS>>"!LOG!"',
-    // /D= は最後・引用符なし（スペース含みパス対応）
-    '"!INSTALLER!" --updated /S --force-run /D=!INSTALLDIR!',
+    'echo launching NSIS>>"!LOG!"',
+    // /D= は最後・非クォート。--force-run は Finish スキップで効かないことがあるので付けない
+    '"!INSTALLER!" --updated /S /D=!INSTALLDIR!',
     'set "EC=!ERRORLEVEL!"',
-    'echo [%date% %time%] NSIS exit=!EC!>>"!LOG!"',
-    '(del "%~f0") >nul 2>&1',
+    'echo NSIS exit=!EC!>>"!LOG!"',
+    'if not exist "!APP!" (',
+    '  echo ERROR app missing after install: !APP!>>"!LOG!"',
+    '  exit /b 3',
+    ')',
+    'echo starting app>>"!LOG!"',
+    'start "" "!APP!" --updated',
+    'echo done>>"!LOG!"',
+    'del "%~dp0run-installer.vbs" >nul 2>&1',
+    'del "%~f0" >nul 2>&1',
     'exit /b !EC!',
     '',
   ].join('\r\n')
 
   await fs.writeFile(scriptPath, content, 'utf8')
 
-  // 旧 PowerShell 待機は残っていても無視
+  // ウィンドウ 0 = 非表示。WMI 直 cmd だと黒窓が一瞬出る
+  const vbs = [
+    'Set sh = CreateObject("WScript.Shell")',
+    `sh.Run "cmd.exe /d /c ""${scriptPath.replace(/"/g, '""')}""", 0, False`,
+    '',
+  ].join('\r\n')
+  await fs.writeFile(vbsPath, vbs, 'utf8')
+
   try {
     await fs.unlink(path.join(dir, 'run-installer.ps1'))
   } catch {
     /* ok */
   }
 
-  // WMI でジョブ外プロセスを生成（同期。成功してからアプリ終了する）
-  const cmdLine = `cmd.exe /d /c ""${scriptPath.replace(/'/g, "''")}""`
+  const cmdLine = `wscript.exe //B "${vbsPath.replace(/'/g, "''")}"`
   const ps = [
     `$r = ([wmiclass]'Win32_Process').Create('${cmdLine}')`,
     'if ($null -eq $r) { throw "WMI Create returned null" }',
@@ -86,7 +104,7 @@ export async function spawnInstallerAfterAppExit(
     )
     await fs.appendFile(
       logPath,
-      `[${new Date().toISOString()}] spawned waiter pid=${String(out).trim()} script=${scriptPath}\n`,
+      `[${new Date().toISOString()}] spawned hidden waiter wscript=${String(out).trim()}\n`,
       'utf8',
     )
   } catch (err) {
