@@ -88,18 +88,19 @@ Main (Electron)
 - **settingsRoot**（本番: `%APPDATA%\\fledge` / Roaming）: ランチャー設定・アカウント・ログ・お知らせ
 - **sessionData**（本番: `%LOCALAPPDATA%\\fledge` / Local）: Electron/Chromium の Cache 等（再生成可能）
 - **configRoot**（既定: `<installDir>/data`。設定で変更可）: instances / meta / caches 等
-- **installDir**（インストーラで選ぶフォルダ）: `app/`・`Uninstall Fledge.exe`・`data/`・`data-root.json`
+- **installDir**（インストーラで選ぶフォルダ、例: `...\Fledge`）: `Fledge.exe`・Electron ランタイム・`Uninstall Fledge.exe`・`data/`・`data-root.json`
 
 開発時は settingsRoot が `apps/desktop/.fledge-root/`、configRoot が `apps/desktop/.fledge-root/data/` です。
 
 ```
-<installDir>/
-  app/                   Fledge.exe と Electron ランタイム
+<installDir>/                 例: ...\Fledge\
+  Fledge.exe                  本体（インストール先直下）
   Uninstall Fledge.exe
+  *.dll / locales / resources  Electron ランタイム
   data-root.json
-  data/                  ゲームデータ（設定の「データディレクトリ」既定）
-    instances/           インスタンス（ワールド・Mod・options.txt 等）
-    meta/                libraries / assets / versions / natives / java
+  data/                       ゲームデータ
+    instances/
+    meta/                     libraries / assets / versions / natives / java
     caches/
     skins/
     temp/

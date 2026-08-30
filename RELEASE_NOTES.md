@@ -8,7 +8,7 @@
 ## 主な内容
 
 - **二層配置**: 設定・アカウント・ログ → `%APPDATA%\\fledge`（Roaming）／Chromium キャッシュ → `%LOCALAPPDATA%\\fledge`（Local）
-- **インストール先**: `app/`（本体）・`Uninstall`・`data/`（`instances` / `meta` / `caches` 等）
+- **インストール先**: `Fledge.exe`（直下）・`Uninstall`・`data/`（`instances` / `meta` / `caches` 等）
 - データディレクトリは設定から変更可。更新時は `data/` を退避・復元
 - フォルダ名は Fledge 独自（`instances` 等）。他製品の商標・ブランド名は使用しません
 - スクリーンショットギャラリー等を含む

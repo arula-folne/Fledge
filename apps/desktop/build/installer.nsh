@@ -85,49 +85,9 @@
     FunctionEnd
   !macroend
 
-  ; Electron ランタイムを $INSTDIR\app\ へ移し、ルートを見やすくする
-  !macro fledgeMoveIntoApp entry
-    IfFileExists "$INSTDIR\${entry}" 0 +2
-      Rename "$INSTDIR\${entry}" "$INSTDIR\app\${entry}"
-  !macroend
-
-  !macro fledgeNestRuntimeIntoApp
-    ${If} ${FileExists} "$INSTDIR\app\${APP_EXECUTABLE_FILENAME}"
-      Goto fledge_nest_done
-    ${EndIf}
-    ${IfNot} ${FileExists} "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
-      Goto fledge_nest_done
-    ${EndIf}
-
-    CreateDirectory "$INSTDIR\app"
-    !insertmacro fledgeMoveIntoApp "${APP_EXECUTABLE_FILENAME}"
-    !insertmacro fledgeMoveIntoApp "locales"
-    !insertmacro fledgeMoveIntoApp "resources"
-    !insertmacro fledgeMoveIntoApp "chrome_100_percent.pak"
-    !insertmacro fledgeMoveIntoApp "chrome_200_percent.pak"
-    !insertmacro fledgeMoveIntoApp "d3dcompiler_47.dll"
-    !insertmacro fledgeMoveIntoApp "ffmpeg.dll"
-    !insertmacro fledgeMoveIntoApp "icudtl.dat"
-    !insertmacro fledgeMoveIntoApp "libEGL.dll"
-    !insertmacro fledgeMoveIntoApp "libGLESv2.dll"
-    !insertmacro fledgeMoveIntoApp "LICENSE.electron.txt"
-    !insertmacro fledgeMoveIntoApp "LICENSES.chromium.html"
-    !insertmacro fledgeMoveIntoApp "resources.pak"
-    !insertmacro fledgeMoveIntoApp "snapshot_blob.bin"
-    !insertmacro fledgeMoveIntoApp "v8_context_snapshot.bin"
-    !insertmacro fledgeMoveIntoApp "vk_swiftshader.dll"
-    !insertmacro fledgeMoveIntoApp "vk_swiftshader_icd.json"
-    !insertmacro fledgeMoveIntoApp "vulkan-1.dll"
-    !insertmacro fledgeMoveIntoApp "dxcompiler.dll"
-    !insertmacro fledgeMoveIntoApp "dxil.dll"
-
-    fledge_nest_done:
-  !macroend
-
   !macro customInstall
-    !insertmacro fledgeNestRuntimeIntoApp
-
-    ; Fledge: exe 横に data/（instances・meta・caches）
+    ; Fledge.exe は $INSTDIR\Fledge.exe（インストール先直下）
+    ; ゲームデータは exe 横の data/
     CreateDirectory "$INSTDIR\data"
     CreateDirectory "$INSTDIR\data\caches"
     CreateDirectory "$INSTDIR\data\meta"
@@ -136,10 +96,7 @@
     CreateDirectory "$INSTDIR\data\skins"
     CreateDirectory "$INSTDIR\data\temp"
 
-    StrCpy $appExe "$INSTDIR\app\${APP_EXECUTABLE_FILENAME}"
-    ${IfNot} ${FileExists} "$appExe"
-      StrCpy $appExe "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
-    ${EndIf}
+    StrCpy $appExe "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
 
     ${If} $newStartMenuLink != ""
       Delete "$newStartMenuLink"
@@ -177,10 +134,7 @@
       ${else}
         StrCpy $1 "--fledge-post-install"
       ${endif}
-      StrCpy $appExe "$INSTDIR\app\${APP_EXECUTABLE_FILENAME}"
-      ${IfNot} ${FileExists} "$appExe"
-        StrCpy $appExe "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
-      ${EndIf}
+      StrCpy $appExe "$INSTDIR\${APP_EXECUTABLE_FILENAME}"
       ${If} ${FileExists} "$newStartMenuLink"
         StrCpy $launchLink "$newStartMenuLink"
       ${Else}

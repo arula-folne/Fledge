@@ -70,8 +70,8 @@ function renameIfExists(from: string, to: string): void {
 }
 
 /**
- * アプリ本体のインストール先（Data を置かない）。
- * 本番レイアウトは `<install>/app/Fledge.exe` のため、exe 親が `app` ならその親を返す。
+ * アプリ本体のインストール先（ゲームデータの data/ の親）。
+ * 現行は `<install>/Fledge.exe`。旧実験レイアウト `<install>/app/Fledge.exe` も親を返す。
  */
 export function getInstallDir(): string {
   if (!app.isPackaged) {
