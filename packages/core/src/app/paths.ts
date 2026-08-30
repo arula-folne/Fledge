@@ -5,10 +5,12 @@ import type { PathInfo } from '@fledge/shared'
 export type PathLayout = PathInfo
 
 /**
- * PathLayout を組み立てる（Modrinth App と同じ二層）。
+ * Fledge の二層パス。
  *
- * - `settingsRoot`（AppData）: 設定・アカウント・ランチャーログ・お知らせキャッシュ
- * - `root`（config / 既定は installDir/Instance）: profiles / meta / caches / synced-options
+ * - settingsRoot（%APPDATA%\\fledge）: Settings / Accounts / logs / news
+ * - root（既定: installDir/data、設定で変更可）: instances / meta / caches / skins / temp
+ *
+ * フォルダ名は Fledge 独自（instances 等）。他ランチャーの商標・製品固有名は使わない。
  */
 export function resolvePathLayout(root: string, settingsRoot: string = root): PathLayout {
   return {
@@ -18,12 +20,12 @@ export function resolvePathLayout(root: string, settingsRoot: string = root): Pa
     accounts: path.join(settingsRoot, 'Accounts'),
     cache: path.join(root, 'caches'),
     minecraft: path.join(root, 'meta'),
-    java: path.join(root, 'meta', 'java_versions'),
-    logs: path.join(settingsRoot, 'launcher_logs'),
+    java: path.join(root, 'meta', 'java'),
+    logs: path.join(settingsRoot, 'logs'),
     news: path.join(settingsRoot, 'news'),
     temp: path.join(root, 'temp'),
     skins: path.join(root, 'skins'),
-    instances: path.join(root, 'profiles'),
+    instances: path.join(root, 'instances'),
   }
 }
 
@@ -42,7 +44,6 @@ export async function ensurePathLayout(layout: PathLayout): Promise<void> {
     layout.temp,
     layout.skins,
     layout.instances,
-    path.join(layout.root, 'synced-options'),
   ]
   await Promise.all(dirs.map((dir) => fs.mkdir(dir, { recursive: true })))
 }

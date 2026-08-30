@@ -384,7 +384,7 @@ app.whenReady().then(() => {
       }
       const screenshotsDir = launcherApp
         ? path.resolve(launcherApp.instances.instanceDir(instanceId), 'screenshots')
-        : path.resolve(resolveFledgeRoot(), 'profiles', instanceId, 'screenshots')
+        : path.resolve(resolveFledgeRoot(), 'instances', instanceId, 'screenshots')
       const full = path.resolve(screenshotsDir, base)
       const rel = path.relative(screenshotsDir, full)
       if (rel.startsWith('..') || path.isAbsolute(rel)) {

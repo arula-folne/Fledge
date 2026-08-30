@@ -83,39 +83,42 @@ Main (Electron)
 
 ## 5. ランタイムデータ
 
-本番は **Modrinth 型**の二層配置です。
+本番は **二層配置**です。
 
-- **settingsRoot**（本番: `%APPDATA%\\fledge`）: ランチャー設定・アカウント・ログ
-- **configRoot**（既定: `<installDir>/Instance`。設定で変更可）: profiles / meta / caches / synced-options
-- **installDir**（インストーラで選ぶフォルダ）: `app/`（実行ファイル）・`Uninstall Fledge.exe`・`Instance/`・`data-root.json`
+- **settingsRoot**（本番: `%APPDATA%\\fledge` / Roaming）: ランチャー設定・アカウント・ログ・お知らせ
+- **sessionData**（本番: `%LOCALAPPDATA%\\fledge` / Local）: Electron/Chromium の Cache 等（再生成可能）
+- **configRoot**（既定: `<installDir>/data`。設定で変更可）: instances / meta / caches 等
+- **installDir**（インストーラで選ぶフォルダ）: `app/`・`Uninstall Fledge.exe`・`data/`・`data-root.json`
 
 開発時は settingsRoot が `apps/desktop/.fledge-root/`、configRoot が `apps/desktop/.fledge-root/data/` です。
 
 ```
-<installDir>/                              インストーラで選ぶフォルダ
+<installDir>/
   app/                   Fledge.exe と Electron ランタイム
   Uninstall Fledge.exe
-  data-root.json         データルートへのポインタ
-  Instance/              ゲームデータ（Modrinth の Instance 相当）
-    profiles/            インスタンス
-    meta/                libraries / assets / versions / natives / java_versions
+  data-root.json
+  data/                  ゲームデータ（設定の「データディレクトリ」既定）
+    instances/           インスタンス（ワールド・Mod・options.txt 等）
+    meta/                libraries / assets / versions / natives / java
     caches/
-    synced-options/
     skins/
     temp/
 
-<settingsRoot>/                            %APPDATA%\fledge（更新でも消えない）
-  Settings/            settings.json
-  Accounts/            アカウント一覧 + secrets/
-  launcher_logs/       ランチャーログ
-  news/                お知らせキャッシュ
-  custom-root.json     データディレクトリ変更時のポインタ
+%APPDATA%\fledge\        settingsRoot（更新でも消えない）
+  Settings/
+  Accounts/
+  logs/
+  news/
+  custom-root.json
+
+%LOCALAPPDATA%\fledge\   sessionData（ブラウザキャッシュ。消えても再生成）
 ```
 
 `packages/core/src/app/paths.ts` の `resolvePathLayout(configRoot, settingsRoot)` がこの配置を組み立てます。  
 Minecraft 本体・ライブラリ・アセット・Java は `meta/` で共有します。  
-ワールド、Mod、ゲーム内設定（`options.txt`）、Mod 設定（`config/`）などは `profiles/<id>/` です。  
-テーマ・アカウントは settingsRoot、スキンは Instance の `skins/` です。
+ワールド、Mod、ゲーム内設定は `instances/<id>/` です。
+
+他製品の商標・製品固有のフォルダ名は使いません（Fledge 独自の命名）。
 
 インスタンス配下で開いてよいサブフォルダ（`INSTANCE_SUBFOLDERS`）:
 
@@ -253,7 +256,7 @@ Modpack 同梱の `options.txt` より、初回起動時の Fledge パッチを�
 `extraResources`: `icon.png` / `icon.ico`、同梱スキン。
 
 アンインストール時はインストールフォルダの残骸に加え、設定により AppData（settingsRoot）も削除する（`deleteAppDataOnUninstall` / `build/installer.nsh`）。  
-アプリ内更新では `customRemoveFiles` により `Data/`・`Instances/`・`data-root.json` を残す。  
+アプリ内更新では `customRemoveFiles` により `data/`・旧 `Instance/`・`data-root.json` 等を退避・復元する。  
 設定 → リソース管理からアプリ内アンインストールも可能（終了後に NSIS アンインストーラー／フォルダ削除を実行）。
 
 ## 16. 既知のギャップ（Beta）

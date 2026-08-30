@@ -11,18 +11,18 @@ Fledge が扱うデータを、**現時点で実装済みのもの** と **今�
 
 ## 1. 現時点で扱っているデータ
 
-> 2026-08-30 時点。設定・アカウント・ログは AppData（settingsRoot）、ゲームデータは installDir/Instance（または設定で変更した configRoot）。Fledge 独自アカウント、独自解析、広告 SDK は未導入です。
+> 2026-08-30 時点。設定・アカウント・ログは `%APPDATA%\\fledge`（Roaming）、Chromium キャッシュは `%LOCALAPPDATA%\\fledge`（Local）、ゲームデータは installDir/data（または設定で変更した configRoot）。Fledge 独自アカウント、独自解析、広告 SDK は未導入です。
 
 | 区分 | データ項目 | 例 | 取得元 | 保存場所 / 送信先 | 利用目的 | 保存期間の目安 | 備考 |
 |------|------------|----|--------|-------------------|----------|----------------|------|
-| 端末内設定 | ランチャー設定 | テーマ、UI サイズ、メモリ、起動ページ、Discord RPC 設定 | ユーザー入力 | `<settingsRoot>/Settings/` | アプリ設定の保持 | ユーザーが削除・初期化するまで | 端末内のみ（AppData。更新で消えない） |
+| 端末内設定 | ランチャー設定 | テーマ、UI サイズ、メモリ、起動ページ、Discord RPC 設定 | ユーザー入力 | `<settingsRoot>/Settings/` | アプリ設定の保持 | ユーザーが削除・初期化するまで | 端末内のみ（AppData Roaming。更新で消えない） |
 | アカウント表示情報 | Microsoft / Minecraft の表示情報 | MCID、UUID、任意の XUID、アバター URL | Microsoft / Minecraft | `<settingsRoot>/Accounts/index.json` | ログイン状態の表示、アカウント切替 | ログアウトまたは削除まで | 端末内のみ |
 | 認証情報 | Microsoft / Minecraft トークン | アクセストークン、リフレッシュトークン | Microsoft / Minecraft | `<settingsRoot>/Accounts/secrets/` | 再ログイン省略、ゲーム起動 | ログアウトまたは削除まで | Electron `safeStorage` で暗号化 |
-| インスタンス情報 | ゲームごとの設定と付随データ | インスタンス名、バージョン、ローダー、メモリ、JVM 引数、ワールド、Mod、`options.txt`、`config/` | ユーザー入力・ゲーム生成 | `<configRoot>/profiles/` | 起動、管理、バックアップ | ユーザーが削除するまで | 端末内のみ。ゲーム内設定も含めてインスタンスごと |
+| インスタンス情報 | ゲームごとの設定と付随データ | インスタンス名、バージョン、ローダー、メモリ、JVM 引数、ワールド、Mod、`options.txt`、`config/` | ユーザー入力・ゲーム生成 | `<configRoot>/instances/` | 起動、管理、バックアップ | ユーザーが削除するまで | 端末内のみ。ゲーム内設定も含めてインスタンスごと |
 | スキン情報 | 選択中／アップロード済みスキン | スキン名、モデル、画像ファイル | ユーザー入力・同梱データ | `<configRoot>/skins/` | 表示、選択、Minecraft プロフィールへの適用 | ユーザーが削除するまで | 端末内のみ |
 | キャッシュ | 一時保存データ | ダウンロード済みファイル、取得済みメタデータ、導入済みマーカー、展開済みネイティブ | 外部配布元 | `<configRoot>/caches/`、`meta/` | 再ダウンロード削減、起動高速化 | ユーザーが削除するまで | キャッシュクリア可。ネイティブは容量と引き換えに再利用 |
-| ログ | 動作記録 | 起動ログ、エラー情報 | アプリ実行時 | `<settingsRoot>/launcher_logs/` | 不具合確認 | ユーザーが削除するまで | 現時点で外部送信なし |
-| Java ランタイム | Fledge 管理下の Java | Temurin 8 / 17 / 21 / 25 | Eclipse Adoptium | `<configRoot>/meta/java_versions/` | ゲーム起動 | ユーザーが削除するまで | 端末内に展開 |
+| ログ | 動作記録 | 起動ログ、エラー情報 | アプリ実行時 | `<settingsRoot>/logs/` | 不具合確認 | ユーザーが削除するまで | 現時点で外部送信なし |
+| Java ランタイム | Fledge 管理下の Java | Temurin 8 / 17 / 21 / 25 | Eclipse Adoptium | `<configRoot>/meta/java/` | ゲーム起動 | ユーザーが削除するまで | 端末内に展開 |
 | ニュース | お知らせ表示用データ | タイトル、本文、公開日、任意 URL | GitHub 正本 + 端末キャッシュ + 同梱データ | `<settingsRoot>/news/` / [news/news.ja.json](../news/news.ja.json) | UI 表示 | キャッシュ約 1 時間、オフライン時は前回取得分 | GitHub から取得。初回オフラインは同梱 JSON |
 | 外部通信 | コンテンツ検索情報 | 検索語、対象バージョン、ローダー | ユーザー操作 | Modrinth API | コンテンツ検索・導入 | 外部サービス側の定めによる | Fledge 独自保存前提なし |
 | 外部通信 | アバター表示用識別子 | Minecraft UUID | 既存アカウント情報 | mc-heads.net | 顔アイコン表示 | 外部サービス側の定めによる | Microsoft 側 URL があれば優先 |

@@ -127,13 +127,14 @@
   !macro customInstall
     !insertmacro fledgeNestRuntimeIntoApp
 
-    ; Modrinth 型: exe 横に Instance/（caches・meta・profiles・synced-options）
-    CreateDirectory "$INSTDIR\Instance"
-    CreateDirectory "$INSTDIR\Instance\caches"
-    CreateDirectory "$INSTDIR\Instance\meta"
-    CreateDirectory "$INSTDIR\Instance\meta\java_versions"
-    CreateDirectory "$INSTDIR\Instance\profiles"
-    CreateDirectory "$INSTDIR\Instance\synced-options"
+    ; Fledge: exe 横に data/（instances・meta・caches）
+    CreateDirectory "$INSTDIR\data"
+    CreateDirectory "$INSTDIR\data\caches"
+    CreateDirectory "$INSTDIR\data\meta"
+    CreateDirectory "$INSTDIR\data\meta\java"
+    CreateDirectory "$INSTDIR\data\instances"
+    CreateDirectory "$INSTDIR\data\skins"
+    CreateDirectory "$INSTDIR\data\temp"
 
     StrCpy $appExe "$INSTDIR\app\${APP_EXECUTABLE_FILENAME}"
     ${IfNot} ${FileExists} "$appExe"

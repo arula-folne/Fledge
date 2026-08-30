@@ -27,44 +27,46 @@ function renameIfEmptyTarget(from: string, to: string): void {
 }
 
 /**
- * 旧 Fledge レイアウト → Modrinth 型。
+ * 旧レイアウト → 現行 Fledge レイアウト。
  *
- * configRoot/   profiles  meta  caches  skins  temp
- * settingsRoot/ Settings  Accounts  launcher_logs  news  custom-root.json
+ * configRoot/: instances  meta  caches  skins  temp
+ * settingsRoot/: Settings  Accounts  logs  news
  */
 export function migrateConfigLayout(configRoot: string, settingsRoot?: string): void {
   const root = path.resolve(configRoot)
   const settings = settingsRoot ? path.resolve(settingsRoot) : root
 
-  renameIfEmptyTarget(path.join(root, 'Instances'), path.join(root, 'profiles'))
-  renameIfEmptyTarget(path.join(root, 'instances'), path.join(root, 'profiles'))
+  // インスタンス（旧名含む）
+  renameIfEmptyTarget(path.join(root, 'Instances'), path.join(root, 'instances'))
+  renameIfEmptyTarget(path.join(root, 'profiles'), path.join(root, 'instances'))
+
   renameIfEmptyTarget(path.join(root, 'Data', 'Minecraft'), path.join(root, 'meta'))
   renameIfEmptyTarget(path.join(root, 'Data', 'Cache'), path.join(root, 'caches'))
-  renameIfEmptyTarget(path.join(root, 'Data', 'java-version'), path.join(root, 'meta', 'java_versions'))
-  renameIfEmptyTarget(path.join(root, 'java'), path.join(root, 'meta', 'java_versions'))
-  renameIfEmptyTarget(path.join(root, 'Data', 'Java'), path.join(root, 'meta', 'java_versions', '_legacy-temurin'))
+  renameIfEmptyTarget(path.join(root, 'Data', 'java-version'), path.join(root, 'meta', 'java'))
+  renameIfEmptyTarget(path.join(root, 'java'), path.join(root, 'meta', 'java'))
+  renameIfEmptyTarget(path.join(root, 'meta', 'java_versions'), path.join(root, 'meta', 'java'))
+  renameIfEmptyTarget(path.join(root, 'Data', 'Java'), path.join(root, 'meta', 'java', '_legacy-temurin'))
   renameIfEmptyTarget(path.join(root, 'Data', 'Skins'), path.join(root, 'skins'))
   renameIfEmptyTarget(path.join(root, 'Data', 'Temp'), path.join(root, 'temp'))
 
-  // ランチャー系は AppData（settingsRoot）へ
-  renameIfEmptyTarget(path.join(root, 'Data', 'Logs'), path.join(settings, 'launcher_logs'))
-  renameIfEmptyTarget(path.join(root, 'logs'), path.join(settings, 'launcher_logs'))
-  renameIfEmptyTarget(path.join(settings, 'logs'), path.join(settings, 'launcher_logs'))
+  // ランチャー系 → AppData
+  renameIfEmptyTarget(path.join(root, 'Data', 'Logs'), path.join(settings, 'logs'))
+  renameIfEmptyTarget(path.join(root, 'logs'), path.join(settings, 'logs'))
+  renameIfEmptyTarget(path.join(settings, 'launcher_logs'), path.join(settings, 'logs'))
   renameIfEmptyTarget(path.join(root, 'Data', 'News'), path.join(settings, 'news'))
   renameIfEmptyTarget(path.join(root, 'news'), path.join(settings, 'news'))
 
   try {
     const dataDir = path.join(root, 'Data')
-    if (pathExists(dataDir)) {
-      const rest = fs.readdirSync(dataDir)
-      if (rest.length === 0) fs.rmdirSync(dataDir)
+    if (pathExists(dataDir) && fs.readdirSync(dataDir).length === 0) {
+      fs.rmdirSync(dataDir)
     }
   } catch {
     /* ignore */
   }
 }
 
-/** userData 直下に Instances/Data があった 0.3.0ut 初期レイアウト → data/ サブフォルダへ */
+/** userData 直下にゲームデータがあった旧 0.3 レイアウト → data/ へ */
 export function migrateUserDataRootToDataSubfolder(userDataRoot: string): void {
   const dataSub = path.join(userDataRoot, 'data')
   const markers = ['Instances', 'instances', 'profiles', 'Data', 'meta', 'caches']
@@ -78,6 +80,7 @@ export function migrateUserDataRootToDataSubfolder(userDataRoot: string): void {
       name === 'Accounts' ||
       name === 'data' ||
       name === 'custom-root.json' ||
+      name === 'logs' ||
       name === 'launcher_logs' ||
       name === 'news'
     ) {

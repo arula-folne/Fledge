@@ -6,8 +6,8 @@ import path from 'node:path'
 const STORE_FILE = 'custom-root.json'
 /** インストール先（exe 横）の冗長ポインタ。userData の custom-root.json が消えても復元できる */
 const INSTALL_POINTER_FILE = 'data-root.json'
-/** Modrinth App の Instance 相当。インストール先直下のゲームデータフォルダ名 */
-export const INSTANCE_BUNDLE_DIR = 'Instance'
+/** インストール先直下のゲームデータフォルダ（Fledge 独自名） */
+export const GAME_DATA_DIR = 'data'
 
 type RootPointerStore = {
   root?: string
@@ -113,14 +113,14 @@ export function readInstallDirPointer(): string | null {
 }
 
 /**
- * ゲームデータ（profiles / meta / caches 等）の既定ルート。
- * 本番は `<installDir>/Instance`（Modrinth と同じく exe 横）。開発は `.fledge-root/data`。
+ * ゲームデータ（instances / meta / caches 等）の既定ルート。
+ * 本番は `<installDir>/data`（exe 横）。開発は `.fledge-root/data`。
  */
 export function getDefaultFledgeRoot(): string {
   if (!app.isPackaged) {
     return path.join(app.getAppPath(), '.fledge-root', 'data')
   }
-  return path.join(getInstallDir(), INSTANCE_BUNDLE_DIR)
+  return path.join(getInstallDir(), GAME_DATA_DIR)
 }
 
 export function readCustomRoot(): string | null {
@@ -151,7 +151,7 @@ export function writeCustomRoot(root: string | null): void {
 }
 
 function countInstanceProfiles(root: string): number {
-  for (const dirName of ['profiles', 'instances', 'Instances']) {
+  for (const dirName of ['instances', 'Instances', 'profiles']) {
     const instancesDir = path.join(root, dirName)
     try {
       const entries = fs.readdirSync(instancesDir, { withFileTypes: true })
@@ -189,23 +189,23 @@ function hasPersistedUserData(root: string): boolean {
   return false
 }
 
-function migrateLegacyBundlesIntoInstance(): void {
+function migrateLegacyBundlesIntoGameData(): void {
   if (!app.isPackaged) return
   const install = getInstallDir()
-  const instanceRoot = path.join(install, INSTANCE_BUNDLE_DIR)
+  const gameDataRoot = path.join(install, GAME_DATA_DIR)
 
-  // 旧既定 install/data → Instance
-  renameIfExists(path.join(install, 'data'), instanceRoot)
+  // 旧実験名 Instance → data
+  renameIfExists(path.join(install, 'Instance'), gameDataRoot)
 
-  // 旧既定 AppData/fledge/data → Instance（中身だけ移す）
+  // 旧既定 AppData/fledge/data → install/data（中身だけ移す）
   const legacyAppData = path.join(getSettingsRoot(), 'data')
   if (!pathExists(legacyAppData)) return
-  if (hasPersistedUserData(instanceRoot)) return
+  if (hasPersistedUserData(gameDataRoot)) return
   if (!hasPersistedUserData(legacyAppData)) return
-  fs.mkdirSync(instanceRoot, { recursive: true })
+  fs.mkdirSync(gameDataRoot, { recursive: true })
   try {
     for (const name of fs.readdirSync(legacyAppData)) {
-      renameIfExists(path.join(legacyAppData, name), path.join(instanceRoot, name))
+      renameIfExists(path.join(legacyAppData, name), path.join(gameDataRoot, name))
     }
   } catch {
     /* best effort */
@@ -216,7 +216,7 @@ function finalizeConfigRoot(root: string): string {
   const settingsRoot = getSettingsRoot()
   const defaultPath = getDefaultFledgeRoot()
 
-  migrateLegacyBundlesIntoInstance()
+  migrateLegacyBundlesIntoGameData()
   migrateSettingsAndAccounts(root)
   migrateUserDataRootToDataSubfolder(settingsRoot)
 
@@ -227,14 +227,14 @@ function finalizeConfigRoot(root: string): string {
     fs.mkdirSync(effective, { recursive: true })
   }
 
-  // ポインタ無しで既定のときは常に Instance を実効ルートにする
   if (!custom && path.resolve(effective) !== path.resolve(defaultPath)) {
     const install = getInstallDir()
-    if (path.resolve(effective) === path.resolve(path.join(settingsRoot, 'data'))) {
+    if (
+      path.resolve(effective) === path.resolve(path.join(settingsRoot, 'data')) ||
+      path.resolve(effective) === path.resolve(path.join(install, 'Instance'))
+    ) {
       effective = defaultPath
       fs.mkdirSync(effective, { recursive: true })
-    } else if (path.resolve(effective) === path.resolve(path.join(install, 'data'))) {
-      effective = defaultPath
     }
   }
 

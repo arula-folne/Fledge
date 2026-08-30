@@ -2,7 +2,7 @@ import { app } from 'electron'
 import fs from 'node:fs'
 import path from 'node:path'
 
-/** %APPDATA%\\fledge（小文字。npm スコープ @fledge は使わない） */
+/** %APPDATA%\\fledge（設定・アカウント。Roaming） */
 const APP_DATA_DIR_NAME = 'fledge'
 
 export function getAppDataDirName(): string {
@@ -18,7 +18,6 @@ function copyTreeIfMissing(from: string, to: string): void {
 
 function migrateLegacyUserDataDir(from: string, to: string): void {
   if (!fs.existsSync(from)) return
-  // Windows は大文字小文字を同一視するため、実パス比較では足りない
   try {
     if (fs.realpathSync.native(from).toLowerCase() === fs.realpathSync.native(to).toLowerCase()) {
       return
@@ -46,11 +45,12 @@ function migrateLegacyUserDataDir(from: string, to: string): void {
   }
 }
 
-/** Windows で Fledge → fledge のように表示名の大文字小文字だけ直す */
 function ensureAppDataDirCase(appData: string, desiredName: string): string {
   const target = path.join(appData, desiredName)
   try {
-    const existing = fs.readdirSync(appData).find((name) => name.toLowerCase() === desiredName.toLowerCase())
+    const existing = fs
+      .readdirSync(appData)
+      .find((name) => name.toLowerCase() === desiredName.toLowerCase())
     if (existing && existing !== desiredName) {
       const from = path.join(appData, existing)
       const tmp = path.join(appData, `${desiredName}.__tmp_rename__`)
@@ -69,13 +69,16 @@ function removeScopedAtFledge(appData: string): void {
   try {
     fs.rmSync(scoped, { recursive: true, force: true })
   } catch {
-    /* ロック中は次回。エクスプローラーから手動削除も可 */
+    /* locked — retry next launch */
   }
 }
 
 /**
- * userData を %APPDATA%\\fledge に固定する。app.whenReady() より前に 1 回だけ呼ぶ。
- * package.json の name が @fledge/desktop でも、ここが優先される。
+ * Windows 向けパス方針（Electron 公式推奨）:
+ * - Roaming (%APPDATA%\\fledge): 設定・アカウントなど小さく残したいデータ
+ * - Local (%LOCALAPPDATA%\\fledge): Chromium の Cache / GPUCache 等（sessionData）
+ *
+ * app.whenReady() より前に 1 回だけ呼ぶ。
  */
 export function configureAppDataPaths(): void {
   try {
@@ -88,8 +91,20 @@ export function configureAppDataPaths(): void {
 
   const appData = app.getPath('appData')
   const target = ensureAppDataDirCase(appData, APP_DATA_DIR_NAME)
+  fs.mkdirSync(target, { recursive: true })
   app.setPath('userData', target)
 
+  try {
+    const localAppData =
+      process.env.LOCALAPPDATA?.trim() || path.join(path.dirname(appData), 'Local')
+    const sessionDir = path.join(localAppData, APP_DATA_DIR_NAME)
+    fs.mkdirSync(sessionDir, { recursive: true })
+    app.setPath('sessionData', sessionDir)
+  } catch {
+    /* sessionData は userData のままでも動作する */
+  }
+
   migrateLegacyUserDataDir(path.join(appData, '@fledge', 'desktop'), target)
+  migrateLegacyUserDataDir(path.join(appData, 'Fledge'), target)
   removeScopedAtFledge(appData)
 }
