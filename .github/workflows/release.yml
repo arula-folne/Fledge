@@ -37,7 +37,7 @@ jobs:
             throw 'APP_VERSION not found'
           }
           $appVersion = $Matches[1]
-          $tagVersion = "${{ github.ref_name }}".TrimStart('v') -replace '-(a|b|rc)$', '$1'
+          $tagVersion = "${{ github.ref_name }}".TrimStart('v') -replace '-(a|b|f|rc)$', '$1'
           if ($appVersion -ne $tagVersion) {
             throw "Release tag version '$tagVersion' does not match APP_VERSION '$appVersion'"
           }

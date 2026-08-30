@@ -38,7 +38,11 @@ pnpm dev
 |------|---------------|--------|
 | アルファ版 | `0.0.0a` | Ver.0.0.0a |
 | ベータ版 | `0.0.0b` | Ver.0.0.0b |
+| 第1世代ファイナル | `0.2.4f` 等 | Ver.0.2.4f … 0.3 へは自動更新しない |
 | 製品版 | `0.0.0` | Ver.0.0.0 |
+
+第1世代（`0.2.x`）は `updaterGeneration.ts` の上限により GitHub の **0.3.0 未満** の Release だけを案内します。  
+第1世代の歯止め版 **Ver.0.2.4f** は `v0.2.4b` から上限パッチのみ cherry-pick して切ります。テスト用データは `apps/desktop/test-fixtures/gen1-0.2.4f/`。
 
 変更後は `pnpm version:sync` で package.json / README / spec を同期します（npm semver 用に `0.1.4a` → `0.1.4-a` へ変換されます）。
 

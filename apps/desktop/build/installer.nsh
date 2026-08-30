@@ -119,8 +119,38 @@
   ${ifNot} ${isUpdated}
     RMDir /r "$INSTDIR\Data"
     RMDir /r "$INSTDIR\Instances"
+    Delete "$INSTDIR\data-root.json"
     Delete "$INSTDIR\Fledge-first-run.cmd"
     DeleteRegKey HKCU "Software\Fledge"
     RMDir /r "$INSTDIR"
+  ${endIf}
+!macroend
+
+; electron-builder 既定は更新時に INSTDIR 一式を一時退避してから丸ごと削除する。
+; Data / Instances / data-root.json を退避→復元し、アプリ本体だけ入れ替える。
+!macro customRemoveFiles
+  ${if} ${isUpdated}
+    IfFileExists "$INSTDIR\Data" 0 fledge_skip_keep_data
+      Rename "$INSTDIR\Data" "$PLUGINSDIR\fledge-keep-Data"
+    fledge_skip_keep_data:
+    IfFileExists "$INSTDIR\Instances" 0 fledge_skip_keep_instances
+      Rename "$INSTDIR\Instances" "$PLUGINSDIR\fledge-keep-Instances"
+    fledge_skip_keep_instances:
+    IfFileExists "$INSTDIR\data-root.json" 0 fledge_skip_keep_pointer
+      Rename "$INSTDIR\data-root.json" "$PLUGINSDIR\fledge-keep-data-root.json"
+    fledge_skip_keep_pointer:
+    RMDir /r "$INSTDIR"
+    CreateDirectory "$INSTDIR"
+    IfFileExists "$PLUGINSDIR\fledge-keep-Data" 0 fledge_skip_restore_data
+      Rename "$PLUGINSDIR\fledge-keep-Data" "$INSTDIR\Data"
+    fledge_skip_restore_data:
+    IfFileExists "$PLUGINSDIR\fledge-keep-Instances" 0 fledge_skip_restore_instances
+      Rename "$PLUGINSDIR\fledge-keep-Instances" "$INSTDIR\Instances"
+    fledge_skip_restore_instances:
+    IfFileExists "$PLUGINSDIR\fledge-keep-data-root.json" 0 fledge_skip_restore_pointer
+      Rename "$PLUGINSDIR\fledge-keep-data-root.json" "$INSTDIR\data-root.json"
+    fledge_skip_restore_pointer:
+  ${else}
+    RMDir /r $INSTDIR
   ${endIf}
 !macroend

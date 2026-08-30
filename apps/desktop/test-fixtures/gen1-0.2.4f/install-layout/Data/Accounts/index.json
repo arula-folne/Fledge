@@ -1,0 +1,10 @@
+{
+  "activeId": "demo-account",
+  "accounts": [
+    {
+      "id": "demo-account",
+      "mcid": "DemoPlayer",
+      "uuid": "00000000-0000-0000-0000-000000000001"
+    }
+  ]
+}

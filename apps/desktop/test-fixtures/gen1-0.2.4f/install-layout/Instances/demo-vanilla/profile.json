@@ -1,0 +1,11 @@
+{
+  "id": "demo-vanilla",
+  "name": "デモ（0.2.4b レイアウト）",
+  "minecraftVersion": "1.21.1",
+  "loader": "vanilla",
+  "loaderVersion": "",
+  "createdAt": "2026-08-29T10:00:00.000Z",
+  "updatedAt": "2026-08-29T10:00:00.000Z",
+  "jvmArgs": [],
+  "memoryMb": null
+}

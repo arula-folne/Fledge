@@ -4,12 +4,13 @@ type Segment = {
   suffix: string
 }
 
-/** プレリリース順位: a < b < （製品版）。rc は旧リリース読み取り用の legacy */
+/** プレリリース順位: a < b < f(final) < rc < （製品版）。rc は旧リリース読み取り用の legacy */
 function suffixRank(suffix: string): number {
-  if (suffix === '') return 4
+  if (suffix === '') return 5
   if (suffix === 'a') return 1
   if (suffix === 'b') return 2
-  if (suffix === 'rc') return 3
+  if (suffix === 'f') return 3
+  if (suffix === 'rc') return 4
   // 未知のサフィックスはアルファ寄りに倒す
   return 0
 }
@@ -36,7 +37,7 @@ function parseSegments(version: string): Segment[] {
 
 /**
  * a が b より古いとき -1、同じ 0、新しいとき 1。
- * 例: 0.1.4a < 0.1.4b < 0.1.4
+ * 例: 0.1.4a < 0.1.4b < 0.1.4f < 0.1.4
  */
 export function compareVersions(a: string, b: string): -1 | 0 | 1 {
   const pa = parseSegments(a)

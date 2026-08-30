@@ -1,0 +1,12 @@
+{
+  "theme": "system",
+  "uiScale": "normal",
+  "hardwareAcceleration": true,
+  "discordRichPresence": false,
+  "concurrentDownloads": 4,
+  "backupSyncEnabled": false,
+  "backupFolder": "",
+  "selectedInstanceId": "demo-vanilla",
+  "installTutorialCompleted": true,
+  "lastSeenAppVersion": "0.2.4b"
+}

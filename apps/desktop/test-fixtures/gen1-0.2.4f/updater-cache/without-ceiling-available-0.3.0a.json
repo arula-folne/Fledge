@@ -1,0 +1,12 @@
+{
+  "fetchedAt": "2026-08-29T16:00:00.000Z",
+  "result": {
+    "status": "available",
+    "currentVersion": "0.2.4b",
+    "nextVersion": "0.3.0a",
+    "releaseUrl": "https://github.com/arula-folne/Fledge/releases/tag/v0.3.0a",
+    "releaseNotes": "（上限パッチなしなら誤って案内される例）",
+    "prerelease": true,
+    "channel": "stable"
+  }
+}

@@ -60,6 +60,8 @@ export const UPDATER = {
   /** electron-builder の固定 artifactName と一致させる */
   installerNamePattern: /^Fledge-Setup\.exe$/i,
   installerFallbackPattern: /\.exe$/i,
+  /** 第1世代の更新一覧取得件数（0.3+ を除外して最新 0.2.x を探す） */
+  gen1ReleaseListPerPage: 30,
 } as const
 
 export const IPC = {

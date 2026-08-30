@@ -5,6 +5,8 @@ import {
   UPDATER,
   compareVersions,
   fledgeUserAgent,
+  isEligibleGeneration1Update,
+  isGeneration1App,
   normalizeReleaseVersion,
   type UpdateChannel,
   type UpdateCheckResult,
@@ -80,6 +82,14 @@ export function reconcileCachedUpdateResult(
   }
 
   if (cached.currentVersion && cached.currentVersion !== currentVersion) {
+    return null
+  }
+
+  if (
+    isGeneration1App(currentVersion) &&
+    cached.nextVersion &&
+    !isEligibleGeneration1Update(cached.nextVersion)
+  ) {
     return null
   }
 
@@ -317,12 +327,22 @@ export class GithubReleaseUpdater implements Updater {
   }
 
   private async fetchRelease(channel: UpdateChannel): Promise<GithubRelease> {
+    const currentVersion = effectiveAppVersion()
+    const gen1 = isGeneration1App(currentVersion)
+
+    if (!gen1 && channel === 'stable') {
+      return this.fetchLatestStableRelease()
+    }
+
+    return this.fetchNewestFromList(channel, gen1)
+  }
+
+  private async fetchLatestStableRelease(): Promise<GithubRelease> {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), UPDATER.fetchTimeoutMs)
 
     try {
-      const url = channel === 'stable' ? UPDATER.latestReleaseUrl : UPDATER.releasesUrl
-      const res = await fetch(url, {
+      const res = await fetch(UPDATER.latestReleaseUrl, {
         signal: controller.signal,
         redirect: 'follow',
         headers: {
@@ -331,23 +351,60 @@ export class GithubReleaseUpdater implements Updater {
         },
       })
       if (!res.ok) throw new Error(`Release fetch failed: HTTP ${res.status}`)
-      const payload = (await res.json()) as GithubRelease | GithubRelease[]
+      const payload = (await res.json()) as GithubRelease
+      if (payload.draft) throw new Error('Latest GitHub release is a draft')
+      return payload
+    } finally {
+      clearTimeout(timer)
+    }
+  }
 
-      if (!Array.isArray(payload)) {
-        if (payload.draft) throw new Error('Latest GitHub release is a draft')
-        return payload
+  private async fetchNewestFromList(
+    channel: UpdateChannel,
+    gen1: boolean,
+  ): Promise<GithubRelease> {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), UPDATER.fetchTimeoutMs)
+    const perPage = gen1 ? UPDATER.gen1ReleaseListPerPage : 20
+
+    try {
+      const listUrl = `https://api.github.com/repos/${UPDATER.owner}/${UPDATER.repo}/releases?per_page=${perPage}`
+      const res = await fetch(listUrl, {
+        signal: controller.signal,
+        redirect: 'follow',
+        headers: {
+          Accept: 'application/vnd.github+json',
+          'User-Agent': fledgeUserAgent('updater-check'),
+        },
+      })
+      if (!res.ok) throw new Error(`Release fetch failed: HTTP ${res.status}`)
+
+      const payload = (await res.json()) as GithubRelease[]
+      let releases = payload.filter((release) => !release.draft)
+      if (channel === 'stable') {
+        releases = releases.filter((release) => !release.prerelease)
+      }
+      if (gen1) {
+        releases = releases.filter((release) =>
+          isEligibleGeneration1Update(normalizeReleaseVersion(release.tag_name)),
+        )
       }
 
-      const releases = payload
-        .filter((release) => !release.draft)
-        .sort((a, b) =>
-          compareVersions(
-            normalizeReleaseVersion(b.tag_name),
-            normalizeReleaseVersion(a.tag_name),
-          ),
-        )
+      releases.sort((a, b) =>
+        compareVersions(
+          normalizeReleaseVersion(b.tag_name),
+          normalizeReleaseVersion(a.tag_name),
+        ),
+      )
+
       const latest = releases[0]
-      if (!latest) throw new Error('No eligible GitHub release found')
+      if (!latest) {
+        throw new Error(
+          gen1
+            ? 'No eligible generation-1 GitHub release found (0.3+ is excluded)'
+            : 'No eligible GitHub release found',
+        )
+      }
       return latest
     } finally {
       clearTimeout(timer)

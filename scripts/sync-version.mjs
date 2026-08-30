@@ -22,11 +22,11 @@ if (!versionMatch) {
 
 const version = versionMatch[1]
 
-const semverMatch = version.match(/^(\d+\.\d+\.\d+)(a|b)?$/)
+const semverMatch = version.match(/^(\d+\.\d+\.\d+)([a-z]+)?$/)
 if (!semverMatch) {
   console.error(
-    `APP_VERSION '${version}' is not <major>.<minor>.<patch>[a|b]\n` +
-      '  alpha: 0.0.0a / beta: 0.0.0b / release: 0.0.0',
+    `APP_VERSION '${version}' is not <major>.<minor>.<patch>[suffix]\n` +
+      '  alpha: 0.0.0a / beta: 0.0.0b / gen1 final: 0.0.0f / release: 0.0.0',
   )
   process.exit(1)
 }
@@ -55,7 +55,7 @@ for (const rel of packageJsonPaths) {
 
 const readmePath = path.join(root, 'README.md')
 let readme = fs.readFileSync(readmePath, 'utf8')
-const readmeNext = readme.replace(/\*\*Ver\.[\d.]+(?:a|b|rc)?(?: - [^*]+)?\*\*/, `**${label}**`)
+const readmeNext = readme.replace(/\*\*Ver\.[\d.]+(?:[a-z]+)?(?: - [^*]+)?\*\*/, `**${label}**`)
 if (readmeNext !== readme) {
   fs.writeFileSync(readmePath, readmeNext)
   console.log('updated README.md')
@@ -64,7 +64,7 @@ if (readmeNext !== readme) {
 const specPath = path.join(root, 'docs/spec.md')
 let spec = fs.readFileSync(specPath, 'utf8')
 const specNext = spec.replace(
-  /バージョン \*\*(?:Ver\.)?[\d.]+(?:a|b|rc)?(?:（[^）]+）)?\*\*/,
+  /バージョン \*\*(?:Ver\.)?[\d.]+(?:[a-z]+)?(?:（[^）]+）)?\*\*/,
   `バージョン **${label}**`,
 )
 if (specNext !== spec) {
