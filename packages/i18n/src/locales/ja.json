@@ -21,7 +21,7 @@
   "header.updatePromptVersion": "Ver.{{from}} → Ver.{{to}}",
   "header.updateChangelog": "このバージョンの変更点",
   "header.updateChangelogEmpty": "このリリースには変更点の説明がありません。",
-  "header.updatePromptConfirm": "更新しますか？インスタンスや設定などのデータは消えません。完了後にアプリが再起動します。",
+  "header.updatePromptConfirm": "更新しますか？インスタンスや設定などのデータは消えません。ダウンロード後に一度終了し、インストール完了後に再起動します。",
   "update.completeTitle": "Fledgeをアップデートしました",
   "update.completeVersion": "Ver.{{from}} → Ver.{{to}}",
   "update.completeVersionTo": "Ver.{{to}} にアップデートしました",
@@ -810,5 +810,9 @@
   "updater.noAsset": "このリリースに Windows 用インストーラーが見つかりません",
   "updater.downloadFailed": "インストーラーのダウンロードに失敗しました",
   "updater.downloading": "ダウンロード中…",
+  "updater.preparing": "インストール準備中…",
+  "updater.restarting": "インストールのため終了します…",
+  "updater.restartingHint": "このままお待ちください。完了後に自動で起動します。",
+  "updater.progressHint": "ダウンロードが終わるまでアプリは開いたままです。",
   "updater.applyFailed": "更新の開始に失敗しました"
 }

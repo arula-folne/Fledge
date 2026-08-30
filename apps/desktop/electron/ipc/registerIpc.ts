@@ -477,29 +477,97 @@ export function registerIpc(
 
     const resolved =
       channel === 'prerelease' || channel === 'stable' ? channel : ('stable' as const)
-    const check = await appCtx.updater.check(resolved)
-    const installerPath = await appCtx.updater.downloadInstaller(resolved)
-    const installDir = getInstallDir()
-
-    if (check.status === 'available' && check.nextVersion) {
-      await appCtx.settings.set({
-        lastAppVersion: APP_VERSION,
-        updateAckPending: {
-          fromVersion: APP_VERSION,
-          toVersion: check.nextVersion,
-          releaseNotes: check.releaseNotes,
-        },
+    const jobId = 'app-updater'
+    const emitUpdaterProgress = (partial: {
+      current: number
+      total: number
+      percent?: number
+      messageKey: string
+      status?: 'active' | 'completed' | 'failed'
+    }) => {
+      send(win(), IPC_EVENTS.progress, {
+        scope: 'updater',
+        jobId,
+        kind: 'app-update',
+        current: partial.current,
+        total: partial.total,
+        percent: partial.percent,
+        messageKey: partial.messageKey,
+        status: partial.status ?? 'active',
       })
     }
 
-    // インストールツリー外かつ %LOCALAPPDATA%\fledge\updater へ退避（NSIS 上書きで消えない）
-    const stagedInstaller = await stageUpdateInstaller(installerPath)
-    await appCtx.updater.clearCache()
+    try {
+      const check = await appCtx.updater.check(resolved)
+      emitUpdaterProgress({
+        current: 0,
+        total: 0,
+        percent: 0,
+        messageKey: 'updater.downloading',
+      })
 
-    // 自プロセス終了後に NSIS を走らせる（実行中だと Data/Instances の退避 Rename が失敗し得る）
-    await spawnInstallerAfterAppExit(stagedInstaller, installDir, process.pid)
+      const installerPath = await appCtx.updater.downloadInstaller(resolved, (p) => {
+        emitUpdaterProgress({
+          current: p.current,
+          total: p.total,
+          percent: p.percent,
+          messageKey: 'updater.downloading',
+        })
+      })
+      const installDir = getInstallDir()
 
-    hooks?.onQuitForUpdate?.()
+      if (check.status === 'available' && check.nextVersion) {
+        await appCtx.settings.set({
+          lastAppVersion: APP_VERSION,
+          updateAckPending: {
+            fromVersion: APP_VERSION,
+            toVersion: check.nextVersion,
+            releaseNotes: check.releaseNotes,
+          },
+        })
+      }
+
+      emitUpdaterProgress({
+        current: 1,
+        total: 1,
+        percent: 100,
+        messageKey: 'updater.preparing',
+      })
+
+      // インストールツリー外かつ %LOCALAPPDATA%\fledge\updater へ退避（NSIS 上書きで消えない）
+      const stagedInstaller = await stageUpdateInstaller(installerPath)
+      await appCtx.updater.clearCache()
+
+      emitUpdaterProgress({
+        current: 1,
+        total: 1,
+        percent: 100,
+        messageKey: 'updater.restarting',
+      })
+
+      // 自プロセス終了後に NSIS を走らせる（実行中だと data の退避 Rename が失敗し得る）
+      await spawnInstallerAfterAppExit(stagedInstaller, installDir, process.pid)
+
+      emitUpdaterProgress({
+        current: 1,
+        total: 1,
+        percent: 100,
+        messageKey: 'updater.restarting',
+        status: 'completed',
+      })
+
+      // ダウンロード完了後にだけ終了。NSIS が新版を起動する
+      hooks?.onQuitForUpdate?.()
+    } catch (err) {
+      emitUpdaterProgress({
+        current: 0,
+        total: 1,
+        percent: 0,
+        messageKey: 'updater.applyFailed',
+        status: 'failed',
+      })
+      throw err
+    }
   })
 
   ipcMain.handle(IPC.skinsList, async () => appCtx.skins.list())

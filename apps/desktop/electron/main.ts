@@ -313,8 +313,8 @@ async function bootstrap(): Promise<void> {
       void scheduleAppRelaunch()
     },
     onQuitForUpdate: () => {
-      // ロック解除のため少し待ってから終了。relaunch はせず NSIS に任せる
-      void scheduleAppExit({ relaunch: false, delayMs: 500 })
+      // ジョブ外の更新スクリプト起動を待ってから終了。relaunch はせず NSIS に任せる
+      void scheduleAppExit({ relaunch: false, delayMs: 1200 })
     },
     onUninstall: () => {
       void scheduleAppExit({ relaunch: false, skipBackupFlush: true, delayMs: 400 })

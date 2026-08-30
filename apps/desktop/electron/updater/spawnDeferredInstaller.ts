@@ -3,14 +3,10 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 /**
- * 実行中プロセスが exe / data を掴んだまま NSIS が壊れないよう、
- * 指定 PID の終了後にサイレント更新インストーラーを起動する。
+ * 指定 PID 終了後に NSIS サイレント更新を起動する。
  *
- * 旧実装の `tasklist | find "Fledge.exe"` ループは:
- * - コンソールが前面に出て止まる
- * - Electron の子プロセスやロック残で無限待ちになり得る
- * - 待ちを殺すとインストーラーが走らず / 途中失敗で runtime 欠落
- * のため使わない。
+ * Electron は Windows Job Object で子プロセスを終了時に殺すため、
+ * `cmd start` でジョブ外に出してから PowerShell を走らせる。
  */
 export async function spawnInstallerAfterAppExit(
   installerPath: string,
@@ -22,54 +18,66 @@ export async function spawnInstallerAfterAppExit(
 
   const scriptPath = path.join(dir, 'run-installer.ps1')
   const installDirArg = installDir.replace(/[\\/]+$/, '')
+  const errorLog = path.join(dir, 'update-error.txt')
 
-  // PowerShell 単一引用符リテラル用（' → ''）
   const q = (s: string) => `'${s.replace(/'/g, "''")}'`
 
   const content = [
-    '$ErrorActionPreference = "SilentlyContinue"',
+    '$ErrorActionPreference = "Stop"',
     `$targetPid = ${Math.floor(pidToWaitFor)}`,
     `$installer = ${q(installerPath)}`,
     `$installDir = ${q(installDirArg)}`,
-    '$deadline = (Get-Date).AddMinutes(2)',
-    'while ((Get-Date) -lt $deadline) {',
-    '  if (-not (Get-Process -Id $targetPid -ErrorAction SilentlyContinue)) { break }',
-    '  Start-Sleep -Milliseconds 400',
+    `$errorLog = ${q(errorLog)}`,
+    'try {',
+    '  $deadline = (Get-Date).AddMinutes(3)',
+    '  while ((Get-Date) -lt $deadline) {',
+    '    $alive = Get-Process -Id $targetPid -ErrorAction SilentlyContinue',
+    '    if (-not $alive) { break }',
+    '    Start-Sleep -Milliseconds 500',
+    '  }',
+    '  Start-Sleep -Seconds 1',
+    '  if (-not (Test-Path -LiteralPath $installer)) {',
+    '    throw "Installer missing: $installer"',
+    '  }',
+    '  $argList = @("--updated", "/S", "--force-run", "/D=$installDir")',
+    '  Start-Process -FilePath $installer -ArgumentList $argList | Out-Null',
+    '} catch {',
+    '  $_ | Out-File -FilePath $errorLog -Encoding utf8',
+    '  exit 1',
     '}',
-    // ファイルロック解除の猶予
-    'Start-Sleep -Milliseconds 1000',
-    'if (-not (Test-Path -LiteralPath $installer)) { exit 2 }',
-    '$args = @("--updated", "/S", "--force-run", "/D=$installDir")',
-    'Start-Process -FilePath $installer -ArgumentList $args -WindowStyle Hidden',
     'Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue',
     '',
   ].join('\r\n')
 
   await fs.writeFile(scriptPath, content, 'utf8')
+  try {
+    await fs.unlink(errorLog)
+  } catch {
+    /* missing ok */
+  }
+
+  const comspec = process.env.ComSpec || 'cmd.exe'
+  // start で新しいプロセスツリーに載せ、app.quit() 後も生き残らせる
+  const startCmd = [
+    'start "FledgeUpdate" /MIN',
+    'powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden',
+    `-File "${scriptPath}"`,
+  ].join(' ')
 
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-WindowStyle',
-        'Hidden',
-        '-File',
-        scriptPath,
-      ],
-      {
-        detached: true,
-        stdio: 'ignore',
-        windowsHide: true,
-        cwd: dir,
-      },
-    )
+    const child = spawn(comspec, ['/d', '/s', '/c', startCmd], {
+      detached: true,
+      stdio: 'ignore',
+      windowsHide: true,
+      cwd: dir,
+    })
     child.once('error', reject)
     child.once('spawn', () => {
       child.unref()
       resolve()
     })
   })
+
+  // start がジョブ外プロセスを立ち上げるまで少し待つ
+  await new Promise((r) => setTimeout(r, 400))
 }

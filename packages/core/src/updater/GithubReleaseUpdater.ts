@@ -10,7 +10,7 @@ import {
   type UpdateCheckResult,
 } from '@fledge/shared'
 import type { PathLayout } from '../app/paths.js'
-import type { Updater } from './Updater.js'
+import type { Updater, UpdaterDownloadProgress } from './Updater.js'
 
 /** 開発時 FLEDGE_DEV_APP_VERSION で古い版を装い、更新ボタン確認できる */
 function effectiveAppVersion(): string {
@@ -143,7 +143,10 @@ export class GithubReleaseUpdater implements Updater {
     return refresh
   }
 
-  async downloadInstaller(channel: UpdateChannel = 'stable'): Promise<string> {
+  async downloadInstaller(
+    channel: UpdateChannel = 'stable',
+    onProgress?: (p: UpdaterDownloadProgress) => void,
+  ): Promise<string> {
     let result = await this.check(channel)
     if (result.status !== 'available' || !result.downloadUrl) {
       result = await this.fetchAndResolve(channel)
@@ -168,13 +171,60 @@ export class GithubReleaseUpdater implements Updater {
       })
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
-      const bytes = Buffer.from(await res.arrayBuffer())
+      const totalHeader = Number(res.headers.get('content-length'))
+      const total =
+        Number.isFinite(totalHeader) && totalHeader > 0
+          ? totalHeader
+          : pending.expectedSize && pending.expectedSize > 0
+            ? pending.expectedSize
+            : 0
+
+      onProgress?.({ current: 0, total, percent: total > 0 ? 0 : undefined })
+
+      if (!res.body) {
+        const bytes = Buffer.from(await res.arrayBuffer())
+        if (pending.expectedSize != null && bytes.byteLength !== pending.expectedSize) {
+          throw new Error(
+            `Installer size mismatch: expected ${pending.expectedSize}, got ${bytes.byteLength}`,
+          )
+        }
+        await fs.writeFile(target, bytes)
+        onProgress?.({
+          current: bytes.byteLength,
+          total: bytes.byteLength,
+          percent: 100,
+        })
+        return target
+      }
+
+      const reader = res.body.getReader()
+      const chunks: Uint8Array[] = []
+      let received = 0
+      for (;;) {
+        const { done, value } = await reader.read()
+        if (done) break
+        if (!value) continue
+        chunks.push(value)
+        received += value.byteLength
+        onProgress?.({
+          current: received,
+          total,
+          percent: total > 0 ? Math.min(99, (received / total) * 100) : undefined,
+        })
+      }
+
+      const bytes = Buffer.concat(chunks.map((c) => Buffer.from(c)))
       if (pending.expectedSize != null && bytes.byteLength !== pending.expectedSize) {
         throw new Error(
           `Installer size mismatch: expected ${pending.expectedSize}, got ${bytes.byteLength}`,
         )
       }
       await fs.writeFile(target, bytes)
+      onProgress?.({
+        current: bytes.byteLength,
+        total: total > 0 ? total : bytes.byteLength,
+        percent: 100,
+      })
       return target
     } catch {
       throw new Error('updater.downloadFailed')

@@ -6,7 +6,7 @@ export class NoopUpdater implements Updater {
     return { status: 'unavailable', messageKey: 'updater.noop' }
   }
 
-  async downloadInstaller(_channel?: UpdateChannel): Promise<string> {
+  async downloadInstaller(_channel?: UpdateChannel, _onProgress?: unknown): Promise<string> {
     throw new Error('updater.noop')
   }
 
