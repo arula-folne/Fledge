@@ -47,12 +47,19 @@ type Session = {
   abort: AbortController
   child?: ChildProcess
   state: LaunchStateEvent['state']
-  /** 初回 options 適用後、十分な起動成功を待って applied を立てる */
+  /** 初回 options 適用後、タイトルでディスクが健全なら終了時に applied を立てる */
   initialSettingsPendingCommit?: boolean
   initialSettingsInstanceDir?: string
   initialSettingsOptions?: Record<string, string>
   initialSettingsOverlay?: Record<string, string>
   initialSettingsTitleSeen?: boolean
+  /**
+   * 起動中に options.txt を直した（ガード／タイトル再書き込み）。
+   * true のときは今セッションではゲームが古い内容を読んでいる可能性があるので applied にしない。
+   */
+  initialSettingsRewroteDuringSession?: boolean
+  /** タイトル到達時、再書き込みなしでパッチが一致していた */
+  initialSettingsCleanAtTitle?: boolean
   initialSettingsGuardTimers?: Array<ReturnType<typeof setTimeout>>
   runningSinceMs?: number
 }
@@ -307,7 +314,7 @@ export class LaunchOrchestrator {
 
       const settings = await this.deps.settings.get()
 
-      // 初回起動直前: 未適用なら今の初期設定を反映。空でも「初回パス」として終了時に applied を立てる
+      // 初回起動直前: 未適用なら今の初期設定を反映。空パッチは終了時 applied、ありはタイトル健全時のみ
       const initial = await this.ensureInitialSettings(profileId, instanceDir)
       if (initial.firstLaunchPass) {
         session.initialSettingsPendingCommit = true
@@ -496,7 +503,7 @@ export class LaunchOrchestrator {
     instanceDir: string,
   ): Promise<{
     neededCommit: boolean
-    /** 未適用の初回起動パス（パッチ空でも終了時に applied を立てる） */
+    /** 未適用の初回起動パス（空パッチは終了時 applied、ありはタイトル健全時） */
     firstLaunchPass: boolean
     options: Record<string, string>
     overlay: Record<string, string>
@@ -507,8 +514,11 @@ export class LaunchOrchestrator {
       return empty
     }
     try {
-      // 一度 applied になったら二度とグローバル設定を拾わない
-      const committed = Boolean(latest.minecraftInitialSettingsApplied)
+      // 現行世代で applied なら二度とグローバル設定を拾わない（世代不足は一度だけ再適用）
+      const generation = latest.minecraftInitialSettingsApplyGeneration ?? 0
+      const committed =
+        Boolean(latest.minecraftInitialSettingsApplied) &&
+        generation >= MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION
       if (committed) {
         return empty
       }
@@ -578,6 +588,7 @@ export class LaunchOrchestrator {
             if (overlay && Object.keys(overlay).length > 0) {
               await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
             }
+            session.initialSettingsRewroteDuringSession = true
             this.deps.logger.info(
               'launcher',
               `Re-applied Minecraft initial options during startup (${session.profileId}, +${delayMs}ms)`,
@@ -626,23 +637,44 @@ export class LaunchOrchestrator {
     void this.reapplyInitialSettingsAtTitle(session)
   }
 
-  /** タイトル到達時のディスク再書き込み（Forge 初回上書き後の次回起動向け）。起動中セッションへの即時反映は目的ではない */
+  /**
+   * タイトル到達時の確認。
+   * 一致していればこの起動でゲームが正しい options を読んだとみなし、終了時に applied 可能。
+   * 崩れていれば直して次回起動に回す（起動中メモリへの即時反映は目的ではない）。
+   */
   private async reapplyInitialSettingsAtTitle(session: Session): Promise<void> {
     const instanceDir = session.initialSettingsInstanceDir
     const options = session.initialSettingsOptions
     const overlay = session.initialSettingsOverlay ?? {}
     if (!instanceDir || !options) return
     try {
+      if (Object.keys(options).length === 0) {
+        session.initialSettingsCleanAtTitle = true
+        return
+      }
+      const alreadyOk = await verifyMinecraftOptionsFile(instanceDir, options)
+      if (alreadyOk && !session.initialSettingsRewroteDuringSession) {
+        session.initialSettingsCleanAtTitle = true
+        this.deps.logger.info(
+          'launcher',
+          `Minecraft initial options intact at title for ${session.profileId}`,
+        )
+        return
+      }
       await mergeMinecraftOptionsFile(instanceDir, options)
       if (Object.keys(overlay).length > 0) {
         await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
       }
+      session.initialSettingsRewroteDuringSession = true
+      session.initialSettingsCleanAtTitle = false
       const ok = await verifyMinecraftOptionsFile(instanceDir, options)
       this.deps.logger.info(
         'launcher',
-        `Minecraft initial options ${ok ? 'locked' : 'written'} at title screen for ${session.profileId}`,
+        `Minecraft initial options rewritten at title for next launch (${session.profileId}, verify=${ok})`,
       )
     } catch (err) {
+      session.initialSettingsRewroteDuringSession = true
+      session.initialSettingsCleanAtTitle = false
       this.deps.logger.warn(
         'launcher',
         `Failed to lock Minecraft initial options at title: ${err instanceof Error ? err.message : String(err)}`,
@@ -651,8 +683,10 @@ export class LaunchOrchestrator {
   }
 
   /**
-   * ゲームプロセスが一度でも起動した終了で applied を立てる。
-   * exit code / 短命は問わない（チュートリアルを見て × で閉じても初回起動済みにする）。
+   * 終了時の applied 確定。
+   * - パッチ空: 一度 spawn して終了したら applied（標準初回画面のまま）
+   * - パッチあり: タイトル到達時に再書き込みなしで一致していたときだけ applied
+   *   （Fabric / Mod が起動中に潰した場合は次回起動で Options.load し直す）
    * spawn 前に落ちた場合は child が無いので呼ばれない／シールしない。
    */
   private async finalizeInitialSettingsCommit(session: Session, exitCode: number): Promise<void> {
@@ -667,12 +701,27 @@ export class LaunchOrchestrator {
     try {
       const instanceDir = session.initialSettingsInstanceDir
       const options = session.initialSettingsOptions ?? {}
-      if (instanceDir && Object.keys(options).length > 0) {
+      const hasPatch = Object.keys(options).length > 0
+      if (instanceDir && hasPatch) {
         await mergeMinecraftOptionsFile(instanceDir, options)
         if (session.initialSettingsOverlay && Object.keys(session.initialSettingsOverlay).length > 0) {
           await mergeMinecraftDebugOverlayFile(instanceDir, session.initialSettingsOverlay)
         }
       }
+
+      const canCommit =
+        !hasPatch ||
+        (Boolean(session.initialSettingsCleanAtTitle) &&
+          !session.initialSettingsRewroteDuringSession)
+
+      if (!canCommit) {
+        this.deps.logger.info(
+          'launcher',
+          `Defer Minecraft initial settings commit for ${session.profileId} (exit=${exitCode}, title=${Boolean(session.initialSettingsTitleSeen)}, clean=${Boolean(session.initialSettingsCleanAtTitle)}, rewrote=${Boolean(session.initialSettingsRewroteDuringSession)})`,
+        )
+        return
+      }
+
       await this.deps.instances.update(session.profileId, {
         minecraftInitialSettingsApplied: true,
         minecraftInitialSettingsApplyGeneration: MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION,
@@ -681,7 +730,7 @@ export class LaunchOrchestrator {
       })
       this.deps.logger.info(
         'launcher',
-        `Committed Minecraft initial settings for ${session.profileId} (exit=${exitCode}, title=${Boolean(session.initialSettingsTitleSeen)})`,
+        `Committed Minecraft initial settings for ${session.profileId} (exit=${exitCode}, title=${Boolean(session.initialSettingsTitleSeen)}, patch=${hasPatch})`,
       )
     } catch (err) {
       this.deps.logger.warn(

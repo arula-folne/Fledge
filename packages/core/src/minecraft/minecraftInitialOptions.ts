@@ -381,8 +381,11 @@ export async function applyMinecraftInitialPatchToInstance(
   return { options, overlay }
 }
 
-/** 初期設定コミットの現行世代（コミット記録用。作成時スナップショット固定後は再適用トリガーにしない） */
-export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 7
+/**
+ * 初期設定コミットの現行世代。
+ * 上げると applied 済みでも世代不足のインスタンスは一度だけ再適用される。
+ */
+export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 8
 
 export function isMinecraftInitialPatchEmpty(
   options: Record<string, string> | undefined | null,

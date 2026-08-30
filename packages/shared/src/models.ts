@@ -110,11 +110,12 @@ export const InstanceProfileSchema = z.object({
   minecraftInitialSettingsSeeded: z.boolean().optional(),
   /**
    * 初回起動での初期設定適用が完了したか。
-   * 起動前の書き込み成功だけでは立てず、Minecraft が正常終了したあとで立てる。
+   * 起動前の書き込み成功だけでは立てない。パッチありのときはタイトル到達時に
+   * 再書き込みなしで options が一致した起動の終了で立てる。
    */
   minecraftInitialSettingsApplied: z.boolean().optional(),
   /**
-   * 初期設定コミットの世代（記録用）。
+   * 初期設定コミットの世代。現行世代未満なら applied でも一度再適用する。
    */
   minecraftInitialSettingsApplyGeneration: z.number().int().nonnegative().optional(),
   /** 作成時点で凍結した options.txt パッチ（ファイルへは初回起動直前まで書かない） */

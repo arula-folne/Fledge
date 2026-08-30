@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.3.1b",
+    "title": "【バージョンアップ】Fledge Ver.0.3.1b",
+    "body": "**Fledge Ver.0.3.1b** を公開しました（第2世代ベータ）。\n\n## 主な変更\n\n- **Minecraft 初期設定がゲームに反映されない問題を修正**（Fabric / Mod 環境）\n- タイトル到達時に設定が一致した起動でのみ適用済みにする\n- 潰されていた場合は次回起動で正しく読み込ませる\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-30T13:15:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.3.1b"
+  },
+  {
     "id": "v0.3.0b",
     "title": "【バージョンアップ】Fledge Ver.0.3.0b",
     "body": "**Fledge Ver.0.3.0b** を公開しました（第2世代ベータ）。\n\n## 主な変更\n\n- **データ配置を刷新**（設定は AppData、ゲームデータは installDir/data）\n- インストール先ルートは `Fledge.exe` / Uninstall / `data` のみ\n- **アプリ内更新を安定化**（別ドライブインストール・更新後の再起動を改善）\n- 更新中の進捗表示、ルート exe のアイコンなど\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
