@@ -23,8 +23,8 @@ alwaysApply: false
                → 一度 spawn して終了したら applied
 
 変更ありの確定（1 回の起動）:
-  → spawn 前 verify 成功
-  → Options.load 前（〜2.5s）の早期ガードで潰しを直す（rewrote フラグは立てない）
+  → spawn 前 burst 書き込み + verify 成功
+  → spawn 後 4 秒間: 30ms ポーリング + fs.watch + 0ms からの早期ガード（rewrote フラグは立てない）
   → タイトル到達で一致 / 8s 以上稼働 + 終了時 verify
      → applied = true
   → Options.load 後（7s+）に潰されていた: ディスクを直すが applied は延期

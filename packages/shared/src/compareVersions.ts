@@ -6,25 +6,27 @@ type Segment = {
 
 /**
  * プレリリース順位（同一 patch 内）:
- * a < b < ut < up < f < rc < （製品版）
+ * a < b < c < ut < up < f < rc < （製品版）
  *
  * | 接尾辞 | 用途 |
  * |--------|------|
  * | a      | アルファ |
  * | b      | ベータ |
+ * | c      | ベータ（同一 patch の追修正） |
  * | ut     | アップデートテスター（更新実験の元データ） |
  * | up     | アップデートチェック（ut から更新後の確認用） |
  * | f      | 更新止め用ファイナル |
  * | rc     | legacy |
  */
 function suffixRank(suffix: string): number {
-  if (suffix === '') return 7
+  if (suffix === '') return 8
   if (suffix === 'a') return 1
   if (suffix === 'b') return 2
-  if (suffix === 'ut') return 3
-  if (suffix === 'up') return 4
-  if (suffix === 'f') return 5
-  if (suffix === 'rc') return 6
+  if (suffix === 'c') return 3
+  if (suffix === 'ut') return 4
+  if (suffix === 'up') return 5
+  if (suffix === 'f') return 6
+  if (suffix === 'rc') return 7
   // 未知のサフィックスはアルファ寄りに倒す
   return 0
 }

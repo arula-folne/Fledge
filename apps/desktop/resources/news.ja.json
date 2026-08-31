@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.3.2c",
+    "title": "【バージョンアップ】Fledge Ver.0.3.2c",
+    "body": "**Fledge Ver.0.3.2c** を公開しました。\n\n## 主な変更\n\n- **Minecraft 初期設定を 1 回起動で反映**（0.3.2b の早期ガード遅延を修正）\n- spawn 前 burst 書き込み、30ms ポーリング、fs.watch、0ms からの早期ガード\n- 適用世代 11（既存インスタンスも再適用）\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-31T12:00:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.3.2c"
+  },
+  {
     "id": "v0.3.2b",
     "title": "【バージョンアップ】Fledge Ver.0.3.2b",
     "body": "**Fledge Ver.0.3.2b** を公開しました。\n\n## 主な変更\n\n- **Minecraft 初期設定を 1 回の起動で反映**（2 回起動不要に）\n- Options.load 前の早期ガードで Fabric 等の潰しに対応\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

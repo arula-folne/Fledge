@@ -10,7 +10,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const KNOWN_SUFFIXES = ['ut', 'up', 'rc', 'a', 'b', 'f']
+const KNOWN_SUFFIXES = ['ut', 'up', 'rc', 'a', 'b', 'c', 'f']
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const versionFile = path.join(root, 'packages/shared/src/version.ts')

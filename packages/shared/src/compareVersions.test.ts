@@ -4,7 +4,13 @@ import { compareVersions } from './compareVersions.js'
 
 test('compareVersions orders standard prerelease suffixes', () => {
   assert.equal(compareVersions('0.1.4a', '0.1.4b'), -1)
-  assert.equal(compareVersions('0.1.4b', '0.1.4'), -1)
+  assert.equal(compareVersions('0.1.4b', '0.1.4c'), -1)
+  assert.equal(compareVersions('0.1.4c', '0.1.4'), -1)
+})
+
+test('compareVersions orders c before ut', () => {
+  assert.equal(compareVersions('0.3.2c', '0.3.2ut'), -1)
+  assert.equal(compareVersions('0.3.2b', '0.3.2c'), -1)
 })
 
 test('compareVersions orders update-test suffixes ut before up', () => {

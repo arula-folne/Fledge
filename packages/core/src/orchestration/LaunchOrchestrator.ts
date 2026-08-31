@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { ChildProcess } from 'node:child_process'
 import fs from 'node:fs/promises'
+import { watch, type FSWatcher } from 'node:fs'
 import path from 'node:path'
 import type {
   LaunchPhaseEvent,
@@ -36,7 +37,11 @@ const INITIAL_SETTINGS_LOG_POLL_MS = 2_000
 /** タイトル未検出時の applied 確定フォールバック（起動中に潰されていない） */
 const INITIAL_SETTINGS_COMMIT_MIN_RUNTIME_MS = 8_000
 /** Options.load より前に潰された options.txt を直す（rewrote フラグは立てない） */
-const INITIAL_SETTINGS_PRELOAD_GUARD_AT_MS = [250, 500, 750, 1_000, 1_500, 2_000, 2_500] as const
+const INITIAL_SETTINGS_PRELOAD_WINDOW_MS = 4_000
+const INITIAL_SETTINGS_PRELOAD_POLL_MS = 30
+const INITIAL_SETTINGS_PRELOAD_GUARD_AT_MS = [
+  0, 30, 60, 100, 150, 200, 300, 500, 750, 1_000, 1_500, 2_000, 2_500, 3_000,
+] as const
 /** Options.load 後の整合用（ここでの再書き込みは applied 確定を延期する） */
 const INITIAL_SETTINGS_POSTLOAD_GUARD_AT_MS = [7_000, 12_000, 20_000] as const
 
@@ -70,6 +75,9 @@ type Session = {
   initialSettingsVerifiedAtSpawn?: boolean
   initialSettingsGuardTimers?: Array<ReturnType<typeof setTimeout>>
   initialSettingsLogPollTimer?: ReturnType<typeof setInterval>
+  initialSettingsPreloadPollTimer?: ReturnType<typeof setInterval>
+  initialSettingsPreloadStopTimer?: ReturnType<typeof setTimeout>
+  initialSettingsOptionsWatcher?: FSWatcher
   runningSinceMs?: number
 }
 
@@ -374,7 +382,7 @@ export class LaunchOrchestrator {
       this.emitPhase(sessionId, 'running', 'launch.phase.running')
       // ガードは書き込みがあるときだけ（空パッチの初回は不要）
       if (session.initialSettingsPendingCommit && Object.keys(initial.options).length > 0) {
-        this.startInitialSettingsGuard(session)
+        this.startInitialSettingsPreloadProtection(session)
         this.startInitialSettingsLogPoller(session)
       }
       child.stdout?.on('data', (buf: Buffer) => {
@@ -579,46 +587,108 @@ export class LaunchOrchestrator {
     }
   }
 
-  /** Forge 等が起動中に options.txt を潰した場合の整合用 */
-  private startInitialSettingsGuard(session: Session): void {
-    this.stopInitialSettingsGuard(session)
+  /** spawn〜Options.load 前後の潰し対策（高頻度ポーリング + fs.watch + 早期ガード） */
+  private startInitialSettingsPreloadProtection(session: Session): void {
+    this.stopInitialSettingsPreloadProtection(session)
     const instanceDir = session.initialSettingsInstanceDir
     const options = session.initialSettingsOptions
-    const overlay = session.initialSettingsOverlay
-    if (!instanceDir || !options) return
+    if (!instanceDir || !options || Object.keys(options).length === 0) return
 
-    const schedule = (delayMs: number, markRewrote: boolean) =>
+    const schedule = (delayMs: number, postLoad: boolean) =>
       setTimeout(() => {
-        void (async () => {
-          if (!session.initialSettingsPendingCommit || session.initialSettingsTitleSeen) return
-          try {
-            await this.pollTitleFromLatestLog(session)
-            if (session.initialSettingsTitleSeen) return
-            if (await verifyMinecraftOptionsFile(instanceDir, options)) return
-            await mergeMinecraftOptionsFile(instanceDir, options)
-            if (overlay && Object.keys(overlay).length > 0) {
-              await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
-            }
-            if (markRewrote) {
-              session.initialSettingsRewroteDuringSession = true
-            }
-            this.deps.logger.info(
-              'launcher',
-              `Re-applied Minecraft initial options during startup (${session.profileId}, +${delayMs}ms, postLoad=${markRewrote})`,
-            )
-          } catch (err) {
-            this.deps.logger.warn(
-              'launcher',
-              `Initial options guard failed: ${err instanceof Error ? err.message : String(err)}`,
-            )
-          }
-        })()
+        void this.repairInitialSettingsIfNeeded(session, {
+          postLoad,
+          reason: `guard+${delayMs}ms`,
+        })
       }, delayMs)
 
     session.initialSettingsGuardTimers = [
       ...INITIAL_SETTINGS_PRELOAD_GUARD_AT_MS.map((ms) => schedule(ms, false)),
       ...INITIAL_SETTINGS_POSTLOAD_GUARD_AT_MS.map((ms) => schedule(ms, true)),
     ]
+
+    session.initialSettingsPreloadPollTimer = setInterval(() => {
+      void this.repairInitialSettingsIfNeeded(session, {
+        postLoad: false,
+        reason: 'preload-poll',
+      })
+    }, INITIAL_SETTINGS_PRELOAD_POLL_MS)
+
+    session.initialSettingsPreloadStopTimer = setTimeout(() => {
+      this.stopInitialSettingsPreloadPoll(session)
+    }, INITIAL_SETTINGS_PRELOAD_WINDOW_MS)
+
+    const optionsFile = path.join(instanceDir, 'options.txt')
+    try {
+      session.initialSettingsOptionsWatcher = watch(optionsFile, () => {
+        void this.repairInitialSettingsIfNeeded(session, {
+          postLoad: false,
+          reason: 'options-watch',
+        })
+      })
+    } catch (err) {
+      this.deps.logger.warn(
+        'launcher',
+        `Initial options watch unavailable: ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
+
+    // spawn 直後の 1 ティック目から修復を試みる
+    void this.repairInitialSettingsIfNeeded(session, { postLoad: false, reason: 'spawn-immediate' })
+  }
+
+  private stopInitialSettingsPreloadPoll(session: Session): void {
+    if (session.initialSettingsPreloadPollTimer) {
+      clearInterval(session.initialSettingsPreloadPollTimer)
+      session.initialSettingsPreloadPollTimer = undefined
+    }
+    if (session.initialSettingsPreloadStopTimer) {
+      clearTimeout(session.initialSettingsPreloadStopTimer)
+      session.initialSettingsPreloadStopTimer = undefined
+    }
+  }
+
+  private stopInitialSettingsPreloadProtection(session: Session): void {
+    this.stopInitialSettingsGuard(session)
+    this.stopInitialSettingsPreloadPoll(session)
+    if (session.initialSettingsOptionsWatcher) {
+      session.initialSettingsOptionsWatcher.close()
+      session.initialSettingsOptionsWatcher = undefined
+    }
+  }
+
+  private async repairInitialSettingsIfNeeded(
+    session: Session,
+    opts: { postLoad: boolean; reason: string },
+  ): Promise<void> {
+    if (!session.initialSettingsPendingCommit || session.initialSettingsTitleSeen) return
+    const instanceDir = session.initialSettingsInstanceDir
+    const options = session.initialSettingsOptions
+    const overlay = session.initialSettingsOverlay
+    if (!instanceDir || !options || Object.keys(options).length === 0) return
+
+    try {
+      await this.pollTitleFromLatestLog(session)
+      if (session.initialSettingsTitleSeen) return
+      if (await verifyMinecraftOptionsFile(instanceDir, options)) return
+
+      await mergeMinecraftOptionsFile(instanceDir, options)
+      if (overlay && Object.keys(overlay).length > 0) {
+        await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
+      }
+      if (opts.postLoad) {
+        session.initialSettingsRewroteDuringSession = true
+      }
+      this.deps.logger.info(
+        'launcher',
+        `Re-applied Minecraft initial options (${session.profileId}, ${opts.reason}, postLoad=${opts.postLoad})`,
+      )
+    } catch (err) {
+      this.deps.logger.warn(
+        'launcher',
+        `Initial options repair failed (${opts.reason}): ${err instanceof Error ? err.message : String(err)}`,
+      )
+    }
   }
 
   private stopInitialSettingsGuard(session: Session): void {
@@ -644,7 +714,7 @@ export class LaunchOrchestrator {
   }
 
   private stopInitialSettingsWatchers(session: Session): void {
-    this.stopInitialSettingsGuard(session)
+    this.stopInitialSettingsPreloadProtection(session)
     this.stopInitialSettingsLogPoller(session)
   }
 

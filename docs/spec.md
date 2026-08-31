@@ -12,7 +12,7 @@ GitHub リポジトリ向けの実装仕様です。アプリ紹介・機能の�
 ## 1. 位置づけ
 
 Fledge は Minecraft Java Edition 用の非公式デスクトップランチャーです。  
-バージョン **Ver.0.3.2b**。製品 ID は `net.folne.fledge`。  
+バージョン **Ver.0.3.2c**。製品 ID は `net.folne.fledge`。  
 **対応環境は Windows 11 のみ**です。
 
 製品方針:
@@ -174,7 +174,7 @@ Java メジャー推定の目安（`requiredJavaMajor`）:
 設定の `minecraftInitialSettings` は、**まだ初回起動していないインスタンス**には起動直前の最新値が使われます。作成時には `options.txt` を書きません。  
 すべて `null`（変更なし）のときは `options.txt` を生成・変更せず、一度 spawn して終了したら `applied` にします。  
 1件でも変更がある場合は、初回起動の **Minecraft プロセス起動前**に変更キーだけをマージし、`onboardAccessibility:false` を付けて検証してから起動します。  
-Fabric / Mod が Options.load 前後に `options.txt` を潰すことがあるため、spawn 前書き込みに加え **Options.load 前（〜2.5 秒）の早期ガード**で潰しを直します。**1 回の起動**でタイトル到達時に一致、または 8 秒以上稼働して終了時 verify が通れば `applied` を立てます。製品版では `logs/latest.log` を定期ポーリングします。  
+Fabric / Mod が spawn 直後〜Options.load 前に `options.txt` を潰すことがあるため、spawn 前 burst 書き込みに加え **30ms ポーリング・fs.watch・0ms からの早期ガード**（4 秒間）で潰しを直します。1 回の起動でタイトル到達時一致、または 8 秒以上稼働して終了時 verify が通れば `applied` を立てます。製品版では `logs/latest.log` も定期ポーリングします。  
 Modpack 同梱の `options.txt` より、初回起動時の Fledge パッチを優先します。
 
 対象例: 言語、字幕、オートジャンプ、FOV、音量、最大 FPS、垂直同期、GUI スケール、明るさ、描画／演算距離、マウス感度。

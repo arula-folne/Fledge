@@ -82,7 +82,7 @@ jobs:
             if (-not (Test-Path $notesFile)) {
               throw "Missing $notesFile (write release notes before tagging)"
             }
-            if ($ver -match '(a|b|ut|up)$') {
+            if ($ver -match '(a|b|c|ut|up)$') {
               gh release create $tag --title "Fledge Ver.$ver" --notes-file $notesFile --prerelease
             } else {
               gh release create $tag --title "Fledge Ver.$ver" --notes-file $notesFile

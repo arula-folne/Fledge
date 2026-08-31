@@ -22,11 +22,11 @@ type PromptState = {
 type ApplyPhase = 'idle' | 'downloading' | 'preparing' | 'restarting'
 
 /**
- * a / b / ut / up は GitHub プレリリースのため /releases/latest では見えない。
+ * a / b / c / ut / up は GitHub プレリリースのため /releases/latest では見えない。
  * これらのビルドでは prerelease チャネルを見る。
  */
 function updateChannelForBuild(): UpdateChannel {
-  return /(?:a|b|ut|up)$/i.test(APP_VERSION) ? 'prerelease' : 'stable'
+  return /(?:a|b|c|ut|up)$/i.test(APP_VERSION) ? 'prerelease' : 'stable'
 }
 
 /**
