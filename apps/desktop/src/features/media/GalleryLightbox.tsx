@@ -55,7 +55,7 @@ export function GalleryLightbox({ items, index, onClose, onChange }: Props) {
   return createPortal(
     <div className="fixed inset-x-0 bottom-0 top-[var(--titlebar-offset,0px)] z-[100] flex flex-col bg-black/85">
       <div
-        className="flex min-h-0 flex-1 items-center justify-center overflow-auto pb-16 pt-[2vh]"
+        className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4 pb-[4.5rem]"
         onClick={onClose}
         role="presentation"
       >
@@ -63,43 +63,48 @@ export function GalleryLightbox({ items, index, onClose, onChange }: Props) {
           src={item.url}
           alt={item.title ?? ''}
           decoding="async"
-          className="h-auto max-h-none w-auto max-w-none object-none"
+          className="max-h-full max-w-full object-contain"
           onClick={(e) => e.stopPropagation()}
         />
       </div>
-      <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center justify-center gap-3 border-t border-white/10 bg-black/75 px-4 py-3 backdrop-blur-sm">
-        <Button
-          type="button"
-          variant="secondary"
-          className="border-white/15 bg-white/10 text-white hover:bg-white/20"
-          onClick={onClose}
-        >
-          <IconArrowLeft size={16} stroke={1.75} />
-          {t('content.gallery.back')}
-        </Button>
-        <Button
-          type="button"
-          variant="secondary"
-          className="border-white/15 bg-white/10 text-white hover:bg-white/20"
-          disabled={!hasPrev}
-          onClick={goPrev}
-        >
-          <IconChevronLeft size={16} stroke={1.75} />
-          {t('content.gallery.prev')}
-        </Button>
-        <span className="min-w-[4.5rem] text-center text-sm tabular-nums text-white/80">
-          {t('content.gallery.position', { current: index + 1, total: items.length })}
-        </span>
-        <Button
-          type="button"
-          variant="secondary"
-          className="border-white/15 bg-white/10 text-white hover:bg-white/20"
-          disabled={!hasNext}
-          onClick={goNext}
-        >
-          {t('content.gallery.next')}
-          <IconChevronRight size={16} stroke={1.75} />
-        </Button>
+      <div className="absolute inset-x-0 bottom-0 grid grid-cols-[1fr_auto_1fr] items-center gap-2 border-t border-white/10 bg-black/75 px-4 py-3 backdrop-blur-sm">
+        <div className="justify-self-start">
+          <Button
+            type="button"
+            variant="secondary"
+            className="border-white/15 bg-white/10 text-white hover:bg-white/20"
+            onClick={onClose}
+          >
+            <IconArrowLeft size={16} stroke={1.75} />
+            {t('content.gallery.back')}
+          </Button>
+        </div>
+        <div className="flex items-center justify-center gap-3">
+          <Button
+            type="button"
+            variant="secondary"
+            className="border-white/15 bg-white/10 text-white hover:bg-white/20"
+            disabled={!hasPrev}
+            onClick={goPrev}
+          >
+            <IconChevronLeft size={16} stroke={1.75} />
+            {t('content.gallery.prev')}
+          </Button>
+          <span className="min-w-[4.5rem] text-center text-sm tabular-nums text-white/80">
+            {t('content.gallery.position', { current: index + 1, total: items.length })}
+          </span>
+          <Button
+            type="button"
+            variant="secondary"
+            className="border-white/15 bg-white/10 text-white hover:bg-white/20"
+            disabled={!hasNext}
+            onClick={goNext}
+          >
+            {t('content.gallery.next')}
+            <IconChevronRight size={16} stroke={1.75} />
+          </Button>
+        </div>
+        <div aria-hidden />
       </div>
     </div>,
     document.body,

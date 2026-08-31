@@ -1,13 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { IconPlus } from '@tabler/icons-react'
 import { fledgeApi } from '../api/fledgeApi'
+import { Button } from '../components/ui/Button'
 import { NewsList } from '../features/news/NewsList'
 import { InstanceCard } from '../features/instances/InstanceCard'
 import { HomeLibrarySection } from '../features/instances/HomeLibrarySection'
-import { useLaunchStore } from '../stores/appStores'
+import { useLaunchStore, useUiStore } from '../stores/appStores'
 
 export default function HomePage() {
   const { t } = useTranslation()
+  const setWizardOpen = useUiStore((s) => s.setInstanceWizardOpen)
   const runningCount = useLaunchStore(
     (s) => Object.values(s.byProfileId).filter((x) => x.state === 'running').length,
   )
@@ -29,6 +32,17 @@ export default function HomePage() {
   return (
     <div className="flex h-full min-h-0 flex-col gap-[var(--home-gap)] overflow-hidden lg:grid lg:grid-cols-[minmax(0,1fr)_var(--home-news-col)] lg:grid-rows-[minmax(0,1fr)]">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-[var(--home-main-gap)] overflow-hidden lg:h-full">
+        <div className="flex shrink-0 justify-end">
+          <Button
+            data-fledge-tutorial="tutorial-home-create"
+            variant="secondary"
+            onClick={() => setWizardOpen(true)}
+          >
+            <IconPlus size={16} stroke={1.75} />
+            {t('library.create')}
+          </Button>
+        </div>
+
         <section className="min-w-0 shrink-0">
           {featured ? (
             <div className="space-y-3">

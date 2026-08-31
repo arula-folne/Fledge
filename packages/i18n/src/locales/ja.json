@@ -476,6 +476,7 @@
   "settings.block.minecraftInitial": "初期設定",
   "settings.minecraftInitial.hint": "作成時には options.txt を書きません。まだ一度も起動していないインスタンスは、初回起動直前の最新の初期設定が使われます。すべてデフォルトなら Minecraft 本来の初回画面のままです。一度ゲームを起動したあとは（チュートリアルで閉じても）、ランチャー側を変えてもそのインスタンスには再適用しません。",
   "settings.minecraftInitial.reset": "デフォルトに戻す",
+  "settings.minecraftInitial.resetAll": "すべてリセット",
   "settings.minecraftInitial.mcDefault": "デフォルト",
   "settings.minecraftInitial.group.game": "ゲーム",
   "settings.minecraftInitial.group.audio": "オーディオ",

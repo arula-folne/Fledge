@@ -948,18 +948,23 @@ function ChoiceList({
 function Group({
   title,
   icon: Icon,
+  headerAction,
   children,
 }: {
   title: string
   icon: SettingIcon
+  headerAction?: ReactNode
   children: ReactNode
 }) {
   return (
     <div className="space-y-4 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 p-4">
-      <h3 className="flex items-center gap-2 text-sm font-semibold tracking-tight text-[var(--color-text)]">
-        <Icon size={18} stroke={1.7} className="shrink-0 text-[var(--color-text-muted)]" aria-hidden />
-        {title}
-      </h3>
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold tracking-tight text-[var(--color-text)]">
+          <Icon size={18} stroke={1.7} className="shrink-0 text-[var(--color-text-muted)]" aria-hidden />
+          {title}
+        </h3>
+        {headerAction ? <div className="shrink-0">{headerAction}</div> : null}
+      </div>
       <div className="space-y-4">{children}</div>
     </div>
   )
@@ -976,7 +981,20 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
     <div className="space-y-4">
       <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">{labels.hint}</p>
 
-      <Group title={labels.game} icon={IconDeviceGamepad2}>
+      <Group
+        title={labels.game}
+        icon={IconDeviceGamepad2}
+        headerAction={
+          <Button
+            type="button"
+            variant="ghost"
+            className="!px-2.5 !py-1.5 text-xs"
+            onClick={() => onChange({ ...EMPTY_MINECRAFT_INITIAL_SETTINGS })}
+          >
+            {t('settings.minecraftInitial.resetAll')}
+          </Button>
+        }
+      >
         <LanguageSelect
           value={current.lang}
           onChange={(lang) => patch({ lang })}

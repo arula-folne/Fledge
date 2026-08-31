@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.3.5b",
+    "title": "【バージョンアップ】Fledge Ver.0.3.5b",
+    "body": "**Fledge Ver.0.3.5b** を公開しました。\n\n## 主な変更\n\n- Minecraft 初期設定に **すべてリセット** ボタンを追加\n- ホームの **新しいインスタンス** ボタンを常に上部に固定\n- スクリーンショット拡大表示をウィンドウ内に収めるよう改善\n- プレビュー操作で **前へ／次へ** を中央に配置\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-31T13:10:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.3.5b"
+  },
+  {
     "id": "v0.3.4b",
     "title": "【バージョンアップ】Fledge Ver.0.3.4b",
     "body": "**Fledge Ver.0.3.4b** を公開しました。\n\n## 主な変更\n\n- **プログレスバーをヘッダーに集約**（ホームライブラリの UI 崩れを解消、最大 3 件横並び）\n- インスタンス名と処理内容（Java・ライブラリなど）をヘッダーで表示\n- **スクリーンショット**タブのスクロール改善、プレビューに戻るボタン\n- **スキン保存後**にスキン一覧へ自動移動\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
