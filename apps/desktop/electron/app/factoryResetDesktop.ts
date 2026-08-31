@@ -1,9 +1,10 @@
 import { app } from 'electron'
 import fs from 'node:fs/promises'
 import path from 'node:path'
-import { factoryReset, rmRetry, type LauncherApp } from '@fledge/core'
+import { factoryReset, rmRetry, type FactoryResetProgress, type LauncherApp } from '@fledge/core'
 import {
   GAME_DATA_DIR,
+  clearAllRootPointers,
   getDefaultFledgeRoot,
   getInstallDir,
   getSettingsRoot,
@@ -30,16 +31,17 @@ function uniqueRoots(roots: Array<string | null | undefined>): string[] {
 export function collectFactoryResetDataRoots(activeRoot: string): string[] {
   const settingsRoot = getSettingsRoot()
   const installDir = getInstallDir()
+  const fromEnv = process.env.FLEDGE_ROOT?.trim()
   return uniqueRoots([
     activeRoot,
     getDefaultFledgeRoot(),
     readCustomRoot(),
     readInstallDirPointer(),
+    fromEnv,
     path.join(settingsRoot, 'data'),
     path.join(installDir, GAME_DATA_DIR),
     path.join(installDir, 'Instance'),
     path.join(installDir, 'Data'),
-    installDir,
   ])
 }
 
@@ -52,11 +54,23 @@ async function safeRmSession(target: string): Promise<void> {
 }
 
 /** 製品版向け: ポインタ・sessionData・レガシー AppData も含めて完全リセット */
-export async function factoryResetDesktop(appCtx: LauncherApp): Promise<void> {
+export async function factoryResetDesktop(
+  appCtx: LauncherApp,
+  onProgress?: (progress: FactoryResetProgress) => void,
+): Promise<void> {
   const settingsRoot = getSettingsRoot()
   const extraDataRoots = collectFactoryResetDataRoots(appCtx.paths.root)
 
-  await factoryReset(appCtx, { extraDataRoots })
+  await factoryReset(appCtx, {
+    extraDataRoots,
+    onProgress,
+  })
+
+  onProgress?.({
+    current: 1,
+    total: 1,
+    messageKey: 'settings.factoryReset.progress.pointers',
+  })
 
   await safeRmSession(path.join(settingsRoot, 'data'))
 
@@ -69,6 +83,7 @@ export async function factoryResetDesktop(appCtx: LauncherApp): Promise<void> {
     /* sessionData unavailable */
   }
 
+  clearAllRootPointers()
   writeCustomRoot(null)
 
   appCtx.logger.info('system', `Factory reset wiped ${extraDataRoots.length} data root candidate(s)`)

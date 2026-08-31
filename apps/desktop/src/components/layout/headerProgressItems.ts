@@ -22,6 +22,9 @@ function instanceName(instances: InstanceProfile[], instanceId: string | undefin
 }
 
 function transferDetail(job: TransferJob, t: Translate): string {
+  if (job.kind === 'factory-reset') {
+    return t(job.messageKey ?? 'settings.factoryReset.progress.data')
+  }
   if (isSettingsJavaJob(job)) {
     if (job.messageKey) return t(job.messageKey, { major: job.meta.major })
     return job.meta.action === 'reinstall'
@@ -42,6 +45,9 @@ function transferDetail(job: TransferJob, t: Translate): string {
 }
 
 function transferTitle(job: TransferJob, instances: InstanceProfile[], t: Translate): string {
+  if (job.kind === 'factory-reset') {
+    return t('settings.factoryReset')
+  }
   if (isSettingsJavaJob(job)) {
     return t('header.progress.javaTitle', { major: job.meta.major })
   }

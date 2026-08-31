@@ -159,6 +159,12 @@ export function writeCustomRoot(root: string | null): void {
   writeInstallDirPointer(effective)
 }
 
+/** 完全リセット後に旧ルートへ復元されないよう、冗長ポインタをすべて消す */
+export function clearAllRootPointers(): void {
+  deleteFileIfExists(userDataStorePath())
+  deleteFileIfExists(installPointerPath())
+}
+
 function countInstanceProfiles(root: string): number {
   for (const dirName of ['instances', 'Instances', 'profiles']) {
     const instancesDir = path.join(root, dirName)

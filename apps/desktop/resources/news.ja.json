@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.4.1b",
+    "title": "【バージョンアップ】Fledge Ver.0.4.1b",
+    "body": "**Fledge Ver.0.4.1b** を公開しました。\n\n## 主な変更\n\n- **完全リセット**でインスタンスを含むゲームデータを確実に削除\n- リセット処理中に **プログレスバー** を表示\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-31T13:35:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.4.1b"
+  },
+  {
     "id": "v0.4.0b",
     "title": "【バージョンアップ】Fledge Ver.0.4.0b",
     "body": "**Fledge Ver.0.4.0b** を公開しました。\n\n## 主な変更\n\n- **スキン切り替えを即時反映**（Microsoft へのアップロードはバックグラウンド）\n- アップデート確認ダイアログの文字を小さく・簡潔に\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

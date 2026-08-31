@@ -51,6 +51,7 @@ import { McFaceAvatar } from '../features/auth/McFaceAvatar'
 import { mcFaceUrl } from '../features/auth/mcFace'
 import { cropSkinFaceDataUrl } from '../features/auth/skinFace'
 import { applyTheme, defaultThemeColorsForMode, type ThemeColorPair } from '../styles/theme'
+import { ProgressBar } from '../components/ui/ProgressBar'
 
 export default function SettingsPage() {
   const { t } = useTranslation()
@@ -63,6 +64,10 @@ export default function SettingsPage() {
   const [restartNoticeOpen, setRestartNoticeOpen] = useState(false)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
   const [factoryResetOpen, setFactoryResetOpen] = useState(false)
+  const [factoryResetProgress, setFactoryResetProgress] = useState<{
+    percent: number
+    messageKey: string
+  } | null>(null)
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
@@ -157,10 +162,36 @@ export default function SettingsPage() {
       }
       await fledgeApi.app.factoryReset()
     },
+    onMutate: () => {
+      setFactoryResetProgress({
+        percent: 0,
+        messageKey: 'settings.factoryReset.progress.stopping',
+      })
+      queryClient.removeQueries({ queryKey: ['instances'] })
+      queryClient.removeQueries({ queryKey: ['settings'] })
+      queryClient.removeQueries({ queryKey: ['skins'] })
+      queryClient.removeQueries({ queryKey: ['session'] })
+      queryClient.removeQueries({ queryKey: ['accounts'] })
+    },
     onError: (err) => {
+      setFactoryResetProgress(null)
       setMessage(err instanceof Error ? err.message : String(err))
     },
   })
+
+  useEffect(() => {
+    return fledgeApi.on.progress((e) => {
+      if (e.jobId !== 'factory-reset') return
+      const total = Math.max(1, e.total)
+      setFactoryResetProgress({
+        percent:
+          typeof e.percent === 'number'
+            ? e.percent
+            : Math.round(((e.current ?? 0) / total) * 100),
+        messageKey: e.messageKey ?? 'settings.factoryReset.progress.data',
+      })
+    })
+  }, [])
 
   const logoutMutation = useMutation({
     mutationFn: (accountId?: string) => fledgeApi.auth.logout(accountId),
@@ -887,19 +918,54 @@ export default function SettingsPage() {
           })
         }}
       />
-      <ConfirmDialog
+      <Dialog
         open={factoryResetOpen}
-        title={t('settings.factoryResetConfirm')}
-        body={t('settings.factoryResetConfirmBody')}
-        confirmLabel={t('settings.factoryReset')}
-        pending={factoryResetMutation.isPending}
-        onCancel={() => {
-          if (!factoryResetMutation.isPending) setFactoryResetOpen(false)
+        title={
+          factoryResetMutation.isPending
+            ? t('settings.factoryResetPending')
+            : t('settings.factoryResetConfirm')
+        }
+        onClose={() => {
+          if (!factoryResetMutation.isPending) {
+            setFactoryResetOpen(false)
+            setFactoryResetProgress(null)
+          }
         }}
-        onConfirm={() => {
-          factoryResetMutation.mutate()
-        }}
-      />
+        dismissible={!factoryResetMutation.isPending}
+        compact
+        footer={
+          factoryResetMutation.isPending ? null : (
+            <>
+              <Button type="button" onClick={() => setFactoryResetOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                onClick={() => factoryResetMutation.mutate()}
+              >
+                {t('settings.factoryReset')}
+              </Button>
+            </>
+          )
+        }
+      >
+        {factoryResetMutation.isPending ? (
+          <div className="space-y-2 py-1">
+            <p className="text-center text-xs text-[var(--color-text-muted)]">
+              {t(factoryResetProgress?.messageKey ?? 'settings.factoryReset.progress.data')}
+            </p>
+            <ProgressBar percent={factoryResetProgress?.percent ?? 0} />
+            <p className="text-center text-[10px] leading-snug text-[var(--color-text-muted)]">
+              {t('settings.factoryReset.progressHint')}
+            </p>
+          </div>
+        ) : (
+          <p className="whitespace-pre-line text-sm leading-relaxed text-[var(--color-text)]">
+            {t('settings.factoryResetConfirmBody')}
+          </p>
+        )}
+      </Dialog>
     </div>
   )
 }

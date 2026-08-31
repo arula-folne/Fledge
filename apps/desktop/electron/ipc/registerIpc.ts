@@ -662,7 +662,52 @@ export function registerIpc(
   })
 
   ipcMain.handle(IPC.appFactoryReset, async () => {
-    await factoryResetDesktop(appCtx)
+    const jobId = 'factory-reset'
+    const emitResetProgress = (partial: {
+      current: number
+      total: number
+      messageKey: string
+      status?: 'active' | 'completed' | 'failed'
+    }) => {
+      const total = Math.max(1, partial.total)
+      send(win(), IPC_EVENTS.progress, {
+        scope: 'download',
+        jobId,
+        kind: 'factory-reset',
+        current: partial.current,
+        total,
+        percent: Math.round((partial.current / total) * 100),
+        messageKey: partial.messageKey,
+        status: partial.status ?? 'active',
+      })
+    }
+
+    emitResetProgress({
+      current: 0,
+      total: 1,
+      messageKey: 'settings.factoryReset.progress.stopping',
+    })
+
+    try {
+      await factoryResetDesktop(appCtx, (progress) => {
+        emitResetProgress({ ...progress, status: 'active' })
+      })
+      emitResetProgress({
+        current: 1,
+        total: 1,
+        messageKey: 'settings.factoryReset.progress.done',
+        status: 'completed',
+      })
+    } catch (err) {
+      emitResetProgress({
+        current: 0,
+        total: 1,
+        messageKey: 'settings.factoryReset.progress.failed',
+        status: 'failed',
+      })
+      throw err
+    }
+
     hooks?.onFactoryReset?.()
   })
 
