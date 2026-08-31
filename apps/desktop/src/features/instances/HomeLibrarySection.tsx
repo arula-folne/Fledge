@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState, type MouseEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { IconChevronDown, IconChevronUp } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronUp, IconPlus } from '@tabler/icons-react'
 import {
   LibrarySortModeSchema,
   moveLibraryInstanceOrder,
@@ -12,6 +12,7 @@ import {
   type Settings,
 } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
+import { Button } from '../../components/ui/Button'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { InstanceCreationFlow } from './InstanceCreationFlow'
 import { InstanceCard } from './InstanceCard'
@@ -141,23 +142,29 @@ export function HomeLibrarySection({ instances }: Props) {
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-medium text-[var(--color-text-muted)]">{t('library.title')}</h2>
         <div className="flex flex-wrap items-center gap-2">
-          {!empty ? (
-            <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
-              <span className="hidden sm:inline">{t('library.sort.label')}</span>
-              <select
-                value={sortMode}
-                onChange={(e) => onSortModeChange(e.target.value)}
-                className={selectClass}
-                aria-label={t('library.sort.label')}
-              >
-                {SORT_MODES.map((mode) => (
-                  <option key={mode} value={mode}>
-                    {t(`library.sort.${mode}`)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+          <label className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)]">
+            <span className="hidden sm:inline">{t('library.sort.label')}</span>
+            <select
+              value={sortMode}
+              onChange={(e) => onSortModeChange(e.target.value)}
+              className={selectClass}
+              aria-label={t('library.sort.label')}
+            >
+              {SORT_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {t(`library.sort.${mode}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button
+            data-fledge-tutorial="tutorial-home-create"
+            variant="secondary"
+            onClick={() => setWizardOpen(true)}
+          >
+            <IconPlus size={16} stroke={1.75} />
+            {t('library.create')}
+          </Button>
         </div>
       </div>
 
