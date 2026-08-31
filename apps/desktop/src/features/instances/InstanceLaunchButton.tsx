@@ -73,7 +73,7 @@ export function InstanceLaunchButton({
   instanceId,
   size = 'default',
   className = '',
-  showProgress = true,
+  showProgress = false,
 }: Props) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()

@@ -12,7 +12,6 @@ import type { JavaManagedMajor, JavaRuntimeView } from '@fledge/shared'
 import { JAVA_MANAGED_MAJORS } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../ui/Button'
-import { ProgressBar } from '../ui/ProgressBar'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { useTransferStore } from '../../stores/appStores'
 import { jobPercent } from '../../features/transfers/transferJobs'
@@ -200,12 +199,9 @@ export function JavaRuntimePanel({ onMessage }: { onMessage: (msg: string | null
               </p>
             )}
             {job ? (
-              <div className="mb-4 space-y-1.5">
-                <div className="flex items-center justify-between gap-3 text-xs text-[var(--color-text-muted)]">
-                  <span>{t(job.messageKey ?? 'settings.java.busy', { major: job.meta.major })}</span>
-                  <span className="tabular-nums">{Math.round(percent)}%</span>
-                </div>
-                <ProgressBar percent={percent} />
+              <div className="mb-4 text-xs text-[var(--color-text-muted)]">
+                <span>{t(job.messageKey ?? 'settings.java.busy', { major: job.meta.major })}</span>
+                <span className="ml-2 tabular-nums">{Math.round(percent)}%</span>
               </div>
             ) : null}
             <div className="flex flex-wrap gap-2">

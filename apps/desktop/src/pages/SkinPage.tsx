@@ -18,6 +18,13 @@ export default function SkinPage() {
   const queryClient = useQueryClient()
   const [registerOpen, setRegisterOpen] = useState(false)
   const [editing, setEditing] = useState<SkinEntry | null>(null)
+  const skinListRef = useRef<HTMLElement>(null)
+
+  const scrollToSkinList = () => {
+    requestAnimationFrame(() => {
+      skinListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
@@ -132,7 +139,10 @@ export default function SkinPage() {
           ) : null}
         </aside>
 
-        <section className="min-h-0 overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+        <section
+          ref={skinListRef}
+          className="min-h-0 overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3"
+        >
           <h2 className="mb-2 text-xs font-medium text-[var(--color-text-muted)]">
             {t('skin.pick')}
           </h2>
@@ -246,6 +256,7 @@ export default function SkinPage() {
             thumbDataUrl,
           })
           setRegisterOpen(false)
+          scrollToSkinList()
         }}
       />
 
@@ -275,6 +286,7 @@ export default function SkinPage() {
               await queryClient.invalidateQueries({ queryKey: ['account-face'] })
             }
             setEditing(null)
+            scrollToSkinList()
           }}
           onRemove={async () => {
             await removeMutation.mutateAsync(editing.id)

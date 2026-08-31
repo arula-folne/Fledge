@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.3.4b",
+    "title": "【バージョンアップ】Fledge Ver.0.3.4b",
+    "body": "**Fledge Ver.0.3.4b** を公開しました。\n\n## 主な変更\n\n- **プログレスバーをヘッダーに集約**（ホームライブラリの UI 崩れを解消、最大 3 件横並び）\n- インスタンス名と処理内容（Java・ライブラリなど）をヘッダーで表示\n- **スクリーンショット**タブのスクロール改善、プレビューに戻るボタン\n- **スキン保存後**にスキン一覧へ自動移動\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-31T13:00:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.3.4b"
+  },
+  {
     "id": "v0.3.3b",
     "title": "【バージョンアップ】Fledge Ver.0.3.3b",
     "body": "**Fledge Ver.0.3.3b** を公開しました。\n\n## 主な変更\n\n- **マウス side button のキー割り当てで初期設定が効かない問題を修正**\n- 操作設定にバージョンに関する注意書きを追加\n- ダークテーマのアクセント色をライトと統一\n- 適用世代 12\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
-import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
+import { IconArrowLeft, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import { Button } from '../../components/ui/Button'
 
 export type GalleryItem = {
@@ -68,6 +68,15 @@ export function GalleryLightbox({ items, index, onClose, onChange }: Props) {
         />
       </div>
       <div className="absolute inset-x-0 bottom-0 flex flex-wrap items-center justify-center gap-3 border-t border-white/10 bg-black/75 px-4 py-3 backdrop-blur-sm">
+        <Button
+          type="button"
+          variant="secondary"
+          className="border-white/15 bg-white/10 text-white hover:bg-white/20"
+          onClick={onClose}
+        >
+          <IconArrowLeft size={16} stroke={1.75} />
+          {t('content.gallery.back')}
+        </Button>
         <Button
           type="button"
           variant="secondary"
