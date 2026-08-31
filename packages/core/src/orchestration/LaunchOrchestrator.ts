@@ -33,11 +33,12 @@ const TITLE_SCREEN_LOG_RE =
 
 /** 製品版は stdout にログが出ないため latest.log を定期ポーリングする */
 const INITIAL_SETTINGS_LOG_POLL_MS = 2_000
-/** タイトル未検出時の applied 確定フォールバック（primed 済み・起動中に潰されていない） */
-const INITIAL_SETTINGS_COMMIT_MIN_RUNTIME_MS = 12_000
-
-/** 連続書き換えではなく、遅延ワンショットで再適用する（製品版でもレースしにくい） */
-const INITIAL_SETTINGS_GUARD_AT_MS = [3_000, 7_000, 12_000, 20_000] as const
+/** タイトル未検出時の applied 確定フォールバック（起動中に潰されていない） */
+const INITIAL_SETTINGS_COMMIT_MIN_RUNTIME_MS = 8_000
+/** Options.load より前に潰された options.txt を直す（rewrote フラグは立てない） */
+const INITIAL_SETTINGS_PRELOAD_GUARD_AT_MS = [250, 500, 750, 1_000, 1_500, 2_000, 2_500] as const
+/** Options.load 後の整合用（ここでの再書き込みは applied 確定を延期する） */
+const INITIAL_SETTINGS_POSTLOAD_GUARD_AT_MS = [7_000, 12_000, 20_000] as const
 
 export type LaunchEventBus = {
   emitProgress: (e: ProgressEvent) => void
@@ -549,7 +550,6 @@ export class LaunchOrchestrator {
       await this.deps.instances.update(profileId, {
         pendingMinecraftOptions: options,
         pendingMinecraftDebugOverlay: overlay,
-        minecraftInitialSettingsPrimed: false,
       })
 
       const result = await ensureMinecraftInitialSettingsApplied(
@@ -579,7 +579,7 @@ export class LaunchOrchestrator {
     }
   }
 
-  /** Forge 等が起動中に options.txt をディスク上で潰した場合の整合用（次回 Options.load 向け）。起動中メモリへの即時反映は期待しない */
+  /** Forge 等が起動中に options.txt を潰した場合の整合用 */
   private startInitialSettingsGuard(session: Session): void {
     this.stopInitialSettingsGuard(session)
     const instanceDir = session.initialSettingsInstanceDir
@@ -587,7 +587,7 @@ export class LaunchOrchestrator {
     const overlay = session.initialSettingsOverlay
     if (!instanceDir || !options) return
 
-    session.initialSettingsGuardTimers = INITIAL_SETTINGS_GUARD_AT_MS.map((delayMs) =>
+    const schedule = (delayMs: number, markRewrote: boolean) =>
       setTimeout(() => {
         void (async () => {
           if (!session.initialSettingsPendingCommit || session.initialSettingsTitleSeen) return
@@ -599,10 +599,12 @@ export class LaunchOrchestrator {
             if (overlay && Object.keys(overlay).length > 0) {
               await mergeMinecraftDebugOverlayFile(instanceDir, overlay)
             }
-            session.initialSettingsRewroteDuringSession = true
+            if (markRewrote) {
+              session.initialSettingsRewroteDuringSession = true
+            }
             this.deps.logger.info(
               'launcher',
-              `Re-applied Minecraft initial options during startup (${session.profileId}, +${delayMs}ms)`,
+              `Re-applied Minecraft initial options during startup (${session.profileId}, +${delayMs}ms, postLoad=${markRewrote})`,
             )
           } catch (err) {
             this.deps.logger.warn(
@@ -611,8 +613,12 @@ export class LaunchOrchestrator {
             )
           }
         })()
-      }, delayMs),
-    )
+      }, delayMs)
+
+    session.initialSettingsGuardTimers = [
+      ...INITIAL_SETTINGS_PRELOAD_GUARD_AT_MS.map((ms) => schedule(ms, false)),
+      ...INITIAL_SETTINGS_POSTLOAD_GUARD_AT_MS.map((ms) => schedule(ms, true)),
+    ]
   }
 
   private stopInitialSettingsGuard(session: Session): void {
@@ -714,10 +720,9 @@ export class LaunchOrchestrator {
   }
 
   /**
-   * 終了時の applied 確定。
-   * - パッチ空: 一度 spawn して終了したら applied
-   * - パッチあり 1 回目: primed のみ立てて applied にしない（2 回目 Options.load 用）
-   * - パッチあり 2 回目以降: タイトルで一致、または primed+verify+十分な稼働時間
+   * 終了時の applied 確定（1 回の起動で完結）。
+   * - パッチ空: spawn して終了したら applied
+   * - パッチあり: spawn 前 verify 成功 + 終了時 verify + 起動中の Options.load 後潰しが無い
    */
   private async finalizeInitialSettingsCommit(session: Session, exitCode: number): Promise<void> {
     if (!session.initialSettingsPendingCommit) return
@@ -729,12 +734,10 @@ export class LaunchOrchestrator {
       return
     }
     try {
-      const profile = await this.deps.instances.get(session.profileId)
       const instanceDir = session.initialSettingsInstanceDir
       const options = session.initialSettingsOptions ?? {}
       const hasPatch = Object.keys(options).length > 0
       const runtimeMs = Date.now() - session.runningSinceMs
-      const primed = Boolean(profile?.minecraftInitialSettingsPrimed)
 
       if (instanceDir && hasPatch) {
         await mergeMinecraftOptionsFile(instanceDir, options)
@@ -753,17 +756,6 @@ export class LaunchOrchestrator {
         this.deps.logger.info(
           'launcher',
           `Committed Minecraft initial settings for ${session.profileId} (empty patch, exit=${exitCode})`,
-        )
-        return
-      }
-
-      if (!primed) {
-        await this.deps.instances.update(session.profileId, {
-          minecraftInitialSettingsPrimed: true,
-        })
-        this.deps.logger.info(
-          'launcher',
-          `Primed Minecraft initial settings for ${session.profileId} (exit=${exitCode}, defer applied until next launch)`,
         )
         return
       }
@@ -791,13 +783,12 @@ export class LaunchOrchestrator {
       await this.deps.instances.update(session.profileId, {
         minecraftInitialSettingsApplied: true,
         minecraftInitialSettingsApplyGeneration: MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION,
-        minecraftInitialSettingsPrimed: true,
         pendingMinecraftOptions: {},
         pendingMinecraftDebugOverlay: {},
       })
       this.deps.logger.info(
         'launcher',
-        `Committed Minecraft initial settings for ${session.profileId} (exit=${exitCode}, title=${Boolean(session.initialSettingsTitleSeen)}, primed=${primed})`,
+        `Committed Minecraft initial settings for ${session.profileId} (exit=${exitCode}, title=${Boolean(session.initialSettingsTitleSeen)}, runtimeMs=${runtimeMs})`,
       )
     } catch (err) {
       this.deps.logger.warn(

@@ -120,8 +120,7 @@ export const InstanceProfileSchema = z.object({
    */
   minecraftInitialSettingsApplyGeneration: z.number().int().nonnegative().optional(),
   /**
-   * パッチ付き初回起動を一度完了した（2 回目以降の起動で applied 確定候補になる）。
-   * Fabric 等で 1 回目の Options.load が潰されても、2 回目で反映させる。
+   * @deprecated primed 方式は廃止。読み込み互換のため残す（無視される）。
    */
   minecraftInitialSettingsPrimed: z.boolean().optional(),
   /** 作成時点で凍結した options.txt パッチ（ファイルへは初回起動直前まで書かない） */

@@ -396,7 +396,7 @@ export async function applyMinecraftInitialPatchToInstance(
  * 初期設定コミットの現行世代。
  * 上げると applied 済みでも世代不足のインスタンスは一度だけ再適用される。
  */
-export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 9
+export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 10
 
 export function isMinecraftInitialPatchEmpty(
   options: Record<string, string> | undefined | null,

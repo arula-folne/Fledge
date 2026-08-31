@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.3.2b",
+    "title": "【バージョンアップ】Fledge Ver.0.3.2b",
+    "body": "**Fledge Ver.0.3.2b** を公開しました。\n\n## 主な変更\n\n- **Minecraft 初期設定を 1 回の起動で反映**（2 回起動不要に）\n- Options.load 前の早期ガードで Fabric 等の潰しに対応\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-31T11:45:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.3.2b"
+  },
+  {
     "id": "v0.3.2a",
     "title": "【バージョンアップ】Fledge Ver.0.3.2a",
     "body": "**Fledge Ver.0.3.2a** を公開しました。\n\n## 主な変更\n\n- **製品版で Minecraft 初期設定がゲームに反映されない問題を修正**\n- latest.log ポーリング、2 回起動での反映（primed → applied）\n- Fabric / Mod 環境向けの改善\n\n> アルファ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
