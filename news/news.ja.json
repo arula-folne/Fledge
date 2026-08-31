@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.4.4b",
+    "title": "【バージョンアップ】Fledge Ver.0.4.4b",
+    "body": "**Fledge Ver.0.4.4b** を公開しました。\n\n## 主な変更\n\n- **新しいインスタンス** ボタンを「最後にプレイしたインスタンス」の下に固定（インスタンスがない場合も同じ位置）\n- README 等を 0.4.x の機能（ヘッダー進捗・スキン即時反映など）に合わせて更新\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-31T14:30:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.4.4b"
+  },
+  {
     "id": "v0.4.3b",
     "title": "【バージョンアップ】Fledge Ver.0.4.3b",
     "body": "**Fledge Ver.0.4.3b** を公開しました。\n\n## 主な変更\n\n- **新しいインスタンス** ボタンを「最後にプレイしたインスタンス」の下に固定\n- 完全リセット・スキン即時反映など 0.4.x の改善を含む\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

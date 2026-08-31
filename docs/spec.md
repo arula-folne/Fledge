@@ -1,6 +1,6 @@
 # Fledge 技術仕様
 
-最終更新: 2026-08-30
+最終更新: 2026-08-31
 
 GitHub リポジトリ向けの実装仕様です。アプリ紹介・機能のアピールは [README](../README.md) を先に読んでください。  
 開発手順は [development.md](./development.md) です。
@@ -12,7 +12,7 @@ GitHub リポジトリ向けの実装仕様です。アプリ紹介・機能の�
 ## 1. 位置づけ
 
 Fledge は Minecraft Java Edition 用の非公式デスクトップランチャーです。  
-バージョン **Ver.0.4.3b**。製品 ID は `net.folne.fledge`。  
+バージョン **Ver.0.4.4b**。製品 ID は `net.folne.fledge`。  
 **対応環境は Windows 11 のみ**です。
 
 製品方針:

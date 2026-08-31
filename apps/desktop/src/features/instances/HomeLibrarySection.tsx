@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState, type MouseEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { IconChevronDown, IconChevronUp, IconPlus } from '@tabler/icons-react'
+import { IconChevronDown, IconChevronUp } from '@tabler/icons-react'
 import {
   LibrarySortModeSchema,
   moveLibraryInstanceOrder,
@@ -12,7 +12,6 @@ import {
   type Settings,
 } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
-import { Button } from '../../components/ui/Button'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { InstanceCreationFlow } from './InstanceCreationFlow'
 import { InstanceCard } from './InstanceCard'
@@ -36,11 +35,9 @@ const selectClass =
 
 type Props = {
   instances: InstanceProfile[]
-  /** インスタンス未作成時など、ライブラリ見出し横に新規ボタンを出す */
-  showCreateButton?: boolean
 }
 
-export function HomeLibrarySection({ instances, showCreateButton = false }: Props) {
+export function HomeLibrarySection({ instances }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -160,16 +157,6 @@ export function HomeLibrarySection({ instances, showCreateButton = false }: Prop
                 ))}
               </select>
             </label>
-          ) : null}
-          {showCreateButton ? (
-            <Button
-              data-fledge-tutorial="tutorial-home-create"
-              variant="secondary"
-              onClick={() => setWizardOpen(true)}
-            >
-              <IconPlus size={16} stroke={1.75} />
-              {t('library.create')}
-            </Button>
           ) : null}
         </div>
       </div>
