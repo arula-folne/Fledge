@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.4.0b",
+    "title": "【バージョンアップ】Fledge Ver.0.4.0b",
+    "body": "**Fledge Ver.0.4.0b** を公開しました。\n\n## 主な変更\n\n- **スキン切り替えを即時反映**（Microsoft へのアップロードはバックグラウンド）\n- アップデート確認ダイアログの文字を小さく・簡潔に\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-31T13:25:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.4.0b"
+  },
+  {
     "id": "v0.3.5b",
     "title": "【バージョンアップ】Fledge Ver.0.3.5b",
     "body": "**Fledge Ver.0.3.5b** を公開しました。\n\n## 主な変更\n\n- Minecraft 初期設定に **すべてリセット** ボタンを追加\n- ホームの **新しいインスタンス** ボタンを常に上部に固定\n- スクリーンショット拡大表示をウィンドウ内に収めるよう改善\n- プレビュー操作で **前へ／次へ** を中央に配置\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

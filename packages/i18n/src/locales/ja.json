@@ -21,7 +21,7 @@
   "header.updatePromptVersion": "Ver.{{from}} → Ver.{{to}}",
   "header.updateChangelog": "このバージョンの変更点",
   "header.updateChangelogEmpty": "このリリースには変更点の説明がありません。",
-  "header.updatePromptConfirm": "更新しますか？インスタンスや設定などのデータは消えません。ダウンロード後に一度終了し、インストール完了後に再起動します。",
+  "header.updatePromptConfirm": "更新しますか？データは保持されます。ダウンロード後に一度終了し、再起動します。",
   "update.completeTitle": "Fledgeをアップデートしました",
   "update.completeVersion": "Ver.{{from}} → Ver.{{to}}",
   "update.completeVersionTo": "Ver.{{to}} にアップデートしました",

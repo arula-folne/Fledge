@@ -610,7 +610,7 @@ export function registerIpc(
       const settings = await appCtx.settings.get()
       if (settings.selectedSkinId === skin.id && model) {
         await appCtx.settings.set({ skinModel: model })
-        await applySkinToPlayableAccounts(appCtx, skin.id, model)
+        scheduleSkinApplyToPlayableAccounts(appCtx, skin.id, model)
       }
       touchBackup()
       return skin
@@ -621,7 +621,7 @@ export function registerIpc(
     const settings = await appCtx.settings.get()
     if (settings.selectedSkinId === id) {
       await appCtx.settings.set({ selectedSkinId: 'steve', skinModel: 'wide' })
-      await applySkinToPlayableAccounts(appCtx, 'steve', 'wide')
+      scheduleSkinApplyToPlayableAccounts(appCtx, 'steve', 'wide')
     }
     touchBackup()
   })
@@ -647,7 +647,7 @@ export function registerIpc(
       const patch: Partial<Settings> = { selectedSkinId: input.skinId }
       if (input.model) patch.skinModel = SkinModelSchema.parse(input.model)
       const next = await appCtx.settings.set(patch)
-      await applySkinToPlayableAccounts(appCtx, next.selectedSkinId, next.skinModel)
+      scheduleSkinApplyToPlayableAccounts(appCtx, next.selectedSkinId, next.skinModel)
       touchBackup()
       return toRendererSettings(next)
     },
@@ -814,6 +814,19 @@ async function applySkinToPlayableAccounts(
       forceCredentials: true,
     })
   }
+}
+
+function scheduleSkinApplyToPlayableAccounts(
+  appCtx: LauncherApp,
+  skinId: string,
+  model: SkinModel,
+): void {
+  void applySkinToPlayableAccounts(appCtx, skinId, model).catch((err) => {
+    appCtx.logger.warn(
+      'auth',
+      `Background skin apply failed: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  })
 }
 
 /**

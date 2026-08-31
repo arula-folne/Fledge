@@ -161,18 +161,18 @@ export function UpdateAvailableBanner() {
           )
         }
       >
-        <div className="space-y-2.5 py-1 text-left">
-          <p className="text-center text-xs font-medium text-[var(--color-text)]">
+        <div className="space-y-2 py-0.5 text-left">
+          <p className="text-center text-[11px] font-medium text-[var(--color-text)]">
             {t('header.updatePromptVersion', { from: APP_VERSION, to: nextVersion })}
           </p>
 
           {applying ? (
-            <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-3">
-              <p className="text-center text-[11px] font-medium text-[var(--color-text)]">
+            <div className="space-y-1.5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2.5">
+              <p className="text-center text-[10px] font-medium text-[var(--color-text)]">
                 {phaseLabel}
               </p>
               <ProgressBar percent={percent > 0 ? percent : 8} />
-              <p className="text-center text-[10px] text-[var(--color-text-muted)]">
+              <p className="text-center text-[9px] leading-snug text-[var(--color-text-muted)]">
                 {phase === 'restarting'
                   ? t('updater.restartingHint')
                   : t('updater.progressHint')}
@@ -180,31 +180,31 @@ export function UpdateAvailableBanner() {
             </div>
           ) : (
             <>
-              <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2">
-                <p className="mb-1 text-[10px] font-semibold tracking-wide text-[var(--color-text-muted)]">
+              <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)] px-2.5 py-2">
+                <p className="mb-0.5 text-[9px] font-semibold tracking-wide text-[var(--color-text-muted)]">
                   {t('header.updateChangelog')}
                 </p>
                 {prompt?.result.releaseNotes?.trim() ? (
-                  <div className="max-h-56 overflow-auto">
+                  <div className="max-h-44 overflow-auto">
                     <MarkdownBody
                       text={prompt.result.releaseNotes.trim()}
-                      className="news-md text-[11px] leading-relaxed"
+                      className="news-md text-[10px] leading-snug"
                     />
                   </div>
                 ) : (
-                  <p className="text-[11px] text-[var(--color-text-muted)]">
+                  <p className="text-[10px] leading-snug text-[var(--color-text-muted)]">
                     {t('header.updateChangelogEmpty')}
                   </p>
                 )}
               </div>
-              <p className="text-center text-xs text-[var(--color-text-muted)]">
+              <p className="text-center text-[10px] leading-snug text-[var(--color-text-muted)]">
                 {t('header.updatePromptConfirm')}
               </p>
             </>
           )}
 
           {applyError ? (
-            <p className="text-center text-xs text-[var(--color-danger)]">{applyError}</p>
+            <p className="text-center text-[10px] text-[var(--color-danger)]">{applyError}</p>
           ) : null}
         </div>
       </Dialog>
