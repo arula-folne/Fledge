@@ -29,10 +29,15 @@ import type { SkinApplier } from '../skins/SkinApplier.js'
  * 変更する場合は必ずユーザー確認（.cursor/rules/minecraft-initial-settings-launch.mdc）。
  */
 const TITLE_SCREEN_LOG_RE =
-  /Turning off relative mouse|Startup done in |Loading Music/i
+  /Turning off relative mouse|Startup done in |Loading Music|Sound engine started|OpenAL initialized|Finished loading/i
+
+/** 製品版は stdout にログが出ないため latest.log を定期ポーリングする */
+const INITIAL_SETTINGS_LOG_POLL_MS = 2_000
+/** タイトル未検出時の applied 確定フォールバック（primed 済み・起動中に潰されていない） */
+const INITIAL_SETTINGS_COMMIT_MIN_RUNTIME_MS = 12_000
 
 /** 連続書き換えではなく、遅延ワンショットで再適用する（製品版でもレースしにくい） */
-const INITIAL_SETTINGS_GUARD_AT_MS = [3_000, 7_000, 12_000] as const
+const INITIAL_SETTINGS_GUARD_AT_MS = [3_000, 7_000, 12_000, 20_000] as const
 
 export type LaunchEventBus = {
   emitProgress: (e: ProgressEvent) => void
@@ -60,7 +65,10 @@ type Session = {
   initialSettingsRewroteDuringSession?: boolean
   /** タイトル到達時、再書き込みなしでパッチが一致していた */
   initialSettingsCleanAtTitle?: boolean
+  /** spawn 直前の verify が通った（この起動で Options.load が読むべき内容） */
+  initialSettingsVerifiedAtSpawn?: boolean
   initialSettingsGuardTimers?: Array<ReturnType<typeof setTimeout>>
+  initialSettingsLogPollTimer?: ReturnType<typeof setInterval>
   runningSinceMs?: number
 }
 
@@ -336,6 +344,7 @@ export class LaunchOrchestrator {
             messageKey: 'launch.error.generic',
           })
         }
+        session.initialSettingsVerifiedAtSpawn = true
         this.deps.logger.info(
           'launcher',
           `Pre-spawn options verified at ${path.join(instanceDir, 'options.txt')}`,
@@ -365,6 +374,7 @@ export class LaunchOrchestrator {
       // ガードは書き込みがあるときだけ（空パッチの初回は不要）
       if (session.initialSettingsPendingCommit && Object.keys(initial.options).length > 0) {
         this.startInitialSettingsGuard(session)
+        this.startInitialSettingsLogPoller(session)
       }
       child.stdout?.on('data', (buf: Buffer) => {
         const text = buf.toString('utf8')
@@ -381,7 +391,7 @@ export class LaunchOrchestrator {
       child.on('error', (err) => {
         const current = this.sessions.get(sessionId)
         if (!current) return
-        this.stopInitialSettingsGuard(current)
+        this.stopInitialSettingsWatchers(current)
         this.deps.logger.error(
           'launcher',
           `Game process failed to start: ${err instanceof Error ? err.message : String(err)}`,
@@ -392,7 +402,7 @@ export class LaunchOrchestrator {
       child.on('exit', (code) => {
         const current = this.sessions.get(sessionId)
         if (!current) return
-        this.stopInitialSettingsGuard(current)
+        this.stopInitialSettingsWatchers(current)
         void this.finalizeInitialSettingsCommit(current, code ?? 0)
         if (code && code !== 0) {
           this.deps.logger.error('launcher', `Minecraft exited with code ${code}`)
@@ -460,7 +470,7 @@ export class LaunchOrchestrator {
       : [...this.sessions.values()].find((s) => s.state === 'running' || s.child)
     const child = session?.child
     if (!child) return
-    if (session) this.stopInitialSettingsGuard(session)
+    if (session) this.stopInitialSettingsWatchers(session)
     child.kill()
     this.deps.logger.info('launcher', `Game process kill requested (${session?.id})`)
   }
@@ -470,7 +480,7 @@ export class LaunchOrchestrator {
     for (const session of [...this.sessions.values()]) {
       session.abort.abort()
       this.deps.queue.cancelBySession(session.id)
-      this.stopInitialSettingsGuard(session)
+      this.stopInitialSettingsWatchers(session)
       try {
         session.child?.kill()
       } catch {
@@ -487,7 +497,7 @@ export class LaunchOrchestrator {
       if (session.profileId !== profileId) continue
       session.abort.abort()
       this.deps.queue.cancelBySession(session.id)
-      this.stopInitialSettingsGuard(session)
+      this.stopInitialSettingsWatchers(session)
       try {
         session.child?.kill()
       } catch {
@@ -539,6 +549,7 @@ export class LaunchOrchestrator {
       await this.deps.instances.update(profileId, {
         pendingMinecraftOptions: options,
         pendingMinecraftDebugOverlay: overlay,
+        minecraftInitialSettingsPrimed: false,
       })
 
       const result = await ensureMinecraftInitialSettingsApplied(
@@ -611,6 +622,26 @@ export class LaunchOrchestrator {
     session.initialSettingsGuardTimers = undefined
   }
 
+  /** 製品版向け: latest.log を定期読み取りしてタイトル到達を検出する */
+  private startInitialSettingsLogPoller(session: Session): void {
+    this.stopInitialSettingsLogPoller(session)
+    session.initialSettingsLogPollTimer = setInterval(() => {
+      void this.pollTitleFromLatestLog(session)
+    }, INITIAL_SETTINGS_LOG_POLL_MS)
+  }
+
+  private stopInitialSettingsLogPoller(session: Session): void {
+    if (session.initialSettingsLogPollTimer) {
+      clearInterval(session.initialSettingsLogPollTimer)
+      session.initialSettingsLogPollTimer = undefined
+    }
+  }
+
+  private stopInitialSettingsWatchers(session: Session): void {
+    this.stopInitialSettingsGuard(session)
+    this.stopInitialSettingsLogPoller(session)
+  }
+
   /** stdout が空でも logs/latest.log からタイトル到達を拾う */
   private async pollTitleFromLatestLog(session: Session): Promise<void> {
     if (!session.initialSettingsPendingCommit || session.initialSettingsTitleSeen) return
@@ -622,7 +653,7 @@ export class LaunchOrchestrator {
       const slice = text.length > 48_000 ? text.slice(-48_000) : text
       if (!TITLE_SCREEN_LOG_RE.test(slice)) return
       session.initialSettingsTitleSeen = true
-      this.stopInitialSettingsGuard(session)
+      this.stopInitialSettingsWatchers(session)
       await this.reapplyInitialSettingsAtTitle(session)
     } catch {
       /* ログ未作成 */
@@ -633,7 +664,7 @@ export class LaunchOrchestrator {
     if (!session.initialSettingsPendingCommit || session.initialSettingsTitleSeen) return
     if (!TITLE_SCREEN_LOG_RE.test(text)) return
     session.initialSettingsTitleSeen = true
-    this.stopInitialSettingsGuard(session)
+    this.stopInitialSettingsWatchers(session)
     void this.reapplyInitialSettingsAtTitle(session)
   }
 
@@ -684,10 +715,9 @@ export class LaunchOrchestrator {
 
   /**
    * 終了時の applied 確定。
-   * - パッチ空: 一度 spawn して終了したら applied（標準初回画面のまま）
-   * - パッチあり: タイトル到達時に再書き込みなしで一致していたときだけ applied
-   *   （Fabric / Mod が起動中に潰した場合は次回起動で Options.load し直す）
-   * spawn 前に落ちた場合は child が無いので呼ばれない／シールしない。
+   * - パッチ空: 一度 spawn して終了したら applied
+   * - パッチあり 1 回目: primed のみ立てて applied にしない（2 回目 Options.load 用）
+   * - パッチあり 2 回目以降: タイトルで一致、または primed+verify+十分な稼働時間
    */
   private async finalizeInitialSettingsCommit(session: Session, exitCode: number): Promise<void> {
     if (!session.initialSettingsPendingCommit) return
@@ -699,9 +729,13 @@ export class LaunchOrchestrator {
       return
     }
     try {
+      const profile = await this.deps.instances.get(session.profileId)
       const instanceDir = session.initialSettingsInstanceDir
       const options = session.initialSettingsOptions ?? {}
       const hasPatch = Object.keys(options).length > 0
+      const runtimeMs = Date.now() - session.runningSinceMs
+      const primed = Boolean(profile?.minecraftInitialSettingsPrimed)
+
       if (instanceDir && hasPatch) {
         await mergeMinecraftOptionsFile(instanceDir, options)
         if (session.initialSettingsOverlay && Object.keys(session.initialSettingsOverlay).length > 0) {
@@ -709,15 +743,47 @@ export class LaunchOrchestrator {
         }
       }
 
+      if (!hasPatch) {
+        await this.deps.instances.update(session.profileId, {
+          minecraftInitialSettingsApplied: true,
+          minecraftInitialSettingsApplyGeneration: MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION,
+          pendingMinecraftOptions: {},
+          pendingMinecraftDebugOverlay: {},
+        })
+        this.deps.logger.info(
+          'launcher',
+          `Committed Minecraft initial settings for ${session.profileId} (empty patch, exit=${exitCode})`,
+        )
+        return
+      }
+
+      if (!primed) {
+        await this.deps.instances.update(session.profileId, {
+          minecraftInitialSettingsPrimed: true,
+        })
+        this.deps.logger.info(
+          'launcher',
+          `Primed Minecraft initial settings for ${session.profileId} (exit=${exitCode}, defer applied until next launch)`,
+        )
+        return
+      }
+
+      const verifyAtExit =
+        instanceDir != null && (await verifyMinecraftOptionsFile(instanceDir, options))
       const canCommit =
-        !hasPatch ||
-        (Boolean(session.initialSettingsCleanAtTitle) &&
-          !session.initialSettingsRewroteDuringSession)
+        !session.initialSettingsRewroteDuringSession &&
+        Boolean(session.initialSettingsVerifiedAtSpawn) &&
+        verifyAtExit &&
+        (Boolean(session.initialSettingsCleanAtTitle) ||
+          (runtimeMs >= INITIAL_SETTINGS_COMMIT_MIN_RUNTIME_MS &&
+            Boolean(session.initialSettingsTitleSeen)) ||
+          (runtimeMs >= INITIAL_SETTINGS_COMMIT_MIN_RUNTIME_MS &&
+            !session.initialSettingsTitleSeen))
 
       if (!canCommit) {
         this.deps.logger.info(
           'launcher',
-          `Defer Minecraft initial settings commit for ${session.profileId} (exit=${exitCode}, title=${Boolean(session.initialSettingsTitleSeen)}, clean=${Boolean(session.initialSettingsCleanAtTitle)}, rewrote=${Boolean(session.initialSettingsRewroteDuringSession)})`,
+          `Defer Minecraft initial settings commit for ${session.profileId} (exit=${exitCode}, title=${Boolean(session.initialSettingsTitleSeen)}, clean=${Boolean(session.initialSettingsCleanAtTitle)}, rewrote=${Boolean(session.initialSettingsRewroteDuringSession)}, runtimeMs=${runtimeMs}, verifyAtExit=${verifyAtExit})`,
         )
         return
       }
@@ -725,12 +791,13 @@ export class LaunchOrchestrator {
       await this.deps.instances.update(session.profileId, {
         minecraftInitialSettingsApplied: true,
         minecraftInitialSettingsApplyGeneration: MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION,
+        minecraftInitialSettingsPrimed: true,
         pendingMinecraftOptions: {},
         pendingMinecraftDebugOverlay: {},
       })
       this.deps.logger.info(
         'launcher',
-        `Committed Minecraft initial settings for ${session.profileId} (exit=${exitCode}, title=${Boolean(session.initialSettingsTitleSeen)}, patch=${hasPatch})`,
+        `Committed Minecraft initial settings for ${session.profileId} (exit=${exitCode}, title=${Boolean(session.initialSettingsTitleSeen)}, primed=${primed})`,
       )
     } catch (err) {
       this.deps.logger.warn(

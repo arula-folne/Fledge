@@ -22,12 +22,15 @@ alwaysApply: false
   → 変更なし → options.txt に触れない → spawn（Minecraft 標準の初回画面）
                → 一度 spawn して終了したら applied
 
-変更ありの確定:
-  → タイトル到達時、起動中に再書き込みしておらず options が一致
-     → その終了で applied = true
-  → 起動中に潰されていた／直した
-     → ディスクは直すが applied にしない（次回起動で Options.load し直す）
+変更ありの確定（2 段階）:
+  → 1 回目の起動終了: primed = true のみ（applied にしない）
+  → 2 回目以降: タイトルで一致 / primed + 12s 稼働 + 終了時 verify
+     → applied = true
+  → 起動中に潰されていた: ディスクを直して次回起動に回す
   → 以降はグローバル初期設定を再適用しない
+
+製品版:
+  → stdout にゲームログは出ない。logs/latest.log を定期ポーリングしてタイトル到達を検出
 ```
 
 ## 禁止
@@ -35,14 +38,14 @@ alwaysApply: false
 - 作成時（`instancesCreate` / `createSeededInstance` / mrpack 展開直後）に `options.txt` を書く
 - `prepare` / `warmup` で初期設定を `options.txt` に書く
 - spawn 前の書き込み成功だけで `applied` を立てる
-- パッチありで「一度終了しただけ」で applied にする（ゲームが古い options を読んだまま確定してしまう）
+- パッチありの 1 回目起動で `applied` にする
 - 未変更項目やアプリ locale からの勝手な lang 書き込み
 - `applied === true` かつ現行世代のインスタンスへ、設定変更や別インスタンス作成の副作用で再適用する
 - 起動後の `options.txt` 書き換えを「起動中メモリへの即時反映」目的で増やす（既存ガードは次回起動向け）
 
 ## 触ってよい関連ファイル
 
-- `LaunchOrchestrator.ts` — 初回パス判定・spawn 前 verify・タイトル健全性・終了時 commit
+- `LaunchOrchestrator.ts` — 初回パス判定・spawn 前 verify・log ポーリング・primed/applied
 - `minecraftInitialOptions.ts` — スナップショット／マージ／検証
 - インスタンス作成 IPC / ContentService — **pending 保存のみ**
 
@@ -53,5 +56,3 @@ alwaysApply: false
 1. **実装しない**（またはフローを変えずに迂回する）
 2. ユーザーに短く報告する: 何をしたいか、なぜこのフローを触る必要があるか、触ると何が壊れるか
 3. ユーザーが明示的に許可してからだけ変更する
-
-例: 「未起動インスタンスだけ設定を追従したい」「クラッシュ時は applied にしたくない」「作成時に options を先書きしたい」→ いずれも要確認。

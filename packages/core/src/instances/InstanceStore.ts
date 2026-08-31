@@ -198,6 +198,7 @@ export class InstanceStore {
       // コピー先は初回適用し直す（コピー元が applied だと設定がスキップされるのを防ぐ）
       minecraftInitialSettingsApplied: false,
       minecraftInitialSettingsApplyGeneration: 0,
+      minecraftInitialSettingsPrimed: false,
       ...(source.minecraftInitialSettingsSeeded
         ? { minecraftInitialSettingsSeeded: true }
         : {}),

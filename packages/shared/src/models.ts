@@ -115,9 +115,15 @@ export const InstanceProfileSchema = z.object({
    */
   minecraftInitialSettingsApplied: z.boolean().optional(),
   /**
-   * 初期設定コミットの世代。現行世代未満なら applied でも一度再適用する。
+   * 初期設定コミットの世代。
+   * 上げると applied 済みでも世代不足のインスタンスは一度だけ再適用される。
    */
   minecraftInitialSettingsApplyGeneration: z.number().int().nonnegative().optional(),
+  /**
+   * パッチ付き初回起動を一度完了した（2 回目以降の起動で applied 確定候補になる）。
+   * Fabric 等で 1 回目の Options.load が潰されても、2 回目で反映させる。
+   */
+  minecraftInitialSettingsPrimed: z.boolean().optional(),
   /** 作成時点で凍結した options.txt パッチ（ファイルへは初回起動直前まで書かない） */
   pendingMinecraftOptions: z.record(z.string()).optional(),
   /** 作成時点で凍結した debug.json パッチ（初回起動直前まで書かない） */

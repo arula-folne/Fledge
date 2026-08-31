@@ -348,6 +348,9 @@ export async function mergeMinecraftOptionsFile(
   await writeTextAtomic(file, body)
 }
 
+/** spawn 前 verify 後の Windows 書き込み反映待ち（製品版向け） */
+const INITIAL_SETTINGS_SPAWN_SETTLE_MS = 200
+
 /**
  * 凍結済みパッチをインスタンスへ強制反映（Modpack 同梱より優先）。
  * 空パッチなら何もしない（ゲーム本来の初回動作）。
@@ -363,6 +366,14 @@ export async function applyMinecraftInitialPatchToInstance(
 
   if (Object.keys(options).length > 0) {
     await mergeMinecraftOptionsFile(instanceDir, options)
+    if (!(await verifyMinecraftOptionsFile(instanceDir, options))) {
+      await mergeMinecraftOptionsFile(instanceDir, options)
+    }
+    if (!(await verifyMinecraftOptionsFile(instanceDir, options))) {
+      throw new Error(`Failed to persist Minecraft options.txt at ${path.join(instanceDir, 'options.txt')}`)
+    }
+    // 製品版 Windows では書き込み反映が僅かに遅れることがある
+    await new Promise((resolve) => setTimeout(resolve, INITIAL_SETTINGS_SPAWN_SETTLE_MS))
     if (!(await verifyMinecraftOptionsFile(instanceDir, options))) {
       await mergeMinecraftOptionsFile(instanceDir, options)
     }
@@ -385,7 +396,7 @@ export async function applyMinecraftInitialPatchToInstance(
  * 初期設定コミットの現行世代。
  * 上げると applied 済みでも世代不足のインスタンスは一度だけ再適用される。
  */
-export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 8
+export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 9
 
 export function isMinecraftInitialPatchEmpty(
   options: Record<string, string> | undefined | null,
