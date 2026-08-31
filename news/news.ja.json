@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.3.3b",
+    "title": "【バージョンアップ】Fledge Ver.0.3.3b",
+    "body": "**Fledge Ver.0.3.3b** を公開しました。\n\n## 主な変更\n\n- **マウス side button のキー割り当てで初期設定が効かない問題を修正**\n- 操作設定にバージョンに関する注意書きを追加\n- ダークテーマのアクセント色をライトと統一\n- 適用世代 12\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-31T12:40:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.3.3b"
+  },
+  {
     "id": "v0.3.3a",
     "title": "【バージョンアップ】Fledge Ver.0.3.3a",
     "body": "**Fledge Ver.0.3.3a** を公開しました。\n\n## 主な変更\n\n- **アプリ完全リセットが効かない問題を修正**（更新ポップアップが残る・データが復元される）\n- 全候補 data パスの削除、ポインタ・sessionData のクリア\n\n> アルファ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

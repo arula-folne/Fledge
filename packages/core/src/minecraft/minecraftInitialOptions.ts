@@ -173,7 +173,7 @@ export function snapshotMinecraftInitialOptions(
 
   for (const [id, code] of Object.entries(settings.keybinds ?? {})) {
     if (!id.startsWith('key.') || !code) continue
-    put(`key_${id}`, code)
+    put(`key_${id}`, formatOptionsKeybindValue(code))
   }
 
   // 変更ありのときだけ初回アクセシビリティ画面を抑止する
@@ -181,6 +181,35 @@ export function snapshotMinecraftInitialOptions(
 
   return out
 }
+
+/** Minecraft datafix が数値 ID のみ受け付けるマウスキー（OptionsKeyLwjgl3Fix） */
+const MODERN_MOUSE_KEY_TO_LEGACY: Record<string, string> = {
+  'key.mouse.left': '-100',
+  'key.mouse.right': '-99',
+  'key.mouse.middle': '-98',
+  'key.mouse.4': '-97',
+  'key.mouse.5': '-96',
+}
+
+const LEGACY_MOUSE_KEY_TO_MODERN: Record<string, string> = Object.fromEntries(
+  Object.entries(MODERN_MOUSE_KEY_TO_LEGACY).map(([modern, legacy]) => [legacy, modern]),
+)
+
+/** spawn 前 options.txt 向け。side button 等をレガシー数値 ID に変換して datafix クラッシュを防ぐ */
+export function formatOptionsKeybindValue(code: string): string {
+  return MODERN_MOUSE_KEY_TO_LEGACY[code] ?? code
+}
+
+function keybindValuesEqual(expected: string, actual: string | undefined): boolean {
+  if (actual === undefined) return false
+  if (actual === expected) return true
+  const legacy = MODERN_MOUSE_KEY_TO_LEGACY[expected]
+  if (legacy && actual === legacy) return true
+  if (LEGACY_MOUSE_KEY_TO_MODERN[expected] === actual) return true
+  if (legacy && LEGACY_MOUSE_KEY_TO_MODERN[actual] === expected) return true
+  return false
+}
+
 
 /**
  * 1.21.9+ のデバッグオーバーレイ（FPS 常時表示など）。
@@ -232,14 +261,17 @@ export async function verifyMinecraftOptionsFile(
   try {
     const text = await fs.readFile(path.join(instanceDir, 'options.txt'), 'utf8')
     const map = parseOptionsMap(text)
-    return keys.every((key) => optionValuesEqual(patch[key]!, map.get(key)))
+    return keys.every((key) => optionValuesEqual(key, patch[key]!, map.get(key)))
   } catch {
     return false
   }
 }
 
-function optionValuesEqual(expected: string, actual: string | undefined): boolean {
+function optionValuesEqual(key: string, expected: string, actual: string | undefined): boolean {
   if (actual === undefined) return false
+  if (key.startsWith('key_key.')) {
+    return keybindValuesEqual(expected, actual)
+  }
   if (actual === expected) return true
   const en = Number(expected)
   const an = Number(actual)
@@ -402,7 +434,7 @@ export async function applyMinecraftInitialPatchToInstance(
  * 初期設定コミットの現行世代。
  * 上げると applied 済みでも世代不足のインスタンスは一度だけ再適用される。
  */
-export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 11
+export const MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION = 12
 
 export function isMinecraftInitialPatchEmpty(
   options: Record<string, string> | undefined | null,

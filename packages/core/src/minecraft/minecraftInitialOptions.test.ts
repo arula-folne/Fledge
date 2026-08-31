@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { EMPTY_MINECRAFT_INITIAL_SETTINGS, type MinecraftInitialSettings } from '@fledge/shared'
 import {
+  formatOptionsKeybindValue,
   hasCustomMinecraftInitialSettings,
   snapshotMinecraftDebugOverlay,
   snapshotMinecraftInitialOptions,
@@ -66,6 +67,23 @@ describe('snapshotMinecraftInitialOptions', () => {
     const out = snapshotMinecraftInitialOptions(settings({ lang: 'en_us' }), '1.21.1', 'ja')
     assert.equal(out.lang, 'en_us')
     assert.equal(out.onboardAccessibility, 'false')
+  })
+
+  it('マウス side button はレガシー数値 ID で書く（datafix クラッシュ防止）', () => {
+    const out = snapshotMinecraftInitialOptions(
+      settings({ keybinds: { 'key.sprint': 'key.mouse.4' } }),
+      '26.2',
+    )
+    assert.equal(out['key_key.sprint'], '-97')
+  })
+})
+
+describe('formatOptionsKeybindValue', () => {
+  it('key.mouse.4 → -97', () => {
+    assert.equal(formatOptionsKeybindValue('key.mouse.4'), '-97')
+  })
+  it('keyboard はそのまま', () => {
+    assert.equal(formatOptionsKeybindValue('key.keyboard.w'), 'key.keyboard.w')
   })
 })
 

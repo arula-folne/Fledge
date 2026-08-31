@@ -519,6 +519,7 @@
   "settings.minecraftInitial.keybinds.open": "操作設定…",
   "settings.minecraftInitial.keybinds.title": "操作設定",
   "settings.minecraftInitial.keybinds.hint": "Minecraft の Mod なしデフォルトと同じ項目です。割り当てたい操作のボタンを押してから、キーまたはマウスボタンを押してください。Esc で割り当てなしにできます。",
+  "settings.minecraftInitial.keybinds.versionNotice": "反映は Minecraft 1.13 以降を想定しています（1.12 以前は非対応）。一覧は最新版ベースのため、インスタンスのバージョンに無い操作は書き込まれません。マウスは左・右・中・4・5 ボタンまで対応（6 以降は未対応）。",
   "settings.minecraftInitial.keybinds.resetAll": "すべてリセット",
   "settings.minecraftInitial.keybinds.listening": "キーを押してください",
   "settings.minecraftInitial.keybinds.summary": "{{count}} 件を変更済み",

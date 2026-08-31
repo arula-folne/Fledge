@@ -1252,6 +1252,9 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
                     count: Object.keys(current.keybinds).length,
                   })}
             </p>
+            <p className="mt-1 pl-7 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
+              {t('settings.minecraftInitial.keybinds.versionNotice')}
+            </p>
           </div>
           <Button type="button" onClick={() => setKeybindsOpen(true)}>
             {t('settings.minecraftInitial.keybinds.open')}

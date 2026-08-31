@@ -135,6 +135,9 @@ export function MinecraftKeybindsDialog({ open, value, onChange, onClose }: Prop
       }
     >
       <div className="space-y-5">
+        <p className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs leading-relaxed text-[var(--color-text-muted)]">
+          {t('settings.minecraftInitial.keybinds.versionNotice')}
+        </p>
         {MC_KEYBIND_CATEGORIES.map((category) => {
           const items = MC_KEYBINDS.filter((item) => item.category === category)
           return (
