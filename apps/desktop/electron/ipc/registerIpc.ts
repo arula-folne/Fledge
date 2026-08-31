@@ -20,7 +20,14 @@ import {
   type Settings,
   type SkinModel,
 } from '@fledge/shared'
-import { snapshotMinecraftDebugOverlay, snapshotMinecraftInitialOptions, factoryReset, fetchActiveMinecraftSkin, hashSkinPng, type LauncherApp } from '@fledge/core'
+import { factoryResetDesktop } from '../app/factoryResetDesktop'
+import {
+  snapshotMinecraftDebugOverlay,
+  snapshotMinecraftInitialOptions,
+  fetchActiveMinecraftSkin,
+  hashSkinPng,
+  type LauncherApp,
+} from '@fledge/core'
 import { applyWindowUiScale } from '../windows/MainWindow'
 import { isLightStart, isPostInstallStart, isUpdatedStart } from '../startup/lightStart'
 import { resolveUpdateNotice } from '../startup/updateStartup'
@@ -655,7 +662,7 @@ export function registerIpc(
   })
 
   ipcMain.handle(IPC.appFactoryReset, async () => {
-    await factoryReset(appCtx)
+    await factoryResetDesktop(appCtx)
     hooks?.onFactoryReset?.()
   })
 

@@ -106,6 +106,8 @@ async function scheduleAppExit(options?: {
   delayMs?: number
   /** true なら終了後に同じ exe を起動（更新適用時は false: NSIS が新版を起動） */
   relaunch?: boolean
+  /** 再起動時の argv（省略時は現在の process.argv を引き継ぐ） */
+  relaunchArgs?: string[]
 }): Promise<void> {
   if (relaunchScheduled) return
   relaunchScheduled = true
@@ -135,7 +137,10 @@ async function scheduleAppExit(options?: {
   }
 
   if (options?.relaunch !== false && app.isPackaged) {
-    app.relaunch({ execPath: process.execPath })
+    app.relaunch({
+      execPath: process.execPath,
+      args: options?.relaunchArgs ?? process.argv.slice(1),
+    })
   }
   app.quit()
 }
@@ -144,6 +149,7 @@ async function scheduleAppExit(options?: {
 async function scheduleAppRelaunch(options?: {
   skipBackupFlush?: boolean
   delayMs?: number
+  relaunchArgs?: string[]
 }): Promise<void> {
   await scheduleAppExit({ ...options, relaunch: true })
 }
@@ -307,7 +313,8 @@ async function bootstrap(): Promise<void> {
 
   registerIpc(launcherApp, getWindow, {
     onFactoryReset: () => {
-      void scheduleAppRelaunch({ skipBackupFlush: true, delayMs: 400 })
+      // --updated 等を引き継ぐと更新完了ポップアップが消えない
+      void scheduleAppRelaunch({ skipBackupFlush: true, delayMs: 400, relaunchArgs: [] })
     },
     onRelaunch: () => {
       void scheduleAppRelaunch()

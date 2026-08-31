@@ -1,14 +1,14 @@
-**Fledge Ver.0.3.2c** を公開しました（第2世代ベータ / Latest）。
+**Fledge Ver.0.3.3a** を公開しました（第2世代アルファ / Latest）。
 
 ## 主な変更
 
-### Minecraft 初期設定（1 回起動での反映を再修正）
-- spawn 前 **burst 書き込み**（4 回 × 40ms + settle）
-- spawn 後 **30ms ポーリング** + **fs.watch** + **0ms からの早期ガード**（4 秒間）
-- 適用世代を **11** に bump（0.3.2b で applied 済みのインスタンスも再適用）
-- バニラ・Fabric 共通（製品版 latest.log ポーリングは継続）
+### アプリ完全リセットの修正
+- 完全リセット後も **更新完了ポップアップ**が出続ける問題を修正（`--updated` を引き継がない）
+- **全候補 data パス**（既定 / カスタム / レガシー AppData）を削除
+- `custom-root.json`・sessionData をクリアし、再起動後のデータ復元を防止
+- 削除失敗時も可能な限り続行し、必ず再起動する
 
-### 0.3.2b からの修正理由
-- 早期ガードが 250ms から開始で、Options.load（〜200ms）より遅かった
+### 継承（Ver.0.3.2c）
+- Minecraft 初期設定を 1 回起動で反映（burst 書き込み・30ms ポーリング・fs.watch・早期ガード）
 
-> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。
+> アルファ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。

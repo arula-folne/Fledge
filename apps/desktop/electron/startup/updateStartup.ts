@@ -21,6 +21,19 @@ export async function preparePostUpdateSettings(appCtx: LauncherApp): Promise<Se
   const pendingForCurrent =
     pending != null && (pending.toVersion === APP_VERSION || !pending.toVersion)
 
+  // 完全リセット直後の初回起動: 更新案内にしない（--updated が残っていても上書き）
+  const freshAfterReset =
+    !last &&
+    settings.installOnboardingCompleted !== true &&
+    pending == null &&
+    !postInstall
+  if (freshAfterReset) {
+    return appCtx.settings.set({
+      lastAppVersion: APP_VERSION,
+      updateAckPending: null,
+    })
+  }
+
   // 新規インストール直後は更新案内にしない
   if (postInstall && !updatedArg) {
     if (settings.lastAppVersion !== APP_VERSION) {
@@ -71,6 +84,15 @@ export async function resolveUpdateNotice(appCtx: LauncherApp): Promise<UpdateNo
   const updatedArg = isUpdatedStart()
   const versionBumped = versionsDiffer(last, APP_VERSION)
   const pendingForCurrent = pending != null && pending.toVersion === APP_VERSION
+
+  if (
+    !last &&
+    settings.installOnboardingCompleted !== true &&
+    pending == null &&
+    !isPostInstallStart()
+  ) {
+    return null
+  }
 
   if (!pendingForCurrent && !updatedArg && !versionBumped) {
     return null
