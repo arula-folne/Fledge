@@ -137,7 +137,7 @@ export function AppShell() {
         <div className="flex min-w-0 flex-1 flex-col">
           <header
             className={[
-              'season-shell-panel relative z-20 flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5',
+              'season-shell-panel relative z-20 flex min-h-[3.25rem] items-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5',
               seasonId ? '' : 'bg-[var(--color-surface)]/70',
             ].join(' ')}
           >

@@ -36,9 +36,11 @@ const selectClass =
 
 type Props = {
   instances: InstanceProfile[]
+  /** インスタンス未作成時など、ライブラリ見出し横に新規ボタンを出す */
+  showCreateButton?: boolean
 }
 
-export function HomeLibrarySection({ instances }: Props) {
+export function HomeLibrarySection({ instances, showCreateButton = false }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -159,14 +161,16 @@ export function HomeLibrarySection({ instances }: Props) {
               </select>
             </label>
           ) : null}
-          <Button
-            data-fledge-tutorial="tutorial-home-create"
-            variant="secondary"
-            onClick={() => setWizardOpen(true)}
-          >
-            <IconPlus size={16} stroke={1.75} />
-            {t('library.create')}
-          </Button>
+          {showCreateButton ? (
+            <Button
+              data-fledge-tutorial="tutorial-home-create"
+              variant="secondary"
+              onClick={() => setWizardOpen(true)}
+            >
+              <IconPlus size={16} stroke={1.75} />
+              {t('library.create')}
+            </Button>
+          ) : null}
         </div>
       </div>
 

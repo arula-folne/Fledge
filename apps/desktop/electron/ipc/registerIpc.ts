@@ -610,7 +610,7 @@ export function registerIpc(
       const settings = await appCtx.settings.get()
       if (settings.selectedSkinId === skin.id && model) {
         await appCtx.settings.set({ skinModel: model })
-        await applySkinToPlayableAccounts(appCtx, skin.id, model)
+        scheduleSkinApplyToPlayableAccounts(appCtx, skin.id, model)
       }
       touchBackup()
       return skin
@@ -621,7 +621,7 @@ export function registerIpc(
     const settings = await appCtx.settings.get()
     if (settings.selectedSkinId === id) {
       await appCtx.settings.set({ selectedSkinId: 'steve', skinModel: 'wide' })
-      await applySkinToPlayableAccounts(appCtx, 'steve', 'wide')
+      scheduleSkinApplyToPlayableAccounts(appCtx, 'steve', 'wide')
     }
     touchBackup()
   })
@@ -647,7 +647,7 @@ export function registerIpc(
       const patch: Partial<Settings> = { selectedSkinId: input.skinId }
       if (input.model) patch.skinModel = SkinModelSchema.parse(input.model)
       const next = await appCtx.settings.set(patch)
-      await applySkinToPlayableAccounts(appCtx, next.selectedSkinId, next.skinModel)
+      scheduleSkinApplyToPlayableAccounts(appCtx, next.selectedSkinId, next.skinModel)
       touchBackup()
       return toRendererSettings(next)
     },
@@ -662,7 +662,52 @@ export function registerIpc(
   })
 
   ipcMain.handle(IPC.appFactoryReset, async () => {
-    await factoryResetDesktop(appCtx)
+    const jobId = 'factory-reset'
+    const emitResetProgress = (partial: {
+      current: number
+      total: number
+      messageKey: string
+      status?: 'active' | 'completed' | 'failed'
+    }) => {
+      const total = Math.max(1, partial.total)
+      send(win(), IPC_EVENTS.progress, {
+        scope: 'download',
+        jobId,
+        kind: 'factory-reset',
+        current: partial.current,
+        total,
+        percent: Math.round((partial.current / total) * 100),
+        messageKey: partial.messageKey,
+        status: partial.status ?? 'active',
+      })
+    }
+
+    emitResetProgress({
+      current: 0,
+      total: 1,
+      messageKey: 'settings.factoryReset.progress.stopping',
+    })
+
+    try {
+      await factoryResetDesktop(appCtx, (progress) => {
+        emitResetProgress({ ...progress, status: 'active' })
+      })
+      emitResetProgress({
+        current: 1,
+        total: 1,
+        messageKey: 'settings.factoryReset.progress.done',
+        status: 'completed',
+      })
+    } catch (err) {
+      emitResetProgress({
+        current: 0,
+        total: 1,
+        messageKey: 'settings.factoryReset.progress.failed',
+        status: 'failed',
+      })
+      throw err
+    }
+
     hooks?.onFactoryReset?.()
   })
 
@@ -814,6 +859,19 @@ async function applySkinToPlayableAccounts(
       forceCredentials: true,
     })
   }
+}
+
+function scheduleSkinApplyToPlayableAccounts(
+  appCtx: LauncherApp,
+  skinId: string,
+  model: SkinModel,
+): void {
+  void applySkinToPlayableAccounts(appCtx, skinId, model).catch((err) => {
+    appCtx.logger.warn(
+      'auth',
+      `Background skin apply failed: ${err instanceof Error ? err.message : String(err)}`,
+    )
+  })
 }
 
 /**

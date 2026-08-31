@@ -30,7 +30,7 @@ import {
   sameIconPreset,
   type InstanceIconFilePick,
 } from '../features/instances/instanceIconPresets'
-import { InstanceLaunchButton, InstanceLaunchProgress } from '../features/instances/InstanceLaunchButton'
+import { InstanceLaunchButton } from '../features/instances/InstanceLaunchButton'
 import { InstanceLogConsole } from '../features/instances/InstanceLogConsole'
 import { ScreenshotsTab } from '../features/instances/ScreenshotsTab'
 import { ExportMrpackDialog } from '../features/content/ExportMrpackDialog'
@@ -444,9 +444,6 @@ export default function LibraryDetailPage() {
             </button>
           </div>
         </div>
-        <div className="mt-1 flex justify-end pr-[6.75rem]">
-          <InstanceLaunchProgress instanceId={instance.id} />
-        </div>
       </header>
 
       {headerMenuOpen
@@ -500,7 +497,7 @@ export default function LibraryDetailPage() {
 
       <div
         className={[
-          'min-h-0 flex-1',
+          'flex min-h-0 flex-1 flex-col',
           tab === 'content' || tab === 'screenshots' ? 'overflow-hidden' : 'overflow-auto',
         ].join(' ')}
       >
@@ -522,7 +519,7 @@ export default function LibraryDetailPage() {
       ) : null}
 
       {tab === 'screenshots' ? (
-        <div className="h-full min-h-0">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <ScreenshotsTab instanceId={instance.id} />
         </div>
       ) : null}

@@ -1,5 +1,40 @@
 [
   {
+    "id": "v0.4.3b",
+    "title": "【バージョンアップ】Fledge Ver.0.4.3b",
+    "body": "**Fledge Ver.0.4.3b** を公開しました。\n\n## 主な変更\n\n- **新しいインスタンス** ボタンを「最後にプレイしたインスタンス」の下に固定\n- 完全リセット・スキン即時反映など 0.4.x の改善を含む\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-31T13:50:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.4.3b"
+  },
+  {
+    "id": "v0.4.1b",
+    "title": "【バージョンアップ】Fledge Ver.0.4.1b",
+    "body": "**Fledge Ver.0.4.1b** を公開しました。\n\n## 主な変更\n\n- **完全リセット**でインスタンスを含むゲームデータを確実に削除\n- リセット処理中に **プログレスバー** を表示\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-31T13:35:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.4.1b"
+  },
+  {
+    "id": "v0.4.0b",
+    "title": "【バージョンアップ】Fledge Ver.0.4.0b",
+    "body": "**Fledge Ver.0.4.0b** を公開しました。\n\n## 主な変更\n\n- **スキン切り替えを即時反映**（Microsoft へのアップロードはバックグラウンド）\n- アップデート確認ダイアログの文字を小さく・簡潔に\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-31T13:25:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.4.0b"
+  },
+  {
+    "id": "v0.3.5b",
+    "title": "【バージョンアップ】Fledge Ver.0.3.5b",
+    "body": "**Fledge Ver.0.3.5b** を公開しました。\n\n## 主な変更\n\n- Minecraft 初期設定に **すべてリセット** ボタンを追加\n- ホームの **新しいインスタンス** ボタンを常に上部に固定\n- スクリーンショット拡大表示をウィンドウ内に収めるよう改善\n- プレビュー操作で **前へ／次へ** を中央に配置\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-31T13:10:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.3.5b"
+  },
+  {
+    "id": "v0.3.4b",
+    "title": "【バージョンアップ】Fledge Ver.0.3.4b",
+    "body": "**Fledge Ver.0.3.4b** を公開しました。\n\n## 主な変更\n\n- **プログレスバーをヘッダーに集約**（ホームライブラリの UI 崩れを解消、最大 3 件横並び）\n- インスタンス名と処理内容（Java・ライブラリなど）をヘッダーで表示\n- **スクリーンショット**タブのスクロール改善、プレビューに戻るボタン\n- **スキン保存後**にスキン一覧へ自動移動\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-08-31T13:00:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.3.4b"
+  },
+  {
     "id": "v0.3.3b",
     "title": "【バージョンアップ】Fledge Ver.0.3.3b",
     "body": "**Fledge Ver.0.3.3b** を公開しました。\n\n## 主な変更\n\n- **マウス side button のキー割り当てで初期設定が効かない問題を修正**\n- 操作設定にバージョンに関する注意書きを追加\n- ダークテーマのアクセント色をライトと統一\n- 適用世代 12\n\n> ベータ版です。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { IconCheck, IconPencil, IconPlus, IconUpload } from '@tabler/icons-react'
-import { MAX_UPLOADED_SKINS, type SkinEntry, type SkinModel } from '@fledge/shared'
+import { MAX_UPLOADED_SKINS, type SkinEntry, type SkinModel, type Settings } from '@fledge/shared'
 import { fledgeApi } from '../api/fledgeApi'
 import { Button } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
@@ -12,12 +12,24 @@ import { SkinPreview } from '../components/skin/SkinPreview'
 import { SkinCachedThumb, skinThumbQueryKey } from '../components/skin/SkinCachedThumb'
 import { defaultSkinThumbUrl, defaultSkinUrl } from '../components/skin/defaultSkinUrls'
 import { renderSkinThumbDataUrl } from '../components/skin/skinSnapshot'
+import {
+  patchSelectedSkinSettings,
+  prefetchAccountFaceFromLocalSkin,
+  resolveSkinModel,
+} from '../features/skin/optimisticSkinSelection'
 
 export default function SkinPage() {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const [registerOpen, setRegisterOpen] = useState(false)
   const [editing, setEditing] = useState<SkinEntry | null>(null)
+  const skinListRef = useRef<HTMLElement>(null)
+
+  const scrollToSkinList = () => {
+    requestAnimationFrame(() => {
+      skinListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
@@ -37,11 +49,27 @@ export default function SkinPage() {
 
   const selectMutation = useMutation({
     mutationFn: (input: { skinId: string; model?: SkinModel }) => fledgeApi.skins.select(input),
-    onSettled: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['settings'] })
-      await queryClient.invalidateQueries({ queryKey: ['account-face'] })
+    onMutate: async (input) => {
+      await queryClient.cancelQueries({ queryKey: ['settings'] })
+      const previous = queryClient.getQueryData<Settings>(['settings'])
+      const skins = skinsQuery.data ?? []
+      const model = resolveSkinModel(skins, input.skinId, input.model)
+      patchSelectedSkinSettings(queryClient, input.skinId, model)
+      void prefetchAccountFaceFromLocalSkin(queryClient, input.skinId, skins)
+      return { previous }
+    },
+    onError: (_err, _input, ctx) => {
+      if (ctx?.previous) queryClient.setQueryData(['settings'], ctx.previous)
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: ['settings'] })
+      void queryClient.invalidateQueries({ queryKey: ['account-face'] })
     },
   })
+
+  const applySkinSelection = (skinId: string, model?: SkinModel) => {
+    selectMutation.mutate({ skinId, model })
+  }
 
   const uploadMutation = useMutation({
     mutationFn: (input: {
@@ -52,7 +80,10 @@ export default function SkinPage() {
       thumbDataUrl?: string
     }) => fledgeApi.skins.upload(input),
     onSuccess: async (skin) => {
-      await fledgeApi.skins.select({ skinId: skin.id, model: skin.model })
+      const skins = [...(skinsQuery.data ?? []), skin]
+      patchSelectedSkinSettings(queryClient, skin.id, skin.model)
+      void prefetchAccountFaceFromLocalSkin(queryClient, skin.id, skins)
+      void fledgeApi.skins.select({ skinId: skin.id, model: skin.model })
       await queryClient.invalidateQueries({ queryKey: ['skins'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
       await queryClient.invalidateQueries({ queryKey: ['skin-thumb', skin.id] })
@@ -132,7 +163,10 @@ export default function SkinPage() {
           ) : null}
         </aside>
 
-        <section className="min-h-0 overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3">
+        <section
+          ref={skinListRef}
+          className="min-h-0 overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3"
+        >
           <h2 className="mb-2 text-xs font-medium text-[var(--color-text-muted)]">
             {t('skin.pick')}
           </h2>
@@ -160,10 +194,7 @@ export default function SkinPage() {
                         ? t('skin.model.slim')
                         : t('skin.model.wide')
                   }
-                  onClick={() => {
-                    if (selectMutation.isPending) return
-                    selectMutation.mutate({ skinId: skin.id, model: skin.model })
-                  }}
+                  onClick={() => applySkinSelection(skin.id, skin.model)}
                   onEdit={() => setEditing(skin)}
                 >
                   <SkinEntryThumb skin={skin} />
@@ -209,10 +240,7 @@ export default function SkinPage() {
                         ? t('skin.model.slim')
                         : t('skin.model.wide')
                   }
-                  onClick={() => {
-                    if (selectMutation.isPending) return
-                    selectMutation.mutate({ skinId: skin.id, model: skin.model })
-                  }}
+                  onClick={() => applySkinSelection(skin.id, skin.model)}
                 >
                   <SkinEntryThumb skin={skin} />
                 </SkinCard>
@@ -246,6 +274,7 @@ export default function SkinPage() {
             thumbDataUrl,
           })
           setRegisterOpen(false)
+          scrollToSkinList()
         }}
       />
 
@@ -270,11 +299,10 @@ export default function SkinPage() {
               }
             }
             if (selectedId === editing.id) {
-              await fledgeApi.skins.select({ skinId: editing.id, model })
-              await queryClient.invalidateQueries({ queryKey: ['settings'] })
-              await queryClient.invalidateQueries({ queryKey: ['account-face'] })
+              applySkinSelection(editing.id, model)
             }
             setEditing(null)
+            scrollToSkinList()
           }}
           onRemove={async () => {
             await removeMutation.mutateAsync(editing.id)

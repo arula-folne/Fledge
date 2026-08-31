@@ -2,11 +2,9 @@ import { memo, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { InstanceProfile } from '@fledge/shared'
-import { useLaunchStore, useInstanceCreateStore } from '../../stores/appStores'
-import { formatProgressMessage } from '../launch/formatProgressMessage'
+import { useInstanceCreateStore } from '../../stores/appStores'
 import { InstanceIcon } from './InstanceIcon'
 import { InstanceLaunchButton } from './InstanceLaunchButton'
-import { LaunchProgressIndicator, LAUNCH_PROGRESS_WIDTH } from './launchProgressUi'
 import { formatLastPlayed, formatLoaderLabel } from './instanceMeta'
 
 type Props = {
@@ -76,7 +74,7 @@ export const InstanceCard = memo(function InstanceCard({
               {t('instances.lastPlayed')}: {formatLastPlayed(instance.lastPlayedAt, t)}
             </p>
           </div>
-          <InstanceLaunchButton instanceId={instance.id} size="lg" />
+          <InstanceLaunchButton instanceId={instance.id} size="lg" showProgress={false} />
         </div>
       </article>
     )
@@ -136,55 +134,13 @@ export const InstanceCard = memo(function InstanceCard({
         >
           {formatLastPlayed(instance.lastPlayedAt, t)}
         </div>
-        <InstancePrepareProgress instanceId={instance.id} compact={compact} />
       </div>
       <InstanceLaunchButton
         instanceId={instance.id}
         size={compact ? 'icon' : 'sm'}
-        showProgress={!compact}
+        showProgress={false}
         className={compact ? 'shrink-0 self-center' : undefined}
       />
     </article>
   )
 })
-
-/** リストカード向け：準備中のプログレスを本文側にも出す */
-function InstancePrepareProgress({
-  instanceId,
-  compact = false,
-}: {
-  instanceId: string
-  compact?: boolean
-}) {
-  const { t } = useTranslation()
-  const state = useLaunchStore((s) => s.byProfileId[instanceId]?.state ?? 'idle')
-  const sessionId = useLaunchStore((s) => s.byProfileId[instanceId]?.sessionId)
-  const active = state === 'preparing' || state === 'launching'
-  const phaseMessageKey = useLaunchStore((s) =>
-    active && sessionId ? (s.phaseMessageBySessionId[sessionId] ?? null) : null,
-  )
-  const progress = useLaunchStore((s) =>
-    active && sessionId ? (s.progressBySessionId[sessionId] ?? null) : null,
-  )
-
-  if (!active) return null
-
-  const percent =
-    progress?.percent ??
-    (progress && progress.total > 0 ? (progress.current / progress.total) * 100 : 0)
-
-  return (
-    <div className={['mt-1.5 w-full max-w-full', compact ? '' : LAUNCH_PROGRESS_WIDTH].join(' ')}>
-      <LaunchProgressIndicator
-        message={formatProgressMessage(
-          t,
-          progress?.messageKey ?? phaseMessageKey,
-          progress?.meta,
-          'library.preparing',
-        )}
-        percent={percent}
-        compact={compact}
-      />
-    </div>
-  )
-}
