@@ -14,6 +14,10 @@
  * | 更新止めファイナル | `0.0.0f` | その系統の最終版（それ以上は自動更新しない） |
  * | 製品版 | `0.0.0` | 接尾辞なし |
  *
+ * ## 世代
+ * - 第1世代最終: `0.2.4f`（0.3+ へは自動更新しない）
+ * - 第2世代最終: `0.4.6`（0.5+ へは自動更新しない・技術スタック刷新のため）
+ *
  * バージョンを上げるとき:
  * 1. APP_VERSION だけを編集
  * 2. リポジトリルートで `pnpm version:sync` を実行
@@ -21,7 +25,7 @@
  * 4. RELEASE_NOTES.md に GitHub Release 用の更新内容を書く
  * 5. `v{APP_VERSION}` タグを push（例: v0.3.0ut）
  */
-export const APP_VERSION = '0.4.5b' as const
+export const APP_VERSION = '0.4.6' as const
 
 /** UI 表示用（`Ver.X.X.X[suffix]`） */
 export const APP_VERSION_LABEL = `Ver.${APP_VERSION}` as const

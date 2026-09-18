@@ -1,6 +1,6 @@
 {
   "name": "@fledge/shared",
-  "version": "0.4.5-b",
+  "version": "0.4.6",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -14,12 +14,14 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src --max-warnings 0"
+    "lint": "eslint src --max-warnings 0",
+    "test": "tsc -p tsconfig.json && node --test dist/updaterGeneration.test.js dist/compareVersions.test.js"
   },
   "dependencies": {
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/node": "^22.20.1",
     "typescript": "^5.8.2"
   }
 }

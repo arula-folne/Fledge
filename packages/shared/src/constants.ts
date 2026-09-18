@@ -60,6 +60,11 @@ export const UPDATER = {
   /** electron-builder の固定 artifactName と一致させる */
   installerNamePattern: /^Fledge-Setup\.exe$/i,
   installerFallbackPattern: /\.exe$/i,
+  /**
+   * 世代ロック付き更新一覧の取得件数。
+   * 0.5+ / 0.3+ を除外しても同世代の最新を拾えるよう余裕を持たせる。
+   */
+  generationReleaseListPerPage: 40,
 } as const
 
 export const IPC = {

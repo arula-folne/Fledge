@@ -1,6 +1,6 @@
 # Fledge 技術仕様
 
-最終更新: 2026-08-31
+最終更新: 2026-09-18
 
 GitHub リポジトリ向けの実装仕様です。アプリ紹介・機能のアピールは [README](../README.md) を先に読んでください。  
 開発手順は [development.md](./development.md) です。
@@ -12,7 +12,7 @@ GitHub リポジトリ向けの実装仕様です。アプリ紹介・機能の�
 ## 1. 位置づけ
 
 Fledge は Minecraft Java Edition 用の非公式デスクトップランチャーです。  
-バージョン **Ver.0.4.5b**。製品 ID は `net.folne.fledge`。  
+バージョン **Ver.0.4.6**。製品 ID は `net.folne.fledge`。  
 **対応環境は Windows 11 のみ**です。
 
 製品方針:
@@ -233,7 +233,7 @@ Modpack 同梱の `options.txt` より、初回起動時の Fledge パッチを�
 - お知らせの正本は GitHub の `news/news.ja.json`。アプリ起動時に取得し `Data/News/` にキャッシュ（約 1 時間）。取得失敗時はキャッシュ → 同梱 JSON → 最小フォールバック
 - 同梱フォールバック: `apps/desktop/resources/news.ja.json`
 - 更新手順: [`news/README.md`](../news/README.md)
-- 更新: 製品版は `GithubReleaseUpdater` が GitHub Releases の latest を確認。適用時は現行インストール先へ NSIS サイレント上書きし、アプリを終了してインストーラーに再起動を任せる（開発版は `NoopUpdater`）
+- 更新: `GithubReleaseUpdater` が GitHub Releases を確認。第1世代（0.2.x）は 0.3+、第2世代（0.3.x / 0.4.x）は 0.5+ を案内しない。適用時は現行インストール先へ NSIS サイレント上書きし、アプリを終了してインストーラーに再起動を任せる（開発版は `NoopUpdater`）
 
 ## 14. 外部通信（実装観点）
 
