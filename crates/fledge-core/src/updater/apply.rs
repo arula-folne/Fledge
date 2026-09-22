@@ -1,4 +1,7 @@
-//! Deferred NSIS apply + uninstall helpers (Windows). Preserve Data/Instances.
+//! Deferred NSIS apply + uninstall helpers (Windows).
+//!
+//! Update path must use Tauri's `/UPDATE` (not Electron's `--updated`) so Data / AppData
+//! are not wiped. Staging must NOT live under `$LOCALAPPDATA\\Fledge` (install dir).
 
 use crate::error::{CoreError, CoreResult};
 use std::fs;
@@ -13,25 +16,92 @@ pub fn resolve_install_root() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
 }
 
+/// Staging outside the install tree. `$LOCALAPPDATA\\Fledge` is the NSIS install dir
+/// (case-insensitive), so we must not use `...\\fledge\\updater` there.
+pub fn updater_staging_dir() -> PathBuf {
+    dirs::data_local_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("fledge-updater")
+}
+
+/// `%APPDATA%\\fledge` — settings / MSA accounts (dirs::config_dir).
+pub fn roaming_fledge_dir() -> PathBuf {
+    dirs::config_dir()
+        .unwrap_or_else(|| PathBuf::from("."))
+        .join("fledge")
+}
+
+/// Tauri / WebView2 identifier folder under Local + Roaming.
+pub fn bundle_id_dirs() -> [PathBuf; 2] {
+    let id = "net.folne.fledge";
+    [
+        dirs::config_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(id),
+        dirs::data_local_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join(id),
+    ]
+}
+
+/// Wipe launcher identity data (MSA tokens, settings, WebView2 profile, updater cache).
+/// Safe to call after uninstall; does not touch Minecraft worlds outside Fledge roots.
+pub fn wipe_fledge_user_data() {
+    safe_rm_path(&roaming_fledge_dir());
+    safe_rm_path(&updater_staging_dir());
+    for dir in bundle_id_dirs() {
+        safe_rm_path(&dir);
+    }
+    // Legacy Electron / accidental casing
+    if let Some(roaming) = dirs::config_dir() {
+        safe_rm_path(&roaming.join("Fledge"));
+    }
+}
+
+fn safe_rm_path(path: &Path) {
+    if !path.exists() {
+        return;
+    }
+    let result = if path.is_dir() {
+        fs::remove_dir_all(path)
+    } else {
+        fs::remove_file(path)
+    };
+    if let Err(err) = result {
+        tracing::warn!("could not remove {}: {err}", path.display());
+    }
+}
+
 /// Stage a hidden waiter that runs NSIS after this process exits, then relaunches.
 ///
-/// NSIS args match 0.4: `/S --updated /D=<installDir>` so Data/Instances are not wiped
-/// by uninstall hooks (update path ≠ uninstall path).
+/// Tauri NSIS: `/UPDATE /S /D=<installDir>` — `/UPDATE` sets UpdateMode so uninstall hooks
+/// do not wipe user data. Do not use Electron's `--updated` here.
 pub fn spawn_installer_after_exit(
     installer_path: &Path,
     install_dir: &Path,
     pid_to_wait_for: u32,
 ) -> CoreResult<()> {
-    let dir = installer_path
-        .parent()
-        .ok_or_else(|| CoreError::msg("updater.applyFailed"))?;
-    fs::create_dir_all(dir)?;
+    let dir = updater_staging_dir();
+    fs::create_dir_all(&dir)?;
 
-    let script_path = dir.join("run-installer.cmd");
-    let vbs_path = dir.join("run-installer.vbs");
+    // Keep installer copy in staging (may already be there)
+    let staged_installer = if installer_path.starts_with(&dir) {
+        installer_path.to_path_buf()
+    } else {
+        let name = installer_path
+            .file_name()
+            .ok_or_else(|| CoreError::msg("updater.applyFailed"))?;
+        let dest = dir.join(name);
+        if installer_path != dest {
+            fs::copy(installer_path, &dest)?;
+        }
+        dest
+    };
+
+    let script_path = dir.join(format!("run-installer-{pid_to_wait_for}.cmd"));
     let log_path = dir.join("update-log.txt");
 
-    let installer = bat_set(installer_path);
+    let installer = bat_set(&staged_installer);
     let install_dir_arg = bat_set(install_dir);
     let log = bat_set(&log_path);
 
@@ -42,7 +112,6 @@ set "TARGET_PID={pid}"
 set "INSTALLER={installer}"
 set "INSTALLDIR={install_dir}"
 set "LOG={log}"
-set "APP=!INSTALLDIR!\Fledge.exe"
 echo wait pid=!TARGET_PID!>>"!LOG!"
 echo installer=!INSTALLER!>>"!LOG!"
 echo installDir=!INSTALLDIR!>>"!LOG!"
@@ -59,30 +128,33 @@ if not exist "!INSTALLER!" (
   exit /b 2
 )
 echo launching NSIS>>"!LOG!"
-"!INSTALLER!" --updated /S /D=!INSTALLDIR!
+"!INSTALLER!" /UPDATE /S /D=!INSTALLDIR!
 set "EC=!ERRORLEVEL!"
 echo NSIS exit=!EC!>>"!LOG!"
 if not "!EC!"=="0" (
   echo ERROR NSIS failed, not starting app>>"!LOG!"
   exit /b !EC!
 )
-if exist "!APP!" (
+set "APP="
+if exist "!INSTALLDIR!\Fledge.exe" set "APP=!INSTALLDIR!\Fledge.exe"
+if not defined APP if exist "!INSTALLDIR!\fledge-desktop.exe" set "APP=!INSTALLDIR!\fledge-desktop.exe"
+if not defined APP (
+  for %%F in ("!INSTALLDIR!\*.exe") do (
+    if /I not "%%~nxF"=="uninstall.exe" if /I not "%%~nxF"=="Uninstall Fledge.exe" (
+      set "APP=%%~fF"
+      goto found_app
+    )
+  )
+)
+:found_app
+if defined APP (
   echo starting app>>"!LOG!"
   start "" "!APP!" --updated
 ) else (
-  for %%F in ("!INSTALLDIR!\*.exe") do (
-    if /I not "%%~nxF"=="uninstall.exe" if /I not "%%~nxF"=="Uninstall Fledge.exe" (
-      echo starting %%~nxF>>"!LOG!"
-      start "" "%%~fF" --updated
-      goto started
-    )
-  )
   echo ERROR app missing after install>>"!LOG!"
   exit /b 3
 )
-:started
 echo done>>"!LOG!"
-del "%~dp0run-installer.vbs" >nul 2>&1
 del "%~f0" >nul 2>&1
 exit /b !EC!
 "#,
@@ -94,46 +166,12 @@ exit /b !EC!
 
     fs::write(&script_path, content.replace('\n', "\r\n"))?;
 
-    let script_for_vbs = script_path.to_string_lossy().replace('"', "\"\"");
-    let vbs = format!(
-        "Set sh = CreateObject(\"WScript.Shell\")\r\nsh.Run \"cmd.exe /d /c \"\"{script_for_vbs}\"\"\", 0, False\r\n"
-    );
-    fs::write(&vbs_path, vbs)?;
-
-    let vbs_arg = vbs_path.to_string_lossy().replace('\'', "''");
-    let ps = format!(
-        "$r = ([wmiclass]'Win32_Process').Create('wscript.exe //B \"{vbs_arg}\"'); if ($null -eq $r) {{ throw 'WMI Create returned null' }}; if ($r.ReturnValue -ne 0) {{ throw \"WMI Create failed: $($r.ReturnValue)\" }}; Write-Output $r.ProcessId"
-    );
-
-    let output = Command::new("powershell.exe")
-        .args([
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-WindowStyle",
-            "Hidden",
-            "-Command",
-            &ps,
-        ])
-        .output()
+    // No PowerShell / wscript — those flash a console. Detached hidden cmd only.
+    Command::new("cmd.exe")
+        .args(["/d", "/c", &script_path.to_string_lossy()])
+        .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
+        .spawn()
         .map_err(|e| CoreError::msg(format!("updater.applyFailed: {e}")))?;
-
-    if !output.status.success() {
-        let _ = fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&log_path)
-            .and_then(|mut f| {
-                use std::io::Write;
-                writeln!(
-                    f,
-                    "[{}] ERROR spawn waiter: {}",
-                    chrono::Utc::now().to_rfc3339(),
-                    String::from_utf8_lossy(&output.stderr)
-                )
-            });
-        return Err(CoreError::msg("updater.applyFailed"));
-    }
 
     let _ = fs::OpenOptions::new()
         .create(true)
@@ -143,24 +181,26 @@ exit /b !EC!
             use std::io::Write;
             writeln!(
                 f,
-                "[{}] spawned hidden waiter wscript={}",
+                "[{}] spawned hidden cmd waiter",
                 chrono::Utc::now().to_rfc3339(),
-                String::from_utf8_lossy(&output.stdout).trim()
             )
         });
 
     Ok(())
 }
 
-/// After app exit: run NSIS uninstaller if present, else remove install root.
-/// Falls back to opening Windows Apps & Features when no uninstaller is found
-/// and `open_apps_features_fallback` is true (caller decides).
+/// After app exit: run NSIS uninstaller if present, else remove install root,
+/// then wipe Fledge AppData (MSA / settings / WebView2).
 pub fn schedule_complete_uninstall(install_root: &Path) -> CoreResult<()> {
     let pid = std::process::id();
     let uninstaller = find_uninstaller(install_root);
     let script_path = std::env::temp_dir().join(format!("fledge-uninstall-{pid}.cmd"));
 
     let root = esc_cmd(install_root);
+    let roaming = esc_cmd(&roaming_fledge_dir());
+    let staging = esc_cmd(&updater_staging_dir());
+    let bundle_roaming = esc_cmd(&bundle_id_dirs()[0]);
+    let bundle_local = esc_cmd(&bundle_id_dirs()[1]);
     let uninst = uninstaller
         .as_ref()
         .map(|p| esc_cmd(p))
@@ -191,6 +231,11 @@ timeout /t 2 /nobreak >NUL
 {uninstall_block}if exist "{root}" (
   rmdir /s /q "{root}"
 )
+if exist "{roaming}" rmdir /s /q "{roaming}"
+if exist "{staging}" rmdir /s /q "{staging}"
+if exist "{bundle_roaming}" rmdir /s /q "{bundle_roaming}"
+if exist "{bundle_local}" rmdir /s /q "{bundle_local}"
+reg delete "HKCU\Software\Fledge" /f >NUL 2>&1
 del "%~f0"
 "#
     );
@@ -198,7 +243,7 @@ del "%~f0"
     fs::write(&script_path, script.replace('\n', "\r\n"))?;
 
     Command::new("cmd.exe")
-        .args(["/c", &script_path.to_string_lossy()])
+        .args(["/d", "/c", &script_path.to_string_lossy()])
         .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
         .spawn()
         .map_err(|e| CoreError::msg(format!("settings.uninstallFailed: {e}")))?;
@@ -208,9 +253,8 @@ del "%~f0"
 
 /// Open Windows Settings → Apps (fallback when uninstaller is unknown).
 pub fn open_apps_and_features() -> CoreResult<()> {
-    // Prefer modern Settings URI; fall back to classic Control Panel.
     let status = Command::new("cmd.exe")
-        .args(["/c", "start", "", "ms-settings:appsfeatures"])
+        .args(["/d", "/c", "start", "", "ms-settings:appsfeatures"])
         .creation_flags(CREATE_NO_WINDOW)
         .status();
     match status {

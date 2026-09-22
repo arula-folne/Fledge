@@ -161,7 +161,8 @@ pub fn settings_patch_touches_window(partial: &Value) -> bool {
 
 /// Persist launcher window size after user edge-resize and notify the UI.
 pub fn attach_window_size_sync(window: &WebviewWindow, state: Arc<AppState>) {
-    suppress_viewport_size_overlay(window);
+    // Do NOT call with_webview here — on first launch (especially right after
+    // WebView2 bootstrap) it can hang and leave a blank frozen window.
 
     let win = window.clone();
     let gen = Arc::new(AtomicU64::new(0));

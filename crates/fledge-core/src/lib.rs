@@ -49,6 +49,7 @@ pub use skins::{
 };
 pub use updater::{
     find_uninstaller, open_apps_and_features, resolve_install_root, schedule_complete_uninstall,
-    UpdaterService, APP_VERSION,
+    spawn_installer_after_exit, updater_staging_dir, wipe_fledge_user_data, UpdaterService,
+    APP_VERSION,
 };
 pub use versions::{LoaderVersionListResult, VersionListResult, VersionService};

@@ -215,10 +215,149 @@ impl AppState {
     }
 
     pub fn startup_info(&self) -> Value {
+        let _ = self.prepare_post_update_settings();
+        let updated = argv_has("--updated");
+        let post_install = argv_has("--fledge-post-install");
+        let notice = self.resolve_update_notice(updated, post_install);
         json!({
-          "isUpdatedStart": false,
-          "isPostInstallStart": false,
-          "updateNotice": null
+          "isUpdatedStart": updated,
+          "isPostInstallStart": post_install,
+          "updateNotice": notice,
+        })
+    }
+
+    fn prepare_post_update_settings(&self) -> CoreResult<()> {
+        use crate::updater::APP_VERSION;
+        let settings = self.settings.get()?;
+        let updated = argv_has("--updated");
+        let post_install = argv_has("--fledge-post-install");
+        let last = settings
+            .get("lastAppVersion")
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+        let pending = settings.get("updateAckPending").cloned();
+        let pending_for_current = pending.as_ref().is_some_and(|p| {
+            p.get("toVersion")
+                .and_then(|v| v.as_str())
+                .map(|t| t == APP_VERSION || t.is_empty())
+                .unwrap_or(false)
+        });
+        let version_bumped = last.as_ref().is_some_and(|l| l != APP_VERSION);
+        let onboarding_done = settings
+            .get("installOnboardingCompleted")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
+        // Fresh after factory reset
+        if last.is_none() && !onboarding_done && pending.is_none() && !post_install {
+            let _ = self.settings.set(json!({
+              "lastAppVersion": APP_VERSION,
+              "updateAckPending": Value::Null,
+            }));
+            return Ok(());
+        }
+
+        // Brand-new install: record version, no update dialog
+        if post_install && !updated {
+            if last.as_deref() != Some(APP_VERSION) {
+                let _ = self.settings.set(json!({ "lastAppVersion": APP_VERSION }));
+            }
+            return Ok(());
+        }
+
+        let looks_like_update = updated || pending_for_current || version_bumped;
+        if !looks_like_update {
+            if pending.is_none() && last.as_deref() != Some(APP_VERSION) {
+                let _ = self.settings.set(json!({ "lastAppVersion": APP_VERSION }));
+            }
+            return Ok(());
+        }
+
+        let mut patch = json!({});
+        if !onboarding_done {
+            patch
+                .as_object_mut()
+                .unwrap()
+                .insert("installOnboardingCompleted".into(), json!(true));
+            patch
+                .as_object_mut()
+                .unwrap()
+                .insert("termsAcceptedInApp".into(), json!(true));
+        }
+        if !pending_for_current {
+            let from = pending
+                .as_ref()
+                .and_then(|p| p.get("fromVersion"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .or_else(|| last.clone())
+                .unwrap_or_default();
+            let notes = pending
+                .as_ref()
+                .and_then(|p| p.get("releaseNotes"))
+                .cloned()
+                .unwrap_or(Value::Null);
+            patch.as_object_mut().unwrap().insert(
+                "updateAckPending".into(),
+                json!({
+                  "fromVersion": from,
+                  "toVersion": APP_VERSION,
+                  "releaseNotes": notes,
+                }),
+            );
+        }
+        if patch.as_object().map(|o| !o.is_empty()).unwrap_or(false) {
+            let _ = self.settings.set(patch);
+        }
+        Ok(())
+    }
+
+    fn resolve_update_notice(&self, updated: bool, post_install: bool) -> Value {
+        use crate::updater::APP_VERSION;
+        let Ok(settings) = self.settings.get() else {
+            return Value::Null;
+        };
+        let pending = settings.get("updateAckPending");
+        let last = settings
+            .get("lastAppVersion")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let onboarding_done = settings
+            .get("installOnboardingCompleted")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let pending_for_current = pending.is_some_and(|p| {
+            p.get("toVersion")
+                .and_then(|v| v.as_str())
+                .map(|t| t == APP_VERSION)
+                .unwrap_or(false)
+        });
+        let version_bumped = !last.is_empty() && last != APP_VERSION;
+
+        if last.is_empty() && !onboarding_done && pending.is_none() && !post_install {
+            return Value::Null;
+        }
+        if !pending_for_current && !updated && !version_bumped {
+            return Value::Null;
+        }
+        if post_install && !updated && !pending_for_current {
+            return Value::Null;
+        }
+
+        let from = pending
+            .and_then(|p| p.get("fromVersion"))
+            .and_then(|v| v.as_str())
+            .filter(|s| !s.is_empty())
+            .unwrap_or(last);
+        let notes = pending
+            .and_then(|p| p.get("releaseNotes"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.to_string());
+
+        json!({
+          "fromVersion": from,
+          "toVersion": APP_VERSION,
+          "releaseNotes": notes,
         })
     }
 
@@ -287,4 +426,8 @@ fn resolve_default_skins_dir(dev_root: Option<&Path>) -> Option<PathBuf> {
         }
     }
     None
+}
+
+fn argv_has(flag: &str) -> bool {
+    std::env::args().any(|a| a == flag)
 }

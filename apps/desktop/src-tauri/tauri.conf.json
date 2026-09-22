@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Fledge",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "identifier": "net.folne.fledge",
   "build": {
     "beforeDevCommand": "pnpm exec vite --port 1420 --strictPort",
@@ -62,6 +62,7 @@
         "sidebarImage": "nsis/sidebar.bmp",
         "headerImage": "nsis/header.bmp",
         "installerIcon": "icons/icon.ico",
+        "installerHooks": "./windows/hooks.nsh",
         "customLanguageFiles": {
           "Japanese": "nsis/Japanese.nsh"
         }

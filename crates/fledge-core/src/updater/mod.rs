@@ -5,7 +5,7 @@ mod version;
 
 pub use apply::{
     find_uninstaller, open_apps_and_features, resolve_install_root, schedule_complete_uninstall,
-    spawn_installer_after_exit,
+    spawn_installer_after_exit, updater_staging_dir, wipe_fledge_user_data,
 };
 pub use version::APP_VERSION;
 
@@ -678,15 +678,10 @@ fn stage_update_installer(installer_path: &Path) -> CoreResult<PathBuf> {
         .file_name()
         .ok_or_else(|| CoreError::msg("updater.applyFailed"))?;
     let staged = dir.join(file_name);
-    fs::copy(installer_path, &staged)?;
+    if installer_path != staged {
+        fs::copy(installer_path, &staged)?;
+    }
     Ok(staged)
-}
-
-fn updater_staging_dir() -> PathBuf {
-    dirs::data_local_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join("fledge")
-        .join("updater")
 }
 
 #[cfg(test)]

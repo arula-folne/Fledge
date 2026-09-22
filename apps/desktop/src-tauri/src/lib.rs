@@ -70,14 +70,30 @@ pub fn run() {
                 let _ = app_handle.emit("event:news-updated", payload);
             });
 
+            // Manage state before touching the webview — chrome must not block setup.
+            let state_for_chrome = Arc::clone(&state);
+            app.manage(state);
+
             if let Some(main) = app.get_webview_window("main") {
-                if let Ok(settings) = state.settings.get() {
-                    crate::window_chrome::apply_launcher_window_size(&main, &settings);
-                }
-                crate::window_chrome::attach_window_size_sync(&main, Arc::clone(&state));
+                // Defer size/zoom until the webview has spun up. Calling set_zoom /
+                // with_webview synchronously in setup has frozen a blank window on
+                // first launch right after WebView2 install.
+                let main_for_chrome = main.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                    if let Ok(settings) = state_for_chrome.settings.get() {
+                        crate::window_chrome::apply_launcher_window_size(
+                            &main_for_chrome,
+                            &settings,
+                        );
+                    }
+                    crate::window_chrome::attach_window_size_sync(
+                        &main_for_chrome,
+                        Arc::clone(&state_for_chrome),
+                    );
+                });
             }
 
-            app.manage(state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![commands::fledge_invoke])
