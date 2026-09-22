@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.5.2",
+    "title": "【バージョンアップ】Fledge Ver.0.5.2",
+    "body": "**Fledge Ver.0.5.2** を公開しました。\n\n## 主な変更\n\n- アプリ内アップデートの動作確認用リリース（Ver.0.5.1 からの更新案内を確認できます）\n- Ver.0.5.1 までの修正を含む\n\n> Ver.0.5.0 からは先に 0.5.1 以降を手動インストールしてください。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-09-23T02:40:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.5.2"
+  },
+  {
     "id": "v0.5.1",
     "title": "【バージョンアップ】Fledge Ver.0.5.1",
     "body": "**Fledge Ver.0.5.1** を公開しました。\n\n## 主な変更\n\n- **アプリ内アップデート**が検知されない問題を修正（GitHub Releases の読み取り）\n- Microsoft アカウントのセッション維持を修正（画面遷移後の再ログイン要求）\n- Java / セットアップ進捗が完了後も回転し続ける問題を修正\n- Ver.0.5.0 の機能（スキンごとの公式ケープなど）を継続\n\n> Ver.0.5.0 からは更新チェック不具合のため、本版は [GitHub](https://github.com/arula-folne/Fledge/releases/tag/v0.5.1) または公式サイトから手動インストールしてください（0.5.1 以降はアプリ内更新が動作します）。\n>\n> Ver.0.4.6 からの自動更新はありません。0.4 からの移行時は **再ログイン** してください。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
