@@ -89,7 +89,6 @@ export async function factoryReset(app: LauncherApp, options?: FactoryResetOptio
   let step = 0
 
   report(step, totalSteps, 'settings.factoryReset.progress.stopping')
-  app.backup.cancelPending()
   app.queue.cancelAll()
   app.launch.stopAll()
   app.java.clearMemo()

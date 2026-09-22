@@ -84,7 +84,7 @@ export function ContentBrowseFilters({
 }: Props) {
   const { t, i18n } = useTranslation()
   const [versionQuery, setVersionQuery] = useState('')
-  const showLoaders = category === 'mod' || category === 'plugin' || category === 'modpack'
+  const showLoaders = category === 'mod' || category === 'modpack'
   const availableTags = useMemo(() => filterTagsForCategory(category), [category])
   const iconByTag = useModrinthTagIcons(category)
   const filteredVersions = useMemo(() => {

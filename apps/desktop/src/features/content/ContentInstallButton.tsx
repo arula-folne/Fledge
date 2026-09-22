@@ -1,3 +1,4 @@
+import { forwardRef } from 'react'
 import { IconCheck, IconDownload } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 
@@ -9,17 +10,21 @@ type Props = {
   disabled?: boolean
   onInstall: () => void
   size?: 'md' | 'sm'
+  /** 丸型・アイコンのみ（検索行など） */
+  iconOnly?: boolean
   className?: string
   /** install=既存インスタンスへ導入 / create=新規インスタンス作成 */
   mode?: 'install' | 'create'
 }
 
 const sizeClass = {
-  md: 'h-[3.25rem] min-w-[10rem] whitespace-nowrap px-3 text-base',
-  sm: 'h-12 min-w-[9.5rem] whitespace-nowrap px-2.5 text-[0.9375rem]',
+  md: 'h-[3.25rem] min-w-[10rem] max-w-[12.5rem] px-3 text-base',
+  sm: 'h-12 min-w-[9.5rem] max-w-[12rem] px-2.5 text-[0.9375rem]',
 } as const
 
-const versionSizeClass = 'h-11 min-w-[9rem] whitespace-nowrap px-2.5 text-sm'
+const iconOnlySizeClass = 'size-10 p-0'
+
+const versionSizeClass = 'h-11 min-w-[9rem] max-w-[12rem] px-2.5 text-sm'
 
 function InstallIcon({ installed }: { installed: boolean }) {
   return (
@@ -88,48 +93,63 @@ function InstallLabel({
 }
 
 /** コンテンツのインストール / インスタンス作成ボタン */
-export function ContentInstallButton({
-  installing,
-  installed = false,
-  disabled = false,
-  onInstall,
-  size = 'md',
-  className = '',
-  mode = 'install',
-}: Props) {
-  const { t } = useTranslation()
-  const dim = size === 'sm' ? sizeClass.sm : sizeClass.md
-  const aria =
-    mode === 'create'
-      ? t('content.createInstance')
-      : installed
-        ? t('content.installed')
-        : t('content.install')
+export const ContentInstallButton = forwardRef<HTMLButtonElement, Props>(
+  function ContentInstallButton(
+    {
+      installing,
+      installed = false,
+      disabled = false,
+      onInstall,
+      size = 'md',
+      iconOnly = false,
+      className = '',
+      mode = 'install',
+    },
+    ref,
+  ) {
+    const { t } = useTranslation()
+    const dim = iconOnly ? iconOnlySizeClass : size === 'sm' ? sizeClass.sm : sizeClass.md
+    const aria =
+      mode === 'create'
+        ? installing
+          ? t('content.creatingInstance')
+          : t('content.createInstance')
+        : installed
+          ? t('content.installed')
+          : installing
+            ? t('content.installing')
+            : t('content.install')
 
-  return (
-    <button
-      type="button"
-      disabled={disabled || installed || installing}
-      aria-label={aria}
-      aria-live="polite"
-      className={[
-        'inline-flex shrink-0 items-center justify-center gap-2 rounded-[var(--radius-sm)] border font-medium',
-        'transition-[background-color,border-color,color,opacity,box-shadow,transform]',
-        EASE,
-        'active:scale-[0.98] disabled:cursor-default disabled:active:scale-100',
-        installed
-          ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] opacity-80 shadow-none'
-          : 'border-transparent bg-[rgb(176,214,232)] text-[rgb(36,78,102)] hover:brightness-110 disabled:opacity-50',
-        dim,
-        className,
-      ].join(' ')}
-      onClick={disabled || installed ? undefined : onInstall}
-    >
-      <InstallIcon installed={installed} />
-      <InstallLabel installed={installed} installing={installing} mode={mode} />
-    </button>
-  )
-}
+    return (
+      <button
+        ref={ref}
+        type="button"
+        disabled={disabled || installed || installing}
+        aria-label={aria}
+        aria-live="polite"
+        className={[
+          'inline-flex shrink-0 items-center justify-center overflow-hidden border font-medium',
+          iconOnly ? 'gap-0 rounded-full' : 'gap-2 rounded-[var(--radius-sm)]',
+          'transition-[background-color,border-color,color,opacity,box-shadow,transform]',
+          EASE,
+          'active:scale-[0.98] disabled:cursor-default disabled:active:scale-100',
+          installed
+            ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] opacity-80 shadow-none'
+            : 'border-transparent bg-[rgb(176,214,232)] text-[rgb(36,78,102)] hover:brightness-110 disabled:opacity-50',
+          installing && iconOnly ? 'animate-pulse' : '',
+          dim,
+          className,
+        ].join(' ')}
+        onClick={disabled || installed ? undefined : onInstall}
+      >
+        <InstallIcon installed={installed} />
+        {iconOnly ? null : (
+          <InstallLabel installed={installed} installing={installing} mode={mode} />
+        )}
+      </button>
+    )
+  },
+)
 
 export function ContentVersionInstallButton({
   installed = false,

@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
@@ -193,16 +193,7 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
   const [error, setError] = useState<string | null>(null)
   const [cardPosition, setCardPosition] = useState<CardPosition | null>(null)
 
-  const instancesQuery = useQuery({
-    queryKey: ['instances'],
-    queryFn: () => fledgeApi.instances.list(),
-  })
-
-  const ctx = useMemo(
-    () => ({ firstInstanceId: instancesQuery.data?.[0]?.id ?? null }),
-    [instancesQuery.data],
-  )
-
+  const ctx = useMemo(() => ({} as const), [])
   const step = INTERACTIVE_TUTORIAL_STEPS[stepIndex]
   const route = step ? tutorialStepRoute(step, ctx) : '/'
   const targetId = step ? tutorialStepTarget(step, ctx) : ''
@@ -270,6 +261,7 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
         queryClient.setQueryData(['settings'], next)
       }
       stopInteractive()
+      navigate('/')
       onDone()
     },
     onError: (err) => {
@@ -284,6 +276,7 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
       return
     }
     stopInteractive()
+    navigate('/')
     onDone()
   }
 
@@ -345,7 +338,7 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
         <h2 id="fledge-tutorial-title" className="mt-1 text-base font-semibold text-[var(--color-text)]">
           {t(`onboarding.tutorial.${step.id}.title`)}
         </h2>
-        <p id="fledge-tutorial-body" className="mt-2 text-sm leading-relaxed text-[var(--color-text-muted)]">
+        <p id="fledge-tutorial-body" className="mt-2 whitespace-pre-line text-sm leading-relaxed text-[var(--color-text-muted)]">
           {missing ? t('onboarding.tutorialTargetMissing') : t(bodyKey)}
         </p>
         {error ? <p className="mt-2 text-sm text-[var(--color-danger)]">{error}</p> : null}

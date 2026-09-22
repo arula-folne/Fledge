@@ -193,11 +193,7 @@ export function JavaRuntimePanel({ onMessage }: { onMessage: (msg: string | null
               <p className="mb-4 text-sm text-[var(--color-text-muted)]">
                 {t('settings.java.leftoverHint')}
               </p>
-            ) : (
-              <p className="mb-4 text-sm text-[var(--color-text-muted)]">
-                {t('settings.java.notInstalledHint')}
-              </p>
-            )}
+            ) : null}
             {job ? (
               <div className="mb-4 text-xs text-[var(--color-text-muted)]">
                 <span>{t(job.messageKey ?? 'settings.java.busy', { major: job.meta.major })}</span>

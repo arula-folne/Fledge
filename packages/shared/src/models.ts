@@ -60,16 +60,63 @@ export const INSTANCE_ICON_VARIANTS = [
   'pyramid',
   'hexagonalPrism',
   'stack3',
+  'diamond',
+  'circle',
+  'hexagon',
+  'triangle',
+  'star',
+  'flame',
+  'mountain',
+  'world',
+  'sparkles',
+  'shield',
+  'cylinder',
+  'cone',
+  'moonStars',
+  'sword',
+  'pick',
+  'crystalBall',
 ] as const
 export type InstanceIconVariant = (typeof INSTANCE_ICON_VARIANTS)[number]
 
-export const INSTANCE_ICON_BACKDROPS = ['plain', 'sea', 'sky', 'grass', 'night'] as const
+export const INSTANCE_ICON_BACKDROPS = [
+  'plain',
+  'solidInk',
+  'solidSnow',
+  'solidCrimson',
+  'solidEmerald',
+  'solidAmethyst',
+  'solidAmber',
+  'solidAzure',
+  'solidRose',
+  'solidTeal',
+  'sea',
+  'sky',
+  'grass',
+  'night',
+  'sunset',
+  'snowfield',
+  'cherry',
+  'mesa',
+  'nether',
+  'end',
+  'cave',
+  'aurora',
+  'crystal',
+  'lava',
+  'deepDark',
+  'rainbow',
+  'goldVein',
+  'void',
+  'oceanDeep',
+  'swamp',
+] as const
 export type InstanceIconBackdrop = (typeof INSTANCE_ICON_BACKDROPS)[number]
 
 export const InstanceIconPresetSchema = z.object({
   variant: z.enum(INSTANCE_ICON_VARIANTS).catch('cube'),
   color: z.string().min(4).max(9).default('#f4f7fa'),
-  backdrop: z.enum(INSTANCE_ICON_BACKDROPS).default('plain'),
+  backdrop: z.enum(INSTANCE_ICON_BACKDROPS).catch('plain'),
 })
 export type InstanceIconPreset = z.infer<typeof InstanceIconPresetSchema>
 
@@ -201,9 +248,30 @@ export type ThemeMode = z.infer<typeof ThemeModeSchema>
 export const ThemeFamilySchema = z.enum(['standard', 'season'])
 export type ThemeFamily = z.infer<typeof ThemeFamilySchema>
 
-/** ランチャー UI の大きさ。normal は 720p 時と同じ */
-export const UiScaleSchema = z.enum(['minimal', 'normal', 'wide'])
+/** ランチャー UI の大きさ（zoom 係数はデスクトップ側） */
+export const UiScaleSchema = z.enum(['compact', 'normal', 'large', 'wide'])
 export type UiScale = z.infer<typeof UiScaleSchema>
+
+/**
+ * UI サイズの物理基準（ノーマル＝表示倍率 1.0 のときの見た目）。
+ * WebView の zoom はブラウザ都合で絶対値なので、
+ * 実際の zoom = UI_SCALE_BASE × UI_SCALE_FACTORS[scale]
+ * （表示倍率と倍率の数値が一致する。例: ノーマル 1.0 → zoom 0.925）
+ */
+export const UI_SCALE_BASE = 0.925
+
+/** 基準サイズに対する倍率（ノーマル＝1.0）。実ズームと表示で同じ数値を使う */
+export const UI_SCALE_FACTORS: Record<UiScale, number> = {
+  compact: 0.85,
+  normal: 1,
+  large: 1.1,
+  wide: 1.25,
+}
+
+/** 設定値から実際の WebView zoom を求める（BASE × 倍率） */
+export function resolveUiScaleZoom(scale: UiScale): number {
+  return UI_SCALE_BASE * UI_SCALE_FACTORS[scale]
+}
 
 /** アプリ起動直後に開く画面 */
 export const StartupPageSchema = z.enum(['home', 'library'])
@@ -258,6 +326,15 @@ export const SkinEntrySchema = z.object({
   previewColor: z.string().optional(),
 })
 export type SkinEntry = z.infer<typeof SkinEntrySchema>
+
+/** 公式 Minecraft プロフィール上のマント（所持分のみ） */
+export const CapeEntrySchema = z.object({
+  id: z.string(),
+  alias: z.string().optional(),
+  url: z.string().optional(),
+  active: z.boolean(),
+})
+export type CapeEntry = z.infer<typeof CapeEntrySchema>
 
 export const MinecraftFpsLimitConditionSchema = z.enum(['afk', 'minimized'])
 export type MinecraftFpsLimitCondition = z.infer<typeof MinecraftFpsLimitConditionSchema>
@@ -325,6 +402,8 @@ export const SettingsSchemaBase = z.object({
   launcherWindowWidth: z.number().int().min(960).max(7680).default(1280),
   launcherWindowHeight: z.number().int().min(540).max(4320).default(720),
   uiScale: UiScaleSchema.default('normal'),
+  /** 3 = ノーマルを標準(1.0)に戻した世代。未満は読み込み時に移行する */
+  uiScaleVersion: z.number().int().default(3),
   startupPage: StartupPageSchema.default('home'),
   // 旧キー互換（読み込み時に吸収）
   fullscreen: z.boolean().optional(),
@@ -356,6 +435,8 @@ export const SettingsSchemaBase = z.object({
   hardwareAcceleration: z.boolean().default(true),
   minimizeOnLaunch: z.boolean().default(false),
   discordRichPresence: z.boolean().default(false),
+  /** ホーム右側のお知らせパネルを表示する */
+  homeNewsVisible: z.boolean().default(true),
   /** 初回プライバシー注意の確認済み */
   privacyNoticeAcknowledged: z.boolean().default(false),
   /** インストール後チュートリアル（利用規約・操作案内）完了 */
@@ -375,8 +456,6 @@ export const SettingsSchemaBase = z.object({
   // リソース
   concurrentDownloads: z.number().int().min(1).max(32).default(DEFAULT_CONCURRENT_DOWNLOADS),
   maxWriteConcurrency: z.number().int().min(1).max(32).default(DEFAULT_MAX_WRITE_CONCURRENCY),
-  backupFolder: z.string().nullable().default(null),
-  backupSyncEnabled: z.boolean().default(false),
 
   // スキン
   selectedSkinId: z.string().default('steve'),
@@ -387,17 +466,6 @@ export const SettingsSchemaBase = z.object({
   /** manual 時のインスタンス ID 順。未知 ID は末尾に足す */
   libraryInstanceOrder: z.array(z.string()).default([]),
 })
-
-export const BackupKindSchema = z.enum(['snapshot', 'sync'])
-export type BackupKind = z.infer<typeof BackupKindSchema>
-
-export const BackupEntrySchema = z.object({
-  id: z.string(),
-  kind: BackupKindSchema,
-  path: z.string(),
-  createdAt: z.string(),
-})
-export type BackupEntry = z.infer<typeof BackupEntrySchema>
 
 export const PathInfoSchema = z.object({
   root: z.string(),
@@ -471,6 +539,16 @@ export const LoaderVersionListResultSchema = z.object({
   fetchedAt: z.string().nullable(),
 })
 export type LoaderVersionListResult = z.infer<typeof LoaderVersionListResultSchema>
+
+export const LoaderGameVersionListResultSchema = z.object({
+  loader: LoaderSchema,
+  versions: z.array(z.string()),
+  fromCache: z.boolean(),
+  stale: z.boolean().default(false),
+  offline: z.boolean().default(false),
+  fetchedAt: z.string().nullable(),
+})
+export type LoaderGameVersionListResult = z.infer<typeof LoaderGameVersionListResultSchema>
 
 export const DownloadKindSchema = z.enum([
   'metadata',
@@ -841,6 +919,8 @@ export const InstalledContentSchema = z.object({
   updateAvailable: z.boolean().optional(),
   latestVersionId: z.string().optional(),
   latestVersionNumber: z.string().optional(),
+  /** 更新先の種別。マークは release のときだけ出す */
+  latestVersionType: z.enum(['release', 'beta', 'alpha']).optional(),
 })
 export type InstalledContent = z.infer<typeof InstalledContentSchema>
 

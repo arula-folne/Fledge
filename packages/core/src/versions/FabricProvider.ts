@@ -1,8 +1,8 @@
 import { getLoaderArtifactListFor } from '@xmcl/installer'
-import type { LoaderVersion } from '@fledge/shared'
+import { fledgeUserAgent, type LoaderVersion } from '@fledge/shared'
 import type { LoaderVersionProvider } from './VersionProvider.js'
 
-/** Fabric Meta API（@xmcl/installer 経由） */
+/** Fabric Meta API（ローダー一覧は @xmcl/installer 経由） */
 export class FabricProvider implements LoaderVersionProvider {
   readonly id = 'fabric' as const
 
@@ -13,5 +13,14 @@ export class FabricProvider implements LoaderVersionProvider {
       version: a.loader.version,
       stable: a.loader.stable,
     }))
+  }
+
+  async fetchGameVersions(): Promise<string[]> {
+    const res = await fetch('https://meta.fabricmc.net/v2/versions/game', {
+      headers: { 'User-Agent': fledgeUserAgent('fabric-versions') },
+    })
+    if (!res.ok) throw new Error(`Fabric game versions HTTP ${res.status}`)
+    const entries = (await res.json()) as Array<{ version?: string }>
+    return entries.map((e) => e.version).filter((v): v is string => Boolean(v))
   }
 }

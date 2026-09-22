@@ -281,8 +281,11 @@ export function applyTheme(settings: Settings): void {
   } else applyTokens(tokensForLight())
 }
 
-/** シーズンテーマ用。color→light / oled→dark、system は OS に従う */
+/** シーズンテーマ用。toneSupport が固定ならそちら優先。それ以外は color→light / oled→dark、system は OS に従う */
 export function resolveSeasonDark(settings: Settings): boolean {
+  const season = getSeasonTheme(settings.seasonThemeId)
+  if (season?.toneSupport === 'light') return false
+  if (season?.toneSupport === 'dark') return true
   if (settings.themeMode === 'system') {
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   }

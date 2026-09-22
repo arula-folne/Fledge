@@ -14,7 +14,6 @@ import { SkinStore } from '../skins/SkinStore.js'
 import { NoopUpdater } from '../updater/NoopUpdater.js'
 import type { Updater } from '../updater/Updater.js'
 import type { ProgressEvent, NewsItem } from '@fledge/shared'
-import { BackupService } from '../backup/BackupService.js'
 import { SessionJoinProxy } from '../auth/SessionJoinProxy.js'
 import { SkinApplier } from '../skins/SkinApplier.js'
 import { VersionService } from '../versions/VersionService.js'
@@ -34,7 +33,6 @@ export type LauncherApp = {
   launch: LaunchOrchestrator
   auth: AuthProvider
   content: ContentService
-  backup: BackupService
   sessionProxy: SessionJoinProxy
   skinApplier: SkinApplier
 }
@@ -101,11 +99,6 @@ export async function createLauncherApp(options: CreateLauncherAppOptions): Prom
     sessionProxy,
     skinApplier,
   })
-  const backup = new BackupService(paths, settings, logger, () =>
-    launch.listActiveSessions().some((s) =>
-      s.state === 'preparing' || s.state === 'launching' || s.state === 'running',
-    ),
-  )
 
   return {
     paths,
@@ -122,7 +115,6 @@ export async function createLauncherApp(options: CreateLauncherAppOptions): Prom
     launch,
     auth: options.auth,
     content,
-    backup,
     sessionProxy,
     skinApplier,
   }

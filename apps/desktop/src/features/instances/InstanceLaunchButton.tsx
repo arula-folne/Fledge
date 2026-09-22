@@ -1,11 +1,20 @@
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { IconLogin, IconPlayerPlay, IconPlayerStop, IconX } from '@tabler/icons-react'
+import {
+  IconAlertCircle,
+  IconLogin,
+  IconPlayerPlay,
+  IconPlayerStop,
+  IconX,
+} from '@tabler/icons-react'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
 import { formatProgressMessage } from '../launch/formatProgressMessage'
 import { startLogin } from '../auth/loginAction'
-import { useLaunchStore, useUiStore } from '../../stores/appStores'
+import { useLaunchStore, useUiStore, useInstanceCreateStore } from '../../stores/appStores'
+import { useDebugStore } from '../../stores/debugStore'
 import {
   LAUNCH_PROGRESS_SLOT,
   LaunchProgressIndicator,
@@ -20,8 +29,38 @@ type Props = {
   showProgress?: boolean
 }
 
-const DEV_LAUNCH_PROGRESS_PREVIEW =
-  import.meta.env.DEV && import.meta.env.VITE_FLEDGE_DEV_LAUNCH_PROGRESS === '1'
+/** インストール／作成中と同じぐるぐるリング */
+function BusyRing() {
+  return (
+    <svg
+      className="pointer-events-none absolute inset-0 size-full animate-spin motion-reduce:animate-none"
+      viewBox="0 0 36 36"
+      aria-hidden
+    >
+      <circle
+        cx="18"
+        cy="18"
+        r="15.5"
+        fill="none"
+        stroke="var(--color-accent)"
+        strokeOpacity="0.22"
+        strokeWidth="2.5"
+      />
+      <circle
+        cx="18"
+        cy="18"
+        r="15.5"
+        fill="none"
+        stroke="var(--color-accent)"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeDasharray="22 76"
+      />
+    </svg>
+  )
+}
+
+const IS_DEV = import.meta.env.DEV
 
 /** 起動準備中のメッセージとプログレスバー */
 export function InstanceLaunchProgress({
@@ -41,8 +80,8 @@ export function InstanceLaunchProgress({
   const progress = useLaunchStore((s) =>
     active && sessionId ? (s.progressBySessionId[sessionId] ?? null) : null,
   )
-
-  const showPreview = DEV_LAUNCH_PROGRESS_PREVIEW && !active
+  const launchProgressPreview = useDebugStore((s) => s.launchProgressPreview)
+  const showPreview = IS_DEV && launchProgressPreview && !active
   const visible = active || showPreview
 
   const percent = showPreview
@@ -78,6 +117,7 @@ export function InstanceLaunchButton({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const authStatus = useUiStore((s) => s.authStatus)
+  const creating = useInstanceCreateStore((s) => Boolean(s.creatingIds[instanceId]))
   const state = useLaunchStore((s) => s.byProfileId[instanceId]?.state ?? 'idle')
   const sessionId = useLaunchStore((s) => s.byProfileId[instanceId]?.sessionId)
 
@@ -92,8 +132,13 @@ export function InstanceLaunchButton({
   const errorMessageKey = useLaunchStore((s) =>
     s.errorProfileId === instanceId ? s.errorMessageKey : null,
   )
+  const launchErrorPreview = useDebugStore((s) => s.launchErrorPreview)
+  const previewErrorKey =
+    IS_DEV && launchErrorPreview && !errorMessageKey ? 'launch.error.gameExited' : null
+  const displayErrorKey = errorMessageKey ?? previewErrorKey
 
   const canPlay =
+    !creating &&
     (authStatus === 'logged_in' || authStatus === 'refreshing') &&
     state !== 'preparing' &&
     state !== 'launching' &&
@@ -145,10 +190,11 @@ export function InstanceLaunchButton({
       variant="primary"
       className={[sizeClass, className].join(' ')}
       disabled={!canPlay}
-      aria-label={t('home.play')}
+      aria-label={creating ? t('content.creatingInstance') : t('home.play')}
+      aria-busy={creating || undefined}
       onClick={(e) => void onPlay(e)}
     >
-      {size === 'icon' ? (
+      {size === 'icon' || (creating && size === 'sm') ? (
         <IconPlayerPlay size={playIconSize} stroke={1.75} />
       ) : (
         <>
@@ -159,7 +205,9 @@ export function InstanceLaunchButton({
     </Button>
   )
 
-  if (state === 'preparing' || state === 'launching') {
+  if (creating) {
+    // 作成中はキャンセル／終了より優先してぐるぐる表示（プレイ不可）
+  } else if (state === 'preparing' || state === 'launching') {
     action = (
       <Button
         variant="secondary"
@@ -215,37 +263,180 @@ export function InstanceLaunchButton({
 
   const showProgressBlock =
     showProgress && (state === 'preparing' || state === 'launching')
-  const showError = Boolean(errorMessageKey)
+  const showError = Boolean(displayErrorKey)
+  const [errorOpen, setErrorOpen] = useState(false)
+  const [errorHover, setErrorHover] = useState(false)
+  const errorWrapRef = useRef<HTMLDivElement>(null)
+  const errorBtnRef = useRef<HTMLButtonElement>(null)
+  const errorTipRef = useRef<HTMLDivElement>(null)
+  const errorHoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [errorPos, setErrorPos] = useState<{
+    top: number
+    left: number
+    placeAbove: boolean
+  } | null>(null)
+  const errorVisible = showError && (errorOpen || errorHover)
+
+  const setErrorHoverSoon = (next: boolean) => {
+    if (errorHoverTimer.current) {
+      clearTimeout(errorHoverTimer.current)
+      errorHoverTimer.current = null
+    }
+    if (next) {
+      setErrorHover(true)
+      return
+    }
+    errorHoverTimer.current = setTimeout(() => setErrorHover(false), 120)
+  }
+
+  useEffect(() => {
+    return () => {
+      if (errorHoverTimer.current) clearTimeout(errorHoverTimer.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!errorOpen) return
+    const onDoc = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (errorWrapRef.current?.contains(target) || errorTipRef.current?.contains(target)) return
+      setErrorOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [errorOpen])
+
+  useEffect(() => {
+    if (!showError) {
+      setErrorOpen(false)
+      setErrorHover(false)
+    }
+  }, [showError])
+
+  useLayoutEffect(() => {
+    if (!errorVisible) {
+      setErrorPos(null)
+      return
+    }
+    const update = () => {
+      const btn = errorBtnRef.current
+      if (!btn) return
+      const rect = btn.getBoundingClientRect()
+      const width = Math.min(288, window.innerWidth * 0.7)
+      let left = rect.right - width
+      left = Math.max(8, Math.min(left, window.innerWidth - width - 8))
+      const placeAbove = rect.top > 80
+      const top = placeAbove ? rect.top - 8 : rect.bottom + 8
+      setErrorPos({ top, left, placeAbove })
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [errorVisible])
+
+  // スタートボタン（icon/sm は size-10）の約 2/3
+  const errorBtnClass =
+    size === 'icon' || size === 'sm'
+      ? 'size-[1.675rem]'
+      : size === 'header' || size === 'lg'
+        ? 'size-7'
+        : 'size-6'
+  const errorIconSize =
+    size === 'icon' || size === 'sm' ? 14 : size === 'header' || size === 'lg' ? 16 : 14
+
+  const errorButton = showError ? (
+    <div
+      ref={errorWrapRef}
+      className="relative flex shrink-0 items-center"
+      onMouseEnter={() => setErrorHoverSoon(true)}
+      onMouseLeave={() => setErrorHoverSoon(false)}
+    >
+      <button
+        ref={errorBtnRef}
+        type="button"
+        className={[
+          'inline-flex shrink-0 items-center justify-center rounded-full border border-[color-mix(in_srgb,var(--color-danger)_35%,transparent)] bg-[color-mix(in_srgb,var(--color-danger)_14%,transparent)] text-[var(--color-danger)] transition hover:bg-[color-mix(in_srgb,var(--color-danger)_24%,transparent)]',
+          errorBtnClass,
+        ].join(' ')}
+        aria-label={t('launch.error.showDetails')}
+        aria-expanded={errorVisible}
+        onClick={(e: ReactMouseEvent) => {
+          stop(e)
+          setErrorOpen((v) => !v)
+        }}
+      >
+        <IconAlertCircle size={errorIconSize} stroke={2} aria-hidden />
+      </button>
+      {errorVisible && errorPos
+        ? createPortal(
+            <div
+              ref={errorTipRef}
+              role="tooltip"
+              className="pointer-events-auto fixed z-[200] w-[min(18rem,70vw)] rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs leading-relaxed text-[var(--color-danger)] shadow-md"
+              style={{
+                top: errorPos.top,
+                left: errorPos.left,
+                transform: errorPos.placeAbove ? 'translateY(-100%)' : undefined,
+              }}
+              onClick={stop}
+              onMouseEnter={() => setErrorHoverSoon(true)}
+              onMouseLeave={() => setErrorHoverSoon(false)}
+            >
+              {t(displayErrorKey!)}
+            </div>,
+            document.body,
+          )
+        : null}
+    </div>
+  ) : null
+
+  const actionWithBusyRing = creating ? (
+    size === 'icon' || size === 'sm' ? (
+      <div className="relative size-10 shrink-0">
+        <BusyRing />
+        <div className="absolute inset-[3px] flex [&_button]:h-full [&_button]:min-h-0 [&_button]:w-full [&_button]:min-w-0 [&_button]:p-0">
+          {action}
+        </div>
+      </div>
+    ) : (
+      <div className="relative inline-flex items-center justify-center">
+        <span
+          className="pointer-events-none absolute left-1/2 top-1/2 aspect-square h-[calc(100%+0.5rem)] min-h-11 -translate-x-1/2 -translate-y-1/2"
+          aria-hidden
+        >
+          <BusyRing />
+        </span>
+        <div className="relative z-[1]">{action}</div>
+      </div>
+    )
+  ) : (
+    action
+  )
 
   return (
     <div
       className={
         size === 'icon' || size === 'sm'
-          ? 'shrink-0'
+          ? 'flex shrink-0 items-center gap-1.5 self-center'
           : showProgress
             ? 'flex max-w-full items-center justify-end gap-2'
-            : 'shrink-0'
+            : 'flex shrink-0 items-center gap-2'
       }
       onClick={stop}
     >
-      {showError && size !== 'sm' && size !== 'icon' ? (
-        <div className="min-w-0 max-w-[18rem] rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2 py-1.5 text-xs text-[var(--color-danger)]">
-          {t(errorMessageKey!)}
-        </div>
-      ) : null}
+      {errorButton}
       <div className={size === 'sm' || size === 'icon' ? undefined : showProgress ? 'shrink-0 space-y-2' : undefined}>
-        {action}
+        {actionWithBusyRing}
         {showProgressBlock && size !== 'sm' && size !== 'icon' ? (
           <div className={[LAUNCH_PROGRESS_SLOT, 'space-y-0'].join(' ')}>
             <LaunchProgressIndicator
               message={formatProgressMessage(t, progress?.messageKey ?? phaseMessageKey, progress?.meta)}
               percent={percent}
             />
-          </div>
-        ) : null}
-        {showError && (size === 'sm' || size === 'icon') ? (
-          <div className="mt-1 max-w-[10rem] rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-1.5 py-1 text-[10px] leading-snug text-[var(--color-danger)]">
-            {t(errorMessageKey!)}
           </div>
         ) : null}
       </div>

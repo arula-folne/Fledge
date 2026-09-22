@@ -113,7 +113,7 @@ export function hasCustomMinecraftInitialSettings(settings: MinecraftInitialSett
   if (settings.mouseSensitivity !== null) return true
   if (settings.showFps !== null) return true
   if (settings.fpsExtended !== null) return true
-  if (settings.fpsTextContrast !== null) return true
+  // fpsTextContrast はバニラ options にキーが無く書き込まないため、カスタム判定から除外
   for (const [id, code] of Object.entries(settings.keybinds ?? {})) {
     if (id.startsWith('key.') && code) return true
   }
@@ -132,7 +132,6 @@ export function hasCustomMinecraftInitialSettings(settings: MinecraftInitialSett
 export function snapshotMinecraftInitialOptions(
   settings: MinecraftInitialSettings,
   minecraftVersion: string,
-  _appLocale?: string | null,
 ): Record<string, string> {
   if (!hasCustomMinecraftInitialSettings(settings)) return {}
 
@@ -182,13 +181,19 @@ export function snapshotMinecraftInitialOptions(
   return out
 }
 
-/** Minecraft datafix が数値 ID のみ受け付けるマウスキー（OptionsKeyLwjgl3Fix） */
+/**
+ * Minecraft datafix が数値 ID のみ受け付けるマウスキー（OptionsKeyLwjgl3Fix）。
+ * GLFW ボタン n → -(100 + n)。命名は left/right/middle と mouse.4〜8（最大 8 ボタン）。
+ */
 const MODERN_MOUSE_KEY_TO_LEGACY: Record<string, string> = {
   'key.mouse.left': '-100',
   'key.mouse.right': '-99',
   'key.mouse.middle': '-98',
   'key.mouse.4': '-97',
   'key.mouse.5': '-96',
+  'key.mouse.6': '-95',
+  'key.mouse.7': '-94',
+  'key.mouse.8': '-93',
 }
 
 const LEGACY_MOUSE_KEY_TO_MODERN: Record<string, string> = Object.fromEntries(
@@ -197,7 +202,15 @@ const LEGACY_MOUSE_KEY_TO_MODERN: Record<string, string> = Object.fromEntries(
 
 /** spawn 前 options.txt 向け。side button 等をレガシー数値 ID に変換して datafix クラッシュを防ぐ */
 export function formatOptionsKeybindValue(code: string): string {
-  return MODERN_MOUSE_KEY_TO_LEGACY[code] ?? code
+  const mapped = MODERN_MOUSE_KEY_TO_LEGACY[code]
+  if (mapped) return mapped
+  const extra = /^key\.mouse\.(\d+)$/.exec(code)
+  if (extra) {
+    const n = Number(extra[1])
+    // mouse.N（N≥4）→ GLFW (N-1) → -100 + (N-1) = N - 101
+    if (n >= 4 && n <= 8) return String(n - 101)
+  }
+  return code
 }
 
 function keybindValuesEqual(expected: string, actual: string | undefined): boolean {

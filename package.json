@@ -1,7 +1,7 @@
 {
   "name": "fledge",
   "private": true,
-  "version": "0.4.6",
+  "version": "0.5.0",
   "description": "軽快・モダンな UI と使い勝手を重視した Minecraft ランチャー",
   "license": "GPL-3.0",
   "author": "folne",
@@ -13,7 +13,8 @@
     "postinstall": "node scripts/patch-xmcl.js",
     "version:sync": "node scripts/sync-version.mjs",
     "dev": "pnpm --filter @fledge/desktop dev",
-    "build": "pnpm -r run build",
+    "build": "pnpm --filter @fledge/shared build && pnpm --filter @fledge/i18n build && pnpm --filter @fledge/desktop build",
+    "tauri:build": "pnpm --filter @fledge/desktop tauri:build",
     "lint": "pnpm -r run lint",
     "typecheck": "pnpm -r run typecheck",
     "format": "prettier --write ."

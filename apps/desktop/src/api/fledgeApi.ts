@@ -4,7 +4,6 @@ import type {
   AuthStatusEvent,
   AppDirectoryInfo,
   AppStartupInfo,
-  BackupEntry,
   ContentCategory,
   ContentCategoryTag,
   ContentCreateInstanceRequest,
@@ -16,12 +15,12 @@ import type {
   ContentSearchResult,
   ContentVersion,
   CreateInstanceInput,
-  DeviceSpecs,
   InstalledContent,
   InstanceProfile,
   LaunchPhaseEvent,
   LaunchStateEvent,
   Loader,
+  LoaderGameVersionListResult,
   LoaderVersionListResult,
   MrpackExportCandidates,
   MrpackExportOptions,
@@ -31,6 +30,7 @@ import type {
   Settings,
   SkinEntry,
   SkinModel,
+  CapeEntry,
   UpdateInstanceInput,
   UpdateCheckResult,
   UpdateChannel,
@@ -44,6 +44,10 @@ export type FledgeApi = {
     get: () => Promise<Settings>
     set: (partial: Partial<Settings>) => Promise<Settings>
     reset: () => Promise<Settings>
+    /** option.flg へ書き出し。キャンセル時 null */
+    exportOptions: () => Promise<string | null>
+    /** option.flg を読み込み適用。キャンセル時 null */
+    importOptions: () => Promise<Settings | null>
   }
   paths: {
     get: () => Promise<PathInfo>
@@ -114,12 +118,27 @@ export type FledgeApi = {
       originalName: string
       thumbDataUrl?: string
     }) => Promise<SkinEntry>
-    update: (input: { id: string; name?: string; model?: SkinModel }) => Promise<SkinEntry>
+    update: (input: {
+      id: string
+      name?: string
+      model?: SkinModel
+      bytes?: number[]
+      originalName?: string
+    }) => Promise<SkinEntry>
     remove: (id: string) => Promise<void>
     select: (input: { skinId: string; model?: SkinModel }) => Promise<Settings>
     getDataUrl: (id: string) => Promise<string | null>
     getThumb: (id: string, model: SkinModel) => Promise<string | null>
     saveThumb: (id: string, model: SkinModel, dataUrl: string) => Promise<void>
+    /** 絶対パス。Tauri は convertFileSrc、Electron はフォールバック用 */
+    resolvePath: (id: string) => Promise<string | null>
+    resolveThumbPath: (id: string, model: SkinModel) => Promise<string | null>
+  }
+  /** 公式プロフィール上の所持マントのみ */
+  capes: {
+    list: () => Promise<CapeEntry[]>
+    /** null でマント非表示 */
+    select: (capeId: string | null) => Promise<CapeEntry[]>
   }
   auth: {
     login: () => Promise<AccountView>
@@ -139,6 +158,10 @@ export type FledgeApi = {
       minecraftVersion: string
       force?: boolean
     }) => Promise<LoaderVersionListResult>
+    listLoaderGames: (opts: {
+      loader: Loader
+      force?: boolean
+    }) => Promise<LoaderGameVersionListResult>
     refresh: (opts?: {
       target?: 'minecraft' | Loader
       minecraftVersion?: string
@@ -167,14 +190,7 @@ export type FledgeApi = {
     factoryReset: () => Promise<void>
     uninstall: () => Promise<void>
     relaunch: () => Promise<void>
-    deviceSpecs: () => Promise<DeviceSpecs>
     getStartupInfo: () => Promise<AppStartupInfo>
-  }
-  backup: {
-    run: () => Promise<string>
-    list: () => Promise<BackupEntry[]>
-    restore: (backupPath: string) => Promise<void>
-    syncNow: () => Promise<void>
   }
   window: {
     minimize: () => Promise<void>

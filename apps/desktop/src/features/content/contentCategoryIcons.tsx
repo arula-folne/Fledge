@@ -71,12 +71,7 @@ export function ContentFilterAllLabel({ iconSize = 14 }: { iconSize?: number }) 
   const { t } = useTranslation()
   return (
     <span className="inline-flex items-center gap-1">
-      <IconLayoutGrid
-        size={iconSize}
-        stroke={1.75}
-        className="shrink-0 text-[var(--color-text-muted)]"
-        aria-hidden
-      />
+      <IconLayoutGrid size={iconSize} stroke={1.75} className="shrink-0" aria-hidden />
       {t('content.category.all')}
     </span>
   )

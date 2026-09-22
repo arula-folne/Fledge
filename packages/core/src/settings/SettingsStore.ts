@@ -93,8 +93,30 @@ export class SettingsStore {
       if (parsed.installOnboardingCompleted === undefined) {
         parsed.installOnboardingCompleted = true
       }
+      // UIサイズ: minimal→compact / 旧 normal(1.0)→一時 large → 標準を normal(1.0) に戻す
+      const uiScaleVersion = typeof parsed.uiScaleVersion === 'number' ? parsed.uiScaleVersion : 0
+      let nextVersion = uiScaleVersion
+      let nextScale = parsed.uiScale
+      if (nextVersion < 2) {
+        if (nextScale === 'minimal') nextScale = 'compact'
+        else if (nextScale === 'normal') nextScale = 'large'
+        nextVersion = 2
+      }
+      if (nextVersion < 3) {
+        // v2 で標準サイズ扱いだった large を、新しい標準 normal へ寄せる
+        if (nextScale === 'large') nextScale = 'normal'
+        nextVersion = 3
+      }
+      const hadUiScaleMigration =
+        nextVersion !== uiScaleVersion || nextScale !== parsed.uiScale
+      if (hadUiScaleMigration) {
+        parsed.uiScale = nextScale
+        parsed.uiScaleVersion = nextVersion
+      }
       this.cache = SettingsSchema.parse({ ...DEFAULT_SETTINGS, ...parsed })
-      if (hadLegacySecret || hadLegacyConcurrency || hadLegacyWindowSize) await this.save(this.cache)
+      if (hadLegacySecret || hadLegacyConcurrency || hadLegacyWindowSize || hadUiScaleMigration) {
+        await this.save(this.cache)
+      }
     } catch (err) {
       const missing =
         err instanceof Error &&

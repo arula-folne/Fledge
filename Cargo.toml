@@ -1,0 +1,34 @@
+[workspace]
+resolver = "2"
+members = [
+  "crates/fledge-core",
+  "apps/desktop/src-tauri",
+]
+
+[workspace.package]
+edition = "2021"
+license = "GPL-3.0"
+authors = ["folne"]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+anyhow = "1"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "sync", "time", "io-util", "process"] }
+dirs = "6"
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream", "multipart"] }
+url = "2"
+base64 = "0.22"
+parking_lot = "0.12"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+sha1 = "0.10"
+sha2 = "0.10"
+flate2 = "1"
+futures-util = "0.3"
+hex = "0.4"
+arboard = "3"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "gif"] }

@@ -1,11 +1,10 @@
 import type { SettingsSection } from '../../stores/appStores'
 import type { InstallTutorialStepId } from './installOnboardingSteps'
+import { INSTALL_TUTORIAL_STEPS } from './installOnboardingSteps'
 
 export type TutorialPlacement = 'top' | 'bottom' | 'left' | 'right'
 
-export type TutorialContext = {
-  firstInstanceId: string | null
-}
+export type TutorialContext = Record<string, never>
 
 export type InteractiveTutorialStep = {
   id: InstallTutorialStepId
@@ -41,37 +40,50 @@ export const INTERACTIVE_TUTORIAL_STEPS: InteractiveTutorialStep[] = [
     bodyKey: 'onboarding.tutorial.nav.body',
   },
   {
-    id: 'home',
+    id: 'instance',
     route: '/',
-    target: 'tutorial-home-library',
+    target: 'tutorial-home-create',
     placement: 'bottom',
-    bodyKey: 'onboarding.tutorial.home.body',
+    bodyKey: 'onboarding.tutorial.instance.body',
   },
   {
-    id: 'browse',
-    route: '/browse',
-    target: 'tutorial-browse-tabs',
-    placement: 'bottom',
-    bodyKey: 'onboarding.tutorial.browse.body',
+    id: 'news',
+    route: '/',
+    target: 'tutorial-home-news',
+    placement: 'left',
+    bodyKey: 'onboarding.tutorial.news.body',
   },
   {
-    id: 'content',
-    route: (ctx) => (ctx.firstInstanceId ? `/library/${ctx.firstInstanceId}?tab=content` : '/'),
-    target: (ctx) => (ctx.firstInstanceId ? 'tutorial-content-tabs' : 'tutorial-home-create'),
+    id: 'skin',
+    route: '/skin',
+    target: 'tutorial-skin',
     placement: 'bottom',
-    bodyKey: (ctx) =>
-      ctx.firstInstanceId
-        ? 'onboarding.tutorial.content.body'
-        : 'onboarding.tutorial.content.bodyNoInstance',
+    bodyKey: 'onboarding.tutorial.skin.body',
   },
   {
-    id: 'settings',
+    id: 'settingsAppTheme',
     route: '/settings',
-    target: 'tutorial-settings-theme',
-    placement: 'top',
+    target: 'tutorial-settings-page',
+    placement: 'left',
     settingsSection: 'appTheme',
-    bodyKey: 'onboarding.tutorial.settings.body',
+    bodyKey: 'onboarding.tutorial.settingsAppTheme.body',
+  },
+  {
+    id: 'settingsMinecraftInitial',
+    route: '/settings',
+    target: 'tutorial-settings-page',
+    placement: 'left',
+    settingsSection: 'minecraftInitial',
+    bodyKey: 'onboarding.tutorial.settingsMinecraftInitial.body',
+  },
+  {
+    id: 'settingsResources',
+    route: '/settings',
+    target: 'tutorial-settings-page',
+    placement: 'left',
+    settingsSection: 'resources',
+    bodyKey: 'onboarding.tutorial.settingsResources.body',
   },
 ]
 
-export const INTERACTIVE_TUTORIAL_STEP_COUNT = INTERACTIVE_TUTORIAL_STEPS.length
+export const INTERACTIVE_TUTORIAL_STEP_COUNT = INSTALL_TUTORIAL_STEPS.length

@@ -3,7 +3,7 @@ import {
   IPC,
   IPC_EVENTS,
   type AccountView,
-  type BackupEntry,
+
   type AuthStatus,
   type AuthStatusEvent,
   type AppDirectoryInfo,
@@ -173,12 +173,6 @@ export type FledgeApi = {
     deviceSpecs: () => Promise<DeviceSpecs>
     getStartupInfo: () => Promise<AppStartupInfo>
   }
-  backup: {
-    run: () => Promise<string>
-    list: () => Promise<BackupEntry[]>
-    restore: (backupPath: string) => Promise<void>
-    syncNow: () => Promise<void>
-  }
   window: {
     minimize: () => Promise<void>
     maximizeToggle: () => Promise<void>
@@ -313,12 +307,7 @@ const api: FledgeApi = {
     deviceSpecs: () => ipcRenderer.invoke(IPC.appDeviceSpecs),
     getStartupInfo: () => ipcRenderer.invoke(IPC.appStartupInfo),
   },
-  backup: {
-    run: () => ipcRenderer.invoke(IPC.backupRun),
-    list: () => ipcRenderer.invoke(IPC.backupList),
-    restore: (backupPath) => ipcRenderer.invoke(IPC.backupRestore, backupPath),
-    syncNow: () => ipcRenderer.invoke(IPC.backupSyncNow),
-  },
+
   window: {
     minimize: () => ipcRenderer.invoke(IPC.windowMinimize),
     maximizeToggle: () => ipcRenderer.invoke(IPC.windowMaximizeToggle),

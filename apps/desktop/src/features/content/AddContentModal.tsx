@@ -1,18 +1,19 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { IconSearch } from '@tabler/icons-react'
+import { IconSearch, IconX } from '@tabler/icons-react'
 import {
   type ContentCategory,
   type ContentLoaderFilter,
   type ContentProject,
   type ContentSearchQuery,
   type InstanceProfile,
+  contentCategoriesForLoader,
   loaderToContentFilters,
 } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
-import { Dialog } from '../../components/ui/Dialog'
 import { PageNav } from '../../components/ui/PageNav'
+import { Select } from '../../components/ui/Select'
 import { useTransferStore } from '../../stores/appStores'
 import { ContentBrowseFilters } from './ContentBrowseFilters'
 import {
@@ -52,9 +53,6 @@ const PAGE_SIZES = [10, 20, 30, 40, 50] as const
 const DEFAULT_PAGE_SIZE: (typeof PAGE_SIZES)[number] = 20
 const SORTS = CONTENT_SEARCH_SORTS
 
-const selectClass =
-  'rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-2 py-1 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]'
-
 function buildContentSearchInput(input: {
   category: ContentCategory
   debouncedQuery: string
@@ -69,7 +67,7 @@ function buildContentSearchInput(input: {
     query: input.debouncedQuery,
     category: input.category,
     gameVersion: input.gameVersion.trim() || undefined,
-    loaders: input.category === 'mod' || input.category === 'plugin' ? input.loaders : [],
+    loaders: input.category === 'mod' ? input.loaders : [],
     tags: input.tags,
     environments: [],
     provider: 'modrinth',
@@ -100,7 +98,7 @@ function keepInstalledDataForInstance<T>(
 
 type Props = {
   open: boolean
-  /** 検索 UI を表示するモード（browse=1）。false のときはインストール済み詳細のみ */
+  /** 検索 UI を表示するモード。false のときはインストール済み詳細のみ */
   browseMode?: boolean
   onClose: () => void
   instance: InstanceProfile
@@ -124,7 +122,9 @@ export function AddContentModal({
   const queryClient = useQueryClient()
   const wasBrowseOpenRef = useRef(false)
   const prevInstanceIdRef = useRef(instance.id)
-  const [searchTab, setSearchTab] = useState<ContentSearchTab>(defaultInstanceBrowseTab())
+  const [searchTab, setSearchTab] = useState<ContentSearchTab>(() =>
+    defaultInstanceBrowseTab(instance.loader),
+  )
   const [favoriteCategory, setFavoriteCategory] = useState<FavoriteCategoryFilter>('all')
   const [query, setQuery] = useState('')
   const [gameVersion, setGameVersion] = useState(instance.minecraftVersion)
@@ -157,6 +157,19 @@ export function AddContentModal({
     return ids
   }, [jobs, instance.id])
   const { favorites, isFavorite, toggleFavorite } = useContentFavorites()
+  const allowedCategories = useMemo(
+    () => new Set(contentCategoriesForLoader(instance.loader)),
+    [instance.loader],
+  )
+  const instanceFavorites = useMemo(
+    () =>
+      favorites.filter(
+        (entry) =>
+          entry.project.projectType === 'modpack' ||
+          allowedCategories.has(entry.project.projectType),
+      ),
+    [favorites, allowedCategories],
+  )
   const favoriteScope: FavoriteCategoryFilter = isFavoritesTab(searchTab) ? favoriteCategory : searchTab
   const tagCategory = favoriteScope === 'all' ? 'all' : favoriteScope
   const tagIcons = useModrinthTagIcons(tagCategory)
@@ -175,7 +188,7 @@ export function AddContentModal({
       prevInstanceIdRef.current = instance.id
     }
     if (open && browseMode && !wasBrowseOpenRef.current) {
-      setSearchTab(defaultInstanceBrowseTab())
+      setSearchTab(defaultInstanceBrowseTab(instance.loader))
       setFavoriteCategory('all')
       setBulkInstalling(false)
       setGameVersion(instance.minecraftVersion)
@@ -190,6 +203,13 @@ export function AddContentModal({
     }
     wasBrowseOpenRef.current = open && browseMode
   }, [open, browseMode, instance.id, instance.minecraftVersion, instance.loader, reset])
+
+  useEffect(() => {
+    const tabs = instanceBrowseSearchTabs(instance.loader)
+    if (!tabs.includes(searchTab)) {
+      setSearchTab(defaultInstanceBrowseTab(instance.loader))
+    }
+  }, [instance.loader, searchTab])
 
   useEffect(() => {
     if (!open) return
@@ -348,7 +368,7 @@ export function AddContentModal({
         category: input.category,
         versionId: input.versionId,
         gameVersion: gameVersion.trim() || undefined,
-        loaders: input.category === 'mod' || input.category === 'plugin' ? loaders : [],
+        loaders: input.category === 'mod' ? loaders : [],
       }),
     onError: (err, input) => {
       unmark(input.id)
@@ -395,7 +415,7 @@ export function AddContentModal({
 
   const favoriteResults = useMemo(
     () =>
-      listFavoriteProjects(favorites, {
+      listFavoriteProjects(instanceFavorites, {
         query: debouncedQuery,
         sort,
         page,
@@ -404,22 +424,22 @@ export function AddContentModal({
         loaders,
         tags,
       }),
-    [favorites, debouncedQuery, sort, page, pageSize, favoriteCategory, loaders, tags],
+    [instanceFavorites, debouncedQuery, sort, page, pageSize, favoriteCategory, loaders, tags],
   )
   const favoritePool = useMemo(
     () =>
-      filterFavoriteProjects(favorites, {
+      filterFavoriteProjects(instanceFavorites, {
         query: debouncedQuery,
         sort,
         category: 'all',
       }),
-    [favorites, debouncedQuery, sort],
+    [instanceFavorites, debouncedQuery, sort],
   )
   const favoriteCategoryCounts = useMemo(() => countFavoriteCategories(favoritePool), [favoritePool])
   const favoriteCategoryTabs = useMemo(
     () =>
       favoriteFilterTabs(
-        contentTabsAsCategories(instanceBrowseSearchTabs()),
+        contentTabsAsCategories(instanceBrowseSearchTabs(instance.loader)),
         favoritePool.map((p) => p.projectType),
       ),
     [favoritePool],
@@ -438,10 +458,17 @@ export function AddContentModal({
     return favoriteResults.hits.filter(
       (project) =>
         project.projectType !== 'modpack' &&
+        allowedCategories.has(project.projectType) &&
         !resolveInstalled(project.id) &&
         projectSupportsGameVersion(project, instanceGameVersion),
     )
-  }, [searchTab, favoriteResults.hits, resolveInstalled, instanceGameVersion])
+  }, [
+    searchTab,
+    favoriteResults.hits,
+    resolveInstalled,
+    instanceGameVersion,
+    allowedCategories,
+  ])
 
   const favoriteCompatSummary = useMemo(() => {
     let ok = 0
@@ -471,7 +498,7 @@ export function AddContentModal({
           category: project.projectType,
           gameVersion: gameVersion.trim() || undefined,
           loaders:
-            project.projectType === 'mod' || project.projectType === 'plugin' ? loaders : [],
+            project.projectType === 'mod' ? loaders : [],
         })
       } catch {
         unmark(project.id)
@@ -521,17 +548,27 @@ export function AddContentModal({
   const dialogTitle =
     selected?.name ??
     (browseMode ? t('content.browseTitle') : projectId ? t('content.detailTitle') : t('content.browseTitle'))
+  const subtitle = `${instance.name} · ${instance.minecraftVersion} · ${instance.loader}`
+
+  if (!open) return null
 
   return (
-    <Dialog
-      open={open}
-      title={dialogTitle}
-      subtitle={`${instance.name} · ${instance.minecraftVersion} · ${instance.loader}`}
-      onClose={onClose}
-      size="full"
-      compact
-      contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden"
-    >
+    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+      <header className="flex shrink-0 items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="truncate text-lg font-semibold text-[var(--color-text)]">{dialogTitle}</h1>
+          <p className="mt-0.5 truncate text-sm text-[var(--color-text-muted)]">{subtitle}</p>
+        </div>
+        <button
+          type="button"
+          aria-label={t('common.close')}
+          className="inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] transition hover:bg-[var(--color-hover)]"
+          onClick={onClose}
+        >
+          <IconX size={18} stroke={1.75} />
+        </button>
+      </header>
+
       {projectId ? (
         selected ? (
           <Suspense fallback={<p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>}>
@@ -579,7 +616,7 @@ export function AddContentModal({
           />
           <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
             <ContentSearchCategoryTabs
-              tabs={instanceBrowseSearchTabs()}
+              tabs={instanceBrowseSearchTabs(instance.loader)}
               active={searchTab}
               onChange={(next) => {
                 setTags([])
@@ -628,31 +665,29 @@ export function AddContentModal({
               </div>
               <label className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
                 {t('content.sort.label')}
-                <select
+                <Select
                   value={sort}
-                  onChange={(e) => setSort(e.target.value as FavoriteSort)}
-                  className={selectClass}
-                >
-                  {(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => (
-                    <option key={s} value={s}>
-                      {t(`content.sort.${s}`)}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
+                  className="min-w-[8rem]"
+                  options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
+                    value: s,
+                    label: t(`content.sort.${s}`),
+                  }))}
+                />
               </label>
               <label className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
                 {t('content.showCount')}
-                <select
-                  value={pageSize}
-                  onChange={(e) => setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number])}
-                  className={selectClass}
-                >
-                  {PAGE_SIZES.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
+                <Select
+                  value={String(pageSize)}
+                  onChange={(e) =>
+                    setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
+                  }
+                  className="min-w-[4.5rem]"
+                  options={PAGE_SIZES.map((n) => ({
+                    value: String(n),
+                    label: String(n),
+                  }))}
+                />
               </label>
               {total > 0 ? (
                 <span className="text-sm tabular-nums text-[var(--color-text-muted)]">
@@ -753,6 +788,6 @@ export function AddContentModal({
           </div>
         </div>
       )}
-    </Dialog>
+    </div>
   )
 }

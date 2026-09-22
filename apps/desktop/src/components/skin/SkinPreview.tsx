@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { IdleAnimation, SkinViewer } from 'skinview3d'
+import type { SkinViewer } from 'skinview3d'
 import type { SkinModel } from '@fledge/shared'
 import {
   applyPreviewLights,
   applyPreviewPose,
   enqueueSkinRender,
+  loadSkinView3d,
   renderSkinSnapshotToCanvas,
   toSkinViewModel,
+  yieldToUi,
 } from './skinSnapshot'
 
 export type SkinPreviewPose = 'bust' | 'full'
@@ -14,6 +16,8 @@ export type SkinPreviewPose = 'bust' | 'full'
 type Props = {
   skinUrl: string | null | undefined
   model: SkinModel
+  /** 公式マントテクスチャ URL（任意） */
+  capeUrl?: string | null
   pose?: SkinPreviewPose
   /** true のときライブ WebGL（ドラッグ回転可）。選択中プレビュー専用 */
   interactive?: boolean
@@ -128,8 +132,10 @@ function SnapshotPreview({
   return (
     <div
       ref={boxRef}
-      className={['relative h-full w-full overflow-hidden', className].filter(Boolean).join(' ')}
+      className={['relative overflow-hidden', className].filter(Boolean).join(' ')}
       style={{
+        width,
+        height,
         background: STAGE_BG,
       }}
     >
@@ -148,10 +154,12 @@ function SnapshotPreview({
 function InteractivePreview({
   skinUrl,
   model,
+  capeUrl,
   className,
   width,
   height,
 }: Required<Pick<Props, 'skinUrl' | 'model' | 'width' | 'height'>> & {
+  capeUrl?: string | null
   className?: string
 }) {
   const boxRef = useRef<HTMLDivElement>(null)
@@ -167,43 +175,68 @@ function InteractivePreview({
     const startH = Math.max(1, box?.clientHeight || height)
 
     let disposed = false
-    const viewer = new SkinViewer({
-      canvas,
-      width: startW,
-      height: startH,
-      model: toSkinViewModel(model),
-      enableControls: true,
-      zoom: INTERACTIVE_ZOOM,
-      fov: 42,
-      pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
-    })
-    viewerRef.current = viewer
-    applyPreviewLights(viewer)
-
-    viewer.controls.enablePan = false
-    viewer.controls.enableZoom = true
-    viewer.controls.enableRotate = true
-    viewer.controls.rotateSpeed = 0.5
-    viewer.controls.minDistance = 32
-    viewer.controls.maxDistance = 110
-    viewer.controls.mouseButtons.MIDDLE = -1 as never
-
-    const onPointerDown = (event: PointerEvent) => {
-      if (event.button !== 1) return
-      event.preventDefault()
-      event.stopPropagation()
-      resetInteractiveView(viewer)
-    }
-    const onAuxClick = (event: MouseEvent) => {
-      if (event.button !== 1) return
-      event.preventDefault()
-    }
-    canvas.addEventListener('pointerdown', onPointerDown, true)
-    canvas.addEventListener('auxclick', onAuxClick)
+    let cleanupListeners: (() => void) | null = null
 
     void (async () => {
+      await yieldToUi()
+      if (disposed) return
+      const { SkinViewer, IdleAnimation } = await loadSkinView3d()
+      if (disposed) return
+
+      const viewer = new SkinViewer({
+        canvas,
+        width: startW,
+        height: startH,
+        model: toSkinViewModel(model),
+        enableControls: true,
+        zoom: INTERACTIVE_ZOOM,
+        fov: 42,
+        pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+      })
+      if (disposed) {
+        viewer.dispose()
+        return
+      }
+      viewerRef.current = viewer
+      applyPreviewLights(viewer)
+
+      viewer.controls.enablePan = false
+      viewer.controls.enableZoom = false
+      viewer.controls.enableRotate = true
+      viewer.controls.rotateSpeed = 0.5
+      viewer.controls.minDistance = 32
+      viewer.controls.maxDistance = 110
+      viewer.controls.mouseButtons.MIDDLE = -1 as never
+
+      const onPointerDown = (event: PointerEvent) => {
+        if (event.button !== 1) return
+        event.preventDefault()
+        event.stopPropagation()
+        resetInteractiveView(viewer)
+      }
+      const onAuxClick = (event: MouseEvent) => {
+        if (event.button !== 1) return
+        event.preventDefault()
+      }
+      canvas.addEventListener('pointerdown', onPointerDown, true)
+      canvas.addEventListener('auxclick', onAuxClick)
+      cleanupListeners = () => {
+        canvas.removeEventListener('pointerdown', onPointerDown, true)
+        canvas.removeEventListener('auxclick', onAuxClick)
+      }
+
       try {
         await viewer.loadSkin(skinUrl, { model: toSkinViewModel(model) })
+        if (disposed) return
+        if (capeUrl) {
+          try {
+            await viewer.loadCape(capeUrl)
+          } catch (err) {
+            console.error('Cape preview failed:', err)
+          }
+        } else {
+          viewer.resetCape()
+        }
         if (disposed) return
         const idle = new IdleAnimation()
         idle.speed = 0.8
@@ -216,12 +249,11 @@ function InteractivePreview({
 
     return () => {
       disposed = true
-      canvas.removeEventListener('pointerdown', onPointerDown, true)
-      canvas.removeEventListener('auxclick', onAuxClick)
-      viewer.dispose()
+      cleanupListeners?.()
+      viewerRef.current?.dispose()
       viewerRef.current = null
     }
-  }, [skinUrl, model, width, height])
+  }, [skinUrl, model, capeUrl, width, height])
 
   useEffect(() => {
     const el = boxRef.current
@@ -257,9 +289,29 @@ function InteractivePreview({
   )
 }
 
+/**
+ * ポインタが乗ったときだけライブ WebGL に上げる（入場直後の常時 rAF を避ける）。
+ */
+export function usePointerActivatedInteractive(resetKey: string): {
+  interactive: boolean
+  onPointerEnter: () => void
+} {
+  const [interactive, setInteractive] = useState(false)
+
+  useEffect(() => {
+    setInteractive(false)
+  }, [resetKey])
+
+  return {
+    interactive,
+    onPointerEnter: () => setInteractive(true),
+  }
+}
+
 export function SkinPreview({
   skinUrl,
   model,
+  capeUrl,
   interactive = false,
   className,
   width = 120,
@@ -271,6 +323,7 @@ export function SkinPreview({
       <InteractivePreview
         skinUrl={skinUrl ?? null}
         model={model}
+        capeUrl={capeUrl}
         className={className}
         width={width}
         height={height}

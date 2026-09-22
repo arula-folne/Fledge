@@ -27,6 +27,8 @@ type Props = {
   panelClassName?: string
   /** 本文エリアの追加クラス */
   contentClassName?: string
+  /** 閉じるボタンの色（コンテンツ検索など視認性を上げたいとき） */
+  closeTone?: 'muted' | 'accent' | 'danger'
 }
 
 /**
@@ -48,6 +50,7 @@ export function Dialog({
   compact = false,
   panelClassName = '',
   contentClassName = '',
+  closeTone = 'muted',
 }: Props) {
   const { t } = useTranslation()
   const full = size === 'full'
@@ -187,8 +190,13 @@ export function Dialog({
               type="button"
               aria-label={t('common.close')}
               className={[
-                'inline-flex shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
-                compact ? 'size-7' : 'size-9',
+                'inline-flex shrink-0 items-center justify-center rounded-[var(--radius-sm)] transition',
+                compact ? 'size-8' : 'size-9',
+                closeTone === 'accent'
+                  ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] hover:bg-[color-mix(in_srgb,var(--color-accent)_28%,transparent)]'
+                  : closeTone === 'danger'
+                    ? 'bg-[color-mix(in_srgb,var(--color-danger)_16%,transparent)] text-[var(--color-danger)] hover:bg-[color-mix(in_srgb,var(--color-danger)_26%,transparent)]'
+                    : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
               ].join(' ')}
               onClick={onClose}
             >

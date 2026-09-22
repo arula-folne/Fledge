@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-fledge-invoke"
+description = "Allow the fledge_invoke IPC dispatcher"
+commands.allow = ["fledge_invoke"]

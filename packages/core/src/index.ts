@@ -8,6 +8,12 @@ export type { AuthProvider } from './auth/AuthProvider.js'
 export { AuthError } from './auth/authTypes.js'
 export type { LaunchCredentials } from './auth/authTypes.js'
 export { SettingsStore } from './settings/SettingsStore.js'
+export {
+  exportOptionsFlgText,
+  importOptionsFlgText,
+  writeOptionsFlgFile,
+  readAndImportOptionsFlgFile,
+} from './settings/optionsFlg.js'
 export { InstanceStore } from './instances/InstanceStore.js'
 export type { NewsProvider } from './news/NewsProvider.js'
 export { LocalJsonNewsProvider } from './news/LocalJsonNewsProvider.js'
@@ -41,4 +47,3 @@ export { SkinStore, DEFAULT_SKINS } from './skins/SkinStore.js'
 export { SkinApplier } from './skins/SkinApplier.js'
 export { fetchActiveMinecraftSkin, hashSkinPng } from './skins/MojangSkinClient.js'
 export { SessionJoinProxy, sessionHostJvmArgs } from './auth/SessionJoinProxy.js'
-export { BackupService } from './backup/BackupService.js'

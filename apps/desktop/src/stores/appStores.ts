@@ -228,6 +228,7 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
 
 export type SettingsSection =
   | 'appGeneral'
+  | 'appLanguage'
   | 'appTheme'
   | 'minecraftLaunch'
   | 'minecraftInitial'
@@ -235,6 +236,7 @@ export type SettingsSection =
   | 'java'
   | 'resources'
   | 'privacyCredits'
+  | 'debug'
 
 export type LibraryDetailTab = 'content' | 'screenshots' | 'files' | 'logs'
 
@@ -296,55 +298,190 @@ export type TransferJob = {
   meta: Record<string, string | number | boolean>
 }
 
+/** 完了・失敗・キャンセル後もヘッダー履歴に残すエントリ */
+export type TransferHistoryEntry = TransferJob & {
+  finishedAt: number
+}
+
+const TRANSFER_HISTORY_LIMIT = 40
+
 type TransferStore = {
   jobs: Record<string, TransferJob>
+  history: TransferHistoryEntry[]
   /** ヘッダー表示の主ジョブ（完了するまで切り替えない） */
   pinnedJobId: string | null
   applyProgress: (e: ProgressEvent) => void
+  /** 起動準備セッションを履歴へ確定（成功 / 失敗） */
+  finalizeSession: (input: {
+    sessionId: string
+    profileId?: string
+    status: 'completed' | 'failed' | 'cancelled'
+    messageKey?: string
+    meta?: Record<string, string | number | boolean>
+    percent?: number
+    current?: number
+    total?: number
+    kind?: string
+  }) => void
+  clearHistory: () => void
 }
 
-function isTerminalStatus(status: TransferJob['status'] | undefined): boolean {
+function isHistoryTerminalStatus(status: string | undefined): boolean {
   return status === 'completed' || status === 'failed' || status === 'cancelled'
+}
+
+function resolveTransferJobId(e: ProgressEvent): string | undefined {
+  if (e.jobId) return e.jobId
+  // 起動・準備中の install 進捗は jobId が無いので session 単位で履歴化する
+  if (e.sessionId && (e.scope === 'launch' || e.scope === 'transfer' || e.kind === 'install')) {
+    return `session:${e.sessionId}`
+  }
+  return undefined
+}
+
+function toHistoryEntry(
+  job: TransferJob,
+  status: TransferJob['status'],
+  finishedAt = Date.now(),
+): TransferHistoryEntry {
+  return {
+    ...job,
+    status,
+    percent: status === 'completed' ? 100 : job.percent,
+    finishedAt,
+  }
+}
+
+function nextPinnedJobId(
+  pinnedJobId: string | null,
+  jobs: Record<string, TransferJob>,
+  removedJobId?: string,
+): string | null {
+  const remaining = Object.values(jobs).filter(
+    (j) => j.status === 'queued' || j.status === 'active',
+  )
+  const sorted = remaining.sort((a, b) => a.jobId.localeCompare(b.jobId))
+  if (removedJobId && pinnedJobId === removedJobId) {
+    return sorted[0]?.jobId ?? null
+  }
+  if (pinnedJobId && jobs[pinnedJobId]) return pinnedJobId
+  return sorted[0]?.jobId ?? null
+}
+
+function pushHistory(
+  history: TransferHistoryEntry[],
+  entry: TransferHistoryEntry,
+): TransferHistoryEntry[] {
+  return [entry, ...history.filter((h) => h.jobId !== entry.jobId)].slice(
+    0,
+    TRANSFER_HISTORY_LIMIT,
+  )
 }
 
 export const useTransferStore = create<TransferStore>((set) => ({
   jobs: {},
+  history: [],
   pinnedJobId: null,
-  applyProgress: (e) => {
-    const jobId = e.jobId
-    if (!jobId) return
-    const status =
-      e.status ??
-      (typeof e.meta?.status === 'string' ? (e.meta.status as TransferJob['status']) : 'active')
+  clearHistory: () => set({ history: [] }),
+  finalizeSession: (input) => {
+    const jobId = `session:${input.sessionId}`
     set((s) => {
-      if (isTerminalStatus(status)) {
-        if (!(jobId in s.jobs)) return s
+      const prev = s.jobs[jobId]
+      const meta = {
+        ...(prev?.meta ?? {}),
+        ...(input.meta ?? {}),
+        ...(input.profileId ? { instanceId: input.profileId } : {}),
+      }
+      const snapshot: TransferJob = {
+        jobId,
+        kind: input.kind ?? prev?.kind ?? 'install',
+        sessionId: input.sessionId,
+        messageKey: input.messageKey ?? prev?.messageKey,
+        current: input.current ?? prev?.current ?? 0,
+        total: input.total ?? prev?.total ?? 0,
+        percent:
+          input.status === 'completed' ? 100 : (input.percent ?? prev?.percent),
+        status: input.status,
+        meta,
+      }
+      const history = pushHistory(s.history, toHistoryEntry(snapshot, input.status))
+      if (!(jobId in s.jobs)) {
+        return { history }
+      }
+      const next = { ...s.jobs }
+      delete next[jobId]
+      return {
+        jobs: next,
+        pinnedJobId: nextPinnedJobId(s.pinnedJobId, next, jobId),
+        history,
+      }
+    })
+  },
+  applyProgress: (e) => {
+    const jobId = resolveTransferJobId(e)
+    if (!jobId) return
+
+    const rawStatus =
+      e.status ??
+      (typeof e.meta?.status === 'string' ? String(e.meta.status) : undefined)
+
+    set((s) => {
+      // content / java 等の明示的な完了・失敗のみ履歴へ（install 途中の succeeded は含めない）
+      if (isHistoryTerminalStatus(rawStatus)) {
+        const terminal = rawStatus as 'completed' | 'failed' | 'cancelled'
+        const prev = s.jobs[jobId]
+        const snapshotBase: TransferJob = prev
+          ? {
+              ...prev,
+              kind: e.kind ?? prev.kind,
+              sessionId: e.sessionId ?? prev.sessionId,
+              messageKey: e.messageKey ?? prev.messageKey,
+              current: e.current ?? prev.current,
+              total: e.total ?? prev.total,
+              percent: e.percent ?? prev.percent,
+              bytesPerSecond: e.bytesPerSecond ?? prev.bytesPerSecond,
+              status: terminal,
+              meta: { ...prev.meta, ...(e.meta ?? {}) },
+            }
+          : {
+              jobId,
+              kind: e.kind ?? 'download',
+              sessionId: e.sessionId,
+              messageKey: e.messageKey,
+              current: e.current ?? 0,
+              total: e.total ?? 0,
+              percent: e.percent,
+              bytesPerSecond: e.bytesPerSecond,
+              status: terminal,
+              meta: e.meta ?? {},
+            }
+        const history = pushHistory(s.history, toHistoryEntry(snapshotBase, terminal))
+        if (!(jobId in s.jobs)) {
+          return { history }
+        }
         const next = { ...s.jobs }
         delete next[jobId]
-        const remaining = Object.values(next).filter(
-          (j) => j.status === 'queued' || j.status === 'active',
-        )
-        const pinnedJobId =
-          s.pinnedJobId === jobId
-            ? remaining.sort((a, b) => a.jobId.localeCompare(b.jobId))[0]?.jobId ?? null
-            : s.pinnedJobId && next[s.pinnedJobId]
-              ? s.pinnedJobId
-              : remaining.sort((a, b) => a.jobId.localeCompare(b.jobId))[0]?.jobId ?? null
-        return { jobs: next, pinnedJobId }
+        return {
+          jobs: next,
+          pinnedJobId: nextPinnedJobId(s.pinnedJobId, next, jobId),
+          history,
+        }
       }
+
+      const prev = s.jobs[jobId]
       const job: TransferJob = {
         jobId,
-        kind: e.kind ?? 'download',
-        sessionId: e.sessionId,
-        messageKey: e.messageKey,
-        current: e.current,
-        total: e.total,
-        percent: e.percent,
-        bytesPerSecond: e.bytesPerSecond,
-        status,
-        meta: e.meta ?? s.jobs[jobId]?.meta ?? {},
+        kind: e.kind ?? prev?.kind ?? 'download',
+        sessionId: e.sessionId ?? prev?.sessionId,
+        messageKey: e.messageKey ?? prev?.messageKey,
+        current: e.current ?? prev?.current ?? 0,
+        total: e.total ?? prev?.total ?? 0,
+        percent: e.percent ?? prev?.percent,
+        bytesPerSecond: e.bytesPerSecond ?? prev?.bytesPerSecond,
+        status: rawStatus === 'queued' ? 'queued' : 'active',
+        meta: { ...(prev?.meta ?? {}), ...(e.meta ?? {}) },
       }
-      const wasNew = !(jobId in s.jobs)
+      const wasNew = !prev
       const pinnedJobId =
         s.pinnedJobId && (s.jobs[s.pinnedJobId] || jobId === s.pinnedJobId)
           ? s.pinnedJobId
@@ -361,6 +498,7 @@ export const useTransferStore = create<TransferStore>((set) => ({
     })
   },
 }))
+
 
 /** インスタンス作成中（一覧に先に載ったあとも完了までバッジ表示） */
 type InstanceCreateStore = {

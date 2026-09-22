@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -6,13 +6,16 @@ import { useTranslation } from 'react-i18next'
 import {
   IconArrowLeft,
   IconCopy,
+  IconFileText,
   IconFolder,
   IconFolderOpen,
   IconMenu2,
   IconPackageExport,
+  IconPalette,
   IconPhoto,
   IconPuzzle,
   IconSettings,
+  IconSparkles,
   IconTrash,
   IconWorld,
 } from '@tabler/icons-react'
@@ -24,6 +27,7 @@ import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { Dialog } from '../components/ui/Dialog'
 import { TextField } from '../components/ui/TextField'
 import { MemorySnapSlider } from '../components/ui/MemorySnapSlider'
+import { SlidingPillTabs } from '../components/ui/SlidingPillTabs'
 import { InstanceIcon } from '../features/instances/InstanceIcon'
 import {
   InstanceIconCustomizeDialog,
@@ -58,48 +62,68 @@ type Draft = {
   iconPreset: InstanceIconPreset
 }
 
+const FOLDER_CARD_SKEW = 10
+
 function FolderButton({
   label,
-  icon,
+  Icon,
+  accentVar,
   onClick,
 }: {
   label: string
-  icon: React.ReactNode
+  Icon: ComponentType<{ size?: number; stroke?: number; className?: string }>
+  /** CSS 変数名（例: --color-category-mod） */
+  accentVar: string
   onClick: () => void
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-2 text-left text-sm transition hover:bg-[var(--color-hover)]/50"
-    >
-      <span className="text-[var(--color-text-muted)]">{icon}</span>
-      <span>{label}</span>
-    </button>
-  )
-}
-
-function TabButton({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean
-  label: string
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
+      aria-label={label}
       className={[
-        'rounded-full px-2 py-0.5 text-xs font-medium transition-colors',
-        active
-          ? 'bg-[var(--color-selection)] text-[var(--color-on-selection)]'
-          : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
+        'group relative h-[5.5rem] min-w-0 w-full',
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-selection)]',
       ].join(' ')}
     >
-      {label}
+      <div
+        className={[
+          'pointer-events-none absolute inset-[0_0.4rem] overflow-hidden rounded-[16px]',
+          'shadow-[inset_0_0_0_1px_rgba(0,0,0,0.14)] transition-[box-shadow,filter]',
+          'group-hover:shadow-[inset_0_0_0_1px_rgba(0,0,0,0.22),0_6px_16px_rgba(0,0,0,0.08)]',
+          'group-hover:brightness-[1.03]',
+        ].join(' ')}
+        style={
+          {
+            transform: `skewX(-${FOLDER_CARD_SKEW}deg)`,
+            background: `linear-gradient(
+              145deg,
+              color-mix(in srgb, var(${accentVar}) 34%, var(--color-surface)) 0%,
+              color-mix(in srgb, var(${accentVar}) 14%, var(--color-surface)) 55%,
+              var(--color-surface) 100%
+            )`,
+            backfaceVisibility: 'hidden',
+          } satisfies CSSProperties
+        }
+      >
+        <div
+          className="box-border flex h-full w-full flex-col items-start justify-center gap-1.5 px-4 py-2"
+          style={{ transform: `skewX(${FOLDER_CARD_SKEW}deg)` }}
+        >
+          <span
+            className="grid size-10 shrink-0 place-items-center rounded-full"
+            style={{
+              background: `color-mix(in srgb, var(${accentVar}) 22%, transparent)`,
+              color: `var(${accentVar})`,
+            }}
+          >
+            <Icon size={22} stroke={1.6} aria-hidden />
+          </span>
+          <span className="w-full truncate text-left text-sm font-semibold leading-none text-[var(--color-text)]">
+            {label}
+          </span>
+        </div>
+      </div>
     </button>
   )
 }
@@ -377,11 +401,36 @@ export default function LibraryDetailPage() {
     (!instance.iconFile &&
       !sameIconPreset(draft.iconPreset, instance.iconPreset ?? DEFAULT_INSTANCE_ICON_PRESET))
 
-  const tabs: { id: TabId; label: string }[] = [
-    { id: 'content', label: t('library.tab.content') },
-    { id: 'screenshots', label: t('library.tab.screenshots') },
-    { id: 'files', label: t('library.tab.files') },
-    { id: 'logs', label: t('library.tab.logs') },
+  const tabs: {
+    id: TabId
+    label: string
+    Icon: ComponentType<{ size?: number; stroke?: number; className?: string }>
+    iconClassName: string
+  }[] = [
+    {
+      id: 'content',
+      label: t('library.tab.content'),
+      Icon: IconPuzzle,
+      iconClassName: 'text-[var(--color-menu-content)]',
+    },
+    {
+      id: 'screenshots',
+      label: t('library.tab.screenshots'),
+      Icon: IconPhoto,
+      iconClassName: 'text-[var(--color-menu-screenshots)]',
+    },
+    {
+      id: 'files',
+      label: t('library.tab.files'),
+      Icon: IconFolderOpen,
+      iconClassName: 'text-[var(--color-menu-files)]',
+    },
+    {
+      id: 'logs',
+      label: t('library.tab.logs'),
+      Icon: IconFileText,
+      iconClassName: 'text-[var(--color-menu-logs)]',
+    },
   ]
 
   return (
@@ -429,7 +478,11 @@ export default function LibraryDetailPage() {
                 setEditingInstanceId(instance.id)
               }}
             >
-              <IconSettings size={32} stroke={1.5} />
+              <IconSettings
+                size={32}
+                stroke={1.5}
+                className="text-[var(--color-nav-settings)]"
+              />
             </Button>
             <button
               ref={headerMenuRef}
@@ -464,7 +517,11 @@ export default function LibraryDetailPage() {
                   duplicateMutation.mutate(instance.id)
                 }}
               >
-                <IconCopy size={16} stroke={1.75} className="shrink-0 text-[var(--color-text-muted)]" />
+                <IconCopy
+                  size={16}
+                  stroke={1.75}
+                  className="shrink-0 text-[var(--color-menu-duplicate)]"
+                />
                 {t('instances.duplicate')}
               </button>
               <button
@@ -476,7 +533,11 @@ export default function LibraryDetailPage() {
                   setExportOpen(true)
                 }}
               >
-                <IconPackageExport size={16} stroke={1.75} className="shrink-0 text-[var(--color-text-muted)]" />
+                <IconPackageExport
+                  size={16}
+                  stroke={1.75}
+                  className="shrink-0 text-[var(--color-menu-export)]"
+                />
                 {t('instances.export')}
               </button>
             </div>,
@@ -484,15 +545,32 @@ export default function LibraryDetailPage() {
           )
         : null}
 
-      <nav className="flex shrink-0 flex-wrap gap-0.5" data-fledge-tutorial="tutorial-content-tabs">
-        {tabs.map((item) => (
-          <TabButton
-            key={item.id}
-            active={tab === item.id}
-            label={item.label}
-            onClick={() => changeTab(item.id)}
-          />
-        ))}
+      <nav className="flex shrink-0" data-fledge-tutorial="tutorial-content-tabs">
+        <SlidingPillTabs
+          activeId={tab}
+          onChange={(id) => changeTab(id as TabId)}
+          items={tabs.map((item) => {
+            const selected = tab === item.id
+            const TabIcon = item.Icon
+            return {
+              id: item.id,
+              label: (
+                <span className="inline-flex items-center gap-1">
+                  <TabIcon
+                    size={15}
+                    stroke={1.75}
+                    className={[
+                      'shrink-0',
+                      selected ? 'text-[var(--color-on-selection)]' : item.iconClassName,
+                    ].join(' ')}
+                    aria-hidden
+                  />
+                  {item.label}
+                </span>
+              ),
+            }
+          })}
+        />
       </nav>
 
       <div
@@ -525,42 +603,55 @@ export default function LibraryDetailPage() {
       ) : null}
 
       {tab === 'files' ? (
-        <div className="grid gap-2 sm:grid-cols-2">
-          <FolderButton
-            label={t('instances.openFolder')}
-            icon={<IconFolderOpen size={18} stroke={1.75} />}
-            onClick={() => void fledgeApi.instances.openFolder(instance.id)}
-          />
-          <FolderButton
-            label={t('instances.openMods')}
-            icon={<IconPuzzle size={18} stroke={1.75} />}
-            onClick={() => openSub('mods')}
-          />
-          <FolderButton
-            label={t('instances.openResourcepacks')}
-            icon={<IconPhoto size={18} stroke={1.75} />}
-            onClick={() => openSub('resourcepacks')}
-          />
-          <FolderButton
-            label={t('instances.openShaderpacks')}
-            icon={<IconPhoto size={18} stroke={1.75} />}
-            onClick={() => openSub('shaderpacks')}
-          />
-          <FolderButton
-            label={t('instances.openSaves')}
-            icon={<IconWorld size={18} stroke={1.75} />}
-            onClick={() => openSub('saves')}
-          />
-          <FolderButton
-            label={t('instances.openLogs')}
-            icon={<IconFolder size={18} stroke={1.75} />}
-            onClick={() => openSub('logs')}
-          />
-          <FolderButton
-            label={t('instances.openScreenshots')}
-            icon={<IconPhoto size={18} stroke={1.75} />}
-            onClick={() => openSub('screenshots')}
-          />
+        <div className="overflow-x-clip px-3">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3 xl:grid-cols-4">
+            <FolderButton
+              label={t('instances.openFolder')}
+              Icon={IconFolderOpen}
+              accentVar="--color-menu-files"
+              onClick={() => void fledgeApi.instances.openFolder(instance.id)}
+            />
+            {instance.loader !== 'vanilla' ? (
+              <FolderButton
+                label={t('instances.openMods')}
+                Icon={IconPuzzle}
+                accentVar="--color-category-mod"
+                onClick={() => openSub('mods')}
+              />
+            ) : null}
+            <FolderButton
+              label={t('instances.openResourcepacks')}
+              Icon={IconPalette}
+              accentVar="--color-category-resourcepack"
+              onClick={() => openSub('resourcepacks')}
+            />
+            {instance.loader !== 'vanilla' ? (
+              <FolderButton
+                label={t('instances.openShaderpacks')}
+                Icon={IconSparkles}
+                accentVar="--color-category-shader"
+                onClick={() => openSub('shaderpacks')}
+              />
+            ) : null}
+            <FolderButton
+              label={t('instances.openSaves')}
+              Icon={IconWorld}
+              accentVar="--color-menu-world"
+              onClick={() => openSub('saves')}
+            />
+            <FolderButton
+              label={t('instances.openLogs')}
+              Icon={IconFolder}
+              accentVar="--color-menu-logs"
+              onClick={() => openSub('logs')}
+            />
+            <FolderButton
+              label={t('instances.openScreenshots')}
+              Icon={IconPhoto}
+              accentVar="--color-menu-screenshots"
+              onClick={() => openSub('screenshots')}
+            />
+          </div>
         </div>
       ) : null}
 

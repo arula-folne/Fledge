@@ -57,8 +57,8 @@ export const UPDATER = {
    */
   upToDateCacheTtlMs: 60 * 1000,
   fetchTimeoutMs: 15_000,
-  /** electron-builder の固定 artifactName と一致させる */
-  installerNamePattern: /^Fledge-Setup\.exe$/i,
+  /** electron-builder (0.4) と Tauri NSIS (0.5) の artifact 名 */
+  installerNamePattern: /^(?:Fledge-Setup\.exe|Fledge_.+_x64-setup\.exe)$/i,
   installerFallbackPattern: /\.exe$/i,
   /**
    * 世代ロック付き更新一覧の取得件数。
@@ -71,6 +71,8 @@ export const IPC = {
   settingsGet: 'settings:get',
   settingsSet: 'settings:set',
   settingsReset: 'settings:reset',
+  settingsExportOptions: 'settings:export-options',
+  settingsImportOptions: 'settings:import-options',
   instancesList: 'instances:list',
   instancesGet: 'instances:get',
   instancesCreate: 'instances:create',
@@ -92,6 +94,7 @@ export const IPC = {
   authRemove: 'auth:remove',
   versionsListMinecraft: 'versions:list-minecraft',
   versionsListLoaders: 'versions:list-loaders',
+  versionsListLoaderGames: 'versions:list-loader-games',
   versionsRefresh: 'versions:refresh',
   newsList: 'news:list',
   launchStart: 'launch:start',
@@ -109,16 +112,15 @@ export const IPC = {
   skinsGetData: 'skins:get-data',
   skinsGetThumb: 'skins:get-thumb',
   skinsSaveThumb: 'skins:save-thumb',
+  skinsResolvePath: 'skins:resolve-path',
+  skinsResolveThumbPath: 'skins:resolve-thumb-path',
+  capesList: 'capes:list',
+  capesSelect: 'capes:select',
   cacheClear: 'cache:clear',
   appFactoryReset: 'app:factory-reset',
   appUninstall: 'app:uninstall',
   appRelaunch: 'app:relaunch',
-  appDeviceSpecs: 'app:device-specs',
   appStartupInfo: 'app:startup-info',
-  backupRun: 'backup:run',
-  backupList: 'backup:list',
-  backupRestore: 'backup:restore',
-  backupSyncNow: 'backup:sync-now',
   dialogSelectFolder: 'dialog:select-folder',
   windowMinimize: 'window:minimize',
   windowMaximizeToggle: 'window:maximize-toggle',

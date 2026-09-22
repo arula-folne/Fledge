@@ -223,7 +223,8 @@ export function ProjectTagRow({
   )
   if (!shownLoaders.length && !tags.length) return null
   return (
-    <p className="truncate text-sm text-[var(--color-text-muted)]">
+    // truncate の overflow:hidden だと Forge の g など descender が切れるため、横方向のみ clip
+    <p className="overflow-x-clip text-ellipsis whitespace-nowrap text-sm leading-5 text-[var(--color-text-muted)]">
       <LoaderInlineList loaders={shownLoaders} />
       {shownLoaders.length && tags.length ? (
         <span className="text-[var(--color-text-muted)]"> · </span>
@@ -231,7 +232,7 @@ export function ProjectTagRow({
       {tags.map((tag, index) => (
         <Fragment key={tag}>
           {index > 0 ? <span className="text-[var(--color-text-muted)]"> · </span> : null}
-          <span className="inline-flex items-center gap-0.5">
+          <span className="inline-flex items-center gap-0.5 align-middle">
             <TagIcon icon={tagIcons?.get(tag)} className="[&_svg]:size-3.5" />
             {tagLabel(tag, i18n.language)}
           </span>

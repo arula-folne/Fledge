@@ -125,11 +125,6 @@ async function scheduleAppExit(options?: {
 
   if (!options?.skipBackupFlush) {
     try {
-      await launcherApp?.backup.flushSync()
-    } catch {
-      /* ignore */
-    }
-    try {
       await launcherApp?.sessionProxy.stop()
     } catch {
       /* ignore */
@@ -263,7 +258,6 @@ async function bootstrap(): Promise<void> {
       }
       void syncPresenceFromLaunchState(e as LaunchStateEvent)
       if ((e as LaunchStateEvent).state === 'exited') {
-        launcherApp?.backup.scheduleSync()
       }
     },
   }
@@ -338,7 +332,6 @@ async function bootstrap(): Promise<void> {
   if (recoveredRoot) {
     logger.info('system', `Restored Fledge root from alternate location: ${recoveredRoot}`)
   }
-  if (!lightStart && settings.backupSyncEnabled) launcherApp.backup.scheduleSync()
 
   const warmupId = settings.lastPlayedInstanceId ?? settings.selectedInstanceId
   if (!lightStart && warmupId) {
@@ -430,7 +423,6 @@ app.on('before-quit', (e) => {
   e.preventDefault()
   void (async () => {
     try {
-      await launcherApp?.backup.flushSync()
     } catch {
       /* ignore */
     }

@@ -71,13 +71,31 @@ for (let i = 1; i <= 25; i += 1) {
   CODE_TO_MC[`F${i}`] = `key.keyboard.f${i}`
 }
 
-const MOUSE_TO_MC = ['key.mouse.left', 'key.mouse.middle', 'key.mouse.right', 'key.mouse.4', 'key.mouse.5']
+/**
+ * MouseEvent.button → Minecraft キー名。
+ * ブラウザは 0=左 / 1=中 / 2=右 / 3+=追加ボタン。
+ * Minecraft（GLFW）は割り当て可能なマウスが 8 ボタンまで（left/right/middle/4–8）。
+ */
+const MOUSE_TO_MC = [
+  'key.mouse.left',
+  'key.mouse.middle',
+  'key.mouse.right',
+  'key.mouse.4',
+  'key.mouse.5',
+  'key.mouse.6',
+  'key.mouse.7',
+  'key.mouse.8',
+] as const
+
+/** Minecraft がキー割当で扱うマウスボタン数（left〜mouse.8） */
+export const MC_MOUSE_BUTTON_MAX = MOUSE_TO_MC.length
 
 export function keyboardEventToMcKey(e: KeyboardEvent): string | null {
   return CODE_TO_MC[e.code] ?? null
 }
 
 export function mouseButtonToMcKey(button: number): string | null {
+  if (button < 0 || button >= MOUSE_TO_MC.length) return null
   return MOUSE_TO_MC[button] ?? null
 }
 
@@ -88,6 +106,9 @@ const MC_KEY_LABELS: Record<string, string> = {
   'key.mouse.middle': '中クリック',
   'key.mouse.4': 'マウス4',
   'key.mouse.5': 'マウス5',
+  'key.mouse.6': 'マウス6',
+  'key.mouse.7': 'マウス7',
+  'key.mouse.8': 'マウス8',
   'key.keyboard.space': 'スペース',
   'key.keyboard.tab': 'Tab',
   'key.keyboard.enter': 'Enter',
@@ -124,6 +145,8 @@ const MC_KEY_LABELS: Record<string, string> = {
 
 export function formatMcKeyCode(code: string): string {
   if (MC_KEY_LABELS[code]) return MC_KEY_LABELS[code]
+  const mouseExtra = /^key\.mouse\.(\d+)$/.exec(code)
+  if (mouseExtra) return `マウス${mouseExtra[1]}`
   if (code.startsWith('key.keyboard.keypad.')) {
     return `テンキー ${code.slice('key.keyboard.keypad.'.length).toUpperCase()}`
   }

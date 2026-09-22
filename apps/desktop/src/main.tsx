@@ -2,9 +2,12 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { HashRouter } from 'react-router-dom'
+import { installTauriFledgeApi } from './bridge/tauriFledgeApi'
 import App from './App'
 import './i18n'
 import './styles/globals.css'
+
+installTauriFledgeApi()
 
 const queryClient = new QueryClient({
   defaultOptions: {

@@ -147,7 +147,7 @@ function LanguageSelect({
       <button
         type="button"
         className={[
-          'flex w-full items-center justify-between rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-left text-sm text-[var(--color-text)] outline-none',
+          'flex w-full items-center justify-between rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-2 text-left text-sm text-[var(--color-text)] outline-none',
           'focus:border-[var(--color-accent)]',
         ].join(' ')}
         aria-haspopup="listbox"
@@ -945,19 +945,63 @@ function ChoiceList({
   )
 }
 
+type InitialSectionId = 'game' | 'video' | 'audio' | 'controls'
+
+function findScrollParent(el: HTMLElement): HTMLElement | null {
+  let parent: HTMLElement | null = el.parentElement
+  while (parent) {
+    const { overflowY } = getComputedStyle(parent)
+    if (
+      (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') &&
+      parent.scrollHeight > parent.clientHeight + 1
+    ) {
+      return parent
+    }
+    parent = parent.parentElement
+  }
+  return null
+}
+
+/** 一般的な Web のアンカー遷移と同じネイティブ smooth スクロール */
+function scrollToSectionEl(el: HTMLElement, offsetTop = 8) {
+  const scroller = findScrollParent(el)
+  if (!scroller) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    return
+  }
+  const elRect = el.getBoundingClientRect()
+  const scrollerRect = scroller.getBoundingClientRect()
+  const top = Math.max(
+    0,
+    Math.min(
+      scroller.scrollHeight - scroller.clientHeight,
+      elRect.top - scrollerRect.top + scroller.scrollTop - offsetTop,
+    ),
+  )
+  scroller.scrollTo({ top, behavior: 'smooth' })
+}
+
 function Group({
   title,
   icon: Icon,
   headerAction,
+  sectionId,
+  sectionRef,
   children,
 }: {
   title: string
   icon: SettingIcon
   headerAction?: ReactNode
+  sectionId: InitialSectionId
+  sectionRef: (node: HTMLDivElement | null) => void
   children: ReactNode
 }) {
   return (
-    <div className="space-y-4 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 p-4">
+    <div
+      id={`mc-initial-${sectionId}`}
+      ref={sectionRef}
+      className="scroll-mt-2 space-y-4 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 p-4"
+    >
       <div className="flex items-center justify-between gap-2">
         <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold tracking-tight text-[var(--color-text)]">
           <Icon size={18} stroke={1.7} className="shrink-0 text-[var(--color-text-muted)]" aria-hidden />
@@ -976,18 +1020,58 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
   const patch = (partial: Partial<MinecraftInitialSettings>) =>
     onChange({ ...current, ...partial })
   const [keybindsOpen, setKeybindsOpen] = useState(false)
+  const navRef = useRef<HTMLDivElement>(null)
+  const sectionRefs = useRef<Partial<Record<InitialSectionId, HTMLDivElement | null>>>({})
+
+  const sections: { id: InitialSectionId; label: string; icon: SettingIcon }[] = [
+    { id: 'game', label: labels.game, icon: IconDeviceGamepad2 },
+    { id: 'video', label: labels.video, icon: IconDeviceDesktop },
+    { id: 'audio', label: labels.audio, icon: IconVolume },
+    { id: 'controls', label: labels.controls, icon: IconKeyboard },
+  ]
+
+  const scrollToSection = (id: InitialSectionId) => {
+    const el = sectionRefs.current[id]
+    if (!el) return
+    scrollToSectionEl(el)
+  }
 
   return (
-    <div className="space-y-4">
-      <p className="text-xs leading-relaxed text-[var(--color-text-muted)]">{labels.hint}</p>
+    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      <p className="shrink-0 text-xs leading-relaxed text-[var(--color-text-muted)]">{labels.hint}</p>
 
+      <div
+        ref={navRef}
+        className="flex shrink-0 flex-wrap gap-2"
+        role="navigation"
+        aria-label={t('settings.minecraftInitial.sectionNav')}
+      >
+        {sections.map(({ id, label, icon: Icon }) => (
+          <Button
+            key={id}
+            type="button"
+            variant="secondary"
+            className="!rounded-full !px-3.5 !py-1.5 text-xs shadow-none"
+            onClick={() => scrollToSection(id)}
+          >
+            <Icon size={15} stroke={1.7} aria-hidden />
+            {label}
+          </Button>
+        ))}
+      </div>
+
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden pr-1 overscroll-contain">
       <Group
+        sectionId="game"
+        sectionRef={(node) => {
+          sectionRefs.current.game = node
+        }}
         title={labels.game}
         icon={IconDeviceGamepad2}
         headerAction={
           <Button
             type="button"
-            variant="ghost"
+            variant="secondary"
             className="!px-2.5 !py-1.5 text-xs"
             onClick={() => onChange({ ...EMPTY_MINECRAFT_INITIAL_SETTINGS })}
           >
@@ -1040,7 +1124,14 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
         />
       </Group>
 
-      <Group title={labels.video} icon={IconDeviceDesktop}>
+      <Group
+        sectionId="video"
+        sectionRef={(node) => {
+          sectionRefs.current.video = node
+        }}
+        title={labels.video}
+        icon={IconDeviceDesktop}
+      >
         <SliderRow
           icon={IconGauge}
           label={labels.maxFps}
@@ -1175,7 +1266,14 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
         />
       </Group>
 
-      <Group title={labels.audio} icon={IconVolume}>
+      <Group
+        sectionId="audio"
+        sectionRef={(node) => {
+          sectionRefs.current.audio = node
+        }}
+        title={labels.audio}
+        icon={IconVolume}
+      >
         <SliderRow
           icon={IconVolume}
           label={labels.masterVolume}
@@ -1238,7 +1336,14 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
         />
       </Group>
 
-      <Group title={labels.controls} icon={IconKeyboard}>
+      <Group
+        sectionId="controls"
+        sectionRef={(node) => {
+          sectionRefs.current.controls = node
+        }}
+        title={labels.controls}
+        icon={IconKeyboard}
+      >
         <SliderRow
           icon={IconMouse}
           label={labels.mouseSensitivity}
@@ -1258,27 +1363,30 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(operatorItemsTab) => patch({ operatorItemsTab })}
           labels={labels}
         />
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="min-w-0">
-            <SettingLabel icon={IconKeyboard}>
-              {t('settings.minecraftInitial.keybinds.label')}
-            </SettingLabel>
-            <p className="mt-0.5 pl-7 text-xs text-[var(--color-text-muted)]">
-              {Object.keys(current.keybinds).length === 0
-                ? t('settings.minecraftInitial.keybinds.summary_zero')
-                : t('settings.minecraftInitial.keybinds.summary', {
-                    count: Object.keys(current.keybinds).length,
-                  })}
-            </p>
-            <p className="mt-1 pl-7 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
-              {t('settings.minecraftInitial.keybinds.versionNotice')}
-            </p>
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+            <div className="min-w-0 flex-1">
+              <SettingLabel icon={IconKeyboard}>
+                {t('settings.minecraftInitial.keybinds.label')}
+              </SettingLabel>
+              <p className="mt-0.5 pl-7 text-xs text-[var(--color-text-muted)]">
+                {Object.keys(current.keybinds).length === 0
+                  ? t('settings.minecraftInitial.keybinds.summary_zero')
+                  : t('settings.minecraftInitial.keybinds.summary', {
+                      count: Object.keys(current.keybinds).length,
+                    })}
+              </p>
+            </div>
+            <Button type="button" className="shrink-0" onClick={() => setKeybindsOpen(true)}>
+              {t('settings.minecraftInitial.keybinds.open')}
+            </Button>
           </div>
-          <Button type="button" onClick={() => setKeybindsOpen(true)}>
-            {t('settings.minecraftInitial.keybinds.open')}
-          </Button>
+          <p className="pl-7 text-[11px] leading-relaxed text-[var(--color-text-muted)]">
+            {t('settings.minecraftInitial.keybinds.versionNotice')}
+          </p>
         </div>
       </Group>
+      </div>
 
       <MinecraftKeybindsDialog
         open={keybindsOpen}

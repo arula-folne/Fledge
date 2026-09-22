@@ -30,7 +30,7 @@ Fledge は次を**行いません**。
 |------|----------------|----------|
 | ランチャー設定 | `Data/Settings/` | テーマ、メモリ、Discord RPC のオン／オフなど |
 | Microsoft アカウントの表示情報 | `Data/Accounts/index.json` | ログイン状態の表示（MCID、UUID、任意で XUID・スキン／アバター URL） |
-| Microsoft / Minecraft トークン | `Data/Accounts/secrets/`（Electron `safeStorage` で暗号化） | 再ログインを省略し、ゲームを起動するため |
+| Microsoft / Minecraft トークン | `Data/Accounts/secrets/`（Windows DPAPI で暗号化） | 再ログインを省略し、ゲームを起動するため |
 | インスタンス情報 | `Instances/` およびプロファイル | ワールド・Mod・起動設定の管理 |
 | キャッシュ・ログ | `Data/Cache/`、`Data/Logs/` など | ダウンロードの再利用、不具合確認（ログは端末内） |
 | Java ランタイム | `Data/java-version/` など | ゲーム起動 |

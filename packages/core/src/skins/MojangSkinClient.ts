@@ -5,12 +5,27 @@ import type { SkinModel } from '@fledge/shared'
 
 const SKIN_UPLOAD_URL = 'https://api.minecraftservices.com/minecraft/profile/skins'
 const PROFILE_URL = 'https://api.minecraftservices.com/minecraft/profile'
+const CAPE_ACTIVE_URL = 'https://api.minecraftservices.com/minecraft/profile/capes/active'
 
 type ProfileSkin = {
   id?: string
   state?: string
   url?: string
   variant?: string
+}
+
+type ProfileCape = {
+  id?: string
+  state?: string
+  url?: string
+  alias?: string
+}
+
+export type MojangCape = {
+  id: string
+  alias?: string
+  url?: string
+  active: boolean
 }
 
 /**
@@ -114,4 +129,82 @@ export async function uploadMinecraftSkin(
     /* ignore verify errors */
   }
   return {}
+}
+
+/** 公式プロフィールに載っているマント一覧（所持分のみ） */
+export async function fetchMinecraftCapes(accessToken: string): Promise<MojangCape[]> {
+  const profileRes = await fetch(PROFILE_URL, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: 'application/json',
+      'User-Agent': fledgeUserAgent('cape-profile'),
+    },
+  })
+  if (!profileRes.ok) {
+    if (profileRes.status === 401 || profileRes.status === 403) {
+      throw new Error('マントの取得に失敗しました。再ログインしてからやり直してください。')
+    }
+    throw new Error(`マントの取得に失敗しました (${profileRes.status})`)
+  }
+  const json = (await profileRes.json()) as { capes?: ProfileCape[] }
+  const list = json.capes ?? []
+  return list
+    .filter((c): c is ProfileCape & { id: string } => Boolean(c.id))
+    .map((c) => ({
+      id: c.id,
+      alias: c.alias,
+      url: c.url,
+      active: (c.state ?? '').toUpperCase() === 'ACTIVE',
+    }))
+}
+
+/**
+ * 公式マントを装備 / 非表示。
+ * capeId はプロフィールの所持一覧に含まれる ID のみ有効。null で外す。
+ */
+export async function setActiveMinecraftCape(
+  accessToken: string,
+  capeId: string | null,
+): Promise<void> {
+  if (capeId === null) {
+    const res = await fetch(CAPE_ACTIVE_URL, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+        'User-Agent': fledgeUserAgent('cape-clear'),
+      },
+    })
+    if (!res.ok && res.status !== 404) {
+      const detail = await res.text().catch(() => '')
+      throw new Error(
+        detail
+          ? `マントの解除に失敗しました (${res.status}): ${detail.slice(0, 180)}`
+          : `マントの解除に失敗しました (${res.status})`,
+      )
+    }
+    return
+  }
+
+  const res = await fetch(CAPE_ACTIVE_URL, {
+    method: 'PUT',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+      'User-Agent': fledgeUserAgent('cape-select'),
+    },
+    body: JSON.stringify({ capeId }),
+  })
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '')
+    if (res.status === 401 || res.status === 403) {
+      throw new Error('マントの適用に失敗しました。再ログインしてからやり直してください。')
+    }
+    throw new Error(
+      detail
+        ? `マントの適用に失敗しました (${res.status}): ${detail.slice(0, 180)}`
+        : `マントの適用に失敗しました (${res.status})`,
+    )
+  }
 }

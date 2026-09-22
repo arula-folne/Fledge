@@ -121,6 +121,19 @@ export class SkinStore {
     return null
   }
 
+  async resolveThumbPath(id: string, model: SkinModel): Promise<string | null> {
+    for (const ext of ['webp', 'png'] as const) {
+      const file = this.thumbFile(id, model, ext)
+      try {
+        await fs.access(file)
+        return file
+      } catch {
+        /* try next */
+      }
+    }
+    return null
+  }
+
   async writeThumb(
     id: string,
     model: SkinModel,
@@ -140,7 +153,12 @@ export class SkinStore {
 
   async update(
     id: string,
-    patch: { name?: string; model?: SkinModel },
+    patch: {
+      name?: string
+      model?: SkinModel
+      bytes?: Uint8Array
+      originalName?: string
+    },
   ): Promise<SkinEntry> {
     const list = await this.readUploaded()
     const target = list.find((s) => s.id === id)
@@ -150,6 +168,17 @@ export class SkinStore {
     }
     if (patch.model !== undefined) {
       target.model = patch.model
+    }
+    if (patch.bytes) {
+      const ext = path.extname(patch.originalName ?? '').toLowerCase() || '.png'
+      const nextFileName = `${id}${ext.startsWith('.') ? ext : `.${ext}`}`
+      if (target.fileName !== nextFileName) {
+        await fs.rm(path.join(this.layout.skins, target.fileName), { force: true })
+        target.fileName = nextFileName
+      }
+      await fs.writeFile(path.join(this.layout.skins, target.fileName), Buffer.from(patch.bytes))
+      await this.removeThumbs(id)
+    } else if (patch.model !== undefined) {
       await this.removeThumbs(id)
     }
     await fs.writeFile(this.metaPath(), JSON.stringify(list, null, 2), 'utf8')
@@ -170,21 +199,36 @@ export class SkinStore {
     return path.join(this.layout.skins, fileName)
   }
 
-  async readPngBytes(id: string): Promise<Uint8Array | null> {
+  /** ディスク上の PNG 絶対パス（WebView 直読み用）。無ければ null */
+  async resolvePngPath(id: string): Promise<string | null> {
     const skins = await this.list()
     const skin = skins.find((s) => s.id === id)
     if (!skin) return null
     if (skin.source === 'upload' && skin.fileName) {
-      return fs.readFile(this.resolveFilePath(skin.fileName))
+      const file = this.resolveFilePath(skin.fileName)
+      try {
+        await fs.access(file)
+        return file
+      } catch {
+        return null
+      }
     }
     if (skin.source === 'default' && this.defaultSkinsDir) {
+      const file = path.join(this.defaultSkinsDir, `${skin.id}.png`)
       try {
-        return await fs.readFile(path.join(this.defaultSkinsDir, `${skin.id}.png`))
+        await fs.access(file)
+        return file
       } catch {
         return null
       }
     }
     return null
+  }
+
+  async readPngBytes(id: string): Promise<Uint8Array | null> {
+    const file = await this.resolvePngPath(id)
+    if (!file) return null
+    return fs.readFile(file)
   }
 
   private async readUploaded(): Promise<UploadedMeta[]> {

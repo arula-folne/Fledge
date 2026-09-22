@@ -2,12 +2,17 @@ import { AuthError } from '../auth/authTypes.js'
 import type { AuthProvider } from '../auth/AuthProvider.js'
 import type { Logger } from '../logging/Logger.js'
 import type { SettingsStore } from '../settings/SettingsStore.js'
-import type { SkinModel } from '@fledge/shared'
-import { uploadMinecraftSkin } from './MojangSkinClient.js'
+import type { CapeEntry, SkinModel } from '@fledge/shared'
+import {
+  fetchMinecraftCapes,
+  setActiveMinecraftCape,
+  uploadMinecraftSkin,
+} from './MojangSkinClient.js'
 import type { SkinStore } from './SkinStore.js'
 
 /**
  * 選択中スキンを Microsoft アカウントの公式プロフィールへ載せる。
+ * マントも公式プロフィール上の所持分のみ切替できる。
  */
 export class SkinApplier {
   constructor(
@@ -48,5 +53,23 @@ export class SkinApplier {
       if (err instanceof AuthError && err.code === 'not_logged_in') return undefined
       throw err
     }
+  }
+
+  async listCapes(accountId: string): Promise<CapeEntry[]> {
+    const creds = await this.auth.ensureCredentials(accountId)
+    const list = await fetchMinecraftCapes(creds.accessToken)
+    return list.map((c) => ({
+      id: c.id,
+      alias: c.alias,
+      url: c.url,
+      active: c.active,
+    }))
+  }
+
+  async selectCape(accountId: string, capeId: string | null): Promise<CapeEntry[]> {
+    const creds = await this.auth.ensureCredentials(accountId, { force: true })
+    await setActiveMinecraftCape(creds.accessToken, capeId)
+    this.logger.info('auth', capeId ? `Applied cape ${capeId}` : 'Cleared active cape')
+    return this.listCapes(accountId)
   }
 }

@@ -82,7 +82,7 @@ export function ContentProjectView({
         gameVersion: compatOnly ? gameVersion.trim() || undefined : undefined,
         loaders:
           compatOnly &&
-          (hit.projectType === 'mod' || hit.projectType === 'plugin' || hit.projectType === 'modpack')
+          (hit.projectType === 'mod' || hit.projectType === 'modpack')
             ? loaders
             : [],
       }),
@@ -167,7 +167,9 @@ export function ContentProjectView({
         />
       </header>
       {createMode ? (
-        <p className="shrink-0 text-xs text-[var(--color-text-muted)]">{t('content.createInstanceHint')}</p>
+        <p className="shrink-0 text-xs text-[var(--color-text-muted)]">
+          {t('content.createInstanceHint')}
+        </p>
       ) : null}
 
       <nav className="flex shrink-0 gap-1 border-b border-[var(--color-border)]">

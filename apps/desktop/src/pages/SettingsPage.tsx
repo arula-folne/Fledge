@@ -5,15 +5,18 @@ import {
   IconAdjustments,
   IconBrandMinecraft,
   IconBox,
+  IconBug,
   IconCoffee,
   IconFolderSearch,
   IconFolders,
+  IconLanguage,
   IconLibrary,
   IconPalette,
   IconPlayerPlay,
   IconUser,
   IconUsers,
 } from '@tabler/icons-react'
+import { appLocales } from '@fledge/i18n'
 import {
   DEFAULT_CONCURRENT_DOWNLOADS,
   DEFAULT_MAX_WRITE_CONCURRENCY,
@@ -29,6 +32,7 @@ import {
 } from '@fledge/shared'
 import { fledgeApi } from '../api/fledgeApi'
 import { useInstallOnboardingStore, useUiStore } from '../stores/appStores'
+import { useDebugStore } from '../stores/debugStore'
 import { Button } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
@@ -40,10 +44,10 @@ import { ThemeColorPicker } from '../components/ui/ThemeColorPicker'
 import { ThemeModePicker } from '../components/ui/ThemeModePicker'
 import { ThemeSeasonPicker } from '../components/ui/ThemeSeasonPicker'
 import { SeasonTonePicker, coerceSeasonTone } from '../components/ui/SeasonTonePicker'
-import { BackupPanel } from '../components/settings/BackupPanel'
+import { seasonSupportsToneSwitch } from '../styles/themeSeasons'
+import { OptionsPanel } from '../components/settings/OptionsPanel'
 import { JavaRuntimePanel } from '../components/settings/JavaRuntimePanel'
 import { MinecraftInitialSettingsPanel } from '../components/settings/MinecraftInitialSettingsPanel'
-import { DeviceQuickSettings } from '../components/settings/DeviceQuickSettings'
 import { AppCredits } from '../components/brand/AppCredits'
 import { applyLoggedInAccount, loadSessionQuery, sessionQueryOptions } from '../features/auth/sessionCache'
 import { startLogin } from '../features/auth/loginAction'
@@ -58,7 +62,19 @@ export default function SettingsPage() {
   const queryClient = useQueryClient()
   const sectionRaw = useUiStore((s) => s.settingsSection)
   const setSection = useUiStore((s) => s.setSettingsSection)
-  const section = sectionRaw
+  const section =
+    sectionRaw === 'debug' && !import.meta.env.DEV ? 'appGeneral' : sectionRaw
+
+  const debugLibraryGrid = useDebugStore((s) => s.libraryGridDebug)
+  const debugPlaceholders = useDebugStore((s) => s.libraryPlaceholders)
+  const debugCreateSpin = useDebugStore((s) => s.createSpinPreview)
+  const debugLaunchProgress = useDebugStore((s) => s.launchProgressPreview)
+  const debugLaunchError = useDebugStore((s) => s.launchErrorPreview)
+  const setDebugLibraryGrid = useDebugStore((s) => s.setLibraryGridDebug)
+  const setDebugPlaceholders = useDebugStore((s) => s.setLibraryPlaceholders)
+  const setDebugCreateSpin = useDebugStore((s) => s.setCreateSpinPreview)
+  const setDebugLaunchProgress = useDebugStore((s) => s.setLaunchProgressPreview)
+  const setDebugLaunchError = useDebugStore((s) => s.setLaunchErrorPreview)
 
   const [message, setMessage] = useState<string | null>(null)
   const [restartNoticeOpen, setRestartNoticeOpen] = useState(false)
@@ -244,30 +260,103 @@ export default function SettingsPage() {
     id: typeof section
     label: string
     Icon: ComponentType<{ size?: number; stroke?: number; className?: string }>
+    iconClassName: string
+    beta?: boolean
   }
 
-  const navGroups: Array<{ label?: string; items: SettingsTab[] }> = [
+  const navGroups: Array<{
+    id: 'app' | 'minecraft' | 'other'
+    label?: string
+    items: SettingsTab[]
+    labelClassName: string
+  }> = [
     {
+      id: 'app',
       label: t('settings.group.app'),
+      labelClassName:
+        'bg-[color-mix(in_srgb,var(--color-accent)_36%,var(--color-surface))] text-[color-mix(in_srgb,var(--color-accent)_65%,var(--color-text))]',
       items: [
-        { id: 'appGeneral', label: t('settings.section.appGeneral'), Icon: IconAdjustments },
-        { id: 'appTheme', label: t('settings.section.appTheme'), Icon: IconPalette },
+        {
+          id: 'appGeneral',
+          label: t('settings.section.appGeneral'),
+          Icon: IconAdjustments,
+          iconClassName: 'text-[var(--color-menu-adjustments)]',
+        },
+        {
+          id: 'appTheme',
+          label: t('settings.section.appTheme'),
+          Icon: IconPalette,
+          iconClassName: 'text-[var(--color-menu-theme)]',
+        },
+        {
+          id: 'appLanguage',
+          label: t('settings.section.language'),
+          Icon: IconLanguage,
+          iconClassName: 'text-[var(--color-menu-language)]',
+          beta: true,
+        },
       ],
     },
     {
+      id: 'minecraft',
       label: t('settings.group.minecraft'),
+      labelClassName:
+        'bg-[color-mix(in_srgb,#16a34a_28%,var(--color-surface))] text-[color-mix(in_srgb,#16a34a_55%,var(--color-text))]',
       items: [
-        { id: 'minecraftLaunch', label: t('settings.section.minecraftLaunch'), Icon: IconPlayerPlay },
-        { id: 'minecraftInitial', label: t('settings.section.minecraftInitial'), Icon: IconBrandMinecraft },
-        { id: 'java', label: t('settings.section.java'), Icon: IconCoffee },
+        {
+          id: 'minecraftLaunch',
+          label: t('settings.section.minecraftLaunch'),
+          Icon: IconPlayerPlay,
+          iconClassName: 'text-[var(--color-menu-launch)]',
+        },
+        {
+          id: 'minecraftInitial',
+          label: t('settings.section.minecraftInitial'),
+          Icon: IconBrandMinecraft,
+          iconClassName: 'text-[var(--color-menu-minecraft)]',
+        },
+        {
+          id: 'java',
+          label: t('settings.section.java'),
+          Icon: IconCoffee,
+          iconClassName: 'text-[var(--color-menu-java)]',
+        },
       ],
     },
     {
+      id: 'other',
       label: t('settings.group.other'),
+      labelClassName:
+        'bg-[color-mix(in_srgb,var(--color-text)_14%,var(--color-surface))] text-[color-mix(in_srgb,var(--color-text)_72%,var(--color-text-muted))]',
       items: [
-        { id: 'account', label: t('settings.section.account'), Icon: IconUsers },
-        { id: 'resources', label: t('settings.section.resources'), Icon: IconFolders },
-        { id: 'privacyCredits', label: t('settings.section.privacyCredits'), Icon: IconLibrary },
+        {
+          id: 'account',
+          label: t('settings.section.account'),
+          Icon: IconUsers,
+          iconClassName: 'text-[var(--color-menu-account)]',
+        },
+        {
+          id: 'resources',
+          label: t('settings.section.resources'),
+          Icon: IconFolders,
+          iconClassName: 'text-[var(--color-menu-resources)]',
+        },
+        {
+          id: 'privacyCredits',
+          label: t('settings.section.privacyCredits'),
+          Icon: IconLibrary,
+          iconClassName: 'text-[var(--color-menu-privacy)]',
+        },
+        ...(import.meta.env.DEV
+          ? [
+              {
+                id: 'debug' as const,
+                label: t('settings.section.debug'),
+                Icon: IconBug,
+                iconClassName: 'text-[var(--color-danger)]',
+              },
+            ]
+          : []),
       ],
     },
   ]
@@ -281,24 +370,32 @@ export default function SettingsPage() {
   const currentTab = tabs.find((tab) => tab.id === section)
 
   return (
-    <div className="mx-auto flex h-full min-h-0 max-w-6xl flex-col text-[var(--color-text)]">
+    <div
+      className="mx-auto flex h-full min-h-0 max-w-6xl flex-col overflow-hidden text-[var(--color-text)]"
+      data-fledge-tutorial="tutorial-settings-page"
+    >
       <h1 className="mb-2 shrink-0 text-lg font-semibold text-[var(--color-text)]">
         {t('settings.title')}
       </h1>
 
-      <div className="grid min-h-0 flex-1 grid-cols-[auto_minmax(0,1fr)] gap-4">
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(13.5rem,max-content)_minmax(0,1fr)] gap-4 overflow-hidden">
         <nav
-          className="flex min-h-0 w-max min-w-[12rem] flex-col gap-0.5 self-stretch py-1"
+          className="season-readable-panel flex h-fit max-h-full w-full min-w-0 max-w-[22rem] flex-col gap-0.5 self-start overflow-x-auto overflow-y-auto px-2 py-2"
           aria-label={t('settings.title')}
         >
           {navGroups.map((group, groupIndex) => (
-            <div key={group.label ?? `group-${groupIndex}`} className={groupIndex > 0 ? 'mt-3' : undefined}>
+            <div key={group.id} className={groupIndex > 0 ? 'mt-3 min-w-max' : 'min-w-max'}>
               {group.label ? (
-                <p className="mb-1 px-2.5 text-[11px] font-medium tracking-wide text-[var(--color-text-muted)]">
+                <p
+                  className={[
+                    'mb-1 w-fit whitespace-nowrap rounded-[var(--radius-sm)] px-2 py-0.5 text-[11px] font-semibold tracking-wide',
+                    group.labelClassName,
+                  ].join(' ')}
+                >
                   {group.label}
                 </p>
               ) : null}
-              <div className="flex flex-col gap-0.5">
+              <div className="flex min-w-max flex-col gap-0.5">
                 {group.items.map((tab) => {
                   const TabIcon = tab.Icon
                   return (
@@ -306,15 +403,26 @@ export default function SettingsPage() {
                       key={tab.id}
                       type="button"
                       className={[
-                        'flex w-full items-center gap-2 whitespace-nowrap rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-sm',
+                        'flex w-max min-w-full items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-sm',
                         section === tab.id
                           ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
                           : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
                       ].join(' ')}
                       onClick={() => setSection(tab.id)}
                     >
-                      <TabIcon size={18} stroke={1.7} className="shrink-0" />
-                      <span className="break-keep">{tab.label}</span>
+                      <TabIcon
+                        size={18}
+                        stroke={1.7}
+                        className={['shrink-0', tab.iconClassName].join(' ')}
+                      />
+                      <span className="whitespace-nowrap leading-snug">
+                        {tab.label}
+                      </span>
+                      {tab.beta ? (
+                        <span className="locale-chrome-badge shrink-0 rounded-full bg-[var(--color-version-snapshot)]/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--color-version-snapshot)]">
+                          {t('settings.language.beta')}
+                        </span>
+                      ) : null}
                     </button>
                   )
                 })}
@@ -323,22 +431,37 @@ export default function SettingsPage() {
           ))}
         </nav>
 
-        <div className="min-h-0 min-w-0 space-y-4 overflow-y-auto overflow-x-visible pr-1">
+        <div
+          className={[
+            'flex min-h-0 min-w-0 flex-col overflow-hidden',
+            section === 'minecraftInitial' ? 'gap-3' : 'gap-4',
+          ].join(' ')}
+          data-fledge-tutorial="tutorial-settings-content"
+        >
           {currentTab ? (
-            <h2 className="flex items-center gap-2 whitespace-nowrap text-lg font-semibold tracking-tight text-[var(--color-text)]">
-              <currentTab.Icon size={22} stroke={1.7} className="shrink-0" />
-              <span className="break-keep">{currentTab.label}</span>
+            <h2 className="flex min-w-0 shrink-0 items-center gap-2 text-lg font-semibold tracking-tight text-[var(--color-text)]">
+              <currentTab.Icon
+                size={22}
+                stroke={1.7}
+                className={['shrink-0', currentTab.iconClassName].join(' ')}
+              />
+              <span className="min-w-0 leading-snug">{currentTab.label}</span>
+              {currentTab.beta ? (
+                <span className="locale-chrome-badge shrink-0 rounded-full bg-[var(--color-version-snapshot)]/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--color-version-snapshot)]">
+                  {t('settings.language.beta')}
+                </span>
+              ) : null}
             </h2>
           ) : null}
 
           {message ? (
-            <div className="rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)] px-3 py-2 text-sm">
+            <div className="shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)] px-3 py-2 text-sm">
               {message}
             </div>
           ) : null}
 
       {section === 'minecraftLaunch' ? (
-        <>
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden pr-1 overscroll-contain">
           <Section title={t('settings.block.gameWindow')}>
             <Toggle
               label={t('settings.fullscreen')}
@@ -385,11 +508,11 @@ export default function SettingsPage() {
               }
             />
           </Section>
-        </>
+        </div>
       ) : null}
 
       {section === 'minecraftInitial' ? (
-          <MinecraftInitialSettingsPanel
+            <MinecraftInitialSettingsPanel
               value={settings.minecraftInitialSettings}
               onChange={(minecraftInitialSettings) => saveMutation.mutate({ minecraftInitialSettings })}
               labels={{
@@ -432,6 +555,8 @@ export default function SettingsPage() {
             />
       ) : null}
 
+      {section !== 'minecraftInitial' && section !== 'minecraftLaunch' ? (
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden pr-1 overscroll-contain">
       {section === 'account' ? (
         <Section>
           {(() => {
@@ -577,13 +702,6 @@ export default function SettingsPage() {
 
       {section === 'appGeneral' ? (
         <>
-          <DeviceQuickSettings
-            settings={settings}
-            onApply={(partial, options) => {
-              if (options?.restartRequired) saveRestartRequiredSetting(partial)
-              else saveMutation.mutate(partial)
-            }}
-          />
           <Section title={t('settings.block.windowGeneral')}>
             <p className="text-xs text-[var(--color-text-muted)]">{t('settings.windowGeneralHint')}</p>
             <WindowSizeFields
@@ -617,6 +735,12 @@ export default function SettingsPage() {
               onChange={(minimizeOnLaunch) => saveMutation.mutate({ minimizeOnLaunch })}
             />
             <Toggle
+              label={t('settings.homeNewsVisible')}
+              hint={t('settings.homeNewsVisibleHint')}
+              checked={settings.homeNewsVisible}
+              onChange={(homeNewsVisible) => saveMutation.mutate({ homeNewsVisible })}
+            />
+            <Toggle
               label={t('settings.discordRichPresence')}
               hint={t('settings.discordRichPresenceHint')}
               checked={settings.discordRichPresence}
@@ -642,6 +766,49 @@ export default function SettingsPage() {
             </div>
           </Section>
         </>
+      ) : null}
+
+      {section === 'appLanguage' ? (
+        <Section title={t('settings.block.language')}>
+          <p className="text-xs text-[var(--color-text-muted)]">{t('settings.language.hint')}</p>
+          <p className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-xs leading-relaxed text-[var(--color-text-muted)]">
+            {t('settings.language.aiNotice')}
+          </p>
+          <div
+            role="radiogroup"
+            aria-label={t('settings.section.language')}
+            className="space-y-1"
+          >
+            {appLocales.map((locale) => {
+              const selected = settings.locale === locale.id
+              return (
+                <button
+                  key={locale.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  className={[
+                    'flex w-full items-center justify-between rounded-[var(--radius-sm)] border px-3 py-2 text-left text-sm transition',
+                    selected
+                      ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-text)]'
+                      : 'border-[var(--color-border)] hover:bg-[var(--color-hover)]',
+                  ].join(' ')}
+                  onClick={() => {
+                    if (selected) return
+                    saveMutation.mutate({ locale: locale.id })
+                  }}
+                >
+                  <span className="font-medium">{t(locale.labelKey)}</span>
+                  {selected ? (
+                    <span className="text-xs text-[var(--color-accent)]">
+                      {t('settings.language.selected')}
+                    </span>
+                  ) : null}
+                </button>
+              )
+            })}
+          </div>
+        </Section>
       ) : null}
 
       {section === 'appTheme' ? (
@@ -688,18 +855,23 @@ export default function SettingsPage() {
             </div>
           </Section>
           <Section title={t('settings.block.seasonTheme')}>
-            {settings.themeFamily === 'season' && settings.seasonThemeId ? (
-              <SeasonTonePicker
-                value={coerceSeasonTone(settings.themeMode)}
-                onChange={(tone) => {
-                  saveMutation.mutate({
-                    themeFamily: 'season',
-                    seasonThemeId: settings.seasonThemeId,
-                    themeMode: tone,
-                  })
-                }}
-              />
-            ) : null}
+            <SeasonTonePicker
+              value={coerceSeasonTone(settings.themeMode)}
+              disabled={
+                settings.themeFamily !== 'season' ||
+                !settings.seasonThemeId ||
+                !seasonSupportsToneSwitch(settings.seasonThemeId)
+              }
+              onChange={(tone) => {
+                if (settings.themeFamily !== 'season' || !settings.seasonThemeId) return
+                if (!seasonSupportsToneSwitch(settings.seasonThemeId)) return
+                saveMutation.mutate({
+                  themeFamily: 'season',
+                  seasonThemeId: settings.seasonThemeId,
+                  themeMode: tone,
+                })
+              }}
+            />
             <ThemeSeasonPicker
               value={settings.themeFamily === 'season' ? settings.seasonThemeId : null}
               onChange={(id) => {
@@ -728,6 +900,45 @@ export default function SettingsPage() {
             <p className="whitespace-pre-line text-sm text-[var(--color-text-muted)]">
               {t('settings.aboutNote')}
             </p>
+          </Section>
+        </>
+      ) : null}
+
+      {import.meta.env.DEV && section === 'debug' ? (
+        <>
+          <Section title={t('settings.debug.block.library')}>
+            <Toggle
+              label={t('settings.debug.libraryGrid')}
+              hint={t('settings.debug.libraryGridHint')}
+              checked={debugLibraryGrid}
+              onChange={setDebugLibraryGrid}
+            />
+            <Toggle
+              label={t('settings.debug.libraryPlaceholders')}
+              hint={t('settings.debug.libraryPlaceholdersHint')}
+              checked={debugPlaceholders}
+              onChange={setDebugPlaceholders}
+            />
+            <Toggle
+              label={t('settings.debug.createSpin')}
+              hint={t('settings.debug.createSpinHint')}
+              checked={debugCreateSpin}
+              onChange={setDebugCreateSpin}
+            />
+          </Section>
+          <Section title={t('settings.debug.block.launch')}>
+            <Toggle
+              label={t('settings.debug.launchProgress')}
+              hint={t('settings.debug.launchProgressHint')}
+              checked={debugLaunchProgress}
+              onChange={setDebugLaunchProgress}
+            />
+            <Toggle
+              label={t('settings.debug.launchError')}
+              hint={t('settings.debug.launchErrorHint')}
+              checked={debugLaunchError}
+              onChange={setDebugLaunchError}
+            />
           </Section>
         </>
       ) : null}
@@ -826,11 +1037,7 @@ export default function SettingsPage() {
             </label>
           </Section>
           <Section>
-            <BackupPanel
-              settings={settings}
-              onSave={(partial) => saveMutation.mutate(partial)}
-              onMessage={setMessage}
-            />
+            <OptionsPanel onMessage={setMessage} />
           </Section>
           <Section title={t('settings.block.tutorial')}>
             <div>
@@ -876,6 +1083,8 @@ export default function SettingsPage() {
             </div>
           </Section>
         </>
+      ) : null}
+        </div>
       ) : null}
         </div>
       </div>
@@ -983,7 +1192,7 @@ function BlockHeading({ children }: { children: React.ReactNode }) {
   return <h2 className="text-base font-semibold tracking-tight text-[var(--color-text)]">{children}</h2>
 }
 
-const UI_SCALE_OPTIONS: UiScale[] = ['minimal', 'normal', 'wide']
+const UI_SCALE_OPTIONS: UiScale[] = ['compact', 'normal', 'large', 'wide']
 
 function UiScalePicker({
   value,
@@ -1008,7 +1217,9 @@ function UiScalePicker({
         }))}
         onChange={(e) => {
           const next = e.currentTarget.value
-          if (next === 'minimal' || next === 'normal' || next === 'wide') onChange(next)
+          if (next === 'compact' || next === 'normal' || next === 'large' || next === 'wide') {
+            onChange(next)
+          }
         }}
       />
     </div>
@@ -1022,13 +1233,148 @@ function launcherWindowPatch(
 ): Partial<Settings> {
   const patch: Partial<Settings> = { launcherWindowWidth, launcherWindowHeight }
   if (launcherWindowHeight <= 560 || launcherWindowWidth <= 1000) {
-    patch.uiScale = 'minimal'
+    patch.uiScale = 'compact'
   }
   return patch
 }
 
 function matchWindowPreset(width: number, height: number, presets: readonly WindowSizePreset[]) {
   return presets.find((p) => p.width === width && p.height === height) ?? null
+}
+
+function WindowPresetPicker({
+  presets,
+  selectedId,
+  disabled,
+  onSelect,
+}: {
+  presets: readonly WindowSizePreset[]
+  selectedId: string | null
+  disabled?: boolean
+  onSelect: (id: string) => void
+}) {
+  const { t } = useTranslation()
+  const rootRef = useRef<HTMLDivElement>(null)
+  const [open, setOpen] = useState(false)
+
+  const aspectColumns = (['16:9', '16:10'] as const)
+    .map((aspect) => ({
+      aspect,
+      items: presets.filter((p) => 'aspect' in p && p.aspect === aspect),
+    }))
+    .filter((col) => col.items.length > 0)
+
+  const showColumns = aspectColumns.length >= 2
+  const columns = showColumns
+    ? aspectColumns
+    : [{ aspect: null as string | null, items: [...presets] }]
+
+  const triggerLabel = selectedId ?? t('settings.windowPresetCustom')
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
+
+  return (
+    <div ref={rootRef} className="relative flex flex-col gap-1 text-sm text-[var(--color-text)]">
+      <span className="font-medium text-[var(--color-text)]">{t('settings.windowPreset')}</span>
+      <button
+        type="button"
+        disabled={disabled}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className={[
+          'flex w-full items-center justify-between gap-2 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-input)] px-3 py-1.5 text-left text-[var(--color-text)] outline-none',
+          'focus:border-[var(--color-accent)] disabled:opacity-50',
+        ].join(' ')}
+        onClick={() => {
+          if (!disabled) setOpen((v) => !v)
+        }}
+      >
+        <span className="min-w-0 truncate">{triggerLabel}</span>
+        <span className="shrink-0 text-[var(--color-text-muted)]" aria-hidden>
+          ▾
+        </span>
+      </button>
+      {open ? (
+        <div
+          role="listbox"
+          aria-label={t('settings.windowPreset')}
+          className={[
+            'absolute top-[calc(100%+0.35rem)] right-0 z-50 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-2 shadow-sm',
+            showColumns ? 'w-[min(14rem,calc(100vw-2rem))]' : 'min-w-full left-0',
+          ].join(' ')}
+        >
+          <div className={showColumns ? 'grid grid-cols-2 gap-0' : 'grid grid-cols-1 gap-1'}>
+            {columns.map((col, index) => (
+              <div
+                key={col.aspect ?? 'all'}
+                className={[
+                  'min-w-0',
+                  showColumns && index > 0 ? 'border-l border-[var(--color-border)] pl-2' : '',
+                  showColumns && index === 0 ? 'pr-2' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+                role="group"
+                aria-label={col.aspect ?? undefined}
+              >
+                {col.aspect ? (
+                  <p
+                    className={[
+                      'mb-1.5 px-0.5 text-sm font-semibold',
+                      col.aspect === '16:9'
+                        ? 'text-[color-mix(in_srgb,var(--color-accent)_70%,var(--color-text))]'
+                        : 'text-[color-mix(in_srgb,#16a34a_55%,var(--color-text))]',
+                    ].join(' ')}
+                  >
+                    {col.aspect}
+                  </p>
+                ) : null}
+                <div className="flex flex-col gap-0.5">
+                  {col.items.map((preset) => {
+                    const selected = preset.id === selectedId
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        role="option"
+                        aria-selected={selected}
+                        className={[
+                          'flex w-full items-center rounded-[var(--radius-sm)] border px-2.5 py-1.5 text-left text-sm transition',
+                          selected
+                            ? 'border-[var(--color-accent)] bg-[var(--color-selection-soft)] font-semibold text-[var(--color-selection)]'
+                            : 'border-transparent font-medium text-[var(--color-text)] hover:bg-[var(--color-hover)]',
+                        ].join(' ')}
+                        onClick={() => {
+                          onSelect(preset.id)
+                          setOpen(false)
+                        }}
+                      >
+                        {preset.id}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 function WindowSizeFields({
@@ -1104,16 +1450,11 @@ function WindowSizeFields({
     if (nextW !== width || nextH !== height) onCommitSize(nextW, nextH)
   }
 
-  const presetOptions = [
-    ...presets.map((p) => ({ value: p.id, label: p.id })),
-    { value: 'custom', label: t('settings.windowPresetCustom') },
-  ]
-
   return (
     <div>
       <h3 className="mb-1 text-sm font-medium text-[var(--color-text)]">{title}</h3>
       <p className="mb-3 text-xs text-[var(--color-text-muted)]">{hint}</p>
-      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_minmax(8rem,10rem)]">
+      <div className="grid gap-3 sm:grid-cols-[4fr_4fr_2fr]">
         <TextField
           label={t('settings.windowWidth')}
           type="text"
@@ -1140,16 +1481,11 @@ function WindowSizeFields({
             if (e.key === 'Enter') e.currentTarget.blur()
           }}
         />
-        <Select
-          label={t('settings.windowPreset')}
-          value={matched?.id ?? 'custom'}
+        <WindowPresetPicker
+          presets={presets}
+          selectedId={matched?.id ?? null}
           disabled={disabled}
-          options={presetOptions}
-          onChange={(e) => {
-            const id = e.currentTarget.value
-            if (id === 'custom') return
-            applyPreset(id)
-          }}
+          onSelect={applyPreset}
         />
       </div>
     </div>
@@ -1171,7 +1507,7 @@ function Toggle({
 }) {
   return (
     <div className="flex items-center justify-between gap-4 text-sm">
-      <span className="min-w-0">
+      <span className="min-w-0 flex-1">
         <span className="font-medium text-[var(--color-text)]">{label}</span>
         {hint ? <span className="mt-1 block text-xs text-[var(--color-text-muted)]">{hint}</span> : null}
         {warning ? (
@@ -1183,7 +1519,9 @@ function Toggle({
           </span>
         ) : null}
       </span>
-      <Switch checked={checked} onChange={onChange} aria-label={label} />
+      <span className="flex w-[45px] shrink-0 justify-end self-center">
+        <Switch checked={checked} onChange={onChange} aria-label={label} />
+      </span>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import type { ContentCategory } from '@fledge/shared'
+import { INSTANCE_CONTENT_CATEGORIES } from '@fledge/shared'
 import type { LibraryDetailTab } from '../stores/appStores'
 
 export const LIBRARY_DETAIL_TABS: LibraryDetailTab[] = [
@@ -8,13 +9,7 @@ export const LIBRARY_DETAIL_TABS: LibraryDetailTab[] = [
   'logs',
 ]
 
-export const CONTENT_CATEGORIES: ContentCategory[] = [
-  'mod',
-  'resourcepack',
-  'shader',
-  'datapack',
-  'plugin',
-]
+export const CONTENT_CATEGORIES: ContentCategory[] = [...INSTANCE_CONTENT_CATEGORIES]
 
 /** インストール済み一覧のフィルター（すべて / 種別） */
 export type ContentListFilter = 'all' | ContentCategory

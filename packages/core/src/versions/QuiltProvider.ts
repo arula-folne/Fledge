@@ -1,8 +1,8 @@
 import { getQuiltLoaderVersionsByMinecraft } from '@xmcl/installer'
-import type { LoaderVersion } from '@fledge/shared'
+import { fledgeUserAgent, type LoaderVersion } from '@fledge/shared'
 import type { LoaderVersionProvider } from './VersionProvider.js'
 
-/** Quilt Meta API（@xmcl/installer 経由） */
+/** Quilt Meta API（ローダー一覧は @xmcl/installer 経由） */
 export class QuiltProvider implements LoaderVersionProvider {
   readonly id = 'quilt' as const
 
@@ -13,5 +13,14 @@ export class QuiltProvider implements LoaderVersionProvider {
       version: a.loader.version,
       stable: a.loader.stable,
     }))
+  }
+
+  async fetchGameVersions(): Promise<string[]> {
+    const res = await fetch('https://meta.quiltmc.org/v3/versions/game', {
+      headers: { 'User-Agent': fledgeUserAgent('quilt-versions') },
+    })
+    if (!res.ok) throw new Error(`Quilt game versions HTTP ${res.status}`)
+    const entries = (await res.json()) as Array<{ version?: string }>
+    return entries.map((e) => e.version).filter((v): v is string => Boolean(v))
   }
 }

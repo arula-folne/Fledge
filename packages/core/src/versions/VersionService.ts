@@ -1,6 +1,7 @@
 import path from 'node:path'
 import type {
   Loader,
+  LoaderGameVersionListResult,
   LoaderVersion,
   LoaderVersionListResult,
   VersionInfo,
@@ -20,6 +21,10 @@ const MC_CACHE_KEY = 'minecraft_versions'
 
 function loaderCacheKey(loader: Loader, mc: string): string {
   return `${loader}_${mc.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+}
+
+function gameVersionsCacheKey(loader: Loader): string {
+  return `${loader}_game_versions`
 }
 
 export class VersionService {
@@ -165,6 +170,74 @@ export class VersionService {
     }
   }
 
+  async listLoaderGameVersions(opts: {
+    loader: Loader
+    force?: boolean
+  }): Promise<LoaderGameVersionListResult> {
+    const { loader, force = false } = opts
+    if (loader === 'vanilla') {
+      return {
+        loader,
+        versions: [],
+        fromCache: false,
+        stale: false,
+        offline: false,
+        fetchedAt: null,
+      }
+    }
+
+    const provider = this.loaders.get(loader)
+    if (!provider) {
+      return {
+        loader,
+        versions: [],
+        fromCache: false,
+        stale: false,
+        offline: false,
+        fetchedAt: null,
+      }
+    }
+
+    const key = gameVersionsCacheKey(loader)
+    const cached = await this.cache.get<string[]>(key)
+
+    if (!force && cached) {
+      return {
+        loader,
+        versions: cached.data,
+        fromCache: true,
+        stale: cached.stale,
+        offline: false,
+        fetchedAt: cached.fetchedAt,
+      }
+    }
+
+    try {
+      const fresh = await this.fetchAndStoreLoaderGames(loader)
+      return {
+        loader,
+        versions: fresh.data,
+        fromCache: false,
+        stale: false,
+        offline: false,
+        fetchedAt: fresh.fetchedAt,
+      }
+    } catch (err) {
+      this.logger.warn('minecraft', `${loader} game versions fetch failed: ${String(err)}`)
+      if (cached) {
+        return {
+          loader,
+          versions: cached.data,
+          fromCache: true,
+          stale: true,
+          offline: true,
+          fetchedAt: cached.fetchedAt,
+        }
+      }
+      throw err
+    }
+  }
+
   /**
    * 手動更新: 対象キャッシュ削除 → 再取得。
    * target 省略時は MC + 指定ローダー（mc 付き）を更新。
@@ -178,10 +251,14 @@ export class VersionService {
       await this.cache.delete(MC_CACHE_KEY)
       await this.fetchAndStoreMinecraft()
     }
-    if (target && target !== 'minecraft' && target !== 'vanilla' && opts?.minecraftVersion) {
-      const key = loaderCacheKey(target, opts.minecraftVersion)
-      await this.cache.delete(key)
-      await this.fetchAndStoreLoader(target, opts.minecraftVersion)
+    if (target && target !== 'minecraft' && target !== 'vanilla') {
+      await this.cache.delete(gameVersionsCacheKey(target))
+      await this.fetchAndStoreLoaderGames(target)
+      if (opts?.minecraftVersion) {
+        const key = loaderCacheKey(target, opts.minecraftVersion)
+        await this.cache.delete(key)
+        await this.fetchAndStoreLoader(target, opts.minecraftVersion)
+      }
     }
   }
 
@@ -203,6 +280,16 @@ export class VersionService {
     if (!provider) return { data: [], fetchedAt: new Date().toISOString() }
     const data = await provider.fetchLoaderVersions(minecraftVersion)
     const fetchedAt = await this.cache.set(loaderCacheKey(loader, minecraftVersion), data)
+    return { data, fetchedAt }
+  }
+
+  private async fetchAndStoreLoaderGames(
+    loader: Exclude<Loader, 'vanilla'>,
+  ): Promise<{ data: string[]; fetchedAt: string }> {
+    const provider = this.loaders.get(loader)
+    if (!provider) return { data: [], fetchedAt: new Date().toISOString() }
+    const data = await provider.fetchGameVersions()
+    const fetchedAt = await this.cache.set(gameVersionsCacheKey(loader), data)
     return { data, fetchedAt }
   }
 

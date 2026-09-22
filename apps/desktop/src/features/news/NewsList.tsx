@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import type { NewsItem } from '@fledge/shared'
+import { IconChevronRight } from '@tabler/icons-react'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Dialog } from '../../components/ui/Dialog'
 import { Button } from '../../components/ui/Button'
+import { HoverTip } from '../../components/ui/HoverTip'
 import { NewsArticleLayout } from './NewsArticleLayout'
 import { NewsCategoryBadge } from './NewsCategoryBadge'
 import { parseNewsTitle } from './newsFormat'
@@ -228,8 +230,16 @@ function NewsDetailDialog({
   )
 }
 
-export function NewsList({ compact = false }: { compact?: boolean }) {
+export function NewsList({
+  compact = false,
+  showMinimize = false,
+}: {
+  compact?: boolean
+  /** ホーム右カラム: タイトル横に最小化ボタン */
+  showMinimize?: boolean
+}) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const [selected, setSelected] = useState<NewsItem | null>(null)
   const [archiveOpen, setArchiveOpen] = useState(false)
   const newsQuery = useQuery({
@@ -241,21 +251,45 @@ export function NewsList({ compact = false }: { compact?: boolean }) {
     refetchInterval: 5 * 60_000,
   })
 
+  const hideMutation = useMutation({
+    mutationFn: () => fledgeApi.settings.set({ homeNewsVisible: false }),
+    onSuccess: async (next) => {
+      queryClient.setQueryData(['settings'], next)
+      await queryClient.invalidateQueries({ queryKey: ['settings'] })
+    },
+  })
+
   const items = newsQuery.data ?? []
   const homeItems = compact ? items.slice(0, HOME_NEWS_MAX) : items
   const showViewAll = compact && items.length > 0
 
   return (
     <section
+      data-fledge-tutorial="tutorial-home-news"
       className={
         compact
           ? 'flex h-full min-h-0 min-w-0 flex-col'
           : 'min-w-0'
       }
     >
-      <h2 className="mb-2 shrink-0 text-[length:var(--news-section-title)] font-medium text-[var(--color-text-muted)]">
-        {t('news.title')}
-      </h2>
+      <div className="mb-2 flex shrink-0 items-center gap-1">
+        <h2 className="min-w-0 flex-1 text-[length:var(--news-section-title)] font-medium text-[var(--color-text-muted)]">
+          {t('news.title')}
+        </h2>
+        {showMinimize ? (
+          <HoverTip label={t('news.minimize')}>
+            <button
+              type="button"
+              className="grid size-9 shrink-0 place-items-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
+              aria-label={t('news.minimize')}
+              disabled={hideMutation.isPending}
+              onClick={() => hideMutation.mutate()}
+            >
+              <IconChevronRight size={20} stroke={1.75} aria-hidden />
+            </button>
+          </HoverTip>
+        ) : null}
+      </div>
       {newsQuery.isPending && !items.length ? (
         <p className="text-sm text-[var(--color-text-muted)]">{t('news.loading')}</p>
       ) : !items.length ? (

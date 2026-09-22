@@ -1,7 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { Settings, SkinEntry, SkinModel } from '@fledge/shared'
-import { defaultSkinUrl } from '../../components/skin/defaultSkinUrls'
+import { fledgeApi } from '../../api/fledgeApi'
 import { cropSkinFaceDataUrl } from '../auth/skinFace'
+import { localFileAssetUrl, preferElectronDefaultProtocol } from '../../components/skin/skinUrls'
 
 export function patchSelectedSkinSettings(
   queryClient: QueryClient,
@@ -23,17 +24,39 @@ export async function prefetchAccountFaceFromLocalSkin(
   skinId: string,
   skins: SkinEntry[],
 ): Promise<void> {
-  const skin = skins.find((s) => s.id === skinId)
-  let dataUrl = queryClient.getQueryData<string>(['skin-data', skinId]) ?? undefined
-  if (!dataUrl && skin?.source === 'default') {
-    dataUrl = defaultSkinUrl(skinId)
+  let src =
+    queryClient.getQueryData<string | null>(['skin-data', skinId]) ??
+    queryClient.getQueryData<string | null>(['skin-path-url', skinId]) ??
+    undefined
+
+  if (!src) {
+    try {
+      const entry = skins.find((s) => s.id === skinId)
+      const electronDefault = entry ? preferElectronDefaultProtocol(entry) : undefined
+      if (electronDefault) {
+        src = electronDefault
+      } else {
+        const path = await fledgeApi.skins.resolvePath(skinId)
+        const asset = localFileAssetUrl(path)
+        if (asset) {
+          src = asset
+          queryClient.setQueryData(['skin-path', skinId], path)
+          queryClient.setQueryData(['skin-path-url', skinId], asset)
+        } else {
+          src = (await fledgeApi.skins.getDataUrl(skinId)) ?? undefined
+          if (src) queryClient.setQueryData(['skin-data', skinId], src)
+        }
+      }
+    } catch {
+      return
+    }
   }
-  if (!dataUrl) return
+  if (!src) return
 
   try {
     const [face32, face64] = await Promise.all([
-      cropSkinFaceDataUrl(dataUrl, 32),
-      cropSkinFaceDataUrl(dataUrl, 64),
+      cropSkinFaceDataUrl(src, 32),
+      cropSkinFaceDataUrl(src, 64),
     ])
     queryClient.setQueryData(['account-face', skinId, 32], face32)
     queryClient.setQueryData(['account-face', skinId, 64], face64)

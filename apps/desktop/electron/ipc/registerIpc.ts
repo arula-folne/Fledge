@@ -85,7 +85,6 @@ export function registerIpc(
   },
 ): void {
   const win = () => getWindow()
-  const touchBackup = () => appCtx.backup.scheduleSync()
 
   // ログはメイン側 Logger に保持。UI が購読するまで logLine は送らない（メモリ・IPC 削減）
   appCtx.auth.onStatusChange?.((status, account) => {
@@ -98,9 +97,6 @@ export function registerIpc(
   ipcMain.handle(IPC.settingsGet, async () => toRendererSettings(await appCtx.settings.get()))
   ipcMain.handle(IPC.settingsSet, async (_e, partial: Partial<Settings>) => {
     const parsed = SettingsSchema.partial().parse(partial)
-    if (typeof parsed.backupFolder === 'string' && parsed.backupFolder) {
-      appCtx.backup.assertFolder(parsed.backupFolder)
-    }
     const next = await appCtx.settings.set(parsed)
     if (
       Object.prototype.hasOwnProperty.call(parsed, 'launcherWindowWidth') ||
@@ -112,14 +108,6 @@ export function registerIpc(
       const w = win()
       if (w) applyWindowUiScale(w, next.uiScale)
     }
-    touchBackup()
-    if (parsed.backupSyncEnabled === true) {
-      void appCtx.backup.flushSync().catch((err) => {
-        appCtx.logger.warn(
-          'system',
-          `Backup sync failed: ${err instanceof Error ? err.message : String(err)}`,
-        )
-      })
     }
     return toRendererSettings(next)
   })
@@ -128,7 +116,6 @@ export function registerIpc(
     applyLauncherWindowSize(win(), next)
     const w = win()
     if (w) applyWindowUiScale(w, next.uiScale)
-    touchBackup()
     return toRendererSettings(next)
   })
 
@@ -204,13 +191,11 @@ export function registerIpc(
         ? settings.libraryInstanceOrder
         : [...settings.libraryInstanceOrder, profile.id],
     })
-    touchBackup()
     return profile
   })
   ipcMain.handle(IPC.instancesUpdate, async (_e, id: string, partial: unknown) => {
     const update = UpdateInstanceInputSchema.parse(partial)
     const updated = await appCtx.instances.update(id, update)
-    touchBackup()
     return updated
   })
   ipcMain.handle(IPC.instancesDuplicate, async (_e, id: string) => {
@@ -225,7 +210,6 @@ export function registerIpc(
     await appCtx.settings.set({
       libraryInstanceOrder: nextOrder,
     })
-    touchBackup()
     return copied
   })
   ipcMain.handle(IPC.instancesRemove, async (_e, id: string) => {
@@ -242,7 +226,6 @@ export function registerIpc(
         settings.lastPlayedInstanceId === id ? null : settings.lastPlayedInstanceId,
       libraryInstanceOrder,
     })
-    touchBackup()
   })
   ipcMain.handle(IPC.instancesOpenFolder, async (_e, id: string) => {
     await shell.openPath(appCtx.instances.instanceDir(id))
@@ -273,7 +256,6 @@ export function registerIpc(
   )
   ipcMain.handle(IPC.contentInstall, async (_e, req: unknown) => {
     const result = await appCtx.content.install(req)
-    touchBackup()
     return result
   })
   ipcMain.handle(IPC.contentListInstalled, async (_e, instanceId: string, category?: string) =>
@@ -283,13 +265,11 @@ export function registerIpc(
     IPC.contentSetEnabled,
     async (_e, instanceId: string, entryId: string, enabled: boolean) => {
       const result = await appCtx.content.setEnabled(instanceId, entryId, enabled)
-      touchBackup()
       return result
     },
   )
   ipcMain.handle(IPC.contentRemove, async (_e, instanceId: string, entryId: string) => {
     await appCtx.content.remove(instanceId, entryId)
-    touchBackup()
   })
   ipcMain.handle(IPC.contentCheckUpdates, async (_e, instanceId: string) =>
     appCtx.content.checkUpdates(instanceId),
@@ -306,7 +286,6 @@ export function registerIpc(
       if (kind !== 'screenshots') throw new Error('Unsupported media kind')
       if (typeof fileName !== 'string' || !fileName) throw new Error('Invalid file name')
       await appCtx.content.deleteMedia(instanceId, 'screenshots', fileName)
-      touchBackup()
     },
   )
   ipcMain.handle(
@@ -335,7 +314,6 @@ export function registerIpc(
         libraryInstanceOrder: [...settings.libraryInstanceOrder, profile.id],
       })
     }
-    touchBackup()
     return profile
   })
   ipcMain.handle(IPC.contentPickMrpack, async () => {
@@ -359,7 +337,6 @@ export function registerIpc(
         libraryInstanceOrder: [...settings.libraryInstanceOrder, profile.id],
       })
     }
-    touchBackup()
     return profile
   })
   ipcMain.handle(IPC.contentImportMrpack, async () => {
@@ -377,7 +354,6 @@ export function registerIpc(
         libraryInstanceOrder: [...settings.libraryInstanceOrder, profile.id],
       })
     }
-    touchBackup()
     return profile
   })
   ipcMain.handle(IPC.contentListMrpackExportCandidates, async (_e, instanceId: string) =>
@@ -598,7 +574,6 @@ export function registerIpc(
         originalName: input.originalName,
         thumb: input.thumbDataUrl ? decodeThumbDataUrl(input.thumbDataUrl) : undefined,
       })
-      touchBackup()
       return skin
     },
   )
@@ -612,7 +587,6 @@ export function registerIpc(
         await appCtx.settings.set({ skinModel: model })
         scheduleSkinApplyToPlayableAccounts(appCtx, skin.id, model)
       }
-      touchBackup()
       return skin
     },
   )
@@ -623,7 +597,6 @@ export function registerIpc(
       await appCtx.settings.set({ selectedSkinId: 'steve', skinModel: 'wide' })
       scheduleSkinApplyToPlayableAccounts(appCtx, 'steve', 'wide')
     }
-    touchBackup()
   })
   ipcMain.handle(IPC.skinsGetData, async (_e, id: string) => {
     const buf = await appCtx.skins.readPngBytes(id)
@@ -648,7 +621,6 @@ export function registerIpc(
       if (input.model) patch.skinModel = SkinModelSchema.parse(input.model)
       const next = await appCtx.settings.set(patch)
       scheduleSkinApplyToPlayableAccounts(appCtx, next.selectedSkinId, next.skinModel)
-      touchBackup()
       return toRendererSettings(next)
     },
   )
@@ -716,7 +688,6 @@ export function registerIpc(
       throw new Error('settings.uninstallDevOnly')
     }
 
-    appCtx.backup.cancelPending()
     appCtx.queue.cancelAll()
     appCtx.launch.stopAll()
     appCtx.java.clearMemo()
@@ -753,21 +724,6 @@ export function registerIpc(
     updateNotice: await resolveUpdateNotice(appCtx),
   }))
 
-  ipcMain.handle(IPC.backupRun, async () => {
-    const entry = await appCtx.backup.snapshot()
-    return entry.path
-  })
-  ipcMain.handle(IPC.backupList, async () => appCtx.backup.list())
-  ipcMain.handle(IPC.backupRestore, async (_e, backupPath: string) => {
-    await appCtx.backup.restore(String(backupPath))
-    const next = await appCtx.settings.get()
-    applyLauncherWindowSize(win(), next)
-    const w = win()
-    if (w) applyWindowUiScale(w, next.uiScale)
-  })
-  ipcMain.handle(IPC.backupSyncNow, async () => {
-    await appCtx.backup.syncNow()
-  })
 
   ipcMain.handle(IPC.launchStart, async (_e, profileId: string, opts?: { accountId?: string }) => {
     const settings = await appCtx.settings.get()
@@ -901,7 +857,6 @@ async function importMicrosoftAccountSkinBestEffort(
           selectedSkinId: existing.id,
           skinModel: active.model,
         })
-        appCtx.backup.scheduleSync()
         appCtx.logger.info('auth', `Selected existing Microsoft skin ${existing.id}`)
         return
       }
@@ -919,7 +874,6 @@ async function importMicrosoftAccountSkinBestEffort(
       selectedSkinId: skin.id,
       skinModel: skin.model,
     })
-    appCtx.backup.scheduleSync()
     appCtx.logger.info('auth', `Imported Microsoft skin as my-skin #1 (${skin.id})`)
   } catch (err) {
     appCtx.logger.warn(

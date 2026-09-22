@@ -155,3 +155,40 @@ export async function writeReadyRecord(
   }
   await fs.writeFile(readyPath(minecraftRoot, profile), JSON.stringify(record, null, 2), 'utf8')
 }
+
+/**
+ * Forge / NeoForge 公式インストーラーは `launcher_profiles.json` が無いと
+ * `--installClient` が終了コード 1 で失敗する。
+ */
+export async function ensureLauncherProfiles(minecraftRoot: string): Promise<void> {
+  await fs.mkdir(minecraftRoot, { recursive: true })
+  const file = path.join(minecraftRoot, 'launcher_profiles.json')
+  try {
+    const raw = await fs.readFile(file, 'utf8')
+    const parsed = JSON.parse(raw) as { profiles?: unknown }
+    if (parsed && typeof parsed === 'object' && parsed.profiles && typeof parsed.profiles === 'object') {
+      return
+    }
+  } catch {
+    // missing or invalid → rewrite stub
+  }
+  const stub = {
+    profiles: {
+      fledge: {
+        name: 'fledge',
+        type: 'custom',
+        created: '1970-01-01T00:00:00.000Z',
+        lastUsed: '1970-01-01T00:00:00.000Z',
+        icon: 'Furnace',
+        lastVersionId: 'latest-release',
+      },
+    },
+    selectedProfile: 'fledge',
+    clientToken: 'fledge',
+    launcherVersion: {
+      name: 'fledge',
+      format: 21,
+    },
+  }
+  await fs.writeFile(file, JSON.stringify(stub, null, 2), 'utf8')
+}

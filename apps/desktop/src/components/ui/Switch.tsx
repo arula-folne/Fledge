@@ -16,6 +16,7 @@ const SPRING = 'transform 320ms cubic-bezier(0.22, 1, 0.36, 1), background-color
 
 /**
  * iPhone 風トグル。クリックと左右スワイプの両方に対応。
+ * 幅は固定（TRACK_W）で、ON/OFF でもレイアウトがずれないようにする。
  */
 export function Switch({ checked, onChange, disabled, 'aria-label': ariaLabel }: Props) {
   const trackRef = useRef<HTMLButtonElement>(null)
@@ -103,13 +104,15 @@ export function Switch({ checked, onChange, disabled, 'aria-label': ariaLabel }:
       aria-label={ariaLabel}
       disabled={disabled}
       className={[
-        'relative shrink-0 touch-none select-none rounded-full p-0',
+        'relative box-border shrink-0 touch-none select-none overflow-hidden rounded-full p-0',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent)]',
         disabled ? 'cursor-not-allowed opacity-45' : 'cursor-pointer',
       ].join(' ')}
       style={{
         width: TRACK_W,
         height: TRACK_H,
+        minWidth: TRACK_W,
+        maxWidth: TRACK_W,
         backgroundColor: visual ? 'var(--color-accent)' : 'rgba(120, 120, 128, 0.32)',
         transition: dragging ? 'none' : SPRING,
       }}
@@ -124,7 +127,7 @@ export function Switch({ checked, onChange, disabled, 'aria-label': ariaLabel }:
         style={{
           width: THUMB,
           height: THUMB,
-          transform: `translateX(${thumbX}px)`,
+          transform: `translate3d(${thumbX}px, 0, 0)`,
           transition: dragging ? 'none' : SPRING,
         }}
       />

@@ -12,6 +12,7 @@ import {
 import { fledgeApi } from '../api/fledgeApi'
 import { PageNav } from '../components/ui/PageNav'
 import { ListPickDialog } from '../components/ui/ListPickDialog'
+import { Select } from '../components/ui/Select'
 import { ContentBrowseFilters } from '../features/content/ContentBrowseFilters'
 import {
   countFavoriteCategories,
@@ -49,9 +50,6 @@ const ContentProjectView = lazy(() =>
 const PAGE_SIZES = [10, 20, 30, 40, 50] as const
 const DEFAULT_PAGE_SIZE: (typeof PAGE_SIZES)[number] = 20
 const SORTS = CONTENT_SEARCH_SORTS
-
-const selectClass =
-  'rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] px-2 py-1 text-sm text-[var(--color-text)] outline-none focus:border-[var(--color-accent)]'
 
 function needsLoaders(category: ContentCategory): boolean {
   return category === 'mod' || category === 'modpack'
@@ -449,31 +447,29 @@ export default function BrowsePage() {
             </div>
             <label className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
               {t('content.sort.label')}
-              <select
+              <Select
                 value={sort}
-                onChange={(e) => setSort(e.target.value as FavoriteSort)}
-                className={selectClass}
-              >
-                {(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => (
-                  <option key={s} value={s}>
-                    {t(`content.sort.${s}`)}
-                  </option>
-                ))}
-              </select>
+                onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
+                className="min-w-[8rem]"
+                options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
+                  value: s,
+                  label: t(`content.sort.${s}`),
+                }))}
+              />
             </label>
             <label className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
               {t('content.showCount')}
-              <select
-                value={pageSize}
-                onChange={(e) => setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number])}
-                className={selectClass}
-              >
-                {PAGE_SIZES.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-              </select>
+              <Select
+                value={String(pageSize)}
+                onChange={(e) =>
+                  setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
+                }
+                className="min-w-[4.5rem]"
+                options={PAGE_SIZES.map((n) => ({
+                  value: String(n),
+                  label: String(n),
+                }))}
+              />
             </label>
             {total > 0 ? (
               <span className="text-sm tabular-nums text-[var(--color-text-muted)]">

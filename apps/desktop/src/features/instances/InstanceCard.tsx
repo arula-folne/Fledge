@@ -2,7 +2,6 @@ import { memo, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import type { InstanceProfile } from '@fledge/shared'
-import { useInstanceCreateStore } from '../../stores/appStores'
 import { InstanceIcon } from './InstanceIcon'
 import { InstanceLaunchButton } from './InstanceLaunchButton'
 import { formatLastPlayed, formatLoaderLabel } from './instanceMeta'
@@ -27,7 +26,6 @@ export const InstanceCard = memo(function InstanceCard({
   const { t } = useTranslation()
   const navigate = useNavigate()
   const detailPath = `/library/${instance.id}`
-  const creating = useInstanceCreateStore((s) => Boolean(s.creatingIds[instance.id]))
 
   const goDetail = () => navigate(detailPath)
   const handleContextMenu = (e: MouseEvent) => {
@@ -58,19 +56,14 @@ export const InstanceCard = memo(function InstanceCard({
       >
         <div className="flex flex-wrap items-center gap-4">
           <InstanceIcon instance={instance} size="lg" />
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 overflow-hidden">
             <h3 className="truncate text-xl font-semibold text-[var(--color-text)]">
               {instance.name}
-              {creating ? (
-                <span className="ml-2 text-sm font-medium text-[var(--color-accent)]">
-                  {t('content.creatingInstance')}
-                </span>
-              ) : null}
             </h3>
             <p className="mt-1 truncate text-sm text-[var(--color-text-muted)]">
               {instance.minecraftVersion} · {formatLoaderLabel(instance.loader, t)}
             </p>
-            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
+            <p className="mt-1 truncate text-xs text-[var(--color-text-muted)]">
               {t('instances.lastPlayed')}: {formatLastPlayed(instance.lastPlayedAt, t)}
             </p>
           </div>
@@ -104,23 +97,18 @@ export const InstanceCard = memo(function InstanceCard({
       ].join(' ')}
     >
       <InstanceIcon instance={instance} size="md" className="shrink-0 self-center" />
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 overflow-hidden">
         <div
           className={[
-            'font-medium leading-snug break-words text-[var(--color-text)]',
+            'truncate font-medium leading-snug text-[var(--color-text)]',
             compact ? 'text-sm' : 'text-base',
           ].join(' ')}
         >
           {instance.name}
-          {creating ? (
-            <span className="ml-1.5 text-xs font-medium text-[var(--color-accent)]">
-              {t('content.creatingInstance')}
-            </span>
-          ) : null}
         </div>
         <div
           className={[
-            'mt-1 leading-snug break-words text-[var(--color-text-muted)]',
+            'mt-1 truncate leading-snug text-[var(--color-text-muted)]',
             compact ? 'text-xs' : 'text-sm',
           ].join(' ')}
         >
@@ -128,7 +116,7 @@ export const InstanceCard = memo(function InstanceCard({
         </div>
         <div
           className={[
-            'mt-0.5 leading-snug break-words text-[var(--color-text-muted)]',
+            'mt-0.5 truncate leading-snug text-[var(--color-text-muted)]',
             compact ? 'text-xs' : 'text-sm',
           ].join(' ')}
         >
@@ -139,7 +127,7 @@ export const InstanceCard = memo(function InstanceCard({
         instanceId={instance.id}
         size={compact ? 'icon' : 'sm'}
         showProgress={false}
-        className={compact ? 'shrink-0 self-center' : undefined}
+        className="shrink-0 self-center"
       />
     </article>
   )

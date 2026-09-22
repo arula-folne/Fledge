@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+﻿@import 'tailwindcss';
 
 :root {
   --color-bg: #e8e4de;
@@ -9,7 +9,7 @@
   --color-text-muted: #6e6a64;
   --color-accent: #5fa0c4;
   --color-accent-soft: #eee9e2;
-  /* メニュー選択など。applyTheme でアクセントに同期される */
+  /* テーマ切替のフェード（CSS 変数・色・背景） */
   --color-selection: #5fa0c4;
   --color-selection-soft: color-mix(in srgb, #5fa0c4 28%, transparent);
   --color-on-selection: #f8f6f2;
@@ -31,11 +31,34 @@
   --color-category-shader: #b8860b;
   --color-category-datapack: #3d8fa6;
   --color-category-plugin: #d97706;
+  /* 繧ｵ繧､繝峨ヰ繝ｼ繝ｻ險ｭ螳壹↑縺ｩ繝｡繝九Η繝ｼ繧｢繧､繧ｳ繝ｳ・域э蜻ｳ縺御ｼ昴ｏ繧玖牡・・*/
+  --color-nav-home: #d4893a;
+  --color-nav-browse: #4f8f6a;
+  --color-nav-gallery: #c45c7a;
+  --color-nav-skin: #5b7fd6;
+  --color-nav-settings: #6e7f96;
+  --color-menu-adjustments: #5fa0c4;
+  --color-menu-language: #3d8fa6;
+  --color-menu-theme: #c45c7a;
+  --color-menu-launch: #3d9a6a;
+  --color-menu-minecraft: #5b8a3c;
+  --color-menu-java: #a16207;
+  --color-menu-account: #5b7fd6;
+  --color-menu-resources: #d97706;
+  --color-menu-privacy: #7c6bb0;
+  --color-menu-content: #7c6bb0;
+  --color-menu-screenshots: #c45c7a;
+  --color-menu-files: #d97706;
+  --color-menu-logs: #6e7f96;
+  --color-menu-world: #3d8fa6;
+  --color-menu-duplicate: #5b7fd6;
+  --color-menu-export: #4f8f6a;
+  --color-menu-create: #3d9a6a;
   --radius-sm: 8px;
   --radius-md: 10px;
   --radius-lg: 12px;
   --titlebar-offset: 2rem;
-  /* 720p (1280×720) 基準 — ウィンドウサイズに応じてホーム・お知らせの比率を維持 */
+  /* 720p (1280ﾃ・20) 蝓ｺ貅・窶・繧ｦ繧｣繝ｳ繝峨え繧ｵ繧､繧ｺ縺ｫ蠢懊§縺ｦ繝帙・繝繝ｻ縺顔衍繧峨○縺ｮ豈皮紫繧堤ｶｭ謖・*/
   --layout-ref-w: 1280;
   --layout-ref-h: 720;
   --home-news-col: clamp(13rem, calc(256 / var(--layout-ref-w) * 100vw), 18rem);
@@ -50,6 +73,9 @@
   --news-preview-body: clamp(10px, calc(12 / var(--layout-ref-w) * 100vw), 12px);
   --news-preview-date: clamp(9px, calc(10 / var(--layout-ref-w) * 100vw), 10px);
   --news-section-title: clamp(10px, calc(12 / var(--layout-ref-w) * 100vw), 12px);
+  /* 譌･譛ｬ隱・UI 繧貞渕貅悶ゆｻ冶ｨ隱槭・ html[lang] 縺ｧ邵ｮ蟆上＠縺ｦ繝ｬ繧､繧｢繧ｦ繝医ｒ邯ｭ謖・*/
+  --fledge-locale-chrome-scale: 1;
+  --fledge-locale-chrome-tracking: normal;
   color: var(--color-text);
   background: var(--color-bg);
   color-scheme: light;
@@ -74,15 +100,72 @@ body,
   overflow: hidden;
 }
 
+/* 譌･譛ｬ隱樔ｻ･螟・ 繝翫ン遲峨・繝ｩ繝吶Ν繧貞ｰ代＠蟆上＆縺上＠縺ｦ UI 蟷・ｒ邯ｭ謖・ｼ・a 縺ｯ螟画峩縺ｪ縺暦ｼ・*/
+html:not([lang='ja']) {
+  --fledge-locale-chrome-scale: 0.88;
+  --fledge-locale-chrome-tracking: -0.02em;
+}
+
+html[lang='zh-CN'],
+html[lang='zh-TW'],
+html[lang='ko'],
+html[lang='th'] {
+  --fledge-locale-chrome-scale: 0.94;
+  --fledge-locale-chrome-tracking: -0.01em;
+}
+
+html[lang='de'],
+html[lang='fr'],
+html[lang='nl'],
+html[lang='uk'],
+html[lang='ru'],
+html[lang='pt-BR'],
+html[lang='pl'],
+html[lang='it'],
+html[lang='es'],
+html[lang='id'],
+html[lang='tr'],
+html[lang='vi'] {
+  --fledge-locale-chrome-scale: 0.84;
+  --fledge-locale-chrome-tracking: -0.025em;
+}
+
+html:not([lang='ja']) aside nav a,
+html:not([lang='ja']) [data-fledge-tutorial='tutorial-settings-page'] nav button,
+html:not([lang='ja']) [data-fledge-tutorial='tutorial-settings-content'] > h2,
+html:not([lang='ja']) [role='tab'] {
+  letter-spacing: var(--fledge-locale-chrome-tracking);
+}
+
+html:not([lang='ja']) aside nav a {
+  font-size: calc(16px * var(--fledge-locale-chrome-scale));
+}
+
+html:not([lang='ja']) [data-fledge-tutorial='tutorial-settings-page'] nav button {
+  font-size: calc(0.875rem * var(--fledge-locale-chrome-scale));
+}
+
+html:not([lang='ja']) [data-fledge-tutorial='tutorial-settings-page'] nav button .locale-chrome-badge {
+  font-size: calc(10px * var(--fledge-locale-chrome-scale));
+}
+
+html:not([lang='ja']) [data-fledge-tutorial='tutorial-settings-content'] > h2 {
+  font-size: calc(1.125rem * var(--fledge-locale-chrome-scale));
+}
+
+html:not([lang='ja']) [role='tab'] {
+  font-size: calc(1em * var(--fledge-locale-chrome-scale));
+}
+
 body {
   background: linear-gradient(180deg, #e0dbd4 0%, #d0cbc3 100%);
   color: var(--color-text);
-  /* UI のタイトル・ヘッダーはダブルクリック選択させない */
+  /* UI 縺ｮ繧ｿ繧､繝医Ν繝ｻ繝倥ャ繝繝ｼ縺ｯ繝繝悶Ν繧ｯ繝ｪ繝・け驕ｸ謚槭＆縺帙↑縺・*/
   user-select: none;
   -webkit-user-select: none;
 }
 
-/* 静的テキスト・画像はドラッグで持ち上げない（選択・コピーは可） */
+/* 髱咏噪繝・く繧ｹ繝医・逕ｻ蜒上・繝峨Λ繝・げ縺ｧ謖√■荳翫￡縺ｪ縺・ｼ磯∈謚槭・繧ｳ繝斐・縺ｯ蜿ｯ・・*/
 * {
   -webkit-user-drag: none;
 }
@@ -108,7 +191,7 @@ label {
   -webkit-user-drag: none;
 }
 
-/* 説明文・本文・入力欄のみ選択・コピー可 */
+/* 隱ｬ譏取枚繝ｻ譛ｬ譁・・蜈･蜉帶ｬ・・縺ｿ驕ｸ謚槭・繧ｳ繝斐・蜿ｯ */
 input,
 textarea,
 [contenteditable='true'],
@@ -132,7 +215,7 @@ textarea {
   font: inherit;
 }
 
-/* ボタンは各コンポーネントの text-* を優先（inherit だとベースの本文色に潰れる） */
+/* 繝懊ち繝ｳ縺ｯ蜷・さ繝ｳ繝昴・繝阪Φ繝医・ text-* 繧貞━蜈茨ｼ・nherit 縺縺ｨ繝吶・繧ｹ縺ｮ譛ｬ譁・牡縺ｫ貎ｰ繧後ｋ・・*/
 input,
 select,
 textarea {
@@ -254,7 +337,7 @@ textarea {
   margin: 0.55em 0;
 }
 
-/* アップデート完了ダイアログ: 色分けせず本文色で統一 */
+/* 繧｢繝・・繝・・繝亥ｮ御ｺ・ム繧､繧｢繝ｭ繧ｰ: 濶ｲ蛻・￠縺帙★譛ｬ譁・牡縺ｧ邨ｱ荳 */
 .content-md.changelog-plain {
   font-size: 0.8125rem;
   line-height: 1.65;
@@ -313,7 +396,7 @@ textarea {
   color: var(--color-text);
 }
 
-/* folne web 同款: クリック時のクリスタルエフェクト */
+/* folne web 蜷梧ｬｾ: 繧ｯ繝ｪ繝・け譎ゅ・繧ｯ繝ｪ繧ｹ繧ｿ繝ｫ繧ｨ繝輔ぉ繧ｯ繝・*/
 .crystal-click-canvas {
   position: fixed;
   inset: 0;
@@ -323,7 +406,7 @@ textarea {
   z-index: 10001;
 }
 
-/* イラスト付きシーズンテーマ */
+/* 繧､繝ｩ繧ｹ繝井ｻ倥″繧ｷ繝ｼ繧ｺ繝ｳ繝・・繝・*/
 html[data-theme-season] body {
   background: transparent !important;
 }
@@ -336,6 +419,15 @@ html[data-theme-season] .season-shell-panel {
 
 html[data-theme-season] .season-shell-main {
   background: color-mix(in srgb, var(--color-bg) 18%, transparent);
+}
+
+/* シーズン背景上のメニュー用（読みやすさ用ガラス） */
+html[data-theme-season] .season-readable-panel {
+  backdrop-filter: blur(8px) saturate(1.05);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
+  background: color-mix(in srgb, var(--color-surface) 38%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border) 35%, transparent);
+  border-radius: var(--radius-md);
 }
 
 .season-illustration {
@@ -373,5 +465,38 @@ html[data-theme-season] .season-shell-main {
   .season-wave-a,
   .season-wave-b {
     animation: none;
+  }
+}
+
+/* テーマ切替のフェード（CSS 変数・色・背景） */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    transition:
+      --color-bg 0.4s ease,
+      --color-surface 0.4s ease,
+      --color-input 0.4s ease,
+      --color-border 0.4s ease,
+      --color-text 0.4s ease,
+      --color-text-muted 0.4s ease,
+      --color-accent 0.4s ease,
+      --color-accent-soft 0.4s ease,
+      --color-hover 0.4s ease,
+      --color-on-accent 0.4s ease,
+      --color-selection 0.4s ease,
+      --color-on-selection 0.4s ease,
+      --color-selection-soft 0.4s ease,
+      --color-scrollbar 0.4s ease,
+      --color-zebra 0.4s ease;
+  }
+
+  body {
+    transition:
+      background-color 0.4s ease,
+      color 0.4s ease,
+      background 0.4s ease;
+  }
+
+  .season-theme-layer {
+    transition: opacity 0.45s ease;
   }
 }

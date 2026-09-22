@@ -1,15 +1,15 @@
 import path from 'node:path'
 import { app, BrowserWindow, shell } from 'electron'
 import type { UiScale } from '@fledge/shared'
-import { LAUNCHER_WINDOW_MIN_HEIGHT, LAUNCHER_WINDOW_MIN_WIDTH } from '@fledge/shared'
+import {
+  LAUNCHER_WINDOW_MIN_HEIGHT,
+  LAUNCHER_WINDOW_MIN_WIDTH,
+  resolveUiScaleZoom,
+  UI_SCALE_FACTORS,
+} from '@fledge/shared'
 import { resolveAppIconPath } from './appIcon'
 
-/** 720p 時の見た目をノーマルとする。小窓（540p）は自動で追加縮小する。 */
-export const UI_SCALE_FACTORS: Record<UiScale, number> = {
-  minimal: 0.85,
-  normal: 1,
-  wide: 1.2,
-}
+export { UI_SCALE_FACTORS }
 
 let activeUiScale: UiScale = 'normal'
 
@@ -25,8 +25,8 @@ export function resolveWindowZoomFactor(
   width: number,
   height: number,
 ): number {
-  const base = UI_SCALE_FACTORS[scale]
-  return Math.round(Math.min(base, zoomCapForWindowSize(width, height)) * 1000) / 1000
+  const zoom = resolveUiScaleZoom(scale)
+  return Math.round(Math.min(zoom, zoomCapForWindowSize(width, height)) * 1000) / 1000
 }
 
 export function applyWindowUiScale(win: BrowserWindow, scale: UiScale = activeUiScale): void {
@@ -124,8 +124,54 @@ export function createMainWindow(opts?: {
     }
   }, 900)
 
-  // 開発時: F12 / Ctrl+Shift+I で DevTools（リサイズ時の右上サイズ表示は DevTools 開時のみ）
+  // 開発時: F12 / Ctrl+Shift+I で DevTools
+  // リサイズ時の右上 WxH は DevTools Overlay — 開いたら CDP / Frontend 経由で抑止する
   if (!app.isPackaged) {
+    const suppressViewportSizeOverlay = () => {
+      const tryDebugger = () => {
+        try {
+          const dbg = win.webContents.debugger
+          if (!dbg.isAttached()) dbg.attach('1.3')
+          void dbg.sendCommand('Overlay.setShowViewportSizeOnResize', { show: false })
+        } catch {
+          // DevTools が debugger を占有している場合は Frontend 側で抑止
+        }
+      }
+      const tryDevToolsFrontend = () => {
+        const dt = win.webContents.devToolsWebContents
+        if (!dt || dt.isDestroyed()) return
+        void dt
+          .executeJavaScript(
+            `(async () => {
+              try {
+                const sdk = await import('devtools://devtools/bundled/core/sdk/sdk.js');
+                const OverlayModel = sdk.OverlayModel?.OverlayModel;
+                const tm = sdk.TargetManager?.TargetManager?.instance?.();
+                if (!OverlayModel || !tm) return false;
+                for (const target of tm.targets()) {
+                  target.model(OverlayModel)?.setShowViewportSizeOnResize?.(false);
+                }
+                return true;
+              } catch {
+                return false;
+              }
+            })()`,
+          )
+          .catch(() => undefined)
+      }
+      tryDebugger()
+      tryDevToolsFrontend()
+      setTimeout(tryDevToolsFrontend, 200)
+      setTimeout(tryDevToolsFrontend, 800)
+    }
+
+    win.webContents.on('devtools-opened', () => {
+      suppressViewportSizeOverlay()
+    })
+    win.on('resize', () => {
+      if (win.webContents.isDevToolsOpened()) suppressViewportSizeOverlay()
+    })
+
     win.webContents.on('before-input-event', (_event, input) => {
       if (input.type !== 'keyDown') return
       const toggle =

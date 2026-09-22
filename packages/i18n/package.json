@@ -1,6 +1,6 @@
 {
   "name": "@fledge/i18n",
-  "version": "0.4.6",
+  "version": "0.5.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -10,7 +10,8 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./locales/ja.json": "./src/locales/ja.json"
+    "./locales/ja.json": "./src/locales/ja.json",
+    "./locales/*.json": "./src/locales/*.json"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",

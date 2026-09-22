@@ -8,11 +8,15 @@ export type ListPickItem = {
   value: string
   label: string
   suffix?: string
-  suffixTone?: 'release' | 'snapshot'
+  suffixTone?: 'release' | 'snapshot' | 'beta' | 'alpha'
+  /** 最新安定 / 最新プレリリース */
+  tone?: 'latest' | 'prerelease'
 }
 
 export type ListPickGroup = {
   label?: string
+  /** グループ見出しの色 */
+  labelTone?: 'latest' | 'prerelease'
   items: ListPickItem[]
 }
 
@@ -25,11 +29,20 @@ type DialogProps = {
   onClose: () => void
   header?: ReactNode
   empty?: string
+  /** 既定 xs。バージョン一覧など項目が多いときは sm */
+  size?: 'xs' | 'sm'
 }
 
 const suffixToneClass: Record<NonNullable<ListPickItem['suffixTone']>, string> = {
   release: 'text-[var(--color-version-release)]',
   snapshot: 'text-[var(--color-version-snapshot)]',
+  beta: 'text-[var(--color-version-snapshot)]',
+  alpha: 'text-[var(--color-version-snapshot)]',
+}
+
+const groupLabelClass: Record<NonNullable<ListPickGroup['labelTone']>, string> = {
+  latest: 'text-[var(--color-version-release)]',
+  prerelease: 'text-[var(--color-version-snapshot)]',
 }
 
 export function ListPickDialog({
@@ -41,6 +54,7 @@ export function ListPickDialog({
   onClose,
   header,
   empty,
+  size = 'xs',
 }: DialogProps) {
   const { t } = useTranslation()
   const listRef = useRef<HTMLDivElement>(null)
@@ -56,7 +70,7 @@ export function ListPickDialog({
     <Dialog
       open={open}
       title={title}
-      size="xs"
+      size={size}
       compact
       backdrop="lighter"
       overlayClassName="z-[95]"
@@ -71,14 +85,24 @@ export function ListPickDialog({
         {header}
         <div
           ref={listRef}
-          className="h-[min(15rem,42vh)] overflow-y-auto rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)]/40"
+          className={[
+            'overflow-y-auto rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)]/40',
+            size === 'sm' ? 'h-[min(22rem,52vh)]' : 'h-[min(15rem,42vh)]',
+          ].join(' ')}
         >
           {hasItems ? (
             groups.map((group, index) =>
               group.items.length ? (
                 <div key={group.label ?? `group-${index}`}>
                   {group.label ? (
-                    <p className="sticky top-0 z-[1] bg-[var(--color-surface)] px-3 py-2 text-sm font-bold tracking-wide text-[var(--color-text-muted)]">
+                    <p
+                      className={[
+                        'sticky top-0 z-[1] bg-[var(--color-surface)] px-3 py-2 text-sm font-bold tracking-wide',
+                        group.labelTone
+                          ? groupLabelClass[group.labelTone]
+                          : 'text-[var(--color-text-muted)]',
+                      ].join(' ')}
+                    >
                       {group.label}
                     </p>
                   ) : null}
@@ -91,10 +115,10 @@ export function ListPickDialog({
                             type="button"
                             data-list-pick-selected={selected ? 'true' : undefined}
                             className={[
-                              'flex w-full items-center justify-between gap-2 px-2.5 py-1 text-left text-xs',
+                              'flex w-full items-center justify-between gap-2 px-2.5 py-1 text-left text-xs text-[var(--color-text)] hover:bg-[var(--color-hover)]',
                               selected
                                 ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
-                                : 'text-[var(--color-text)] hover:bg-[var(--color-hover)]',
+                                : '',
                             ].join(' ')}
                             onClick={() => {
                               onSelect(item.value)
@@ -108,9 +132,13 @@ export function ListPickDialog({
                                   'shrink-0 text-[10px] font-medium',
                                   item.suffixTone
                                     ? suffixToneClass[item.suffixTone]
-                                    : selected
-                                      ? 'text-[var(--color-selection)]/70'
-                                      : 'text-[var(--color-text-muted)]',
+                                    : item.tone === 'latest'
+                                      ? 'text-[var(--color-version-release)]/80'
+                                      : item.tone === 'prerelease'
+                                        ? 'text-[var(--color-version-snapshot)]/80'
+                                        : selected
+                                          ? 'text-[var(--color-selection)]/70'
+                                          : 'text-[var(--color-text-muted)]',
                                 ].join(' ')}
                               >
                                 {item.suffix}

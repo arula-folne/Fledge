@@ -548,7 +548,6 @@ export class LaunchOrchestrator {
       const options = snapshotMinecraftInitialOptions(
         settings.minecraftInitialSettings,
         mcVersion,
-        settings.locale,
       )
       const overlay = snapshotMinecraftDebugOverlay(
         settings.minecraftInitialSettings,

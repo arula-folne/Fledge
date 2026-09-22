@@ -27,11 +27,11 @@ export function MinecraftKeybindsDialog({ open, value, onChange, onClose }: Prop
     if (!open) setListeningId(null)
   }, [open])
 
-  // Chromium はマウス4/5を履歴の戻る/進むに割り当てる。割当て画面では無効化し、キー入力として使えるようにする。
+  // Chromium は side button を履歴の戻る/進むに割り当てる。割当て画面では無効化し、キー入力として使えるようにする。
   useEffect(() => {
     if (!open) return
     const blockBrowserNav = (e: MouseEvent) => {
-      if (e.button !== 3 && e.button !== 4) return
+      if (e.button < 3) return
       e.preventDefault()
       e.stopPropagation()
     }
@@ -70,8 +70,8 @@ export function MinecraftKeybindsDialog({ open, value, onChange, onClose }: Prop
 
     const onMouse = (e: MouseEvent) => {
       const code = mouseButtonToMcKey(e.button)
-      // マウス4/5は行外でも割当て対象（戻るナビ抑制と両立）
-      if (e.button === 3 || e.button === 4) {
+      // 追加ボタン（4〜8）は行外でも割当て対象（戻るナビ抑制と両立）
+      if (e.button >= 3) {
         e.preventDefault()
         e.stopPropagation()
         if (code) finish(code)
@@ -154,47 +154,49 @@ export function MinecraftKeybindsDialog({ open, value, onChange, onClose }: Prop
                     <div
                       key={item.id}
                       data-keybind-row
-                      className="flex items-center gap-2 rounded-[var(--radius-sm)] px-1 py-0.5"
+                      className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] px-1 py-0.5"
                     >
                       <span className="min-w-0 flex-1 text-sm text-[var(--color-text)]">
                         {actionLabel(item.id)}
                       </span>
-                      <button
-                        type="button"
-                        className={[
-                          'min-w-[7.5rem] rounded-[var(--radius-sm)] border px-2.5 py-1.5 text-xs font-medium tabular-nums',
-                          listening
-                            ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]'
-                            : custom
-                              ? 'border-[var(--color-selection)] bg-[var(--color-selection-soft)] text-[var(--color-selection)]'
-                              : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] hover:bg-[var(--color-hover)]',
-                        ].join(' ')}
-                        onClick={() => setListeningId(listening ? null : item.id)}
-                      >
-                        {listening
-                          ? t('settings.minecraftInitial.keybinds.listening')
-                          : formatMcKeyCode(current)}
-                      </button>
-                      <button
-                        type="button"
-                        data-keybind-ignore
-                        disabled={!custom}
-                        aria-label={t('settings.minecraftInitial.reset')}
-                        className={[
-                          'flex size-8 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)]',
-                          custom
-                            ? 'text-[var(--color-text)] hover:bg-[var(--color-hover)]'
-                            : 'cursor-default text-[var(--color-text-muted)] opacity-45',
-                        ].join(' ')}
-                        onClick={() => {
-                          const next = { ...value }
-                          delete next[item.id]
-                          onChange(next)
-                          if (listeningId === item.id) setListeningId(null)
-                        }}
-                      >
-                        <IconRefresh size={16} stroke={1.75} />
-                      </button>
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <button
+                          type="button"
+                          className={[
+                            'min-w-[7.5rem] rounded-[var(--radius-sm)] border px-2.5 py-1.5 text-xs font-medium tabular-nums',
+                            listening
+                              ? 'border-[var(--color-accent)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]'
+                              : custom
+                                ? 'border-[var(--color-selection)] bg-[var(--color-selection-soft)] text-[var(--color-selection)]'
+                                : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] hover:bg-[var(--color-hover)]',
+                          ].join(' ')}
+                          onClick={() => setListeningId(listening ? null : item.id)}
+                        >
+                          {listening
+                            ? t('settings.minecraftInitial.keybinds.listening')
+                            : formatMcKeyCode(current)}
+                        </button>
+                        <button
+                          type="button"
+                          data-keybind-ignore
+                          disabled={!custom}
+                          aria-label={t('settings.minecraftInitial.reset')}
+                          className={[
+                            'flex size-8 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)]',
+                            custom
+                              ? 'text-[var(--color-text)] hover:bg-[var(--color-hover)]'
+                              : 'cursor-default text-[var(--color-text-muted)] opacity-45',
+                          ].join(' ')}
+                          onClick={() => {
+                            const next = { ...value }
+                            delete next[item.id]
+                            onChange(next)
+                            if (listeningId === item.id) setListeningId(null)
+                          }}
+                        >
+                          <IconRefresh size={16} stroke={1.75} />
+                        </button>
+                      </div>
                     </div>
                   )
                 })}

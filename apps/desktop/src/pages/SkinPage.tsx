@@ -2,16 +2,18 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { IconCheck, IconPencil, IconPlus, IconUpload } from '@tabler/icons-react'
-import { MAX_UPLOADED_SKINS, type SkinEntry, type SkinModel, type Settings } from '@fledge/shared'
+import { MAX_UPLOADED_SKINS, type CapeEntry, type SkinEntry, type SkinModel, type Settings } from '@fledge/shared'
 import { fledgeApi } from '../api/fledgeApi'
 import { Button } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { HoverTip } from '../components/ui/HoverTip'
 import { TextField } from '../components/ui/TextField'
 import { SkinPreview } from '../components/skin/SkinPreview'
 import { SkinCachedThumb, skinThumbQueryKey } from '../components/skin/SkinCachedThumb'
-import { defaultSkinThumbUrl, defaultSkinUrl } from '../components/skin/defaultSkinUrls'
+import { defaultSkinTextureUrl, defaultSkinThumbUrl } from '../components/skin/defaultSkinUrls'
 import { renderSkinThumbDataUrl } from '../components/skin/skinSnapshot'
+import { isTauriApp, localFileAssetUrl, preferElectronDefaultProtocol } from '../components/skin/skinUrls'
 import {
   patchSelectedSkinSettings,
   prefetchAccountFaceFromLocalSkin,
@@ -92,13 +94,19 @@ export default function SkinPage() {
   })
 
   const updateMutation = useMutation({
-    mutationFn: (input: { id: string; name?: string; model?: SkinModel }) =>
-      fledgeApi.skins.update(input),
+    mutationFn: (input: {
+      id: string
+      name?: string
+      model?: SkinModel
+      bytes?: number[]
+      originalName?: string
+    }) => fledgeApi.skins.update(input),
     onSuccess: async (_skin, input) => {
       await queryClient.invalidateQueries({ queryKey: ['skins'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
       await queryClient.invalidateQueries({ queryKey: ['account-face'] })
-      if (input.model) {
+      if (input.bytes || input.model) {
+        await queryClient.removeQueries({ queryKey: ['skin-data', input.id] })
         await queryClient.removeQueries({ queryKey: ['skin-thumb', input.id] })
       }
     },
@@ -116,7 +124,7 @@ export default function SkinPage() {
   })
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-2">
+    <div className="flex h-full min-h-0 flex-col gap-2" data-fledge-tutorial="tutorial-skin">
       <h1 className="text-lg font-semibold">{t('skin.title')}</h1>
       <p className="text-xs text-[var(--color-text-muted)]">{t('skin.playHint')}</p>
       {selectMutation.isError ? (
@@ -284,25 +292,52 @@ export default function SkinPage() {
           usedNames={uploads.filter((s) => s.id !== editing.id).map((s) => s.name)}
           saving={updateMutation.isPending || removeMutation.isPending}
           onClose={() => setEditing(null)}
-          onSave={async (name, model) => {
-            await updateMutation.mutateAsync({ id: editing.id, name, model })
-            if (model !== editing.model) {
-              const url = await fledgeApi.skins.getDataUrl(editing.id)
-              if (url) {
+          onSave={async (name, model, file) => {
+            let bytes: number[] | undefined
+            let originalName: string | undefined
+            let previewForThumb: string | undefined
+            if (file) {
+              const buffer = new Uint8Array(await file.arrayBuffer())
+              bytes = Array.from(buffer)
+              originalName = file.name
+              previewForThumb = URL.createObjectURL(file)
+            }
+            try {
+              await updateMutation.mutateAsync({
+                id: editing.id,
+                name,
+                model,
+                bytes,
+                originalName,
+              })
+              const thumbSource =
+                previewForThumb ?? (await fledgeApi.skins.getDataUrl(editing.id)) ?? undefined
+              if (thumbSource && (file || model !== editing.model)) {
                 try {
-                  const thumb = await renderSkinThumbDataUrl(url, model)
+                  const thumb = await renderSkinThumbDataUrl(thumbSource, model)
                   await fledgeApi.skins.saveThumb(editing.id, model, thumb)
                   queryClient.setQueryData(skinThumbQueryKey(editing.id, model), thumb)
                 } catch (err) {
                   console.error('Skin thumb render failed:', err)
                 }
               }
+              if (selectedId === editing.id) {
+                applySkinSelection(editing.id, model)
+                if (file) {
+                  void prefetchAccountFaceFromLocalSkin(
+                    queryClient,
+                    editing.id,
+                    (skinsQuery.data ?? []).map((s) =>
+                      s.id === editing.id ? { ...s, model } : s,
+                    ),
+                  )
+                }
+              }
+              setEditing(null)
+              scrollToSkinList()
+            } finally {
+              if (previewForThumb) URL.revokeObjectURL(previewForThumb)
             }
-            if (selectedId === editing.id) {
-              applySkinSelection(editing.id, model)
-            }
-            setEditing(null)
-            scrollToSkinList()
           }}
           onRemove={async () => {
             await removeMutation.mutateAsync(editing.id)
@@ -396,31 +431,48 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-function useSkinImageUrl(skin: SkinEntry): string | undefined {
-  const urlQuery = useQuery({
+function useSkinImageUrl(skin: SkinEntry, enabled = true): string | undefined {
+  const tauri = isTauriApp()
+  const electronDefault = preferElectronDefaultProtocol(skin)
+  const bundledTexture =
+    skin.source === 'default' ? defaultSkinTextureUrl(skin.id) : undefined
+
+  // data URL を優先（skinview3d の読み込みが確実）。WarmupHost が裏で先に埋める。
+  // 既定スキンは Vite 同梱テクスチャを最優先（製品版で resources/skins が無くても表示できる）。
+  const dataQuery = useQuery({
     queryKey: ['skin-data', skin.id],
     queryFn: () => fledgeApi.skins.getDataUrl(skin.id),
-    enabled: skin.source === 'upload',
+    enabled: enabled && !electronDefault && !bundledTexture,
     staleTime: 30 * 60_000,
     gcTime: 15 * 60_000,
   })
-  return skin.source === 'default' ? defaultSkinUrl(skin.id) : (urlQuery.data ?? undefined)
+
+  const pathQuery = useQuery({
+    queryKey: ['skin-path', skin.id],
+    queryFn: () => fledgeApi.skins.resolvePath(skin.id),
+    enabled: enabled && tauri && !dataQuery.data && !electronDefault && !bundledTexture,
+    staleTime: 30 * 60_000,
+    gcTime: 15 * 60_000,
+  })
+  const assetUrl = localFileAssetUrl(pathQuery.data)
+
+  return bundledTexture ?? dataQuery.data ?? assetUrl ?? electronDefault ?? undefined
 }
 
 function SkinEntryThumb({ skin }: { skin: SkinEntry }) {
-  const skinUrl = useSkinImageUrl(skin)
   const bundled = skin.source === 'default' ? defaultSkinThumbUrl(skin.id) : undefined
   if (bundled) {
-    return <img src={bundled} alt="" className="h-full w-full object-contain" draggable={false} />
+    return (
+      <img
+        src={bundled}
+        alt=""
+        className="h-full w-full object-contain"
+        draggable={false}
+        decoding="async"
+      />
+    )
   }
-  return (
-    <SkinCachedThumb
-      skinId={skin.id}
-      model={skin.model}
-      skinUrl={skinUrl}
-      className="h-full w-full"
-    />
-  )
+  return <SkinCachedThumb skinId={skin.id} model={skin.model} className="h-full w-full" />
 }
 
 function SkinEntryPreview({
@@ -545,7 +597,7 @@ function RegisterSkinDialog({
                 skinUrl={previewUrl}
                 model={model}
                 pose="full"
-                interactive
+                interactive={false}
                 width={128}
                 height={200}
                 className="rounded-[var(--radius-md)]"
@@ -617,6 +669,22 @@ function RegisterSkinDialog({
   )
 }
 
+function capeAliasKey(alias: string): string {
+  return alias
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+function capeDisplayName(
+  cape: CapeEntry,
+  t: (key: string, opts?: Record<string, unknown>) => string,
+): string {
+  if (!cape.alias) return t('skin.cape.unnamed')
+  const key = capeAliasKey(cape.alias)
+  return t(`skin.cape.alias.${key}`, { defaultValue: cape.alias })
+}
+
 function EditSkinDialog({
   skin,
   usedNames,
@@ -629,19 +697,80 @@ function EditSkinDialog({
   usedNames: string[]
   saving: boolean
   onClose: () => void
-  onSave: (name: string, model: SkinModel) => Promise<void>
+  onSave: (name: string, model: SkinModel, file?: File) => Promise<void>
   onRemove: () => Promise<void>
 }) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const [name, setName] = useState(skin.name)
   const [model, setModel] = useState<SkinModel>(skin.model)
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | undefined>()
+  const [error, setError] = useState<string | null>(null)
   const [removeOpen, setRemoveOpen] = useState(false)
+  const [selectedCapeId, setSelectedCapeId] = useState<string | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const existingUrl = useSkinImageUrl(skin)
   const defaultName = nextDefaultSkinName(usedNames, t('skin.mySkin'))
+  const previewUrl = pendingPreviewUrl ?? existingUrl
+
+  const sessionQuery = useQuery({
+    queryKey: ['session'],
+    queryFn: () => fledgeApi.auth.session(),
+  })
+  const loggedIn = Boolean(sessionQuery.data?.account)
+
+  const capesQuery = useQuery({
+    queryKey: ['capes'],
+    enabled: loggedIn,
+    queryFn: () => fledgeApi.capes.list(),
+  })
+
+  useEffect(() => {
+    const active = (capesQuery.data ?? []).find((c) => c.active)
+    setSelectedCapeId(active?.id ?? null)
+  }, [capesQuery.data])
+
+  const capeMutation = useMutation({
+    mutationFn: (capeId: string | null) => fledgeApi.capes.select(capeId),
+    onSuccess: async (list) => {
+      queryClient.setQueryData(['capes'], list)
+      const active = list.find((c) => c.active)
+      setSelectedCapeId(active?.id ?? null)
+    },
+    onError: (err: unknown) => {
+      setError(err instanceof Error ? err.message : t('skin.cape.applyFailed'))
+    },
+  })
+
+  const previewCapeUrl =
+    (capesQuery.data ?? []).find((c) => c.id === selectedCapeId)?.url ?? null
 
   useEffect(() => {
     setName(skin.name)
     setModel(skin.model)
+    setPendingFile(null)
+    setError(null)
   }, [skin])
+
+  useEffect(() => {
+    if (!pendingFile) {
+      setPendingPreviewUrl(undefined)
+      return
+    }
+    const url = URL.createObjectURL(pendingFile)
+    setPendingPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [pendingFile])
+
+  const applyFile = (file: File) => {
+    if (!file.name.toLowerCase().endsWith('.png') && file.type !== 'image/png') {
+      setError(t('skin.uploadHint'))
+      return
+    }
+    setError(null)
+    setPendingFile(file)
+  }
 
   const canSave = !saving
 
@@ -664,7 +793,13 @@ function EditSkinDialog({
             <Button
               variant="primary"
               disabled={!canSave}
-              onClick={() => void onSave(name.trim() || defaultName, model)}
+              onClick={() =>
+                void onSave(name.trim() || defaultName, model, pendingFile ?? undefined).catch(
+                  (err: unknown) => {
+                    setError(err instanceof Error ? err.message : t('skin.uploadHint'))
+                  },
+                )
+              }
             >
               {saving ? t('common.loading') : t('skin.save')}
             </Button>
@@ -672,17 +807,37 @@ function EditSkinDialog({
         </div>
       }
     >
-      <div className="grid gap-3 sm:grid-cols-[140px_1fr]">
-        <div className="flex justify-center rounded-[var(--radius-md)] bg-gradient-to-b from-[var(--color-border)]/40 to-transparent py-2">
-          <SkinEntryPreview
-            skin={{ ...skin, model }}
-            pose="full"
-            interactive
-            width={128}
-            height={200}
-            className="rounded-[var(--radius-md)]"
-            model={model}
-          />
+      <div className="grid gap-3 sm:grid-cols-[minmax(128px,auto)_1fr]">
+        <div className="flex flex-col items-center gap-1.5">
+          <HoverTip label={t('skin.changeFile')} disabled={saving}>
+            <div className="group relative h-[200px] w-[128px] shrink-0 overflow-hidden rounded-[var(--radius-md)]">
+              {previewUrl ? (
+                <SkinPreview
+                  skinUrl={previewUrl}
+                  model={model}
+                  capeUrl={previewCapeUrl}
+                  interactive
+                  pose="full"
+                  width={128}
+                  height={200}
+                  className="rounded-[var(--radius-md)]"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-bg)]/40 text-xs text-[var(--color-text-muted)]">
+                  {t('common.loading')}
+                </div>
+              )}
+              <button
+                type="button"
+                disabled={saving}
+                aria-label={t('skin.changeFile')}
+                className="absolute inset-0 flex items-center justify-center rounded-[var(--radius-md)] bg-black/50 opacity-0 outline-none transition group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]/50"
+                onClick={() => fileRef.current?.click()}
+              >
+                <IconUpload size={28} stroke={1.6} className="text-white" aria-hidden />
+              </button>
+            </div>
+          </HoverTip>
         </div>
         <div className="flex flex-col gap-3">
           <TextField
@@ -707,8 +862,81 @@ function EditSkinDialog({
               ))}
             </div>
           </div>
+          {loggedIn ? (
+            <div>
+              <div className="mb-2 text-sm text-[var(--color-text-muted)]">{t('skin.cape')}</div>
+              <p className="mb-2 text-[11px] text-[var(--color-text-muted)]">{t('skin.cape.hint')}</p>
+              {capesQuery.isLoading ? (
+                <p className="text-xs text-[var(--color-text-muted)]">{t('common.loading')}</p>
+              ) : (capesQuery.data ?? []).length === 0 ? (
+                <p className="text-xs text-[var(--color-text-muted)]">{t('skin.cape.empty')}</p>
+              ) : (
+                <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
+                  <button
+                    type="button"
+                    disabled={capeMutation.isPending}
+                    className={[
+                      'rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-sm transition',
+                      selectedCapeId === null
+                        ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
+                        : 'hover:bg-[var(--color-hover)] text-[var(--color-text)]',
+                    ].join(' ')}
+                    onClick={() => {
+                      setSelectedCapeId(null)
+                      capeMutation.mutate(null)
+                    }}
+                  >
+                    {t('skin.cape.none')}
+                  </button>
+                  {(capesQuery.data ?? []).map((cape) => (
+                    <button
+                      key={cape.id}
+                      type="button"
+                      disabled={capeMutation.isPending}
+                      className={[
+                        'flex items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-sm transition',
+                        selectedCapeId === cape.id
+                          ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
+                          : 'hover:bg-[var(--color-hover)] text-[var(--color-text)]',
+                      ].join(' ')}
+                      onClick={() => {
+                        setSelectedCapeId(cape.id)
+                        capeMutation.mutate(cape.id)
+                      }}
+                    >
+                      {cape.url ? (
+                        <img
+                          src={cape.url}
+                          alt=""
+                          className="size-7 shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-border)] object-cover"
+                        />
+                      ) : (
+                        <span className="size-7 shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)]" />
+                      )}
+                      <span className="min-w-0 flex-1 truncate">{capeDisplayName(cape, t)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-[var(--color-text-muted)]">{t('skin.cape.loginRequired')}</p>
+          )}
+          {error ? <p className="text-xs text-[var(--color-danger)]">{error}</p> : null}
         </div>
       </div>
+
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/png,.png"
+        className="hidden"
+        onChange={(e) => {
+          const next = e.target.files?.[0]
+          if (next) applyFile(next)
+          e.target.value = ''
+        }}
+      />
     </Dialog>
     <ConfirmDialog
       open={removeOpen}

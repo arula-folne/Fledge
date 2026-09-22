@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslation } from 'react-i18next'
 import { IconArrowLeft, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
@@ -15,10 +15,18 @@ type Props = {
   index: number
   onClose: () => void
   onChange: (index: number) => void
+  /** 指定時は画像上の右クリックをアプリ側メニューに渡す（ネイティブメニューを抑止） */
+  onItemContextMenu?: (event: ReactMouseEvent, index: number) => void
 }
 
 /** Mod ギャラリー／インスタンス スクリーンショット共通の全画面ビューア */
-export function GalleryLightbox({ items, index, onClose, onChange }: Props) {
+export function GalleryLightbox({
+  items,
+  index,
+  onClose,
+  onChange,
+  onItemContextMenu,
+}: Props) {
   const { t } = useTranslation()
   const item = items[index]
   const hasPrev = index > 0
@@ -65,6 +73,12 @@ export function GalleryLightbox({ items, index, onClose, onChange }: Props) {
           decoding="async"
           className="max-h-full max-w-full object-contain"
           onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => {
+            if (!onItemContextMenu) return
+            e.preventDefault()
+            e.stopPropagation()
+            onItemContextMenu(e, index)
+          }}
         />
       </div>
       <div className="absolute inset-x-0 bottom-0 grid grid-cols-[1fr_auto_1fr] items-center gap-2 border-t border-white/10 bg-black/75 px-4 py-3 backdrop-blur-sm">

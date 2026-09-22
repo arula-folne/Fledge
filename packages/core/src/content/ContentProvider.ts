@@ -71,7 +71,7 @@ export interface ContentProvider {
   findUpdate?(
     entry: Pick<InstalledContent, 'projectId' | 'versionId' | 'category'>,
     opts: { gameVersion?: string; loaders?: ContentLoaderFilter[] },
-  ): Promise<{ versionId: string; versionNumber: string } | null>
+  ): Promise<{ versionId: string; versionNumber: string; versionType: 'release' } | null>
 }
 
 export type { ContentInstallRequest }

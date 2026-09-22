@@ -1,8 +1,20 @@
 import type { SkinModel } from '@fledge/shared'
 import { SKIN_THUMB, SKIN_THUMB_VERSION } from '@fledge/shared'
-import { SkinViewer } from 'skinview3d'
+import type { SkinViewer } from 'skinview3d'
 
 export { SKIN_THUMB, SKIN_THUMB_VERSION }
+
+type SkinView3dModule = typeof import('skinview3d')
+
+let skinView3dPromise: Promise<SkinView3dModule> | null = null
+
+/** skinview3d は重いので、実際に描画するまで動的 import する */
+export function loadSkinView3d(): Promise<SkinView3dModule> {
+  if (!skinView3dPromise) {
+    skinView3dPromise = import('skinview3d')
+  }
+  return skinView3dPromise
+}
 
 let renderChain: Promise<unknown> = Promise.resolve()
 
@@ -16,8 +28,13 @@ export function enqueueSkinRender<T>(task: () => Promise<T>): Promise<T> {
   return next
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+/** 次フレームまで待ってから重い GL 仕事を始める（ナビ直後の入力を優先） */
+export function yieldToUi(): Promise<void> {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => resolve())
+    })
+  })
 }
 
 export function toSkinViewModel(model: SkinModel): 'slim' | 'default' {
@@ -47,6 +64,8 @@ export async function renderSkinSnapshotToCanvas(
   cssHeight: number,
   zoom: number,
 ): Promise<void> {
+  await yieldToUi()
+  const { SkinViewer } = await loadSkinView3d()
   const pixelRatio = Math.min(2, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1)
   const glCanvas = document.createElement('canvas')
   const viewer = new SkinViewer({
@@ -80,7 +99,6 @@ export async function renderSkinSnapshotToCanvas(
     ctx.drawImage(glCanvas, 0, 0)
   } finally {
     viewer.dispose()
-    await delay(20)
   }
 }
 

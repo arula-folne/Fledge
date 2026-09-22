@@ -1,6 +1,7 @@
 import { IconStar, IconStarFilled } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 import type { ContentProject } from '@fledge/shared'
+import { HoverTip } from '../../components/ui/HoverTip'
 import { ContentInstallButton } from './ContentInstallButton'
 import { ProjectTagRow } from './ContentTags'
 import { formatJaCount } from '../../utils/formatJaCount'
@@ -43,15 +44,57 @@ export function ContentSearchHitRow({
 }: Props) {
   const { t } = useTranslation()
   const zebra = index % 2 === 1
+  const installTip =
+    mode === 'create'
+      ? t('content.createInstance')
+      : installed
+        ? t('content.installed')
+        : t('content.installHover')
+  const favoriteTip = favorited ? t('content.favorite.removeHover') : t('content.favorite.addHover')
+
   return (
     <li>
       <div
         className={[
-          'flex h-[5.75rem] items-center gap-4 overflow-hidden px-4 py-3',
+          'flex min-h-[5.75rem] items-center gap-4 overflow-x-clip px-4 py-3',
           zebra ? 'bg-[var(--color-zebra)]' : 'bg-[var(--color-surface)]',
           incompatible ? 'opacity-55' : '',
         ].join(' ')}
       >
+        <HoverTip label={installTip} disabled={incompatible || installing}>
+          <ContentInstallButton
+            iconOnly
+            mode={mode}
+            installing={installing}
+            installed={installed}
+            disabled={incompatible}
+            onInstall={onInstall}
+          />
+        </HoverTip>
+        {onToggleFavorite ? (
+          <HoverTip label={favoriteTip}>
+            <button
+              type="button"
+              aria-label={favorited ? t('content.favorite.remove') : t('content.favorite.add')}
+              className={[
+                'inline-flex size-9 shrink-0 items-center justify-center rounded-full transition',
+                favorited
+                  ? 'text-[var(--color-accent)] hover:bg-[var(--color-accent-soft)]'
+                  : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
+              ].join(' ')}
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleFavorite()
+              }}
+            >
+              {favorited ? (
+                <IconStarFilled size={20} stroke={1.5} aria-hidden />
+              ) : (
+                <IconStar size={20} stroke={1.75} aria-hidden />
+              )}
+            </button>
+          </HoverTip>
+        ) : null}
         <button
           type="button"
           className="flex min-h-0 min-w-0 flex-1 items-center gap-3.5 text-left"
@@ -73,7 +116,7 @@ export function ContentSearchHitRow({
           ) : (
             <div className="size-12 shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)]" />
           )}
-          <div className="grid min-w-0 flex-1 grid-rows-[auto_1.25rem_1.25rem] gap-1.5">
+          <div className="grid min-w-0 flex-1 grid-rows-[auto_1.25rem_minmax(1.5rem,auto)] gap-1.5">
             <div className="flex min-w-0 items-baseline gap-2.5">
               <span className="truncate text-base font-medium leading-snug">{hit.name}</span>
               {hit.author ? (
@@ -95,9 +138,9 @@ export function ContentSearchHitRow({
                 ? t('content.favorite.incompatible')
                 : hit.description?.trim() || '\u00a0'}
             </p>
-            <div className="min-h-5 overflow-hidden leading-5">
+            <div className="min-h-[1.5rem] overflow-x-clip pb-px leading-5">
               {compatDebug ? (
-                <p className="truncate font-mono text-[11px] leading-5 text-[var(--color-text-muted)]">
+                <p className="overflow-x-clip text-ellipsis whitespace-nowrap font-mono text-[11px] leading-5 text-[var(--color-text-muted)]">
                   {compatDebug}
                 </p>
               ) : (
@@ -110,38 +153,6 @@ export function ContentSearchHitRow({
             </div>
           </div>
         </button>
-        {onToggleFavorite ? (
-          <button
-            type="button"
-            aria-label={favorited ? t('content.favorite.remove') : t('content.favorite.add')}
-            className={[
-              'inline-flex size-9 shrink-0 items-center justify-center rounded-full transition',
-              favorited
-                ? 'text-[var(--color-accent)] hover:bg-[var(--color-accent-soft)]'
-                : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
-            ].join(' ')}
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggleFavorite()
-            }}
-          >
-            {favorited ? (
-              <IconStarFilled size={20} stroke={1.5} aria-hidden />
-            ) : (
-              <IconStar size={20} stroke={1.75} aria-hidden />
-            )}
-          </button>
-        ) : null}
-        <div className="shrink-0">
-          <ContentInstallButton
-            size="sm"
-            mode={mode}
-            installing={installing}
-            installed={installed}
-            disabled={incompatible}
-            onInstall={onInstall}
-          />
-        </div>
       </div>
     </li>
   )

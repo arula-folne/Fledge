@@ -1,6 +1,6 @@
 # Fledge 開発ガイド
 
-最終更新: 2026-08-17
+最終更新: 2026-09-22
 
 ソースから Fledge を動かす手順です。製品の紹介は [README](../README.md)、実装の詳細は [spec.md](./spec.md) です。
 
@@ -10,7 +10,7 @@
 
 - Node.js **20+**
 - pnpm **11+**（リポジトリは `packageManager: pnpm@11.4.0`）
-- **Windows 11** のみ想定（Electron の配布設定は `win32-x64` / NSIS）
+- **Windows 11** のみ想定（配布は Tauri NSIS / `win32-x64`）
 
 ## セットアップと起動
 
@@ -28,28 +28,24 @@ pnpm dev
 `pnpm install` の `postinstall` で `scripts/patch-xmcl.js` が走ります。  
 ルートの `pnpm dev` は `pnpm --filter @fledge/desktop dev` と同じです。
 
-開発時のデータルートは `apps/desktop/.fledge-root/` です（gitignore 済み）。本番の既定は Electron `userData`（AppData）で、インストール先（exe 横）にはアプリ本体だけを置きます。
+開発時のデータルートは `apps/desktop/.fledge-root/` です（gitignore 済み）。本番の既定 settingsRoot は `%APPDATA%/fledge` で、インストール先（exe 横）にはアプリ本体だけを置きます。シェルは **Tauri 2**（詳細は [tauri-0.5.md](./tauri-0.5.md)）。Electron は 0.5 で非推奨です。
 
 ## バージョン表記
 
-正本は `packages/shared/src/version.ts` の `APP_VERSION` です。表示は常に `Ver.` 付きです。  
-同一 patch 内の順序は `packages/shared/src/compareVersions.ts` の `suffixRank` に従います。
+正本は `packages/shared/src/version.ts` の `APP_VERSION` です。表示は常に `Ver.` 付きです。
 
-| 区分 | `APP_VERSION` | 表示例 | 用途 |
-|------|---------------|--------|------|
-| アルファ版 | `0.0.0a` | Ver.0.0.0a | 通常プレリリース |
-| ベータ版 | `0.0.0b` | Ver.0.0.0b | ベータ |
-| ベータ追修正 | `0.0.0c` | Ver.0.0.0c | 同一 patch の追修正ベータ |
-| アップデートテスター | `0.0.0ut` | Ver.0.0.0ut | 更新実験の **元**（テスト用データを載せる） |
-| アップデートチェック | `0.0.0up` | Ver.0.0.0up | `ut` から更新し、データ残存を **確認** |
-| 更新止めファイナル | `0.0.0f` | Ver.0.0.0f | 系統の最終版（それ以上は自動更新しない） |
-| 製品版 | `0.0.0` | Ver.0.0.0 | 接尾辞なし |
+| 範囲 | `APP_VERSION` 例 | 表示例 | 扱い |
+|------|------------------|--------|------|
+| ベータ | `0.5.0` | Ver.0.5.0 | `0.x.x` はベータ |
+| 正式版 | `1.0.0` | Ver.1.0.0 | `1.0.0` 以降 |
+
+接尾辞（`a` / `b` / `r` / `rc` / `ut` / `up` / `f` など）は **使いません**。  
+旧タグ比較のため `compareVersions` は歴史的サフィックスを解釈できますが、新規リリースには付けないでください。
 
 世代ロックの最終版: 第1世代 `0.2.4f`（0.3+ 不可） / 第2世代 `0.4.6`（0.5+ 不可）。
 
-**更新実験の流れ:** `…ut` をインストール → テストデータ作成 → `…up` をアプリ内更新 → Instances / 設定が残っているか確認。
-
-変更後は `pnpm version:sync` で package.json / README / spec を同期します（npm semver 用に `0.3.0ut` → `0.3.0-ut` へ変換されます）。
+変更後は `pnpm version:sync` で package.json / README / spec を同期します。  
+配布インストーラ名は `Fledge_{version}_x64-setup.exe`（例: `Fledge_0.5.0_x64-setup.exe`）。
 
 ## よく使うスクリプト
 
@@ -60,14 +56,14 @@ pnpm dev
 | `pnpm typecheck` | 型チェック |
 | `pnpm lint` | ESLint |
 | `pnpm format` | Prettier |
-| `pnpm --filter @fledge/desktop pack` | electron-builder `--dir` |
-| `pnpm --filter @fledge/desktop dist` | NSIS など配布物 |
+| `pnpm --filter @fledge/desktop tauri:build` | Tauri NSIS インストーラ |
+| `pnpm tauri:build` | 同上（ルート短縮） |
 
 ## リリース配布物
 
-配布するのは **NSIS インストーラー**（`Fledge-Setup.exe`）だけです。portable ターゲットは配布しません（展開して直接起動するだけでインストールされず、自動更新も壊れます）。
+配布するのは **Tauri NSIS インストーラー**（`Fledge_*_x64-setup.exe`）だけです。0.4.x の Electron `Fledge-Setup.exe` とは別物です。portable ターゲットは配布しません。
 
-正規の経路は GitHub Actions です。`v*` タグを push すると `.github/workflows/release.yml` が NSIS をビルドし、アンインストーラー同梱を検証したうえで Release に添付します。手元でビルドした exe を直接アップロードしないでください。
+正規の経路は GitHub Actions（将来）または手元の `pnpm tauri:build` です。0.4 系向け世代ロックにより、0.4.6 クライアントは 0.5+ を自動更新しません。
 
 リリースページの本文はリポジトリ直下の `RELEASE_NOTES.md` から取り込みます（自動生成ノートは使いません）。タグを切る前に、そのバージョンの更新内容を `RELEASE_NOTES.md` に書いてください。お知らせ（`news/news.ja.json`）も従来どおり手動追加します。
 
@@ -77,12 +73,9 @@ npm 上の `@xmcl/core` / `@xmcl/installer` は `main` がソースを指して�
 `postinstall` の `scripts/patch-xmcl.js` と `pnpm-workspace.yaml` の `packageExtensions` で dist を指すようにしています。  
 依存を入れ直したあとにモジュール解決がおかしいときは、`node scripts/patch-xmcl.js` を再実行してください。
 
-## Electron バイナリが取れないとき
+## Electron（非推奨）
 
-ネットワーク制限などで Electron のダウンロードに失敗する場合:
-
-1. [Electron Releases](https://github.com/electron/electron/releases) から、使用バージョンに合う `electron-v*-win32-x64.zip` を取得する
-2. `apps/desktop/node_modules/electron/dist` に展開する
+0.5 以降の正経路は Tauri です。`apps/desktop/electron/` は参照用に残していますが、`dev:electron` / `build:electron` / `dist:electron` は無効化しています。Electron バイナリの手動配置手順は不要です。
 
 ## 環境変数
 

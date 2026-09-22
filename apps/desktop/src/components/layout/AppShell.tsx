@@ -6,6 +6,7 @@ import {
   IconHome,
   IconMenu2,
   IconPackages,
+  IconPhoto,
   IconSettings,
   IconShirt,
 } from '@tabler/icons-react'
@@ -31,7 +32,7 @@ const navClass = (collapsed: boolean) =>
       'flex items-center text-[16px] leading-tight transition-colors',
       collapsed
         ? 'size-10 justify-center rounded-[var(--radius-sm)]'
-        : 'gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2',
+        : 'min-w-0 w-full gap-2.5 rounded-[var(--radius-sm)] px-2.5 py-2',
       isActive
         ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
         : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
@@ -57,7 +58,12 @@ export function AppShell() {
 
   useEffect(() => {
     const locale = settingsQuery.data?.locale
-    if (locale && i18n.language !== locale) void i18n.changeLanguage(locale)
+    if (!locale) return
+    if (i18n.language !== locale) {
+      void i18n.changeLanguage(locale)
+      return
+    }
+    document.documentElement.lang = locale
   }, [settingsQuery.data?.locale])
 
   useEffect(() => {
@@ -76,11 +82,8 @@ export function AppShell() {
 
   return (
     <div className="relative flex h-full flex-col">
-      {seasonId ? <SeasonThemeAtmosphere seasonId={seasonId} dark={seasonDark} /> : null}
-      <div
-        className="relative z-10 flex min-h-0 flex-1"
-        style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
-      >
+      <SeasonThemeAtmosphere seasonId={seasonId} dark={seasonDark} />
+      <div className="relative z-10 flex min-h-0 flex-1">
         <aside
           data-fledge-tutorial="tutorial-sidebar"
           className={[
@@ -88,6 +91,7 @@ export function AppShell() {
             seasonId ? '' : 'bg-[var(--color-surface)]/90',
             collapsed ? 'w-14 items-center px-1.5' : 'w-44 px-2',
           ].join(' ')}
+          style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
         >
           <div
             className={['mb-3 flex items-center', collapsed ? 'flex-col gap-1' : 'gap-0.5'].join(' ')}
@@ -113,21 +117,25 @@ export function AppShell() {
             {collapsed ? null : <TextLogo sidebar showIcon={false} />}
           </div>
           <nav className={['flex flex-col', collapsed ? 'items-center gap-1.5' : 'gap-1'].join(' ')}>
-            <NavLink to="/" end className={itemClass} aria-label={t('nav.home')}>
-              <IconHome {...navIcon} aria-hidden />
-              {collapsed ? null : t('nav.home')}
+            <NavLink to="/" end className={itemClass} aria-label={t('nav.home')} title={t('nav.home')}>
+              <IconHome {...navIcon} className="shrink-0 text-[var(--color-nav-home)]" aria-hidden />
+              {collapsed ? null : <span className="min-w-0 truncate">{t('nav.home')}</span>}
             </NavLink>
-            <NavLink to="/browse" className={itemClass} aria-label={t('nav.browse')}>
-              <IconPackages {...navIcon} aria-hidden />
-              {collapsed ? null : t('nav.browse')}
+            <NavLink to="/browse" className={itemClass} aria-label={t('nav.browse')} title={t('nav.browse')}>
+              <IconPackages {...navIcon} className="shrink-0 text-[var(--color-nav-browse)]" aria-hidden />
+              {collapsed ? null : <span className="min-w-0 truncate">{t('nav.browse')}</span>}
             </NavLink>
-            <NavLink to="/skin" className={itemClass} aria-label={t('nav.skin')}>
-              <IconShirt {...navIcon} aria-hidden />
-              {collapsed ? null : t('nav.skin')}
+            <NavLink to="/gallery" className={itemClass} aria-label={t('nav.gallery')} title={t('nav.gallery')}>
+              <IconPhoto {...navIcon} className="shrink-0 text-[var(--color-nav-gallery)]" aria-hidden />
+              {collapsed ? null : <span className="min-w-0 truncate">{t('nav.gallery')}</span>}
             </NavLink>
-            <NavLink to="/settings" className={itemClass} aria-label={t('nav.settings')}>
-              <IconSettings {...navIcon} aria-hidden />
-              {collapsed ? null : t('nav.settings')}
+            <NavLink to="/skin" className={itemClass} aria-label={t('nav.skin')} title={t('nav.skin')}>
+              <IconShirt {...navIcon} className="shrink-0 text-[var(--color-nav-skin)]" aria-hidden />
+              {collapsed ? null : <span className="min-w-0 truncate">{t('nav.skin')}</span>}
+            </NavLink>
+            <NavLink to="/settings" className={itemClass} aria-label={t('nav.settings')} title={t('nav.settings')}>
+              <IconSettings {...navIcon} className="shrink-0 text-[var(--color-nav-settings)]" aria-hidden />
+              {collapsed ? null : <span className="min-w-0 truncate">{t('nav.settings')}</span>}
             </NavLink>
           </nav>
           <div className={['mt-auto pt-2', collapsed ? 'text-center' : 'px-0.5'].join(' ')}>
@@ -136,13 +144,23 @@ export function AppShell() {
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
           <header
+            data-tauri-drag-region
             className={[
-              'season-shell-panel relative z-20 flex min-h-[3.25rem] items-center gap-2 border-b border-[var(--color-border)] px-3 py-1.5',
+              'season-shell-panel relative z-20 flex h-[3.75rem] shrink-0 items-center gap-2 overflow-x-clip border-b border-[var(--color-border)] px-3',
               seasonId ? '' : 'bg-[var(--color-surface)]/70',
             ].join(' ')}
+            style={{ WebkitAppRegion: 'drag' } as CSSProperties}
           >
-            <TransferProgress />
-            <div className="ml-auto flex min-w-0 shrink-0 items-center gap-6">
+            <div
+              className="min-w-0"
+              style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
+            >
+              <TransferProgress />
+            </div>
+            <div
+              className="ml-auto flex min-w-0 shrink-0 items-center gap-6"
+              style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
+            >
               <UpdateAvailableBanner />
               <AccountChip />
             </div>
@@ -151,6 +169,7 @@ export function AppShell() {
             className={[
               'season-shell-main flex min-h-0 flex-1 flex-col overflow-hidden p-3',
             ].join(' ')}
+            style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
           >
             <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
               <Outlet />

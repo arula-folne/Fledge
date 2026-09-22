@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { IconUser } from '@tabler/icons-react'
 import { fledgeApi } from '../../api/fledgeApi'
 import { applyLoggedInAccount, loadSessionQuery, sessionQueryOptions } from './sessionCache'
@@ -33,7 +34,9 @@ export function AccountChip() {
   const authStatus = useUiStore((s) => s.authStatus)
   const setAuthStatus = useUiStore((s) => s.setAuthStatus)
   const [open, setOpen] = useState(false)
+  const [panelPos, setPanelPos] = useState<{ top: number; right: number } | null>(null)
   const rootRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
   const panelId = useId()
 
   const sessionQuery = useQuery({
@@ -83,6 +86,7 @@ export function AccountChip() {
         queryClient.invalidateQueries({ queryKey: ['skins'] }),
         queryClient.invalidateQueries({ queryKey: ['settings'] }),
         queryClient.invalidateQueries({ queryKey: ['account-face'] }),
+        queryClient.invalidateQueries({ queryKey: ['capes'] }),
       ])
     },
   })
@@ -93,13 +97,44 @@ export function AccountChip() {
       setOpen(false)
       await queryClient.invalidateQueries({ queryKey: ['session'] })
       await queryClient.invalidateQueries({ queryKey: ['accounts'] })
+      await queryClient.invalidateQueries({ queryKey: ['capes'] })
     },
   })
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPanelPos(null)
+      return
+    }
+    const update = () => {
+      const el = rootRef.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const width = Math.min(18 * 16, window.innerWidth - 16)
+      const right = Math.max(8, window.innerWidth - rect.right)
+      let top = rect.bottom + 8
+      const approxHeight = 320
+      if (top + approxHeight > window.innerHeight - 8) {
+        top = Math.max(8, rect.top - approxHeight - 8)
+      }
+      setPanelPos({ top, right: Math.min(right, window.innerWidth - width - 8) })
+    }
+    update()
+    window.addEventListener('resize', update)
+    window.addEventListener('scroll', update, true)
+    return () => {
+      window.removeEventListener('resize', update)
+      window.removeEventListener('scroll', update, true)
+    }
+  }, [open])
 
   useEffect(() => {
     if (!open) return
     const onPointerDown = (e: PointerEvent) => {
-      if (!rootRef.current?.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      if (rootRef.current?.contains(target)) return
+      if (panelRef.current?.contains(target)) return
+      setOpen(false)
     }
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false)
@@ -140,6 +175,105 @@ export function AccountChip() {
             ? t('auth.status.loggedIn')
             : t('auth.status.loggedOut')
 
+  const panel =
+    open && panelPos
+      ? createPortal(
+          <div
+            ref={panelRef}
+            id={panelId}
+            role="dialog"
+            aria-label={t('settings.account')}
+            data-fledge-account-popup
+            className="fixed z-[11000] w-72 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-lg"
+            style={{ top: panelPos.top, right: panelPos.right }}
+          >
+            <div className="flex items-center gap-3">
+              {popupFaceUrl ? (
+                <McFaceAvatar src={popupFaceUrl} size={48} radius="md" />
+              ) : (
+                <LoggedOutUserIcon size={48} />
+              )}
+              <div className="min-w-0 space-y-1">
+                <p className="truncate text-sm font-semibold text-[var(--color-text)]">
+                  {account?.displayName ?? t('auth.status.loggedOut')}
+                </p>
+                <p
+                  className={[
+                    'text-xs',
+                    authStatus === 'expired'
+                      ? 'text-[var(--color-danger)]'
+                      : 'text-[var(--color-text-muted)]',
+                  ].join(' ')}
+                >
+                  {statusText}
+                </p>
+              </div>
+            </div>
+
+            {accounts.length > 0 ? (
+              <div className="mt-3 space-y-1 border-t border-[var(--color-border)] pt-3">
+                <p className="mb-1 text-[11px] text-[var(--color-text-muted)]">{t('auth.savedAccounts')}</p>
+                <ul className="max-h-40 space-y-1 overflow-auto">
+                  {accounts.map((a) => {
+                    const active = a.id === account?.id
+                    const aFace = active
+                      ? (chipFaceQuery.data ?? mcFaceUrl(a, 28))
+                      : mcFaceUrl(a, 28)
+                    return (
+                      <li key={a.id}>
+                        <button
+                          type="button"
+                          disabled={active || switchMutation.isPending}
+                          className={[
+                            'flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left text-sm transition',
+                            active
+                              ? 'bg-[var(--color-selection-soft)] text-[var(--color-selection)]'
+                              : 'hover:bg-[var(--color-hover)] text-[var(--color-text)]',
+                          ].join(' ')}
+                          onClick={() => switchMutation.mutate(a.id)}
+                        >
+                          {aFace ? (
+                            <McFaceAvatar src={aFace} size={28} className="bg-[var(--color-bg)]" />
+                          ) : (
+                            <span className="h-7 w-7 shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)]" />
+                          )}
+                          <span className="min-w-0 flex-1 truncate">{a.displayName}</span>
+                          {active ? (
+                            <span className="text-[10px] font-semibold">{t('auth.active')}</span>
+                          ) : null}
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </div>
+            ) : null}
+
+            <div className="mt-3 flex flex-col gap-2">
+              <Button
+                variant="primary"
+                className="w-full"
+                disabled={authStatus === 'logging_in'}
+                onClick={() => void startLogin(queryClient)}
+              >
+                {authStatus === 'expired' ? t('auth.loginShort') : t('auth.addAccount')}
+              </Button>
+              {account ? (
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  disabled={logoutMutation.isPending}
+                  onClick={() => logoutMutation.mutate(account.id)}
+                >
+                  {t('auth.logout')}
+                </Button>
+              ) : null}
+            </div>
+          </div>,
+          document.body,
+        )
+      : null
+
   return (
     <div ref={rootRef} className="relative">
       <button
@@ -167,99 +301,7 @@ export function AccountChip() {
         </div>
         {faceUrl ? <McFaceAvatar src={faceUrl} size={32} /> : <LoggedOutUserIcon size={32} />}
       </button>
-
-      {open ? (
-        <div
-          id={panelId}
-          role="dialog"
-          aria-label={t('settings.account')}
-          className="absolute right-0 top-[calc(100%+8px)] z-[100] w-72 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3 shadow-lg"
-        >
-          <div className="flex items-center gap-3">
-            {popupFaceUrl ? (
-              <McFaceAvatar src={popupFaceUrl} size={48} radius="md" />
-            ) : (
-              <LoggedOutUserIcon size={48} />
-            )}
-            <div className="min-w-0 space-y-1">
-              <p className="truncate text-sm font-semibold text-[var(--color-text)]">
-                {account?.displayName ?? t('auth.status.loggedOut')}
-              </p>
-              <p
-                className={[
-                  'text-xs',
-                  authStatus === 'expired'
-                    ? 'text-[var(--color-danger)]'
-                    : 'text-[var(--color-text-muted)]',
-                ].join(' ')}
-              >
-                {statusText}
-              </p>
-            </div>
-          </div>
-
-          {accounts.length > 0 ? (
-            <div className="mt-3 space-y-1 border-t border-[var(--color-border)] pt-3">
-              <p className="mb-1 text-[11px] text-[var(--color-text-muted)]">{t('auth.savedAccounts')}</p>
-              <ul className="max-h-40 space-y-1 overflow-auto">
-                {accounts.map((a) => {
-                  const active = a.id === account?.id
-                  // 使用中はヘッダーと同じ選択スキン顔。他アカウントは mc-heads
-                  const aFace = active
-                    ? (chipFaceQuery.data ?? mcFaceUrl(a, 28))
-                    : mcFaceUrl(a, 28)
-                  return (
-                    <li key={a.id}>
-                      <button
-                        type="button"
-                        disabled={active || switchMutation.isPending}
-                        className={[
-                          'flex w-full items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-left text-sm transition',
-                          active
-                            ? 'bg-[var(--color-selection-soft)] text-[var(--color-selection)]'
-                            : 'hover:bg-[var(--color-hover)] text-[var(--color-text)]',
-                        ].join(' ')}
-                        onClick={() => switchMutation.mutate(a.id)}
-                      >
-                        {aFace ? (
-                          <McFaceAvatar src={aFace} size={28} className="bg-[var(--color-bg)]" />
-                        ) : (
-                          <span className="h-7 w-7 shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)]" />
-                        )}
-                        <span className="min-w-0 flex-1 truncate">{a.displayName}</span>
-                        {active ? (
-                          <span className="text-[10px] font-semibold">{t('auth.active')}</span>
-                        ) : null}
-                      </button>
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          ) : null}
-
-          <div className="mt-3 flex flex-col gap-2">
-            <Button
-              variant="primary"
-              className="w-full"
-              disabled={authStatus === 'logging_in'}
-              onClick={() => void startLogin(queryClient)}
-            >
-              {authStatus === 'expired' ? t('auth.loginShort') : t('auth.addAccount')}
-            </Button>
-            {account ? (
-              <Button
-                variant="secondary"
-                className="w-full"
-                disabled={logoutMutation.isPending}
-                onClick={() => logoutMutation.mutate(account.id)}
-              >
-                {t('auth.logout')}
-              </Button>
-            ) : null}
-          </div>
-        </div>
-      ) : null}
+      {panel}
     </div>
   )
 }

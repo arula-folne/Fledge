@@ -72,6 +72,12 @@ export function InstanceWizard({ open, onClose, onBack, title }: Props) {
     placeholderData: keepPreviousData,
   })
 
+  const loaderGamesQuery = useQuery({
+    queryKey: ['versions-loader-games', loader],
+    queryFn: () => fledgeApi.versions.listLoaderGames({ loader }),
+    enabled: open && loader !== 'vanilla',
+  })
+
   const loadersQuery = useQuery({
     queryKey: ['versions-loaders', loader, minecraftVersion],
     queryFn: () =>
@@ -108,11 +114,35 @@ export function InstanceWizard({ open, onClose, onBack, title }: Props) {
     }
   }, [icon])
 
+  const allowedMcIds = useMemo(() => {
+    if (loader === 'vanilla') return null
+    const data = loaderGamesQuery.data
+    if (!data || data.loader !== loader) return undefined
+    return new Set(data.versions)
+  }, [loader, loaderGamesQuery.data])
+
+  const filteredMcVersions = useMemo(() => {
+    const versions = versionsQuery.data?.versions ?? []
+    if (loader === 'vanilla') return versions
+    if (allowedMcIds) return versions.filter((v) => allowedMcIds.has(v.id))
+    if (loaderGamesQuery.isError) return versions
+    return []
+  }, [versionsQuery.data, loader, allowedMcIds, loaderGamesQuery.isError])
+
   useEffect(() => {
-    const releases = (versionsQuery.data?.versions ?? []).filter((v) => v.type === 'release')
-    const first = releases[0]?.id
-    if (first && !minecraftVersion) setMinecraftVersion(first)
-  }, [versionsQuery.data, minecraftVersion])
+    if (loader !== 'vanilla' && allowedMcIds === undefined && !loaderGamesQuery.isError) return
+    const releases = filteredMcVersions.filter((v) => v.type === 'release')
+    const pool = releases.length ? releases : filteredMcVersions
+    if (!pool.length) return
+    if (minecraftVersion && pool.some((v) => v.id === minecraftVersion)) return
+    setMinecraftVersion(pool[0]!.id)
+  }, [
+    loader,
+    allowedMcIds,
+    loaderGamesQuery.isError,
+    filteredMcVersions,
+    minecraftVersion,
+  ])
 
   useEffect(() => {
     setOtherLoaderVersion('')
@@ -135,14 +165,13 @@ export function InstanceWizard({ open, onClose, onBack, title }: Props) {
 
   const releaseOptions = useMemo(
     () =>
-      (versionsQuery.data?.versions ?? [])
+      filteredMcVersions
         .filter((v) => v.type === 'release')
         .map((v) => ({ value: v.id, label: v.id })),
-    [versionsQuery.data],
+    [filteredMcVersions],
   )
   const versionPickGroups = useMemo<ListPickGroup[]>(() => {
-    const versions = versionsQuery.data?.versions ?? []
-    const items = versions
+    const items = filteredMcVersions
       .filter((v) => includeSnapshots || v.type === 'release')
       .map((v) => ({
         value: v.id,
@@ -161,7 +190,7 @@ export function InstanceWizard({ open, onClose, onBack, title }: Props) {
               : undefined,
       }))
     return items.length ? [{ items }] : []
-  }, [versionsQuery.data, includeSnapshots, t])
+  }, [filteredMcVersions, includeSnapshots, t])
   const otherVersionOptions = useMemo(
     () =>
       loaderVersions.map((v) => ({
@@ -178,16 +207,17 @@ export function InstanceWizard({ open, onClose, onBack, title }: Props) {
   const refreshMutation = useMutation({
     mutationFn: async () => {
       await fledgeApi.versions.refresh({ target: 'minecraft' })
-      if (loader !== 'vanilla' && minecraftVersion) {
+      if (loader !== 'vanilla') {
         await fledgeApi.versions.refresh({
           target: loader,
-          minecraftVersion,
+          minecraftVersion: minecraftVersion || undefined,
         })
       }
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['versions-minecraft'] })
       await queryClient.invalidateQueries({ queryKey: ['versions-loaders'] })
+      await queryClient.invalidateQueries({ queryKey: ['versions-loader-games'] })
     },
   })
 
@@ -475,6 +505,7 @@ export function InstanceWizard({ open, onClose, onBack, title }: Props) {
         value={minecraftVersion}
         groups={versionPickGroups}
         empty={t('instances.versionsEmpty')}
+        size="sm"
         onSelect={setMinecraftVersion}
         onClose={() => setVersionPickOpen(false)}
         header={

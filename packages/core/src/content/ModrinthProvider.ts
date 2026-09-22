@@ -117,7 +117,7 @@ function mapCategory(projectType: string): ContentCategory | null {
     case 'datapack':
       return 'datapack'
     case 'plugin':
-      return 'plugin'
+      return null
     default:
       return null
   }
@@ -786,14 +786,26 @@ export class ModrinthProvider implements ContentProvider {
     opts: { gameVersion?: string; loaders?: ContentLoaderFilter[] },
   ): Promise<{ versionId: string; versionNumber: string } | null> {
     try {
-      // 依存ツリー全体は見ず、当該プロジェクトの最新互換版だけ見る（高速）
+      // 依存ツリー全体は見ず、当該プロジェクトの最新互換・安定版だけ見る（高速）
       const versions = await this.listVersions(entry.projectId, {
         gameVersion: opts.gameVersion,
         loaders: opts.loaders,
       })
-      const latest = versions[0]
-      if (!latest || latest.id === entry.versionId) return null
-      return { versionId: latest.id, versionNumber: latest.versionNumber }
+      // Modrinth は新しい順。プレリリースではなく安定版（release）の更新のみ通知する
+      const latestStableIndex = versions.findIndex(
+        (v) => !v.versionType || v.versionType === 'release',
+      )
+      if (latestStableIndex < 0) return null
+      const latestStable = versions[latestStableIndex]!
+      if (latestStable.id === entry.versionId) return null
+      const currentIndex = versions.findIndex((v) => v.id === entry.versionId)
+      // 現在版より古い安定版は「更新」にしない（例: 現行が beta でより新しい場合）
+      if (currentIndex >= 0 && latestStableIndex > currentIndex) return null
+      return {
+        versionId: latestStable.id,
+        versionNumber: latestStable.versionNumber,
+        versionType: 'release',
+      }
     } catch {
       return null
     }

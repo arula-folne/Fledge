@@ -36,7 +36,6 @@ export const FAVORITE_GROUP_ORDER: ContentCategory[] = [
   'resourcepack',
   'shader',
   'datapack',
-  'plugin',
 ]
 
 export type FavoriteCategoryGroup = {
@@ -64,7 +63,7 @@ function sortProjects(projects: ContentProject[], sort: FavoriteSort): ContentPr
 }
 
 function needsLoaders(category: ContentCategory): boolean {
-  return category === 'mod' || category === 'modpack' || category === 'plugin'
+  return category === 'mod' || category === 'modpack'
 }
 
 /** 対応バージョンが空なら判定不能のため互換扱い */

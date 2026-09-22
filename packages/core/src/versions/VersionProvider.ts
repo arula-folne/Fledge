@@ -21,4 +21,6 @@ export interface LoaderVersionProvider {
    * 対応が無ければ空配列。
    */
   fetchLoaderVersions(minecraftVersion: string): Promise<LoaderVersion[]>
+  /** ローダーが対応している Minecraft バージョン ID 一覧 */
+  fetchGameVersions(): Promise<string[]>
 }

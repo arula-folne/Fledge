@@ -23,6 +23,7 @@ import {
   nativesRoot,
   readyKey,
   writeReadyRecord,
+  ensureLauncherProfiles,
 } from './installReady.js'
 import { getCachedVersionList } from './mojangVersionListCache.js'
 
@@ -278,6 +279,7 @@ export class MinecraftService {
             'minecraft',
             `Installing Forge ${forgeVersion} for ${profile.minecraftVersion}`,
           )
+          await ensureLauncherProfiles(this.layout.minecraft)
           installedId = await withInstallTracker(ctx, 'launch.install.forge', (tracker, signal) =>
             installForge(
               { version: forgeVersion, mcversion: profile.minecraftVersion },
@@ -321,6 +323,7 @@ export class MinecraftService {
             'minecraft',
             `Installing NeoForge ${neoVersion} for ${profile.minecraftVersion}`,
           )
+          await ensureLauncherProfiles(this.layout.minecraft)
           installedId = await withInstallTracker(ctx, 'launch.install.neoforge', (tracker, signal) =>
             installNeoForge('neoforge', neoVersion, this.layout.minecraft, {
               ...this.loaderInstallOptions(javaPath),

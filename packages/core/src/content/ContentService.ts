@@ -25,6 +25,7 @@ import {
   type MrpackExportOptions,
   type MrpackExportOverrideCandidate,
   loaderToContentFilters,
+  contentInstallBlockReason,
   fledgeUserAgent,
 } from '@fledge/shared'
 import type { DownloadQueue } from '../download/DownloadQueue.js'
@@ -183,7 +184,7 @@ async function resolveContentExportEntry(
         versionId: item.versionId,
         gameVersion: profile.minecraftVersion,
         loaders:
-          item.category === 'mod' || item.category === 'plugin'
+          item.category === 'mod'
             ? loaderToContentFilters(profile.loader)
             : [],
       })
@@ -368,14 +369,17 @@ export class ContentService {
     const profile = await this.instances.get(req.instanceId)
     if (!profile) throw new Error(`Instance not found: ${req.instanceId}`)
 
+    const blockKey = contentInstallBlockReason(profile.loader, req.category)
+    if (blockKey) {
+      throw Object.assign(new Error(blockKey), { messageKey: blockKey })
+    }
+
     const provider = this.providers.get(req.provider)
     if (!provider) throw new Error(`Content provider unavailable: ${req.provider}`)
 
     const loaders =
       req.loaders ??
-      (req.category === 'mod' || req.category === 'plugin'
-        ? loaderToContentFilters(profile.loader)
-        : [])
+      (req.category === 'mod' ? loaderToContentFilters(profile.loader) : [])
     const gameVersion = req.gameVersion ?? profile.minecraftVersion
 
     const index = await this.readIndex(req.instanceId)
@@ -447,8 +451,8 @@ export class ContentService {
   async createInstanceFromProject(raw: unknown): Promise<InstanceProfile> {
     const req = ContentCreateInstanceRequestSchema.parse(raw)
     if (req.category === 'plugin') {
-      throw Object.assign(new Error('プラグインからのインスタンス作成は未対応です'), {
-        messageKey: 'content.error.pluginCreateUnsupported',
+      throw Object.assign(new Error('プラグインはこのアプリでは扱えません'), {
+        messageKey: 'content.error.pluginUnsupported',
       })
     }
 
@@ -981,7 +985,6 @@ export class ContentService {
     const pendingMinecraftOptions = snapshotMinecraftInitialOptions(
       settings.minecraftInitialSettings,
       input.minecraftVersion,
-      settings.locale,
     )
     const pendingMinecraftDebugOverlay = snapshotMinecraftDebugOverlay(
       settings.minecraftInitialSettings,
@@ -1290,16 +1293,18 @@ export class ContentService {
         }
         const update = await provider.findUpdate(entry, {
           gameVersion: profile.minecraftVersion,
-          loaders: entry.category === 'mod' || entry.category === 'plugin' ? loaders : [],
+          loaders: entry.category === 'mod' ? loaders : [],
         })
         if (update) {
           entry.updateAvailable = true
           entry.latestVersionId = update.versionId
           entry.latestVersionNumber = update.versionNumber
+          entry.latestVersionType = update.versionType
         } else {
           entry.updateAvailable = false
           entry.latestVersionId = undefined
           entry.latestVersionNumber = undefined
+          entry.latestVersionType = undefined
         }
       }
     })
@@ -1314,6 +1319,7 @@ export class ContentService {
         entry.updateAvailable = update.updateAvailable
         entry.latestVersionId = update.latestVersionId
         entry.latestVersionNumber = update.latestVersionNumber
+        entry.latestVersionType = update.latestVersionType
       }
       await this.writeIndex(instanceId, current)
       return current.items
@@ -1448,7 +1454,7 @@ export class ContentService {
       query: '',
       category,
       gameVersion: profile.minecraftVersion,
-      loaders: category === 'mod' || category === 'plugin' ? loaderToContentFilters(profile.loader) : [],
+      loaders: category === 'mod' ? loaderToContentFilters(profile.loader) : [],
       provider: 'modrinth',
       offset: 0,
       limit: 20,

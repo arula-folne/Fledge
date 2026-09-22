@@ -1,7 +1,21 @@
-import type { InstanceProfile } from '@fledge/shared'
+import type { ContentCategory, InstanceProfile } from '@fledge/shared'
 import type { TransferJob } from '../../stores/appStores'
 import { formatProgressMessage } from '../../features/launch/formatProgressMessage'
 import { isSettingsJavaJob, jobInstanceId, jobPercent } from '../../features/transfers/transferJobs'
+
+const CONTENT_CATEGORIES = new Set<string>([
+  'mod',
+  'modpack',
+  'resourcepack',
+  'shader',
+  'datapack',
+])
+
+export type HeaderProgressIcon =
+  | { type: 'instance'; instanceId?: string }
+  | { type: 'java' }
+  | { type: 'content'; category: ContentCategory }
+  | { type: 'generic' }
 
 export type HeaderProgressItem = {
   id: string
@@ -10,6 +24,7 @@ export type HeaderProgressItem = {
   percent: number
   sortKey: string
   kind: 'launch' | 'transfer'
+  icon: HeaderProgressIcon
   job?: TransferJob
   instanceId?: string
 }
@@ -19,6 +34,36 @@ type Translate = (key: string, opts?: Record<string, unknown>) => string
 function instanceName(instances: InstanceProfile[], instanceId: string | undefined): string | undefined {
   if (!instanceId) return undefined
   return instances.find((i) => i.id === instanceId)?.name
+}
+
+function asContentCategory(value: unknown): ContentCategory | undefined {
+  return typeof value === 'string' && CONTENT_CATEGORIES.has(value)
+    ? (value as ContentCategory)
+    : undefined
+}
+
+function jobContentCategory(job: TransferJob): ContentCategory | undefined {
+  return asContentCategory(job.meta?.category) ?? asContentCategory(job.meta?.projectType)
+}
+
+function isInstanceCreateJob(job: TransferJob): boolean {
+  return job.meta?.instanceReady === true || String(job.jobId).startsWith('instance-create-')
+}
+
+function transferIcon(job: TransferJob, instanceId: string | undefined): HeaderProgressIcon {
+  if (isSettingsJavaJob(job) || job.kind === 'java') {
+    return { type: 'java' }
+  }
+  if (isInstanceCreateJob(job)) {
+    return { type: 'instance', instanceId }
+  }
+  if (job.kind === 'content') {
+    return { type: 'content', category: jobContentCategory(job) ?? 'mod' }
+  }
+  if (instanceId) {
+    return { type: 'instance', instanceId }
+  }
+  return { type: 'generic' }
 }
 
 function transferDetail(job: TransferJob, t: Translate): string {
@@ -64,7 +109,16 @@ function transferTitle(job: TransferJob, instances: InstanceProfile[], t: Transl
 export function buildHeaderProgressItems(input: {
   instances: InstanceProfile[]
   byProfileId: Record<string, { sessionId: string; state: string }>
-  progressBySessionId: Record<string, { messageKey?: string; meta?: Record<string, unknown>; percent?: number; current?: number; total?: number }>
+  progressBySessionId: Record<
+    string,
+    {
+      messageKey?: string
+      meta?: Record<string, unknown>
+      percent?: number
+      current?: number
+      total?: number
+    }
+  >
   phaseMessageBySessionId: Record<string, string>
   transferJobs: Record<string, TransferJob>
   t: Translate
@@ -99,6 +153,7 @@ export function buildHeaderProgressItems(input: {
       percent,
       sortKey: `launch:${profileId}`,
       kind: 'launch',
+      icon: { type: 'instance', instanceId: profileId },
       instanceId: profileId,
     })
   }
@@ -116,10 +171,35 @@ export function buildHeaderProgressItems(input: {
       percent: jobPercent(job),
       sortKey: `transfer:${job.jobId}`,
       kind: 'transfer',
+      icon: transferIcon(job, instanceId),
       job,
       instanceId,
     })
   }
 
-  return items.sort((a, b) => a.sortKey.localeCompare(b.sortKey)).slice(0, 3)
+  return items.sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+}
+
+export function buildHeaderHistoryItems(input: {
+  instances: InstanceProfile[]
+  history: Array<TransferJob & { finishedAt?: number }>
+  t: Translate
+}): HeaderProgressItem[] {
+  const { instances, history, t } = input
+  return history.map((job) => {
+    const instanceId = jobInstanceId(job)
+    const percent =
+      job.status === 'completed' ? 100 : job.percent != null ? job.percent : jobPercent(job)
+    return {
+      id: `history:${job.jobId}:${job.finishedAt ?? 0}`,
+      title: transferTitle(job, instances, t),
+      detail: transferDetail(job, t),
+      percent,
+      sortKey: `history:${job.jobId}`,
+      kind: 'transfer' as const,
+      icon: transferIcon(job, instanceId),
+      job,
+      instanceId,
+    }
+  })
 }
