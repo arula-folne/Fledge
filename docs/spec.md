@@ -56,7 +56,7 @@ pnpm ワークスペース（`apps/*` と `packages/*`）。
 | アイコン | `@tabler/icons-react` |
 | スキンプレビュー | `skinview3d` |
 | 契約・検証 | TypeScript 5.8、Zod |
-| Minecraft | `@xmcl/core` 2.16.0、`@xmcl/installer` 6.3.1 |
+| Minecraft | Rust `fledge-core`（Mojang / Fabric / Forge / NeoForge / Quilt メタ取得・導入）。`@xmcl/*` は 0.4 / `packages/core` 参照用 |
 | 認証 | Rust `AuthProvider` + DPAPI TokenVault（0.4 の `msmc` 経路は Electron 参照用） |
 | Discord | 任意（設定の既定はオフ）。Rust `DiscordPresence` |
 
@@ -159,7 +159,7 @@ Java メジャー推定の目安（`requiredJavaMajor`）:
 
 管理対象ランタイムは 8 / 17 / 21 / 25。配布元は Eclipse Adoptium（Temurin）。
 
-ローダー実装: Vanilla、Fabric、Forge、NeoForge、Quilt（`VersionService` + `@xmcl/installer`）。
+ローダー実装: Vanilla、Fabric、Forge、NeoForge、Quilt（Rust `VersionService` / `minecraft` モジュール）。
 
 ## 8. Minecraft 初期設定
 

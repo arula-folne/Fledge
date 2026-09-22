@@ -78,4 +78,4 @@ pnpm --filter @fledge/desktop tauri:build  # NSIS インストーラ
 | 配布物 | おおよそ |
 |--------|----------|
 | Electron `Fledge-Setup.exe` (0.4.x) | ~97 MB |
-| Tauri `Fledge_0.5.0_x64-setup.exe` | ~7 MB |
+| Tauri `Fledge_0.5.0_x64-setup.exe` | ~10 MB |
