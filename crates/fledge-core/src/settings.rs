@@ -40,6 +40,7 @@ fn default_settings() -> Value {
       "maxWriteConcurrency": 10,
       "selectedSkinId": "steve",
       "skinModel": "wide",
+      "skinCapeIds": {},
       "librarySortMode": "name",
       "libraryInstanceOrder": [],
       "contentFavorites": []

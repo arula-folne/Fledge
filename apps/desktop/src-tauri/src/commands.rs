@@ -793,6 +793,15 @@ async fn dispatch(
                 .await
                 .map_err(map_err)
         }
+        "capes:fetch-texture" => {
+            let url = args
+                .as_str()
+                .ok_or_else(|| "url required".to_string())?;
+            let data_url = fledge_core::fetch_cape_texture_data_url(url)
+                .await
+                .map_err(map_err)?;
+            Ok(Value::String(data_url))
+        }
 
         // launch
         "launch:start" => {
@@ -1048,6 +1057,7 @@ fn schedule_skin_apply(state: &Arc<AppState>, skin_id: &str, model: &str) {
     let applier = Arc::clone(&state.skin_applier);
     let launch = Arc::clone(&state.launch);
     let auth = Arc::clone(&state.auth);
+    let settings = Arc::clone(&state.settings);
     let skin_id = skin_id.to_string();
     let model = model.to_string();
     tauri::async_runtime::spawn(async move {
@@ -1057,8 +1067,23 @@ fn schedule_skin_apply(state: &Arc<AppState>, skin_id: &str, model: &str) {
                 ids.push(account.id);
             }
         }
+        let cape_id = settings
+            .get()
+            .ok()
+            .and_then(|s| {
+                s.get("skinCapeIds")
+                    .and_then(|m| m.as_object())
+                    .and_then(|m| m.get(&skin_id))
+                    .map(|v| v.as_str().map(|s| s.to_string()))
+            });
         for account_id in ids {
             let _ = applier.apply(&skin_id, &model, &account_id).await;
+            // Some(None) = 明示的にマントなし / Some(Some(id)) = 指定マント / None = 未設定で触れない
+            if let Some(cape) = &cape_id {
+                let _ = applier
+                    .select_cape(&account_id, cape.as_deref())
+                    .await;
+            }
         }
     });
 }

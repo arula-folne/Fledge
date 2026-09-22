@@ -7,9 +7,9 @@ import { fledgeApi } from '../api/fledgeApi'
 import { Button } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
-import { HoverTip } from '../components/ui/HoverTip'
 import { TextField } from '../components/ui/TextField'
 import { SkinPreview } from '../components/skin/SkinPreview'
+import { CapeThumb } from '../components/skin/CapeThumb'
 import { SkinCachedThumb, skinThumbQueryKey } from '../components/skin/SkinCachedThumb'
 import { defaultSkinTextureUrl, defaultSkinThumbUrl } from '../components/skin/defaultSkinUrls'
 import { renderSkinThumbDataUrl } from '../components/skin/skinSnapshot'
@@ -25,6 +25,7 @@ export default function SkinPage() {
   const queryClient = useQueryClient()
   const [registerOpen, setRegisterOpen] = useState(false)
   const [editing, setEditing] = useState<SkinEntry | null>(null)
+  const [editingCapeOnly, setEditingCapeOnly] = useState<SkinEntry | null>(null)
   const skinListRef = useRef<HTMLElement>(null)
 
   const scrollToSkinList = () => {
@@ -69,8 +70,71 @@ export default function SkinPage() {
     },
   })
 
+  const sessionQuery = useQuery({
+    queryKey: ['session'],
+    queryFn: () => fledgeApi.auth.session(),
+  })
+  const loggedIn = Boolean(sessionQuery.data?.account)
+
+  const capesQuery = useQuery({
+    queryKey: ['capes'],
+    enabled: loggedIn,
+    queryFn: () => fledgeApi.capes.list(),
+  })
+
+  const capes = capesQuery.data ?? []
+  const skinCapeIds = settingsQuery.data?.skinCapeIds ?? {}
+  const preferredCapeId =
+    selectedId && Object.prototype.hasOwnProperty.call(skinCapeIds, selectedId)
+      ? skinCapeIds[selectedId]
+      : undefined
+  const previewCapeId =
+    preferredCapeId !== undefined
+      ? preferredCapeId
+      : (capes.find((c) => c.active)?.id ?? null)
+  const previewCapeUrl = previewCapeId
+    ? (capes.find((c) => c.id === previewCapeId)?.url ?? null)
+    : null
+
+  const persistSkinCape = useMutation({
+    mutationFn: async (input: { skinId: string; capeId: string | null }) => {
+      const prev = queryClient.getQueryData<Settings>(['settings'])
+      const nextMap = { ...(prev?.skinCapeIds ?? {}), [input.skinId]: input.capeId }
+      if (prev) {
+        queryClient.setQueryData(['settings'], { ...prev, skinCapeIds: nextMap })
+      }
+      const capesCache = queryClient.getQueryData<CapeEntry[]>(['capes'])
+      if (capesCache) {
+        queryClient.setQueryData(
+          ['capes'],
+          capesCache.map((c) => ({
+            ...c,
+            active: input.capeId !== null && c.id === input.capeId,
+          })),
+        )
+      }
+      const next = await fledgeApi.settings.set({ skinCapeIds: nextMap })
+      queryClient.setQueryData(['settings'], next)
+      // Mojang 反映は待たない（選択 UI をブロックしない）
+      if (next.selectedSkinId === input.skinId && loggedIn) {
+        void fledgeApi.capes
+          .select(input.capeId)
+          .then((list) => queryClient.setQueryData(['capes'], list))
+          .catch(() => {})
+      }
+      return next
+    },
+  })
+
   const applySkinSelection = (skinId: string, model?: SkinModel) => {
     selectMutation.mutate({ skinId, model })
+    if (!loggedIn) return
+    const map = queryClient.getQueryData<Settings>(['settings'])?.skinCapeIds ?? {}
+    if (!Object.prototype.hasOwnProperty.call(map, skinId)) return
+    void fledgeApi.capes
+      .select(map[skinId] ?? null)
+      .then((list) => queryClient.setQueryData(['capes'], list))
+      .catch(() => {})
   }
 
   const uploadMutation = useMutation({
@@ -136,12 +200,12 @@ export default function SkinPage() {
       ) : null}
 
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <aside className="flex min-h-0 flex-col items-center rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5">
-          <p className="mb-0.5 text-xs font-medium text-[var(--color-text)]">{t('skin.current')}</p>
-          <p className="mb-2 text-[10px] leading-tight text-[var(--color-text-muted)]">
+        <aside className="relative z-10 flex min-h-0 flex-col items-center overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5">
+          <p className="mb-0.5 shrink-0 text-xs font-medium text-[var(--color-text)]">{t('skin.current')}</p>
+          <p className="mb-2 shrink-0 text-[10px] leading-tight text-[var(--color-text-muted)]">
             {t('skin.dragHint')}
           </p>
-          <div className="flex min-h-[300px] w-full flex-1 overflow-hidden rounded-[var(--radius-md)] lg:min-h-0">
+          <div className="relative isolate flex min-h-[220px] w-full flex-1 overflow-hidden rounded-[var(--radius-md)] lg:min-h-0 lg:max-h-[min(420px,55vh)]">
             {selectedSkin ? (
               <SkinEntryPreview
                 skin={selectedSkin}
@@ -151,13 +215,15 @@ export default function SkinPage() {
                 height={420}
                 className="h-full w-full rounded-[var(--radius-md)]"
                 model={selectedSkin.model}
+                capeUrl={previewCapeUrl}
               />
             ) : (
-              <div className="h-full min-h-[300px] w-full animate-pulse rounded-[var(--radius-md)] bg-[var(--color-border)]/40" />
+              <div className="h-full min-h-[220px] w-full animate-pulse rounded-[var(--radius-md)] bg-[var(--color-border)]/40" />
             )}
           </div>
+
           {selectedSkin ? (
-            <div className="mt-2 text-center">
+            <div className="mt-2 w-full shrink-0 text-center">
               <div className="flex items-center justify-center gap-1.5">
                 <span className="text-sm font-medium">{selectedSkin.name}</span>
                 <span className="rounded-[var(--radius-sm)] bg-[var(--color-selection)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-on-selection)]">
@@ -249,6 +315,7 @@ export default function SkinPage() {
                         : t('skin.model.wide')
                   }
                   onClick={() => applySkinSelection(skin.id, skin.model)}
+                  onEdit={() => setEditingCapeOnly(skin)}
                 >
                   <SkinEntryThumb skin={skin} />
                 </SkinCard>
@@ -286,11 +353,46 @@ export default function SkinPage() {
         }}
       />
 
+      {editingCapeOnly ? (
+        <EditCapeDialog
+          skin={editingCapeOnly}
+          capes={capes}
+          capeId={
+            Object.prototype.hasOwnProperty.call(skinCapeIds, editingCapeOnly.id)
+              ? skinCapeIds[editingCapeOnly.id]
+              : null
+          }
+          loggedIn={loggedIn}
+          loading={capesQuery.isLoading}
+          onClose={() => setEditingCapeOnly(null)}
+          onSelectCape={(capeId) => {
+            persistSkinCape.mutate(
+              { skinId: editingCapeOnly.id, capeId },
+              {
+                onError: () => {
+                  /* shown via mutation if needed */
+                },
+              },
+            )
+          }}
+        />      ) : null}
+
       {editing ? (
         <EditSkinDialog
           skin={editing}
           usedNames={uploads.filter((s) => s.id !== editing.id).map((s) => s.name)}
           saving={updateMutation.isPending || removeMutation.isPending}
+          capes={capes}
+          capeId={
+            Object.prototype.hasOwnProperty.call(skinCapeIds, editing.id)
+              ? skinCapeIds[editing.id]
+              : null
+          }
+          loggedIn={loggedIn}
+          capesLoading={capesQuery.isLoading}
+          onSelectCape={(capeId) =>
+            persistSkinCape.mutate({ skinId: editing.id, capeId })
+          }
           onClose={() => setEditing(null)}
           onSave={async (name, model, file) => {
             let bytes: number[] | undefined
@@ -484,6 +586,7 @@ function SkinEntryPreview({
   interactive = false,
   className,
   zoom,
+  capeUrl,
 }: {
   skin: SkinEntry
   pose: 'bust' | 'full'
@@ -493,6 +596,7 @@ function SkinEntryPreview({
   interactive?: boolean
   className?: string
   zoom?: number
+  capeUrl?: string | null
 }) {
   const skinUrl = useSkinImageUrl(skin)
 
@@ -506,6 +610,7 @@ function SkinEntryPreview({
       height={height}
       className={className}
       zoom={zoom}
+      capeUrl={capeUrl}
     />
   )
 }
@@ -685,10 +790,169 @@ function capeDisplayName(
   return t(`skin.cape.alias.${key}`, { defaultValue: cape.alias })
 }
 
+function CapePickerList({
+  capes,
+  selectedCapeId,
+  disabled,
+  onSelect,
+}: {
+  capes: CapeEntry[]
+  selectedCapeId: string | null
+  disabled?: boolean
+  onSelect: (capeId: string | null) => void
+}) {
+  const { t } = useTranslation()
+  // クリック直後にハイライト（親の persist 完了を待たない）
+  const [highlightId, setHighlightId] = useState(selectedCapeId)
+
+  useEffect(() => {
+    setHighlightId(selectedCapeId)
+  }, [selectedCapeId])
+
+  const pick = (capeId: string | null) => {
+    if (disabled) return
+    setHighlightId(capeId)
+    onSelect(capeId)
+  }
+
+  return (
+    <div className="flex max-h-48 flex-col gap-1 overflow-y-auto">
+      <button
+        type="button"
+        disabled={disabled}
+        className={[
+          'rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-sm',
+          highlightId === null
+            ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
+            : 'text-[var(--color-text)] hover:bg-[var(--color-hover)]',
+        ].join(' ')}
+        onClick={() => pick(null)}
+      >
+        {t('skin.cape.none')}
+      </button>
+      {capes.map((cape) => (
+        <button
+          key={cape.id}
+          type="button"
+          disabled={disabled}
+          className={[
+            'flex items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-sm',
+            highlightId === cape.id
+              ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
+              : 'text-[var(--color-text)] hover:bg-[var(--color-hover)]',
+          ].join(' ')}
+          onClick={() => pick(cape.id)}
+        >
+          <CapeThumb url={cape.url} size={22} />
+          <span className="min-w-0 flex-1 truncate">{capeDisplayName(cape, t)}</span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function EditCapeDialog({
+  skin,
+  capes,
+  capeId,
+  loggedIn,
+  loading,
+  onClose,
+  onSelectCape,
+}: {
+  skin: SkinEntry
+  capes: CapeEntry[]
+  capeId: string | null
+  loggedIn: boolean
+  loading: boolean
+  onClose: () => void
+  onSelectCape: (capeId: string | null) => void
+}) {
+  const { t } = useTranslation()
+  const skinUrl = useSkinImageUrl(skin)
+  // クリック直後にプレビューへ反映（persist 完了を待たない）
+  const [localCapeId, setLocalCapeId] = useState(capeId)
+
+  useEffect(() => {
+    setLocalCapeId(capeId)
+  }, [capeId, skin.id])
+
+  const previewCapeUrl = localCapeId
+    ? (capes.find((c) => c.id === localCapeId)?.url ?? null)
+    : null
+
+  return (
+    <Dialog
+      open
+      title={t('skin.editCapeTitle')}
+      onClose={onClose}
+      size="md"
+      footer={
+        <div className="flex w-full justify-end">
+          <Button variant="primary" onClick={onClose}>
+            {t('common.close')}
+          </Button>
+        </div>
+      }
+    >
+      <div className="grid gap-3 sm:grid-cols-[minmax(180px,auto)_1fr]">
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="h-[280px] w-[180px] shrink-0 overflow-hidden rounded-[var(--radius-md)]">
+            {skinUrl ? (
+              <SkinPreview
+                skinUrl={skinUrl}
+                model={skin.model}
+                capeUrl={previewCapeUrl}
+                interactive
+                pose="full"
+                width={180}
+                height={280}
+                className="rounded-[var(--radius-md)]"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center rounded-[var(--radius-md)] bg-[var(--color-bg)]/40 text-xs text-[var(--color-text-muted)]">
+                {t('common.loading')}
+              </div>
+            )}
+          </div>
+          <p className="text-center text-xs text-[var(--color-text-muted)]">{skin.name}</p>
+          <p className="text-center text-[10px] leading-tight text-[var(--color-text-muted)]">
+            {t('skin.dragHint')}
+          </p>
+        </div>
+        <div className="flex min-w-0 flex-col gap-2">
+          <div className="text-sm font-medium text-[var(--color-text)]">{t('skin.cape')}</div>
+          <p className="text-[11px] text-[var(--color-text-muted)]">{t('skin.cape.perSkinHint')}</p>
+          {!loggedIn ? (
+            <p className="text-xs text-[var(--color-text-muted)]">{t('skin.cape.loginRequired')}</p>
+          ) : loading ? (
+            <p className="text-xs text-[var(--color-text-muted)]">{t('common.loading')}</p>
+          ) : capes.length === 0 ? (
+            <p className="text-xs text-[var(--color-text-muted)]">{t('skin.cape.empty')}</p>
+          ) : (
+            <CapePickerList
+              capes={capes}
+              selectedCapeId={localCapeId}
+              onSelect={(next) => {
+                setLocalCapeId(next)
+                onSelectCape(next)
+              }}
+            />          )}
+        </div>
+      </div>
+    </Dialog>
+  )
+}
+
 function EditSkinDialog({
   skin,
   usedNames,
   saving,
+  capes,
+  capeId,
+  loggedIn,
+  capesLoading,
+  onSelectCape,
   onClose,
   onSave,
   onRemove,
@@ -696,62 +960,38 @@ function EditSkinDialog({
   skin: SkinEntry
   usedNames: string[]
   saving: boolean
+  capes: CapeEntry[]
+  capeId: string | null
+  loggedIn: boolean
+  capesLoading: boolean
+  onSelectCape: (capeId: string | null) => void
   onClose: () => void
   onSave: (name: string, model: SkinModel, file?: File) => Promise<void>
   onRemove: () => Promise<void>
 }) {
   const { t } = useTranslation()
-  const queryClient = useQueryClient()
   const [name, setName] = useState(skin.name)
   const [model, setModel] = useState<SkinModel>(skin.model)
   const [pendingFile, setPendingFile] = useState<File | null>(null)
   const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | undefined>()
   const [error, setError] = useState<string | null>(null)
   const [removeOpen, setRemoveOpen] = useState(false)
-  const [selectedCapeId, setSelectedCapeId] = useState<string | null>(null)
+  const [localCapeId, setLocalCapeId] = useState(capeId)
   const fileRef = useRef<HTMLInputElement>(null)
   const existingUrl = useSkinImageUrl(skin)
   const defaultName = nextDefaultSkinName(usedNames, t('skin.mySkin'))
   const previewUrl = pendingPreviewUrl ?? existingUrl
-
-  const sessionQuery = useQuery({
-    queryKey: ['session'],
-    queryFn: () => fledgeApi.auth.session(),
-  })
-  const loggedIn = Boolean(sessionQuery.data?.account)
-
-  const capesQuery = useQuery({
-    queryKey: ['capes'],
-    enabled: loggedIn,
-    queryFn: () => fledgeApi.capes.list(),
-  })
-
-  useEffect(() => {
-    const active = (capesQuery.data ?? []).find((c) => c.active)
-    setSelectedCapeId(active?.id ?? null)
-  }, [capesQuery.data])
-
-  const capeMutation = useMutation({
-    mutationFn: (capeId: string | null) => fledgeApi.capes.select(capeId),
-    onSuccess: async (list) => {
-      queryClient.setQueryData(['capes'], list)
-      const active = list.find((c) => c.active)
-      setSelectedCapeId(active?.id ?? null)
-    },
-    onError: (err: unknown) => {
-      setError(err instanceof Error ? err.message : t('skin.cape.applyFailed'))
-    },
-  })
-
-  const previewCapeUrl =
-    (capesQuery.data ?? []).find((c) => c.id === selectedCapeId)?.url ?? null
+  const previewCapeUrl = localCapeId
+    ? (capes.find((c) => c.id === localCapeId)?.url ?? null)
+    : null
 
   useEffect(() => {
     setName(skin.name)
     setModel(skin.model)
     setPendingFile(null)
     setError(null)
-  }, [skin])
+    setLocalCapeId(capeId)
+  }, [skin, capeId])
 
   useEffect(() => {
     if (!pendingFile) {
@@ -776,41 +1016,40 @@ function EditSkinDialog({
 
   return (
     <>
-    <Dialog
-      open
-      title={t('skin.editTitle')}
-      onClose={onClose}
-      size="lg"
-      footer={
-        <div className="flex w-full items-center justify-between gap-2">
-          <Button variant="danger" disabled={saving} onClick={() => setRemoveOpen(true)}>
-            {t('skin.remove')}
-          </Button>
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={onClose} disabled={saving}>
-              {t('common.cancel')}
+      <Dialog
+        open
+        title={t('skin.editTitle')}
+        onClose={onClose}
+        size="lg"
+        footer={
+          <div className="flex w-full items-center justify-between gap-2">
+            <Button variant="danger" disabled={saving} onClick={() => setRemoveOpen(true)}>
+              {t('skin.remove')}
             </Button>
-            <Button
-              variant="primary"
-              disabled={!canSave}
-              onClick={() =>
-                void onSave(name.trim() || defaultName, model, pendingFile ?? undefined).catch(
-                  (err: unknown) => {
-                    setError(err instanceof Error ? err.message : t('skin.uploadHint'))
-                  },
-                )
-              }
-            >
-              {saving ? t('common.loading') : t('skin.save')}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="ghost" onClick={onClose} disabled={saving}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                variant="primary"
+                disabled={!canSave}
+                onClick={() =>
+                  void onSave(name.trim() || defaultName, model, pendingFile ?? undefined).catch(
+                    (err: unknown) => {
+                      setError(err instanceof Error ? err.message : t('skin.uploadHint'))
+                    },
+                  )
+                }
+              >
+                {saving ? t('common.loading') : t('skin.save')}
+              </Button>
+            </div>
           </div>
-        </div>
-      }
-    >
-      <div className="grid gap-3 sm:grid-cols-[minmax(128px,auto)_1fr]">
-        <div className="flex flex-col items-center gap-1.5">
-          <HoverTip label={t('skin.changeFile')} disabled={saving}>
-            <div className="group relative h-[200px] w-[128px] shrink-0 overflow-hidden rounded-[var(--radius-md)]">
+        }
+      >
+        <div className="grid gap-3 sm:grid-cols-[minmax(180px,auto)_1fr]">
+          <div className="flex flex-col items-center gap-2">
+            <div className="h-[280px] w-[180px] shrink-0 overflow-hidden rounded-[var(--radius-md)]">
               {previewUrl ? (
                 <SkinPreview
                   skinUrl={previewUrl}
@@ -818,8 +1057,8 @@ function EditSkinDialog({
                   capeUrl={previewCapeUrl}
                   interactive
                   pose="full"
-                  width={128}
-                  height={200}
+                  width={180}
+                  height={280}
                   className="rounded-[var(--radius-md)]"
                 />
               ) : (
@@ -827,127 +1066,88 @@ function EditSkinDialog({
                   {t('common.loading')}
                 </div>
               )}
-              <button
-                type="button"
-                disabled={saving}
-                aria-label={t('skin.changeFile')}
-                className="absolute inset-0 flex items-center justify-center rounded-[var(--radius-md)] bg-black/50 opacity-0 outline-none transition group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-[var(--color-accent)]/50"
-                onClick={() => fileRef.current?.click()}
-              >
-                <IconUpload size={28} stroke={1.6} className="text-white" aria-hidden />
-              </button>
             </div>
-          </HoverTip>
-        </div>
-        <div className="flex flex-col gap-3">
-          <TextField
-            label={t('skin.name')}
-            value={name}
-            maxLength={32}
-            placeholder={defaultName}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <div>
-            <div className="mb-2 text-sm text-[var(--color-text-muted)]">{t('skin.model')}</div>
-            <div className="flex gap-2">
-              {(['wide', 'slim'] as const).map((m) => (
-                <Button
-                  key={m}
-                  variant={model === m ? 'primary' : 'secondary'}
-                  className="flex-1 !rounded-[var(--radius-sm)]"
-                  onClick={() => setModel(m)}
-                >
-                  {m === 'slim' ? t('skin.model.slim') : t('skin.model.wide')}
-                </Button>
-              ))}
-            </div>
+            <Button
+              variant="secondary"
+              className="w-full !rounded-[var(--radius-sm)]"
+              disabled={saving}
+              onClick={() => fileRef.current?.click()}
+            >
+              <IconUpload size={16} stroke={1.6} className="mr-1.5" aria-hidden />
+              {t('skin.changeFile')}
+            </Button>
+            <p className="text-center text-[10px] leading-tight text-[var(--color-text-muted)]">
+              {t('skin.dragHint')}
+            </p>
           </div>
-          {loggedIn ? (
+          <div className="flex flex-col gap-3">
+            <TextField
+              label={t('skin.name')}
+              value={name}
+              maxLength={32}
+              placeholder={defaultName}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <div>
+              <div className="mb-2 text-sm text-[var(--color-text-muted)]">{t('skin.model')}</div>
+              <div className="flex gap-2">
+                {(['wide', 'slim'] as const).map((m) => (
+                  <Button
+                    key={m}
+                    variant={model === m ? 'primary' : 'secondary'}
+                    className="flex-1 !rounded-[var(--radius-sm)]"
+                    onClick={() => setModel(m)}
+                  >
+                    {m === 'slim' ? t('skin.model.slim') : t('skin.model.wide')}
+                  </Button>
+                ))}
+              </div>
+            </div>
             <div>
               <div className="mb-2 text-sm text-[var(--color-text-muted)]">{t('skin.cape')}</div>
-              <p className="mb-2 text-[11px] text-[var(--color-text-muted)]">{t('skin.cape.hint')}</p>
-              {capesQuery.isLoading ? (
+              <p className="mb-2 text-[11px] text-[var(--color-text-muted)]">{t('skin.cape.perSkinHint')}</p>
+              {!loggedIn ? (
+                <p className="text-xs text-[var(--color-text-muted)]">{t('skin.cape.loginRequired')}</p>
+              ) : capesLoading ? (
                 <p className="text-xs text-[var(--color-text-muted)]">{t('common.loading')}</p>
-              ) : (capesQuery.data ?? []).length === 0 ? (
+              ) : capes.length === 0 ? (
                 <p className="text-xs text-[var(--color-text-muted)]">{t('skin.cape.empty')}</p>
               ) : (
-                <div className="flex max-h-40 flex-col gap-1 overflow-y-auto">
-                  <button
-                    type="button"
-                    disabled={capeMutation.isPending}
-                    className={[
-                      'rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-sm transition',
-                      selectedCapeId === null
-                        ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
-                        : 'hover:bg-[var(--color-hover)] text-[var(--color-text)]',
-                    ].join(' ')}
-                    onClick={() => {
-                      setSelectedCapeId(null)
-                      capeMutation.mutate(null)
-                    }}
-                  >
-                    {t('skin.cape.none')}
-                  </button>
-                  {(capesQuery.data ?? []).map((cape) => (
-                    <button
-                      key={cape.id}
-                      type="button"
-                      disabled={capeMutation.isPending}
-                      className={[
-                        'flex items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-sm transition',
-                        selectedCapeId === cape.id
-                          ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
-                          : 'hover:bg-[var(--color-hover)] text-[var(--color-text)]',
-                      ].join(' ')}
-                      onClick={() => {
-                        setSelectedCapeId(cape.id)
-                        capeMutation.mutate(cape.id)
-                      }}
-                    >
-                      {cape.url ? (
-                        <img
-                          src={cape.url}
-                          alt=""
-                          className="size-7 shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-border)] object-cover"
-                        />
-                      ) : (
-                        <span className="size-7 shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)]" />
-                      )}
-                      <span className="min-w-0 flex-1 truncate">{capeDisplayName(cape, t)}</span>
-                    </button>
-                  ))}
-                </div>
+                <CapePickerList
+                  capes={capes}
+                  selectedCapeId={localCapeId}
+                  onSelect={(next) => {
+                    setLocalCapeId(next)
+                    onSelectCape(next)
+                  }}
+                />
               )}
             </div>
-          ) : (
-            <p className="text-xs text-[var(--color-text-muted)]">{t('skin.cape.loginRequired')}</p>
-          )}
-          {error ? <p className="text-xs text-[var(--color-danger)]">{error}</p> : null}
+            {error ? <p className="text-xs text-[var(--color-danger)]">{error}</p> : null}
+          </div>
         </div>
-      </div>
 
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/png,.png"
-        className="hidden"
-        onChange={(e) => {
-          const next = e.target.files?.[0]
-          if (next) applyFile(next)
-          e.target.value = ''
-        }}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,.png"
+          className="hidden"
+          onChange={(e) => {
+            const next = e.target.files?.[0]
+            if (next) applyFile(next)
+            e.target.value = ''
+          }}
+        />
+      </Dialog>
+      <ConfirmDialog
+        open={removeOpen}
+        title={t('skin.remove')}
+        body={t('skin.removeConfirm')}
+        confirmLabel={t('skin.remove')}
+        pending={saving}
+        onCancel={() => setRemoveOpen(false)}
+        onConfirm={() => void onRemove()}
       />
-    </Dialog>
-    <ConfirmDialog
-      open={removeOpen}
-      title={t('skin.remove')}
-      body={t('skin.removeConfirm')}
-      confirmLabel={t('skin.remove')}
-      pending={saving}
-      onCancel={() => setRemoveOpen(false)}
-      onConfirm={() => void onRemove()}
-    />
     </>
   )
 }
-

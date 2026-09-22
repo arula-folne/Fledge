@@ -41,8 +41,10 @@ export function toSkinViewModel(model: SkinModel): 'slim' | 'default' {
   return model === 'slim' ? 'slim' : 'default'
 }
 
-export function applyPreviewPose(viewer: SkinViewer): void {
-  viewer.playerObject.rotation.set(0, -Math.PI / 5.5, 0)
+export function applyPreviewPose(viewer: SkinViewer, _opts?: { showCape?: boolean }): void {
+  // 正面寄りの定位置（マント有無で横向きにしない。ドラッグで背面を見られる）
+  const yaw = -Math.PI / 5.5
+  viewer.playerObject.rotation.set(0, yaw, 0)
   viewer.playerObject.skin.head.rotation.set(0, 0, 0)
   viewer.playerWrapper.rotation.set(0, 0, 0)
   viewer.playerWrapper.position.set(0, 0, 0)

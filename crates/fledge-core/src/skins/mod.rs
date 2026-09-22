@@ -516,13 +516,61 @@ async fn fetch_minecraft_capes(access_token: &str) -> CoreResult<Value> {
                 .unwrap_or(false);
             out.push(json!({
                 "id": id,
-                "alias": c.get("alias"),
-                "url": c.get("url"),
+                "alias": c.get("alias").and_then(|v| v.as_str()),
+                "url": c.get("url").and_then(|v| v.as_str()),
                 "active": active,
             }));
         }
     }
     Ok(Value::Array(out))
+}
+
+/// WebView から textures.minecraft.net を直接読むと CORS で落ちることがあるため、
+/// ランチャー側で取得して data URL にする。
+pub async fn fetch_cape_texture_data_url(url: &str) -> CoreResult<String> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return Err(CoreError::msg("empty cape texture url"));
+    }
+    // Mojang はしばしば http://textures.minecraft.net/... を返す。https に揃える。
+    let normalized = if trimmed.starts_with("http://") {
+        format!("https://{}", &trimmed["http://".len()..])
+    } else {
+        trimmed.to_string()
+    };
+    let mut parsed = reqwest::Url::parse(&normalized).map_err(|e| CoreError::msg(e.to_string()))?;
+    if parsed.scheme() == "http" {
+        let _ = parsed.set_scheme("https");
+    }
+    let host = parsed.host_str().unwrap_or("");
+    let allowed = host.eq_ignore_ascii_case("textures.minecraft.net")
+        || host.eq_ignore_ascii_case("launchercontent.mojang.com");
+    if parsed.scheme() != "https" || !allowed {
+        return Err(CoreError::msg("unsupported cape texture host"));
+    }
+    let client = reqwest::Client::new();
+    let res = client
+        .get(parsed)
+        .header("User-Agent", UA_TEXTURE)
+        .header("Accept", "image/png,image/*,*/*")
+        .send()
+        .await
+        .map_err(|e| CoreError::msg(e.to_string()))?;
+    if !res.status().is_success() {
+        return Err(CoreError::msg(format!(
+            "cape texture fetch failed ({})",
+            res.status()
+        )));
+    }
+    let bytes = res
+        .bytes()
+        .await
+        .map_err(|e| CoreError::msg(e.to_string()))?;
+    if bytes.len() < 64 {
+        return Err(CoreError::msg("cape texture too small"));
+    }
+    let mime = "image/png";
+    Ok(format!("data:{mime};base64,{}", B64.encode(bytes)))
 }
 
 async fn set_active_minecraft_cape(access_token: &str, cape_id: Option<&str>) -> CoreResult<()> {

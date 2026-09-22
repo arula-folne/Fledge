@@ -112,6 +112,7 @@ export function createTauriFledgeApi(): FledgeApi {
     capes: {
       list: () => call(IPC.capesList),
       select: (capeId) => call(IPC.capesSelect, capeId),
+      fetchTexture: (url) => call(IPC.capesFetchTexture, url),
     },
     auth: {
       login: () => call(IPC.authLogin),

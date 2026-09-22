@@ -460,6 +460,8 @@ export const SettingsSchemaBase = z.object({
   // スキン
   selectedSkinId: z.string().default('steve'),
   skinModel: SkinModelSchema.default('wide'),
+  /** スキン ID → 公式マント ID。null はマントなし。キー無しは未設定（選択時にマントを変えない） */
+  skinCapeIds: z.record(z.string(), z.string().nullable()).default({}),
 
   // ライブラリ並び
   librarySortMode: LibrarySortModeSchema.default('name'),

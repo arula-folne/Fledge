@@ -2,7 +2,7 @@
   {
     "id": "v0.5.0",
     "title": "【バージョンアップ】Fledge Ver.0.5.0",
-    "body": "**Fledge Ver.0.5.0** を公開しました（第3世代・Tauri シェル）。\n\n## 主な変更\n\n- シェルを **Electron → Tauri 2 + Rust** に移行（インストーラ大幅軽量化・WebView2）\n- **ギャラリー**、公式ケープ、デフォルトスキン同梱、`option.flg` 設定 I/O\n- バックアップ機能を削除（設定の持ち運びは `option.flg`）\n- UI サイズを整理（ノーマル既定）。バージョンは `0.x.x`=ベータ / `1.0.0+`=正式版、接尾辞なし\n\n> Ver.0.4.6 からの自動更新はありません。新規インストールが必要です。0.4 からの移行時は **再ログイン** してください。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "body": "**Fledge Ver.0.5.0** を公開しました（第3世代・Tauri シェル）。\n\n## 主な変更\n\n- シェルを **Electron → Tauri 2 + Rust** に移行（インストーラ大幅軽量化・WebView2）\n- **ギャラリー**、**スキンごとの公式ケープ**、デフォルトスキン同梱、`option.flg` 設定 I/O\n- バックアップ機能を削除（設定の持ち運びは `option.flg`）\n- UI サイズを整理（ノーマル既定）。バージョンは `0.x.x`=ベータ / `1.0.0+`=正式版、接尾辞なし\n\n> Ver.0.4.6 からの自動更新はありません。新規インストールが必要です。0.4 からの移行時は **再ログイン** してください。不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
     "publishedAt": "2026-09-22T10:00:00.000Z",
     "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.5.0"
   },

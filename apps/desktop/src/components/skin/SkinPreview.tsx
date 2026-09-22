@@ -10,6 +10,7 @@ import {
   toSkinViewModel,
   yieldToUi,
 } from './skinSnapshot'
+import { resolveCapeTextureSource } from './resolveCapeTexture'
 
 export type SkinPreviewPose = 'bust' | 'full'
 
@@ -32,10 +33,10 @@ const STAGE_BG =
 
 const INTERACTIVE_ZOOM = 0.88
 
-function resetInteractiveView(viewer: SkinViewer): void {
+function resetInteractiveView(viewer: SkinViewer, showCape = false): void {
   viewer.zoom = INTERACTIVE_ZOOM
   viewer.controls.target.set(0, 0, 0)
-  applyPreviewPose(viewer)
+  applyPreviewPose(viewer, { showCape })
   viewer.resetCameraPose()
   viewer.controls.update()
 }
@@ -165,7 +166,11 @@ function InteractivePreview({
   const boxRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const viewerRef = useRef<SkinViewer | null>(null)
+  const showCapeRef = useRef(Boolean(capeUrl))
+  const capeUrlRef = useRef(capeUrl)
+  capeUrlRef.current = capeUrl
 
+  // スキン／モデル変更時だけビューアを作り直す（マント切替では破棄しない）
   useEffect(() => {
     const canvas = canvasRef.current
     const box = boxRef.current
@@ -212,7 +217,7 @@ function InteractivePreview({
         if (event.button !== 1) return
         event.preventDefault()
         event.stopPropagation()
-        resetInteractiveView(viewer)
+        resetInteractiveView(viewer, showCapeRef.current)
       }
       const onAuxClick = (event: MouseEvent) => {
         if (event.button !== 1) return
@@ -228,20 +233,36 @@ function InteractivePreview({
       try {
         await viewer.loadSkin(skinUrl, { model: toSkinViewModel(model) })
         if (disposed) return
-        if (capeUrl) {
-          try {
-            await viewer.loadCape(capeUrl)
-          } catch (err) {
-            console.error('Cape preview failed:', err)
-          }
-        } else {
-          viewer.resetCape()
-        }
-        if (disposed) return
+
         const idle = new IdleAnimation()
         idle.speed = 0.8
         viewer.animation = idle
-        resetInteractiveView(viewer)
+
+        // 初回マント（後続は別 effect）
+        const initialCape = capeUrlRef.current
+        if (initialCape) {
+          try {
+            const source = await resolveCapeTextureSource(initialCape)
+            if (disposed || viewerRef.current !== viewer) return
+            const loaded = viewer.loadCape(source, { backEquipment: 'cape' })
+            if (loaded && typeof (loaded as Promise<void>).then === 'function') {
+              await loaded
+            }
+            if (disposed || viewerRef.current !== viewer) return
+            viewer.playerObject.backEquipment = 'cape'
+            showCapeRef.current = true
+          } catch (err) {
+            console.error('Cape preview failed:', err)
+            viewer.resetCape()
+            showCapeRef.current = false
+          }
+        } else {
+          viewer.resetCape()
+          showCapeRef.current = false
+        }
+
+        if (disposed) return
+        resetInteractiveView(viewer, showCapeRef.current)
       } catch (err) {
         console.error('Interactive skin preview failed:', err)
       }
@@ -253,7 +274,51 @@ function InteractivePreview({
       viewerRef.current?.dispose()
       viewerRef.current = null
     }
-  }, [skinUrl, model, capeUrl, width, height])
+  }, [skinUrl, model, width, height])
+
+  // マントだけ差し替え（ビューアは維持）
+  useEffect(() => {
+    let cancelled = false
+
+    void (async () => {
+      for (let i = 0; i < 40 && !viewerRef.current; i++) {
+        await yieldToUi()
+      }
+      const current = viewerRef.current
+      if (cancelled || !current) return
+
+      if (!capeUrl) {
+        showCapeRef.current = false
+        current.resetCape()
+        resetInteractiveView(current, false)
+        return
+      }
+
+      try {
+        const source = await resolveCapeTextureSource(capeUrl)
+        if (cancelled || viewerRef.current !== current) return
+        const result = current.loadCape(source, { backEquipment: 'cape' })
+        if (result && typeof (result as Promise<void>).then === 'function') {
+          await result
+        }
+        if (cancelled || viewerRef.current !== current) return
+        showCapeRef.current = true
+        current.playerObject.backEquipment = 'cape'
+        resetInteractiveView(current, true)
+      } catch (err) {
+        console.error('Cape preview failed:', err)
+        if (!cancelled && viewerRef.current === current) {
+          showCapeRef.current = false
+          current.resetCape()
+          resetInteractiveView(current, false)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [capeUrl])
 
   useEffect(() => {
     const el = boxRef.current

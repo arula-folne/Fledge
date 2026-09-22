@@ -116,6 +116,8 @@ export const IPC = {
   skinsResolveThumbPath: 'skins:resolve-thumb-path',
   capesList: 'capes:list',
   capesSelect: 'capes:select',
+  /** Mojang マントテクスチャを data URL で返す（WebView CORS 回避） */
+  capesFetchTexture: 'capes:fetch-texture',
   cacheClear: 'cache:clear',
   appFactoryReset: 'app:factory-reset',
   appUninstall: 'app:uninstall',

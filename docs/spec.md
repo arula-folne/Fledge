@@ -194,9 +194,11 @@ Modpack 同梱の `options.txt` より、初回起動時の Fledge パッチを�
 
 - 同梱デフォルト: Steve、Alex、Ari、Efe、Kai、Makena、Noor、Sunny、Zuri（製品版は `resources/skins` と UI アセットの双方で同梱）
 - ユーザーアップロードは最大 5 件（`MAX_UPLOADED_SKINS`）
-- モデルは wide / slim。プレビューはレンダラーの `skinview3d`
+- モデルは wide / slim。プレビューはレンダラーの `skinview3d`（インタラクティブ時はドラッグ回転。ズーム操作は無効）
 - 適用は Mojang のスキン API（`SkinApplier`）。プロフィールは即時更新されるが、クライアントは自分の見た目をセッション中キャッシュするため、確実な反映にはゲーム再起動が必要な場合がある（UI で案内）
-- 公式ケープ: `capes:list` / `capes:select` で所持ケープの一覧・選択（スキン画面）
+- **公式ケープはスキンごと**: 設定の `skinCapeIds`（`skinId → capeId | null`）に保持。デフォルトスキンもケープのみ編集可
+- 一覧: `capes:list`、適用: `capes:select`（選択中スキンのとき）。プレビュー用テクスチャは `capes:fetch-texture`（CORS 回避の data URL）
+- 選択 UI は楽観的更新（ハイライト即時。Mojang へのケープ適用は裏で実行）
 
 ## 11. 設定のインポート／エクスポート
 
@@ -257,7 +259,8 @@ Modpack 同梱の `options.txt` より、初回起動時の Fledge パッチを�
 README の製品説明と実装の差です。
 
 - CurseForge なし（Modrinth のみ）
-- インスタンスのエクスポートは未実装
+- サーバー向け **プラグイン** の導入は非対応（探索に出てもインストール不可）
+- インスタンス丸ごとの ZIP バックアップはなし（`.mrpack` エクスポートはある。アプリ設定は `option.flg`）
 - 作成後の Minecraft バージョン変更は未対応（UI 上リードオンリー）
 - 対応 OS は **Windows 11 のみ**（配布は Tauri NSIS / win32-x64）
 - `0.x.x` はベータ方針（`1.0.0` 以降を正式版とする）

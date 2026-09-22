@@ -139,6 +139,8 @@ export type FledgeApi = {
     list: () => Promise<CapeEntry[]>
     /** null でマント非表示 */
     select: (capeId: string | null) => Promise<CapeEntry[]>
+    /** textures.minecraft.net 等のマント PNG を data URL 化 */
+    fetchTexture: (url: string) => Promise<string>
   }
   auth: {
     login: () => Promise<AccountView>

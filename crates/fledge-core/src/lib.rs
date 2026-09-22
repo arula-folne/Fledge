@@ -44,7 +44,8 @@ pub use settings_options_flg::{
     write_options_flg_file,
 };
 pub use skins::{
-    decode_thumb_data_url, fetch_active_minecraft_skin, hash_skin_png, SkinApplier, SkinStore,
+    decode_thumb_data_url, fetch_active_minecraft_skin, fetch_cape_texture_data_url, hash_skin_png,
+    SkinApplier, SkinStore,
 };
 pub use updater::{
     find_uninstaller, open_apps_and_features, resolve_install_root, schedule_complete_uninstall,
