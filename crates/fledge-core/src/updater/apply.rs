@@ -52,7 +52,6 @@ pub fn wipe_fledge_user_data() {
     for dir in bundle_id_dirs() {
         safe_rm_path(&dir);
     }
-    // Legacy Electron / accidental casing
     if let Some(roaming) = dirs::config_dir() {
         safe_rm_path(&roaming.join("Fledge"));
     }
@@ -74,8 +73,11 @@ fn safe_rm_path(path: &Path) {
 
 /// Stage a hidden waiter that runs NSIS after this process exits, then relaunches.
 ///
-/// Tauri NSIS: `/UPDATE /S /D=<installDir>` — `/UPDATE` sets UpdateMode so uninstall hooks
-/// do not wipe user data. Do not use Electron's `--updated` here.
+/// Tauri NSIS: `/UPDATE /S /D=<installDir>`.
+///
+/// Do **not** use `cmd` + `tasklist | find`. With DETACHED_PROCESS the pipe to `find`
+/// breaks, `find` waits on stdin forever (console titled `find "pid"`), and updates hang.
+/// Window-less `wscript` + WMI wait avoids any console.
 pub fn spawn_installer_after_exit(
     installer_path: &Path,
     install_dir: &Path,
@@ -84,7 +86,6 @@ pub fn spawn_installer_after_exit(
     let dir = updater_staging_dir();
     fs::create_dir_all(&dir)?;
 
-    // Keep installer copy in staging (may already be there)
     let staged_installer = if installer_path.starts_with(&dir) {
         installer_path.to_path_buf()
     } else {
@@ -98,65 +99,75 @@ pub fn spawn_installer_after_exit(
         dest
     };
 
-    let script_path = dir.join(format!("run-installer-{pid_to_wait_for}.cmd"));
+    let vbs_path = dir.join(format!("run-installer-{pid_to_wait_for}.vbs"));
     let log_path = dir.join("update-log.txt");
 
-    let installer = bat_set(&staged_installer);
-    let install_dir_arg = bat_set(install_dir);
-    let log = bat_set(&log_path);
+    let installer = vbs_str(&staged_installer);
+    let install_dir_arg = vbs_str(install_dir);
+    let log = vbs_str(&log_path);
 
-    let content = format!(
-        r#"@echo off
-setlocal EnableExtensions EnableDelayedExpansion
-set "TARGET_PID={pid}"
-set "INSTALLER={installer}"
-set "INSTALLDIR={install_dir}"
-set "LOG={log}"
-echo wait pid=!TARGET_PID!>>"!LOG!"
-echo installer=!INSTALLER!>>"!LOG!"
-echo installDir=!INSTALLDIR!>>"!LOG!"
-:wait
-tasklist /FI "PID eq !TARGET_PID!" /NH 2>NUL | find "!TARGET_PID!" >NUL
-if not errorlevel 1 (
-  ping -n 2 127.0.0.1 >nul
-  goto wait
-)
-echo pid exited, settling>>"!LOG!"
-ping -n 2 127.0.0.1 >nul
-if not exist "!INSTALLER!" (
-  echo ERROR installer missing>>"!LOG!"
-  exit /b 2
-)
-echo launching NSIS>>"!LOG!"
-"!INSTALLER!" /UPDATE /S /D=!INSTALLDIR!
-set "EC=!ERRORLEVEL!"
-echo NSIS exit=!EC!>>"!LOG!"
-if not "!EC!"=="0" (
-  echo ERROR NSIS failed, not starting app>>"!LOG!"
-  exit /b !EC!
-)
-set "APP="
-if exist "!INSTALLDIR!\Fledge.exe" set "APP=!INSTALLDIR!\Fledge.exe"
-if not defined APP if exist "!INSTALLDIR!\fledge-desktop.exe" set "APP=!INSTALLDIR!\fledge-desktop.exe"
-if not defined APP (
-  for %%F in ("!INSTALLDIR!\*.exe") do (
-    if /I not "%%~nxF"=="uninstall.exe" if /I not "%%~nxF"=="Uninstall Fledge.exe" (
-      set "APP=%%~fF"
-      goto found_app
-    )
-  )
-)
-:found_app
-if defined APP (
-  echo starting app>>"!LOG!"
-  start "" "!APP!" --updated
-) else (
-  echo ERROR app missing after install>>"!LOG!"
-  exit /b 3
-)
-echo done>>"!LOG!"
-del "%~f0" >nul 2>&1
-exit /b !EC!
+    let vbs = format!(
+        r#"Option Explicit
+Dim sh, wmi, col, installer, installDir, logFile, pid, app, fso, ec, folder, file
+Set sh = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
+Set wmi = GetObject("winmgmts:\\.\root\cimv2")
+pid = {pid}
+installer = "{installer}"
+installDir = "{install_dir}"
+logFile = "{log}"
+Sub Log(msg)
+  On Error Resume Next
+  Dim ts
+  Set ts = fso.OpenTextFile(logFile, 8, True)
+  ts.WriteLine Now & " " & msg
+  ts.Close
+End Sub
+Log "wait pid=" & pid
+Do
+  Set col = wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ProcessId=" & pid)
+  If col.Count = 0 Then Exit Do
+  WScript.Sleep 800
+Loop
+Log "pid exited, settling"
+WScript.Sleep 1200
+If Not fso.FileExists(installer) Then
+  Log "ERROR installer missing"
+  WScript.Quit 2
+End If
+Log "launching NSIS"
+ec = sh.Run("""" & installer & """ /UPDATE /S /D=" & installDir, 0, True)
+Log "NSIS exit=" & ec
+If ec <> 0 Then
+  Log "ERROR NSIS failed"
+  WScript.Quit ec
+End If
+app = ""
+If fso.FileExists(installDir & "\Fledge.exe") Then
+  app = installDir & "\Fledge.exe"
+ElseIf fso.FileExists(installDir & "\fledge-desktop.exe") Then
+  app = installDir & "\fledge-desktop.exe"
+Else
+  Set folder = fso.GetFolder(installDir)
+  For Each file In folder.Files
+    If LCase(fso.GetExtensionName(file.Name)) = "exe" Then
+      If LCase(file.Name) <> "uninstall.exe" And LCase(file.Name) <> "uninstall fledge.exe" Then
+        app = file.Path
+        Exit For
+      End If
+    End If
+  Next
+End If
+If app = "" Then
+  Log "ERROR app missing after install"
+  WScript.Quit 3
+End If
+Log "starting app " & app
+sh.Run """" & app & """ --updated", 1, False
+Log "done"
+On Error Resume Next
+fso.DeleteFile WScript.ScriptFullName, True
+WScript.Quit ec
 "#,
         pid = pid_to_wait_for,
         installer = installer,
@@ -164,12 +175,11 @@ exit /b !EC!
         log = log,
     );
 
-    fs::write(&script_path, content.replace('\n', "\r\n"))?;
+    fs::write(&vbs_path, vbs.replace('\n', "\r\n"))?;
 
-    // No PowerShell / wscript — those flash a console. Detached hidden cmd only.
-    Command::new("cmd.exe")
-        .args(["/d", "/c", &script_path.to_string_lossy()])
-        .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
+    Command::new("wscript.exe")
+        .args(["//B", "//Nologo", &vbs_path.to_string_lossy()])
+        .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .map_err(|e| CoreError::msg(format!("updater.applyFailed: {e}")))?;
 
@@ -181,7 +191,7 @@ exit /b !EC!
             use std::io::Write;
             writeln!(
                 f,
-                "[{}] spawned hidden cmd waiter",
+                "[{}] spawned hidden wscript waiter pid={pid_to_wait_for}",
                 chrono::Utc::now().to_rfc3339(),
             )
         });
@@ -194,57 +204,66 @@ exit /b !EC!
 pub fn schedule_complete_uninstall(install_root: &Path) -> CoreResult<()> {
     let pid = std::process::id();
     let uninstaller = find_uninstaller(install_root);
-    let script_path = std::env::temp_dir().join(format!("fledge-uninstall-{pid}.cmd"));
+    let vbs_path = std::env::temp_dir().join(format!("fledge-uninstall-{pid}.vbs"));
 
-    let root = esc_cmd(install_root);
-    let roaming = esc_cmd(&roaming_fledge_dir());
-    let staging = esc_cmd(&updater_staging_dir());
-    let bundle_roaming = esc_cmd(&bundle_id_dirs()[0]);
-    let bundle_local = esc_cmd(&bundle_id_dirs()[1]);
+    let root = vbs_str(install_root);
+    let roaming = vbs_str(&roaming_fledge_dir());
+    let staging = vbs_str(&updater_staging_dir());
+    let bundle_roaming = vbs_str(&bundle_id_dirs()[0]);
+    let bundle_local = vbs_str(&bundle_id_dirs()[1]);
     let uninst = uninstaller
         .as_ref()
-        .map(|p| esc_cmd(p))
+        .map(|p| vbs_str(p))
         .unwrap_or_default();
 
-    let uninstall_block = if uninstaller.is_some() {
+    let uninstall_run = if uninstaller.is_some() {
         format!(
-            r#"if exist "{uninst}" (
-  start /wait "" "{uninst}" /S
-  timeout /t 2 /nobreak >NUL
-)
+            r#"If fso.FileExists("{uninst}") Then
+  sh.Run """{uninst}"" /S", 0, True
+  WScript.Sleep 1500
+End If
 "#
         )
     } else {
         String::new()
     };
 
-    let script = format!(
-        r#"@echo off
-setlocal
-:wait
-tasklist /FI "PID eq {pid}" 2>NUL | find "{pid}" >NUL
-if not errorlevel 1 (
-  timeout /t 1 /nobreak >NUL
-  goto wait
-)
-timeout /t 2 /nobreak >NUL
-{uninstall_block}if exist "{root}" (
-  rmdir /s /q "{root}"
-)
-if exist "{roaming}" rmdir /s /q "{roaming}"
-if exist "{staging}" rmdir /s /q "{staging}"
-if exist "{bundle_roaming}" rmdir /s /q "{bundle_roaming}"
-if exist "{bundle_local}" rmdir /s /q "{bundle_local}"
-reg delete "HKCU\Software\Fledge" /f >NUL 2>&1
-del "%~f0"
-"#
+    let vbs = format!(
+        r#"Option Explicit
+Dim sh, wmi, col, fso, pid
+Set sh = CreateObject("WScript.Shell")
+Set fso = CreateObject("Scripting.FileSystemObject")
+Set wmi = GetObject("winmgmts:\\.\root\cimv2")
+pid = {pid}
+Do
+  Set col = wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ProcessId=" & pid)
+  If col.Count = 0 Then Exit Do
+  WScript.Sleep 800
+Loop
+WScript.Sleep 1500
+{uninstall_run}If fso.FolderExists("{root}") Then fso.DeleteFolder "{root}", True
+If fso.FolderExists("{roaming}") Then fso.DeleteFolder "{roaming}", True
+If fso.FolderExists("{staging}") Then fso.DeleteFolder "{staging}", True
+If fso.FolderExists("{bundle_roaming}") Then fso.DeleteFolder "{bundle_roaming}", True
+If fso.FolderExists("{bundle_local}") Then fso.DeleteFolder "{bundle_local}", True
+On Error Resume Next
+sh.Run "reg delete ""HKCU\Software\Fledge"" /f", 0, True
+fso.DeleteFile WScript.ScriptFullName, True
+"#,
+        pid = pid,
+        uninstall_run = uninstall_run,
+        root = root,
+        roaming = roaming,
+        staging = staging,
+        bundle_roaming = bundle_roaming,
+        bundle_local = bundle_local,
     );
 
-    fs::write(&script_path, script.replace('\n', "\r\n"))?;
+    fs::write(&vbs_path, vbs.replace('\n', "\r\n"))?;
 
-    Command::new("cmd.exe")
-        .args(["/d", "/c", &script_path.to_string_lossy()])
-        .creation_flags(CREATE_NO_WINDOW | DETACHED_PROCESS)
+    Command::new("wscript.exe")
+        .args(["//B", "//Nologo", &vbs_path.to_string_lossy()])
+        .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .map_err(|e| CoreError::msg(format!("settings.uninstallFailed: {e}")))?;
 
@@ -279,20 +298,15 @@ pub fn find_uninstaller(install_root: &Path) -> Option<PathBuf> {
     candidates.into_iter().find(|p| p.is_file())
 }
 
-fn bat_set(path: &Path) -> String {
+/// Escape a path for embedding inside a VBScript `"..."` string.
+fn vbs_str(path: &Path) -> String {
     path.to_string_lossy()
         .trim_end_matches(['\\', '/'])
-        .replace('"', "")
-}
-
-fn esc_cmd(path: &Path) -> String {
-    path.to_string_lossy().replace('%', "%%")
+        .replace('"', "\"\"")
 }
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-#[cfg(windows)]
-const DETACHED_PROCESS: u32 = 0x0000_0008;
 
 #[cfg(windows)]
 trait CreationFlagsExt {
@@ -321,5 +335,3 @@ impl CreationFlagsExt for Command {
 
 #[cfg(not(windows))]
 const CREATE_NO_WINDOW: u32 = 0;
-#[cfg(not(windows))]
-const DETACHED_PROCESS: u32 = 0;
