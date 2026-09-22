@@ -319,7 +319,7 @@ impl JavaManager {
             1.0,
             1.0,
             "settings.java.downloading",
-            Some("succeeded"),
+            Some("completed"),
             force,
             major,
         );

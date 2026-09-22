@@ -219,11 +219,14 @@ pub async fn minecraft_from_ms_tokens(ms: &MsTokens) -> CoreResult<MinecraftSess
 
     if profile_status.is_success() && !id.is_empty() && !name.is_empty() {
         let now = chrono::Utc::now().timestamp_millis() as u64;
+        // Minecraft セッショントークンは通常約24時間。MSA expires_in(約1h)より長く持つ。
+        let mc_ttl_ms = 23 * 60 * 60 * 1000;
+        let ms_ttl_ms = ms.expires_in.saturating_mul(1000).saturating_sub(60_000);
         return Ok(MinecraftSession {
             access_token,
             uuid: id,
             name,
-            expires_at_ms: now + ms.expires_in.saturating_mul(1000).saturating_sub(60_000),
+            expires_at_ms: now + mc_ttl_ms.max(ms_ttl_ms),
         });
     }
 
@@ -253,11 +256,13 @@ pub async fn minecraft_from_ms_tokens(ms: &MsTokens) -> CoreResult<MinecraftSess
     }
 
     let now = chrono::Utc::now().timestamp_millis() as u64;
+    let mc_ttl_ms = 23 * 60 * 60 * 1000;
+    let ms_ttl_ms = ms.expires_in.saturating_mul(1000).saturating_sub(60_000);
     Ok(MinecraftSession {
         access_token,
         uuid: if id.is_empty() { "unknown".into() } else { id },
         name: if name.is_empty() { "Player".into() } else { name },
-        expires_at_ms: now + ms.expires_in.saturating_mul(1000).saturating_sub(60_000),
+        expires_at_ms: now + mc_ttl_ms.max(ms_ttl_ms),
     })
 }
 

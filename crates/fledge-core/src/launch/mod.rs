@@ -215,13 +215,25 @@ impl LaunchOrchestrator {
                 return Err(CoreError::msg("download.cancelled"));
             }
 
-            self.emit_progress(&session_id, 2.0, 2.0, Some(100.0), "library.prepareDone");
             Ok(())
         }
         .await;
 
         match outcome {
             Ok(()) => {
+                self.events.emit_progress(ProgressEvent {
+                    scope: "launch".into(),
+                    kind: Some("install".into()),
+                    session_id: Some(session_id.clone()),
+                    job_id: None,
+                    current: 2.0,
+                    total: 2.0,
+                    percent: Some(100.0),
+                    bytes_per_second: None,
+                    message_key: Some("library.prepareDone".into()),
+                    status: Some("completed".into()),
+                    meta: None,
+                });
                 self.emit_state(&session_id, profile_id, "", "idle", None);
                 self.sessions.lock().remove(&session_id);
                 Ok(json!({ "sessionId": session_id }))

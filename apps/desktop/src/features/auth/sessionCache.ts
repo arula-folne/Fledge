@@ -8,6 +8,7 @@ export const accountsQueryKey = ['accounts'] as const
 
 export const sessionQueryOptions = {
   staleTime: Infinity,
+  gcTime: 30 * 60_000,
 } as const
 
 export type SessionQueryData = {
@@ -29,12 +30,23 @@ export function applyLoggedInAccount(queryClient: QueryClient, account: AccountV
   queryClient.setQueryData(accountsQueryKey, (prev: AccountView[] | undefined) =>
     upsertAccount(prev, account),
   )
+  useUiStore.getState().setAuthStatus('logged_in')
 }
 
 export async function loadSessionQuery(queryClient: QueryClient): Promise<SessionQueryData> {
   const result = await fledgeApi.auth.session()
   if (useUiStore.getState().authStatus === 'logging_in') {
     return queryClient.getQueryData<SessionQueryData>(sessionQueryKey) ?? result
+  }
+  // バックエンドのセッションと UI ステータスを揃える
+  if (result.account && (result.status === 'logged_in' || result.status === 'refreshing')) {
+    useUiStore.getState().setAuthStatus(result.status)
+  } else if (!result.account && result.status === 'logged_out') {
+    if (useUiStore.getState().authStatus !== 'logging_in') {
+      useUiStore.getState().setAuthStatus('logged_out')
+    }
+  } else if (result.status === 'expired') {
+    useUiStore.getState().setAuthStatus('expired')
   }
   return result
 }
@@ -48,7 +60,15 @@ export function applyAuthStatusEvent(
   const { status } = payload
   setAuthStatus(status)
 
-  if (status === 'logging_in' || status === 'refreshing') return
+  if (status === 'logging_in' || status === 'refreshing') {
+    if (payload.account) {
+      queryClient.setQueryData(sessionQueryKey, { account: payload.account, status })
+      queryClient.setQueryData(accountsQueryKey, (prev: AccountView[] | undefined) =>
+        upsertAccount(prev, payload.account as AccountView),
+      )
+    }
+    return
+  }
 
   if (payload.account !== undefined) {
     queryClient.setQueryData(sessionQueryKey, { account: payload.account, status })
@@ -56,7 +76,7 @@ export function applyAuthStatusEvent(
       queryClient.setQueryData(accountsQueryKey, (prev: AccountView[] | undefined) =>
         upsertAccount(prev, payload.account as AccountView),
       )
-    } else {
+    } else if (status === 'logged_out') {
       void queryClient.invalidateQueries({ queryKey: accountsQueryKey })
     }
     return

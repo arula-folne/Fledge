@@ -66,6 +66,7 @@ impl AppState {
         let vault = TokenVault::new(&layout.accounts);
         let auth = Arc::new(AuthProvider::new(vault));
         auth.set_client_id(msa.as_deref());
+        let _ = auth.hydrate_from_vault();
         let session_proxy = Arc::new(SessionJoinProxy::new(Arc::clone(&auth)));
         let events = Arc::new(EventBus::new());
         let java = Arc::new(JavaManager::new(layout.clone(), Arc::clone(&events)));

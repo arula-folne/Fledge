@@ -326,8 +326,18 @@ type TransferStore = {
   clearHistory: () => void
 }
 
-function isHistoryTerminalStatus(status: string | undefined): boolean {
-  return status === 'completed' || status === 'failed' || status === 'cancelled'
+function isHistoryTerminalStatus(status: string | undefined, kind?: string): boolean {
+  if (status === 'completed' || status === 'failed' || status === 'cancelled') return true
+  // Java は従来 succeeded で完了していた（install サブステップの succeeded は対象外）
+  if (status === 'succeeded' && kind === 'java') return true
+  return false
+}
+
+function normalizeTerminalStatus(
+  status: string,
+): 'completed' | 'failed' | 'cancelled' {
+  if (status === 'failed' || status === 'cancelled') return status
+  return 'completed'
 }
 
 function resolveTransferJobId(e: ProgressEvent): string | undefined {
@@ -404,12 +414,30 @@ export const useTransferStore = create<TransferStore>((set) => ({
         status: input.status,
         meta,
       }
-      const history = pushHistory(s.history, toHistoryEntry(snapshot, input.status))
-      if (!(jobId in s.jobs)) {
-        return { history }
-      }
+      let history = pushHistory(s.history, toHistoryEntry(snapshot, input.status))
       const next = { ...s.jobs }
       delete next[jobId]
+
+      // 同一セッションの Java 導入など、取り残されたアクティブジョブも完了へ
+      for (const [id, job] of Object.entries(s.jobs)) {
+        if (id === jobId) continue
+        if (job.sessionId !== input.sessionId) continue
+        if (job.status !== 'queued' && job.status !== 'active') continue
+        history = pushHistory(
+          history,
+          toHistoryEntry(
+            {
+              ...job,
+              status: input.status,
+              percent: input.status === 'completed' ? 100 : job.percent,
+              messageKey: job.messageKey ?? input.messageKey,
+            },
+            input.status,
+          ),
+        )
+        delete next[id]
+      }
+
       return {
         jobs: next,
         pinnedJobId: nextPinnedJobId(s.pinnedJobId, next, jobId),
@@ -427,8 +455,8 @@ export const useTransferStore = create<TransferStore>((set) => ({
 
     set((s) => {
       // content / java 等の明示的な完了・失敗のみ履歴へ（install 途中の succeeded は含めない）
-      if (isHistoryTerminalStatus(rawStatus)) {
-        const terminal = rawStatus as 'completed' | 'failed' | 'cancelled'
+      if (isHistoryTerminalStatus(rawStatus, e.kind)) {
+        const terminal = normalizeTerminalStatus(rawStatus as string)
         const prev = s.jobs[jobId]
         const snapshotBase: TransferJob = prev
           ? {
@@ -466,6 +494,11 @@ export const useTransferStore = create<TransferStore>((set) => ({
           pinnedJobId: nextPinnedJobId(s.pinnedJobId, next, jobId),
           history,
         }
+      }
+
+      // finalize 後の遅延 progress で完了ジョブを復活させない
+      if (s.history.some((h) => h.jobId === jobId && isHistoryTerminalStatus(h.status, h.kind))) {
+        return s
       }
 
       const prev = s.jobs[jobId]

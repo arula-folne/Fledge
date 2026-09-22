@@ -26,9 +26,11 @@ export async function startLogin(queryClient: QueryClient): Promise<void> {
     useUiStore.getState().setAuthStatus('logged_in')
     applyLoggedInAccount(queryClient, account)
     await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['accounts'] }),
       queryClient.invalidateQueries({ queryKey: ['skins'] }),
       queryClient.invalidateQueries({ queryKey: ['settings'] }),
       queryClient.invalidateQueries({ queryKey: ['account-face'] }),
+      queryClient.invalidateQueries({ queryKey: ['capes'] }),
     ])
   } catch (err) {
     const key = extractAuthErrorKey(err)

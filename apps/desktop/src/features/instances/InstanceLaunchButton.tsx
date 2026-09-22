@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
   IconAlertCircle,
@@ -13,6 +13,7 @@ import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
 import { formatProgressMessage } from '../launch/formatProgressMessage'
 import { startLogin } from '../auth/loginAction'
+import { sessionQueryOptions } from '../auth/sessionCache'
 import { useLaunchStore, useUiStore, useInstanceCreateStore } from '../../stores/appStores'
 import { useDebugStore } from '../../stores/debugStore'
 import {
@@ -117,6 +118,12 @@ export function InstanceLaunchButton({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const authStatus = useUiStore((s) => s.authStatus)
+  const sessionAccount = useQuery({
+    queryKey: ['session'],
+    ...sessionQueryOptions,
+    queryFn: () => fledgeApi.auth.session(),
+    select: (d) => d.account,
+  }).data
   const creating = useInstanceCreateStore((s) => Boolean(s.creatingIds[instanceId]))
   const state = useLaunchStore((s) => s.byProfileId[instanceId]?.state ?? 'idle')
   const sessionId = useLaunchStore((s) => s.byProfileId[instanceId]?.sessionId)
@@ -137,15 +144,19 @@ export function InstanceLaunchButton({
     IS_DEV && launchErrorPreview && !errorMessageKey ? 'launch.error.gameExited' : null
   const displayErrorKey = errorMessageKey ?? previewErrorKey
 
+  const hasAccount = Boolean(sessionAccount)
+  // セッションにアカウントがあればログイン扱い（zustand 初期値 logged_out の誤判定を防ぐ）
   const canPlay =
     !creating &&
-    (authStatus === 'logged_in' || authStatus === 'refreshing') &&
+    hasAccount &&
+    authStatus !== 'expired' &&
+    authStatus !== 'logging_in' &&
     state !== 'preparing' &&
     state !== 'launching' &&
     state !== 'running'
 
   const needsLogin =
-    authStatus === 'logged_out' || authStatus === 'expired' || authStatus === 'logging_in'
+    !hasAccount || authStatus === 'expired' || authStatus === 'logging_in'
 
   const percent =
     progress?.percent ??

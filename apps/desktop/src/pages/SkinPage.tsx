@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { IconCheck, IconPencil, IconPlus, IconUpload } from '@tabler/icons-react'
 import { MAX_UPLOADED_SKINS, type CapeEntry, type SkinEntry, type SkinModel, type Settings } from '@fledge/shared'
 import { fledgeApi } from '../api/fledgeApi'
+import { loadSessionQuery, sessionQueryOptions } from '../features/auth/sessionCache'
 import { Button } from '../components/ui/Button'
 import { Dialog } from '../components/ui/Dialog'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
@@ -72,9 +73,10 @@ export default function SkinPage() {
 
   const sessionQuery = useQuery({
     queryKey: ['session'],
-    queryFn: () => fledgeApi.auth.session(),
+    ...sessionQueryOptions,
+    queryFn: () => loadSessionQuery(queryClient),
   })
-  const loggedIn = Boolean(sessionQuery.data?.account)
+  const loggedIn = Boolean(sessionQuery.data?.account) && sessionQuery.data?.status !== 'logged_out'
 
   const capesQuery = useQuery({
     queryKey: ['capes'],

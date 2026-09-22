@@ -44,6 +44,12 @@ pub fn run() {
                 let _ = app_handle.emit("event:auth-status", payload);
             });
 
+            // リスナー登録後に現在のセッションを UI へ通知（再起動後のログイン維持）
+            if let Ok((account, status)) = state.auth.get_session() {
+                let payload = AppState::auth_status_payload(status, account);
+                let _ = app.handle().emit("event:auth-status", payload);
+            }
+
             let app_handle = app.handle().clone();
             state.events.on_progress(move |payload| {
                 let _ = app_handle.emit("event:progress", payload);

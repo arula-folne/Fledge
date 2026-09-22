@@ -58,6 +58,21 @@ impl AuthProvider {
         }
     }
 
+    /// 起動時に vault 上のアカウントからログイン状態を復元する（イベントは出さない）。
+    pub fn hydrate_from_vault(&self) -> CoreResult<()> {
+        let active = self.vault.read_account(None)?;
+        if let Some(account) = active {
+            *self.active_id.lock() = Some(account.id.clone());
+            let mut status = self.status.lock();
+            if *status == AuthStatus::LoggedOut {
+                *status = AuthStatus::LoggedIn;
+            }
+        } else {
+            *self.active_id.lock() = None;
+        }
+        Ok(())
+    }
+
     pub fn set_client_id(&self, id: Option<&str>) {
         let next = id
             .map(str::trim)
@@ -105,7 +120,7 @@ impl AuthProvider {
             Ok((ms, mc)) => {
                 let account = AccountView {
                     id: mc.uuid.clone(),
-                    uuid: mc.uuid.clone(),
+                    uuid: normalize_uuid(&mc.uuid),
                     display_name: mc.name.clone(),
                     xuid: None,
                     skin_url: None,
@@ -165,26 +180,35 @@ impl AuthProvider {
     pub fn switch_account(&self, account_id: &str) -> CoreResult<AccountView> {
         let account = self.vault.set_active(account_id)?.enrich();
         *self.active_id.lock() = Some(account_id.to_string());
+        // 切替直後は期限切れ表示にしない（裏で refresh する）
         self.set_status(AuthStatus::LoggedIn, Some(account.clone()));
         Ok(account)
     }
 
+    /// 永続アカウントを読むだけ。読取失敗や空でも LoggedOut イベントは出さない。
     pub fn get_session(&self) -> CoreResult<(Option<AccountView>, AuthStatus)> {
         let account = self.vault.read_account(None)?.map(|a| a.enrich());
         if let Some(ref a) = account {
             *self.active_id.lock() = Some(a.id.clone());
-        } else {
-            *self.active_id.lock() = None;
-            if *self.status.lock() != AuthStatus::LoggingIn {
-                self.set_status(AuthStatus::LoggedOut, None);
+            let status = *self.status.lock();
+            if status == AuthStatus::LoggingIn || status == AuthStatus::Refreshing {
+                return Ok((Some(a.clone()), status));
             }
-            return Ok((None, AuthStatus::LoggedOut));
+            // vault にアカウントがあるのに LoggedOut のままなら復元
+            if status == AuthStatus::LoggedOut {
+                *self.status.lock() = AuthStatus::LoggedIn;
+            }
+            let status = *self.status.lock();
+            // Expired でもアカウント表示は維持し、再ログイン導線は UI 側で出す
+            return Ok((Some(a.clone()), status));
         }
+
+        *self.active_id.lock() = None;
         let status = *self.status.lock();
         if status == AuthStatus::LoggingIn {
-            return Ok((account, status));
+            return Ok((None, status));
         }
-        Ok((account, AuthStatus::LoggedIn))
+        Ok((None, AuthStatus::LoggedOut))
     }
 
     pub async fn ensure_credentials(&self, account_id: Option<&str>) -> CoreResult<Value> {
@@ -194,7 +218,6 @@ impl AuthProvider {
             .or_else(|| self.vault.get_active_id().ok().flatten())
             .ok_or_else(|| CoreError::msg("auth.error.notLoggedIn"))?;
 
-        // Use cache if not expired
         if let Some(cached) = self.cache.lock().get(&id).cloned() {
             let now = chrono::Utc::now().timestamp_millis() as u64;
             if cached.mc.expires_at_ms > now + 30_000 {
@@ -220,7 +243,8 @@ impl AuthProvider {
     }
 
     async fn refresh_credentials(&self, id: &str) -> CoreResult<Value> {
-        self.set_status(AuthStatus::Refreshing, None);
+        let account = self.vault.read_account(Some(id))?.map(|a| a.enrich());
+        self.set_status(AuthStatus::Refreshing, account.clone());
         let secrets = self
             .vault
             .read_secrets(id)?
@@ -245,7 +269,8 @@ impl AuthProvider {
                 }))
             }
             Err(err) => {
-                self.set_status(AuthStatus::Expired, None);
+                // 一時的な失敗でもアカウント一覧は落とさない。期限切れとして再ログインを促す。
+                self.set_status(AuthStatus::Expired, account);
                 let (_c, key) = map_auth_error(&err);
                 Err(CoreError::msg(key))
             }
@@ -253,7 +278,11 @@ impl AuthProvider {
     }
 
     pub async fn refresh_active_best_effort(&self) {
-        let id = match self.active_id.lock().clone().or_else(|| self.vault.get_active_id().ok().flatten())
+        let id = match self
+            .active_id
+            .lock()
+            .clone()
+            .or_else(|| self.vault.get_active_id().ok().flatten())
         {
             Some(id) => id,
             None => return,
@@ -282,7 +311,8 @@ impl AuthProvider {
             &StoredSecrets {
                 version: 1,
                 microsoft: MicrosoftSecrets {
-                    access_token: mc.access_token.clone(),
+                    // MSA の access / refresh を保持（refresh 用）。MC トークンは cache 側。
+                    access_token: ms.access_token.clone(),
                     refresh_token: ms.refresh_token.clone(),
                     expires_at: Some(mc.expires_at_ms),
                 },
@@ -293,4 +323,19 @@ impl AuthProvider {
     pub fn vault(&self) -> &TokenVault {
         &self.vault
     }
+}
+
+fn normalize_uuid(raw: &str) -> String {
+    let bare = raw.replace('-', "");
+    if bare.len() != 32 {
+        return raw.to_string();
+    }
+    format!(
+        "{}-{}-{}-{}-{}",
+        &bare[0..8],
+        &bare[8..12],
+        &bare[12..16],
+        &bare[16..20],
+        &bare[20..32]
+    )
 }
