@@ -2,7 +2,7 @@
   {
     "id": "v0.5.9",
     "title": "【バージョンアップ】Fledge Ver.0.5.9",
-    "body": "**Fledge Ver.0.5.9** を公開しました。\n\n## 主な変更\n\n- インストーラーの表示領域がウィンドウ（16:10）に追従するよう修正（画像比率はそのまま）\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "body": "**Fledge Ver.0.5.9** を公開しました。\n\n## 主な変更\n\n- インストーラーの表示領域がウィンドウ（16:10）に追従するよう修正（画像比率はそのまま）\n- Windows Defender の誤検知を避けるためインストーラー生成を見直し\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
     "publishedAt": "2026-09-23T04:20:00.000Z",
     "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.5.9"
   },
