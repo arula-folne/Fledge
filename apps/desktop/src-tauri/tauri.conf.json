@@ -54,6 +54,7 @@
     "windows": {
       "nsis": {
         "installMode": "currentUser",
+        "compression": "zlib",
         "languages": [
           "Japanese",
           "English"

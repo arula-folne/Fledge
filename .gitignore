@@ -21,3 +21,6 @@ release
 apps/desktop/src-tauri/gen
 
 apps/desktop/data/
+
+.tools/
+
