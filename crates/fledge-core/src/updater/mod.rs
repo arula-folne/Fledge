@@ -36,11 +36,17 @@ const CACHE_TTL_MS: i64 = 30 * 60 * 1000;
 const UP_TO_DATE_CACHE_TTL_MS: i64 = 60 * 1000;
 const FETCH_TIMEOUT_MS: u64 = 15_000;
 const GEN_LIST_PER_PAGE: u32 = 40;
-const UA_CHECK: &str = "Fledge/0.5.0 (updater-check)";
-const UA_DOWNLOAD: &str = "Fledge/0.5.0 (updater-download)";
+fn ua_check() -> String {
+    format!("Fledge/{} (updater-check)", APP_VERSION)
+}
+fn ua_download() -> String {
+    format!("Fledge/{} (updater-download)", APP_VERSION)
+}
 
+/// GitHub REST API の asset（フィールドは snake_case）。
+/// `rename_all = "camelCase"` を付けると `browser_download_url` が読めず、
+/// 更新チェックが常に失敗する（0.5.0 の不具合）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 struct GithubReleaseAsset {
     name: String,
     browser_download_url: String,
@@ -242,7 +248,7 @@ impl UpdaterService {
 
         let client = reqwest::Client::builder()
             .timeout(Duration::from_millis(FETCH_TIMEOUT_MS * 4))
-            .user_agent(UA_DOWNLOAD)
+            .user_agent(ua_download())
             .build()
             .map_err(|e| CoreError::msg(e.to_string()))?;
 
@@ -369,7 +375,7 @@ impl UpdaterService {
     }
 
     async fn fetch_from_feed(&self, feed_url: &str, channel: &str) -> CoreResult<GithubRelease> {
-        let value = self.fetch_json(feed_url, UA_CHECK).await?;
+        let value = self.fetch_json(feed_url, &ua_check()).await?;
         if let Ok(release) = serde_json::from_value::<GithubRelease>(value.clone()) {
             if release.draft {
                 return Err(CoreError::msg("Configured update feed is a draft"));
@@ -392,7 +398,7 @@ impl UpdaterService {
     }
 
     async fn fetch_latest_stable(&self) -> CoreResult<GithubRelease> {
-        let value = self.fetch_json(LATEST_RELEASE_URL, UA_CHECK).await?;
+        let value = self.fetch_json(LATEST_RELEASE_URL, &ua_check()).await?;
         let release: GithubRelease =
             serde_json::from_value(value).map_err(|e| CoreError::msg(e.to_string()))?;
         if release.draft {
@@ -411,7 +417,7 @@ impl UpdaterService {
         let url = format!(
             "https://api.github.com/repos/{OWNER}/{REPO}/releases?per_page={per_page}"
         );
-        let value = self.fetch_json(&url, UA_CHECK).await?;
+        let value = self.fetch_json(&url, &ua_check()).await?;
         let list: Vec<GithubRelease> =
             serde_json::from_value(value).map_err(|e| CoreError::msg(e.to_string()))?;
         pick_newest_release(list, channel, gen1, gen2)
@@ -681,4 +687,36 @@ fn updater_staging_dir() -> PathBuf {
         .unwrap_or_else(|| PathBuf::from("."))
         .join("fledge")
         .join("updater")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn github_asset_deserializes_snake_case() {
+        let raw = r#"{
+          "tag_name": "v0.5.1",
+          "html_url": "https://github.com/arula-folne/Fledge/releases/tag/v0.5.1",
+          "body": "notes",
+          "assets": [{
+            "name": "Fledge_0.5.1_x64-setup.exe",
+            "browser_download_url": "https://github.com/arula-folne/Fledge/releases/download/v0.5.1/Fledge_0.5.1_x64-setup.exe",
+            "size": 10326457
+          }],
+          "draft": false,
+          "prerelease": false
+        }"#;
+        let release: GithubRelease = serde_json::from_str(raw).expect("parse release");
+        let asset = find_windows_installer(&release.assets).expect("installer asset");
+        assert_eq!(asset.name, "Fledge_0.5.1_x64-setup.exe");
+        assert!(asset.browser_download_url.contains("Fledge_0.5.1_x64-setup.exe"));
+    }
+
+    #[test]
+    fn preferred_installer_matches_tauri_nsis_name() {
+        assert!(is_preferred_installer_name("Fledge_0.5.1_x64-setup.exe"));
+        assert!(is_preferred_installer_name("Fledge-Setup.exe"));
+        assert!(!is_preferred_installer_name("Fledge_0.5.1_x64_en-US.msi"));
+    }
 }

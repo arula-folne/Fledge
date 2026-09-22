@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
  * packages/shared/src/version.ts の APP_VERSION を正本として、
- * 各 package.json と README / spec を同期する。
+ * 各 package.json / Cargo.toml / tauri.conf / README / spec / Rust APP_VERSION を同期する。
  *
- * 表示: Ver.0.3.0ut / Ver.0.1.4b / Ver.0.1.4
- * package.json: 有効な semver のため 0.3.0-ut / 0.1.4-b / 0.1.4
+ * 表示: Ver.0.5.1
+ * package.json / Cargo: 有効な semver のため 0.5.1（接尾辞があれば 0.3.0-ut など）
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -62,6 +62,44 @@ for (const rel of packageJsonPaths) {
   pkg.version = semver
   fs.writeFileSync(file, `${JSON.stringify(pkg, null, 2)}\n`)
   console.log(`updated ${rel} -> ${semver}`)
+}
+
+function replaceCargoVersion(rel) {
+  const file = path.join(root, rel)
+  const text = fs.readFileSync(file, 'utf8')
+  const next = text.replace(/^version\s*=\s*"[^"]+"/m, `version = "${semver}"`)
+  if (next === text) {
+    console.log(`skip ${rel} (already ${semver} or no version key)`)
+    return
+  }
+  fs.writeFileSync(file, next)
+  console.log(`updated ${rel} -> ${semver}`)
+}
+
+replaceCargoVersion('crates/fledge-core/Cargo.toml')
+replaceCargoVersion('apps/desktop/src-tauri/Cargo.toml')
+
+const tauriConfPath = path.join(root, 'apps/desktop/src-tauri/tauri.conf.json')
+const tauriConf = JSON.parse(fs.readFileSync(tauriConfPath, 'utf8'))
+if (tauriConf.version === semver) {
+  console.log(`skip apps/desktop/src-tauri/tauri.conf.json (already ${semver})`)
+} else {
+  tauriConf.version = semver
+  fs.writeFileSync(tauriConfPath, `${JSON.stringify(tauriConf, null, 2)}\n`)
+  console.log(`updated apps/desktop/src-tauri/tauri.conf.json -> ${semver}`)
+}
+
+const rustVersionPath = path.join(root, 'crates/fledge-core/src/updater/version.rs')
+const rustVersionSrc = fs.readFileSync(rustVersionPath, 'utf8')
+const rustNext = rustVersionSrc.replace(
+  /pub const APP_VERSION: &str = "[^"]+";/,
+  `pub const APP_VERSION: &str = "${version}";`,
+)
+if (rustNext === rustVersionSrc) {
+  console.log(`skip crates/fledge-core/src/updater/version.rs (already ${version})`)
+} else {
+  fs.writeFileSync(rustVersionPath, rustNext)
+  console.log(`updated crates/fledge-core/src/updater/version.rs -> ${version}`)
 }
 
 const readmePath = path.join(root, 'README.md')
