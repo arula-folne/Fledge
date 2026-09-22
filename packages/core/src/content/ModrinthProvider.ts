@@ -784,7 +784,7 @@ export class ModrinthProvider implements ContentProvider {
   async findUpdate(
     entry: { projectId: string; versionId: string; category: ContentCategory },
     opts: { gameVersion?: string; loaders?: ContentLoaderFilter[] },
-  ): Promise<{ versionId: string; versionNumber: string } | null> {
+  ): Promise<{ versionId: string; versionNumber: string; versionType: 'release' } | null> {
     try {
       // 依存ツリー全体は見ず、当該プロジェクトの最新互換・安定版だけ見る（高速）
       const versions = await this.listVersions(entry.projectId, {
