@@ -1,5 +1,19 @@
 [
   {
+    "id": "v0.5.6",
+    "title": "【バージョンアップ】Fledge Ver.0.5.6",
+    "body": "**Fledge Ver.0.5.6** を公開しました。\n\n## 主な変更\n\n- アプリ内アップデートの動作確認用リリース（Ver.0.5.5 からの更新案内を確認できます）\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-09-23T03:30:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.5.6"
+  },
+  {
+    "id": "v0.5.5",
+    "title": "【バージョンアップ】Fledge Ver.0.5.5",
+    "body": "**Fledge Ver.0.5.5** を公開しました。\n\n## 主な変更\n\n- アップデート時に `find \"PID\"` の黒い cmd が残って更新が止まる問題を修正\n\n> Ver.0.5.3 / 0.5.4 をご利用で更新できない場合は、残っている cmd を閉じてから本インストーラを **手動インストール** してください。0.5.5 以降はアプリ内更新が動作します。\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-09-23T03:20:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.5.5"
+  },
+  {
     "id": "v0.5.4",
     "title": "【バージョンアップ】Fledge Ver.0.5.4",
     "body": "**Fledge Ver.0.5.4** を公開しました。\n\n## 主な変更\n\n- アプリ内アップデートの動作確認用リリース（Ver.0.5.3 からの更新案内を確認できます）\n- Ver.0.5.3 までの修正を含む\n\n> 不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
