@@ -1,4 +1,4 @@
-**Fledge Ver.0.5.15**（第3世代・Tauri シェル / Latest）
+**Fledge Ver.0.5.15**
 
 アップデート確認用のリリースです。
 
