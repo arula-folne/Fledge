@@ -714,8 +714,11 @@ impl LaunchOrchestrator {
             }),
         );
 
-        // Empty patch: do not write options.txt; mark applied after exit
+        // 変更なし（すべて MC 既定）: 既存 options.txt を消してゲーム側の既定生成に任せる
+        // （複製で持ち込まれた旧 options や、リセット後の作り直しで古い設定が残るのを防ぐ）
         if options.is_empty() && overlay.is_empty() {
+            let _ = std::fs::remove_file(instance_dir.join("options.txt"));
+            let _ = std::fs::remove_file(instance_dir.join("debug.json"));
             return Ok(InitialSettingsResult {
                 first_launch_pass: true,
                 options,

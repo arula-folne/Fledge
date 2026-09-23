@@ -124,12 +124,12 @@ export function InstanceLogConsole({ instanceId, files, onOpenFolder, onRefreshL
   }
 
   return (
-    <div className="flex min-h-0 flex-col gap-3 lg:flex-row lg:items-stretch">
-      <aside className="flex shrink-0 flex-col gap-2 lg:w-52">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-3 lg:flex-row lg:items-stretch">
+      <aside className="flex shrink-0 flex-col gap-2 lg:h-full lg:w-52">
         <div className="px-0.5 text-[11px] font-semibold tracking-wide text-[var(--color-text-muted)] uppercase">
           {t('library.logsFiles')}
         </div>
-        <div className="flex gap-1.5 overflow-x-auto pb-1 lg:max-h-[min(70vh,40rem)] lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:pb-0">
+        <div className="flex gap-1.5 overflow-x-auto pb-1 lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:pb-0">
           {files.map((file) => {
             const active = file.name === selected
             const live = file.name.toLowerCase() === 'latest.log'
@@ -167,8 +167,8 @@ export function InstanceLogConsole({ instanceId, files, onOpenFolder, onRefreshL
         </div>
       </aside>
 
-      <section className="flex min-h-[24rem] min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-        <header className="flex flex-wrap items-center gap-2 border-b border-[var(--color-border)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-surface)_92%,var(--color-accent)_8%),var(--color-surface))] px-3 py-2.5">
+      <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <header className="flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--color-border)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-surface)_92%,var(--color-accent)_8%),var(--color-surface))] px-3 py-2.5">
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <span className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
               <IconTerminal2 size={18} stroke={1.6} />
@@ -218,7 +218,7 @@ export function InstanceLogConsole({ instanceId, files, onOpenFolder, onRefreshL
         </header>
 
         {truncated ? (
-          <div className="flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-accent-soft)]/50 px-3 py-1.5 text-[11px] text-[var(--color-text-muted)]">
+          <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-accent-soft)]/50 px-3 py-1.5 text-[11px] text-[var(--color-text-muted)]">
             <IconAlertTriangle size={14} stroke={1.75} className="text-[var(--color-accent)]" />
             {t('library.logsTruncated')}
           </div>
@@ -279,7 +279,7 @@ function EmptyState({
 }) {
   const { t } = useTranslation()
   return (
-    <div className="flex min-h-[16rem] flex-col items-center justify-center gap-4 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]/50 px-6 py-10 text-center">
+    <div className="flex h-full min-h-0 flex-1 flex-col items-center justify-center gap-4 rounded-[var(--radius-lg)] border border-dashed border-[var(--color-border)] bg-[var(--color-surface)]/50 px-6 py-10 text-center">
       <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--color-accent-soft)] text-[var(--color-accent)]">
         <IconTerminal2 size={24} stroke={1.5} />
       </span>

@@ -236,10 +236,9 @@ export default function LibraryDetailPage() {
 
   const duplicateMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.instances.duplicate(id),
-    onSuccess: async (created) => {
+    onSuccess: async () => {
       setEditingInstanceId(null)
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
-      navigate(`/library/${created.id}`)
     },
   })
 
@@ -576,7 +575,9 @@ export default function LibraryDetailPage() {
       <div
         className={[
           'flex min-h-0 flex-1 flex-col',
-          tab === 'content' || tab === 'screenshots' ? 'overflow-hidden' : 'overflow-auto',
+          tab === 'content' || tab === 'screenshots' || tab === 'logs'
+            ? 'overflow-hidden'
+            : 'overflow-auto',
         ].join(' ')}
       >
       {tab === 'content' ? (
@@ -656,14 +657,16 @@ export default function LibraryDetailPage() {
       ) : null}
 
       {tab === 'logs' ? (
-        <InstanceLogConsole
-          instanceId={instanceId}
-          files={logsQuery.data ?? []}
-          onOpenFolder={() => openSub('logs')}
-          onRefreshList={() => {
-            void logsQuery.refetch()
-          }}
-        />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <InstanceLogConsole
+            instanceId={instanceId}
+            files={logsQuery.data ?? []}
+            onOpenFolder={() => openSub('logs')}
+            onRefreshList={() => {
+              void logsQuery.refetch()
+            }}
+          />
+        </div>
       ) : null}
       </div>
 

@@ -476,8 +476,10 @@ export async function ensureMinecraftInitialSettingsApplied(
     return { neededCommit: false, options: {}, overlay: {} }
   }
 
-  // 変更なし: options.txt / debug.json / applied フラグのいずれにも触れない
+  // 変更なし: 既存 options / debug を消してゲーム既定に任せ、applied は起動コミット側へ
   if (isMinecraftInitialPatchEmpty(pendingOptions, pendingOverlay)) {
+    await fs.rm(path.join(instanceDir, 'options.txt'), { force: true }).catch(() => undefined)
+    await fs.rm(path.join(instanceDir, 'debug.json'), { force: true }).catch(() => undefined)
     return { neededCommit: false, options: {}, overlay: {} }
   }
 

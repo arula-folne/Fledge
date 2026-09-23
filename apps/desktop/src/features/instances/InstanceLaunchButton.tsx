@@ -243,7 +243,7 @@ export function InstanceLaunchButton({
       </div>
     )
   } else if (busyInstalling) {
-    // header 等: 準備中はログインボタンを出さず、グレー開始＋リングのままにする
+    // header / lg 等の楕円ボタンには円リングを重ねない（グレー無効のまま）
   } else if (state === 'running') {
     action = (
       <Button
@@ -416,21 +416,7 @@ export function InstanceLaunchButton({
     </div>
   ) : null
 
-  // icon/sm のビジー表示は既にリング込み。大きいボタンだけ外側にリングを付ける。
-  const actionWithBusyRing =
-    busyInstalling && size !== 'icon' && size !== 'sm' ? (
-      <div className="relative inline-flex items-center justify-center">
-        <span
-          className="pointer-events-none absolute left-1/2 top-1/2 aspect-square h-[calc(100%+0.5rem)] min-h-11 -translate-x-1/2 -translate-y-1/2"
-          aria-hidden
-        >
-          <BusyRing />
-        </span>
-        <div className="relative z-[1]">{action}</div>
-      </div>
-    ) : (
-      action
-    )
+  // icon/sm は BusyRing 込み。header 等の楕円ボタンには円リングを付けない
 
   return (
     <div
@@ -445,7 +431,7 @@ export function InstanceLaunchButton({
     >
       {errorButton}
       <div className={size === 'sm' || size === 'icon' ? undefined : showProgress ? 'shrink-0 space-y-2' : undefined}>
-        {actionWithBusyRing}
+        {action}
         {showProgressBlock && size !== 'sm' && size !== 'icon' ? (
           <div className={[LAUNCH_PROGRESS_SLOT, 'space-y-0'].join(' ')}>
             <LaunchProgressIndicator

@@ -18,10 +18,11 @@ import type { Logger } from '../logging/Logger.js'
 import { parseInstanceProfile } from './instanceProfileMigration.js'
 
 function slugify(name: string): string {
+  // 表示名は日本語可。フォルダ ID は ASCII のみ
   const base = name
     .trim()
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
   return base || 'instance'
 }
@@ -92,11 +93,19 @@ export class InstanceStore {
       const raw = await fs.readFile(file, 'utf8')
       const parsed = JSON.parse(raw) as unknown
       const { profile, migrated } = parseInstanceProfile(parsed)
-      if (migrated) {
-        await fs.writeFile(file, JSON.stringify(profile, null, 2), 'utf8')
-        this.logger?.info('launcher', `Migrated profile.json for instance ${id}`)
+      // フォルダ名が正本。JSON 内 id がずれていると削除・一覧が壊れる
+      const idMismatch = profile.id !== id
+      const next = idMismatch ? { ...profile, id } : profile
+      if (migrated || idMismatch) {
+        await fs.writeFile(file, JSON.stringify(next, null, 2), 'utf8')
+        if (migrated) {
+          this.logger?.info('launcher', `Migrated profile.json for instance ${id}`)
+        }
+        if (idMismatch) {
+          this.logger?.warn('launcher', `Repaired profile id mismatch for folder ${id}`)
+        }
       }
-      return profile
+      return next
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err)
       this.logger?.warn('launcher', `Skipped invalid profile.json for ${id}: ${reason}`)
@@ -252,9 +261,9 @@ export class InstanceStore {
   }
 
   private async allocateId(base: string): Promise<string> {
-    // 削除後に同名で作り直しても ID / フォルダが再利用されないよう常に一意サフィックスを付ける
+    // 同名でも必ず別フォルダになるよう、十分長い一意サフィックスを付ける
     for (let i = 0; i < 32; i++) {
-      const suffix = randomUUID().replace(/-/g, '').slice(0, 8)
+      const suffix = randomUUID().replace(/-/g, '').slice(0, 12)
       const candidate = `${base}-${suffix}`
       if (!(await pathExists(this.instanceDir(candidate)))) return candidate
     }
@@ -286,6 +295,9 @@ export class InstanceStore {
       'screenshots',
       'crash-reports',
       'backups',
+      // コピー先で初期設定をやり直すため、適用済み options は持ち込まない
+      'options.txt',
+      'debug.json',
     ])
     const entries = await fs.readdir(from, { withFileTypes: true })
     for (const entry of entries) {

@@ -88,7 +88,22 @@ impl SettingsStore {
 
     pub fn set(&self, partial: Value) -> CoreResult<Value> {
         let mut current = self.get()?;
-        deep_merge(&mut current, &partial);
+        // オブジェクト全体を差し替えるキー（deep merge だと空 {} でも子キーが残る）
+        const REPLACE_ROOT_KEYS: &[&str] = &[
+            "minecraftInitialSettings",
+            "skinCapeIds",
+            "contentFavorites",
+            "libraryInstanceOrder",
+        ];
+        let mut patch = partial;
+        if let (Some(c), Some(p)) = (current.as_object_mut(), patch.as_object_mut()) {
+            for key in REPLACE_ROOT_KEYS {
+                if let Some(v) = p.remove(*key) {
+                    c.insert((*key).to_string(), v);
+                }
+            }
+        }
+        deep_merge(&mut current, &patch);
         let _ = self.migrate_inplace(&mut current);
         self.save(&current)?;
         Ok(current)

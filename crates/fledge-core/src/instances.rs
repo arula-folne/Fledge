@@ -72,7 +72,14 @@ impl InstanceStore {
             Ok(raw) => match serde_json::from_str::<Value>(&raw) {
                 Ok(mut parsed) => {
                     let migrated = migrate_profile(&mut parsed);
-                    if migrated {
+                    // フォルダ名が正本。JSON 内 id がずれていると削除・一覧が壊れる
+                    let id_mismatch = parsed.get("id").and_then(|v| v.as_str()) != Some(id);
+                    if id_mismatch {
+                        if let Some(obj) = parsed.as_object_mut() {
+                            obj.insert("id".into(), json!(id));
+                        }
+                    }
+                    if migrated || id_mismatch {
                         self.write_profile_file(id, &parsed)?;
                     }
                     Ok(Some(parsed))
@@ -369,8 +376,9 @@ impl InstanceStore {
     }
 
     fn allocate_id(&self, base: &str) -> CoreResult<String> {
+        // 同名インスタンスでも必ず別フォルダになるよう、十分長い一意サフィックスを付ける
         for _ in 0..32 {
-            let suffix = &Uuid::new_v4().simple().to_string()[..8];
+            let suffix = &Uuid::new_v4().simple().to_string()[..12];
             let candidate = format!("{base}-{suffix}");
             if !self.instance_dir(&candidate).exists() {
                 return Ok(candidate);
@@ -380,9 +388,18 @@ impl InstanceStore {
     }
 
     fn copy_instance_contents(&self, from: &Path, to: &Path) -> CoreResult<()> {
-        let excluded: HashSet<&str> = ["saves", "logs", "screenshots", "crash-reports", "backups"]
-            .into_iter()
-            .collect();
+        // ユーザー進行データ＋初期設定適用対象はコピーしない（コピー先で初期設定をやり直す）
+        let excluded: HashSet<&str> = [
+            "saves",
+            "logs",
+            "screenshots",
+            "crash-reports",
+            "backups",
+            "options.txt",
+            "debug.json",
+        ]
+        .into_iter()
+        .collect();
         for entry in fs::read_dir(from)? {
             let entry = entry?;
             let name = entry.file_name();
@@ -425,12 +442,12 @@ fn copy_dir_recursive(from: &Path, to: &Path) -> CoreResult<()> {
 }
 
 fn slugify(name: &str) -> String {
+    // 表示名は日本語可。フォルダ ID は ASCII のみ（パス混乱・同名衝突を防ぐ）
     let mut out = String::new();
     for c in name.trim().chars() {
-        if c.is_alphanumeric() {
-            for lc in c.to_lowercase() {
-                out.push(lc);
-            }
+        let lower = c.to_ascii_lowercase();
+        if lower.is_ascii_alphanumeric() {
+            out.push(lower);
         } else if !out.is_empty() && !out.ends_with('-') {
             out.push('-');
         }

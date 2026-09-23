@@ -145,11 +145,9 @@ export function HomeLibrarySection({ instances, newsMinimized = false }: Props) 
 
   const duplicateMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.instances.duplicate(id),
-    onSuccess: async (created) => {
+    onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
-      setLibraryFocus({ instanceId: created.id, tab: 'content' })
-      navigate(`/library/${created.id}`)
     },
   })
 
