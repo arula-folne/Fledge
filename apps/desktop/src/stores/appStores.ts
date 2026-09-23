@@ -430,7 +430,10 @@ export const useTransferStore = create<TransferStore>((set) => ({
               ...job,
               status: input.status,
               percent: input.status === 'completed' ? 100 : job.percent,
-              messageKey: job.messageKey ?? input.messageKey,
+              messageKey:
+                input.status === 'completed'
+                  ? 'library.prepareDone'
+                  : (job.messageKey ?? input.messageKey),
             },
             input.status,
           ),

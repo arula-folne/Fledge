@@ -345,8 +345,8 @@ impl SkinApplier {
             .skins
             .read_png_bytes(skin_id)?
             .ok_or_else(|| CoreError::msg("スキン画像が見つかりません"))?;
-        // Force refresh: drop cache entry then ensure
-        self.auth.invalidate_cache(Some(account_id));
+        // Use cached MC token when still valid (0.4.6 SkinApplier). Forced invalidate
+        // caused concurrent MSA refresh and false "re-login required" on skin change.
         let creds = self.auth.ensure_credentials(Some(account_id)).await?;
         let token = creds
             .get("accessToken")
@@ -367,7 +367,6 @@ impl SkinApplier {
     }
 
     pub async fn select_cape(&self, account_id: &str, cape_id: Option<&str>) -> CoreResult<Value> {
-        self.auth.invalidate_cache(Some(account_id));
         let creds = self.auth.ensure_credentials(Some(account_id)).await?;
         let token = creds
             .get("accessToken")

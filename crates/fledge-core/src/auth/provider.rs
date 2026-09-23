@@ -8,6 +8,7 @@ use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::sync::Mutex as AsyncMutex;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AuthStatus {
@@ -44,6 +45,9 @@ pub struct AuthProvider {
     cache: Mutex<HashMap<String, CachedSession>>,
     active_id: Mutex<Option<String>>,
     client_id: Mutex<String>,
+    /// Per-account refresh mutex (same idea as Electron `runRefreshExclusive`).
+    refresh_gates: Mutex<HashMap<String, Arc<AsyncMutex<()>>>>,
+    refresh_epoch: Mutex<HashMap<String, u64>>,
 }
 
 impl AuthProvider {
@@ -55,7 +59,27 @@ impl AuthProvider {
             cache: Mutex::new(HashMap::new()),
             active_id: Mutex::new(None),
             client_id: Mutex::new(DEFAULT_MSA_CLIENT_ID.to_string()),
+            refresh_gates: Mutex::new(HashMap::new()),
+            refresh_epoch: Mutex::new(HashMap::new()),
         }
+    }
+
+    fn refresh_gate(&self, id: &str) -> Arc<AsyncMutex<()>> {
+        let mut map = self.refresh_gates.lock();
+        map.entry(id.to_string())
+            .or_insert_with(|| Arc::new(AsyncMutex::new(())))
+            .clone()
+    }
+
+    fn bump_refresh_epoch(&self, id: &str) -> u64 {
+        let mut map = self.refresh_epoch.lock();
+        let next = map.get(id).copied().unwrap_or(0).saturating_add(1);
+        map.insert(id.to_string(), next);
+        next
+    }
+
+    fn current_refresh_epoch(&self, id: &str) -> u64 {
+        self.refresh_epoch.lock().get(id).copied().unwrap_or(0)
     }
 
     /// 起動時に vault 上のアカウントからログイン状態を復元する（イベントは出さない）。
@@ -243,7 +267,24 @@ impl AuthProvider {
     }
 
     async fn refresh_credentials(&self, id: &str) -> CoreResult<Value> {
+        let gate = self.refresh_gate(id);
+        let _guard = gate.lock().await;
+
+        // Another refresh may have filled the cache while we waited.
+        if let Some(cached) = self.cache.lock().get(id).cloned() {
+            let now = chrono::Utc::now().timestamp_millis() as u64;
+            if cached.mc.expires_at_ms > now + 30_000 {
+                return Ok(json!({
+                  "uuid": cached.mc.uuid,
+                  "name": cached.mc.name,
+                  "accessToken": cached.mc.access_token,
+                  "userType": "msa"
+                }));
+            }
+        }
+
         let account = self.vault.read_account(Some(id))?.map(|a| a.enrich());
+        let epoch = self.bump_refresh_epoch(id);
         self.set_status(AuthStatus::Refreshing, account.clone());
         let secrets = self
             .vault
@@ -260,7 +301,9 @@ impl AuthProvider {
                         mc: mc.clone(),
                     },
                 );
-                self.set_status(AuthStatus::LoggedIn, account);
+                if self.current_refresh_epoch(id) == epoch {
+                    self.set_status(AuthStatus::LoggedIn, account);
+                }
                 Ok(json!({
                   "uuid": mc.uuid,
                   "name": mc.name,
@@ -269,8 +312,11 @@ impl AuthProvider {
                 }))
             }
             Err(err) => {
-                // 一時的な失敗でもアカウント一覧は落とさない。期限切れとして再ログインを促す。
-                self.set_status(AuthStatus::Expired, account);
+                // Only mark expired if this is still the latest refresh for the account
+                // (stale failures must not overwrite a newer successful login).
+                if self.current_refresh_epoch(id) == epoch {
+                    self.set_status(AuthStatus::Expired, account);
+                }
                 let (_c, key) = map_auth_error(&err);
                 Err(CoreError::msg(key))
             }

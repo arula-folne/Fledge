@@ -95,7 +95,7 @@ function EventBridge() {
               messageKey:
                 e.state === 'error'
                   ? (e.errorMessageKey ?? progress?.messageKey ?? phaseKey)
-                  : (progress?.messageKey ?? phaseKey ?? 'library.prepareDone'),
+                  : 'library.prepareDone',
               meta: {
                 ...((progress?.meta as Record<string, string | number | boolean> | undefined) ?? {}),
                 ...(e.profileId ? { instanceId: e.profileId } : {}),

@@ -67,6 +67,22 @@ function transferIcon(job: TransferJob, instanceId: string | undefined): HeaderP
 }
 
 function transferDetail(job: TransferJob, t: Translate): string {
+  const name = job.meta.projectName ?? job.meta.name
+  const atOrNearDone = (job.percent ?? 0) >= 99.5 || (job.total > 0 && job.current >= job.total)
+
+  if (job.status === 'completed') {
+    if (job.kind === 'content') {
+      return t('content.installed')
+    }
+    if (
+      job.kind === 'install' ||
+      job.messageKey?.startsWith('launch.install.') ||
+      job.messageKey === 'content.downloading'
+    ) {
+      return t('library.prepareDone')
+    }
+  }
+
   if (job.kind === 'factory-reset') {
     return t(job.messageKey ?? 'settings.factoryReset.progress.data')
   }
@@ -77,11 +93,25 @@ function transferDetail(job: TransferJob, t: Translate): string {
       : t('transfer.java', { major: job.meta.major })
   }
   if (job.kind === 'content') {
-    const name = job.meta.projectName ?? job.meta.name
+    // 転送完了直後〜展開中は「ダウンロードしています」のまま残さない
+    if (
+      (job.status === 'queued' || job.status === 'active') &&
+      (job.messageKey === 'content.downloading' || !job.messageKey) &&
+      atOrNearDone
+    ) {
+      return t('content.installing')
+    }
     if (job.messageKey) return t(job.messageKey, { name })
     return typeof name === 'string' && name.length > 0
       ? t('transfer.content', { name })
       : t('content.installing')
+  }
+  if (
+    (job.status === 'queued' || job.status === 'active') &&
+    job.messageKey?.startsWith('launch.install.') &&
+    atOrNearDone
+  ) {
+    return t('content.installing')
   }
   if (job.messageKey) {
     return formatProgressMessage(t, job.messageKey, job.meta)
@@ -137,12 +167,19 @@ export function buildHeaderProgressItems(input: {
   for (const [profileId, session] of activeLaunchProfiles) {
     const progress = progressBySessionId[session.sessionId]
     const phaseKey = phaseMessageBySessionId[session.sessionId]
-    const messageKey = progress?.messageKey ?? phaseKey
+    let messageKey = progress?.messageKey ?? phaseKey
     const percent =
       progress?.percent ??
       (progress && progress.total && progress.total > 0
         ? ((progress.current ?? 0) / progress.total) * 100
         : 0)
+    if (
+      percent >= 99.5 &&
+      typeof messageKey === 'string' &&
+      messageKey.startsWith('launch.install.')
+    ) {
+      messageKey = 'content.installing'
+    }
     const title = instanceName(instances, profileId) ?? t('header.progress.genericTitle')
     const detail = formatProgressMessage(t, messageKey, progress?.meta as never, 'library.preparing')
 

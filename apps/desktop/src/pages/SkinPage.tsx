@@ -129,14 +129,8 @@ export default function SkinPage() {
   })
 
   const applySkinSelection = (skinId: string, model?: SkinModel) => {
+    // Capes are applied by the backend skins:select schedule (avoid parallel MSA refresh).
     selectMutation.mutate({ skinId, model })
-    if (!loggedIn) return
-    const map = queryClient.getQueryData<Settings>(['settings'])?.skinCapeIds ?? {}
-    if (!Object.prototype.hasOwnProperty.call(map, skinId)) return
-    void fledgeApi.capes
-      .select(map[skinId] ?? null)
-      .then((list) => queryClient.setQueryData(['capes'], list))
-      .catch(() => {})
   }
 
   const uploadMutation = useMutation({

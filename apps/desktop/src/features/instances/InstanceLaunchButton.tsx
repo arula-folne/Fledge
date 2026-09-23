@@ -7,7 +7,6 @@ import {
   IconLogin,
   IconPlayerPlay,
   IconPlayerStop,
-  IconX,
 } from '@tabler/icons-react'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
@@ -144,15 +143,16 @@ export function InstanceLaunchButton({
     IS_DEV && launchErrorPreview && !errorMessageKey ? 'launch.error.gameExited' : null
   const displayErrorKey = errorMessageKey ?? previewErrorKey
 
+  const busyInstalling =
+    creating || state === 'preparing' || state === 'launching'
+
   const hasAccount = Boolean(sessionAccount)
   // セッションにアカウントがあればログイン扱い（zustand 初期値 logged_out の誤判定を防ぐ）
   const canPlay =
-    !creating &&
+    !busyInstalling &&
     hasAccount &&
     authStatus !== 'expired' &&
     authStatus !== 'logging_in' &&
-    state !== 'preparing' &&
-    state !== 'launching' &&
     state !== 'running'
 
   const needsLogin =
@@ -198,14 +198,22 @@ export function InstanceLaunchButton({
 
   let action = (
     <Button
-      variant="primary"
-      className={[sizeClass, className].join(' ')}
+      variant={busyInstalling ? 'secondary' : 'primary'}
+      className={[
+        sizeClass,
+        className,
+        busyInstalling
+          ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] opacity-80'
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
       disabled={!canPlay}
-      aria-label={creating ? t('content.creatingInstance') : t('home.play')}
-      aria-busy={creating || undefined}
+      aria-label={busyInstalling ? t('content.creatingInstance') : t('home.play')}
+      aria-busy={busyInstalling || undefined}
       onClick={(e) => void onPlay(e)}
     >
-      {size === 'icon' || (creating && size === 'sm') ? (
+      {size === 'icon' || (busyInstalling && size === 'sm') ? (
         <IconPlayerPlay size={playIconSize} stroke={1.75} />
       ) : (
         <>
@@ -216,23 +224,8 @@ export function InstanceLaunchButton({
     </Button>
   )
 
-  if (creating) {
-    // 作成中はキャンセル／終了より優先してぐるぐる表示（プレイ不可）
-  } else if (state === 'preparing' || state === 'launching') {
-    action = (
-      <Button
-        variant="secondary"
-        className={[sizeClass, className].join(' ')}
-        aria-label={t('home.cancel')}
-        onClick={(e) => {
-          stop(e)
-          void fledgeApi.launch.cancel(sessionId)
-        }}
-      >
-        <IconX size={iconSize} stroke={1.75} />
-        {size === 'icon' ? null : t('home.cancel')}
-      </Button>
-    )
+  if (busyInstalling) {
+    // 作成／インストール／起動準備中は × にせず、グレーの開始＋ぐるぐるリング
   } else if (state === 'running') {
     action = (
       <Button
@@ -405,7 +398,7 @@ export function InstanceLaunchButton({
     </div>
   ) : null
 
-  const actionWithBusyRing = creating ? (
+  const actionWithBusyRing = busyInstalling ? (
     size === 'icon' || size === 'sm' ? (
       <div className="relative size-10 shrink-0">
         <BusyRing />

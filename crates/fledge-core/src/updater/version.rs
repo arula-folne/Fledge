@@ -1,6 +1,6 @@
 //! Version compare / generation lock — mirrors packages/shared.
 
-pub const APP_VERSION: &str = "0.5.10";
+pub const APP_VERSION: &str = "0.5.11";
 
 const GEN2_MIN_MINOR: u32 = 3;
 const GEN3_MIN_MINOR: u32 = 5;
