@@ -1,6 +1,6 @@
 //! Vanilla + Fabric install (client jar, libraries, assets, natives).
 
-use crate::download::{download_json, download_to_file};
+use crate::download::{download_json, download_to_file, download_to_file_ex};
 use crate::error::{CoreError, CoreResult};
 use crate::minecraft::install_ready::{
     is_version_complete, natives_root, write_ready_record,
@@ -28,6 +28,10 @@ const FORGE_INSTALLER: &str =
     "https://maven.minecraftforge.net/net/minecraftforge/forge/{mc}-{forge}/forge-{mc}-{forge}-installer.jar";
 const NEOFORGE_INSTALLER: &str =
     "https://maven.neoforged.net/releases/net/neoforged/neoforge/{ver}/neoforge-{ver}-installer.jar";
+
+/// 1 インスタンス内のファイル並列数（設定の同時ダウンロード数＝インスタンス枠とは別）。
+const LIBRARY_DOWNLOAD_CONCURRENCY: usize = 32;
+const ASSET_DOWNLOAD_CONCURRENCY: usize = 64;
 
 pub struct InstallContext {
     pub minecraft_root: PathBuf,
@@ -517,16 +521,13 @@ async fn download_libraries(ctx: &InstallContext, resolved: &ResolvedVersion) ->
             download_to_file(&url, &path, sha.as_deref()).await
         }
     }))
-    .buffer_unordered(8);
+    .buffer_unordered(LIBRARY_DOWNLOAD_CONCURRENCY);
 
     while let Some(r) = stream.next().await {
         r?;
         done += 1.0;
         if (done as u64) % 8 == 0 || done >= task_total {
             ctx.emit_transfer("launch.install.libraries", done, task_total);
-        }
-        if (done as u64) % 16 == 0 {
-            tokio::task::yield_now().await;
         }
     }
     ctx.emit("launch.install.libraries", total, total, Some("succeeded"));
@@ -591,35 +592,34 @@ async fn download_assets(ctx: &InstallContext, resolved: &ResolvedVersion) -> Co
     let total = objects.len().max(1) as f64;
     let objects_dir = ctx.minecraft_root.join("assets").join("objects");
 
-    let jobs: Vec<(String, PathBuf, String)> = objects
+    let jobs: Vec<(String, PathBuf, String, u64)> = objects
         .values()
         .filter_map(|obj| {
             let hash = obj.get("hash")?.as_str()?.to_string();
             if hash.len() < 2 {
                 return None;
             }
+            let size = obj.get("size").and_then(|v| v.as_u64()).unwrap_or(0);
             let prefix = &hash[..2];
             let dest = objects_dir.join(prefix).join(&hash);
             let url = format!("{ASSET_BASE}/{prefix}/{hash}");
-            Some((url, dest, hash))
+            Some((url, dest, hash, size))
         })
         .collect();
 
-    let results_stream = stream::iter(jobs.into_iter().map(|(url, dest, hash)| async move {
-        download_to_file(&url, &dest, Some(&hash)).await
+    let results_stream = stream::iter(jobs.into_iter().map(|(url, dest, hash, size)| async move {
+        let expected_size = if size > 0 { Some(size) } else { None };
+        download_to_file_ex(&url, &dest, Some(&hash), expected_size).await
     }))
-    .buffer_unordered(8);
+    .buffer_unordered(ASSET_DOWNLOAD_CONCURRENCY);
 
     let mut stream = results_stream;
     let mut done = 0f64;
     while let Some(r) = stream.next().await {
         r?;
         done += 1.0;
-        if (done as u64) % 64 == 0 || done >= total {
+        if (done as u64) % 128 == 0 || done >= total {
             ctx.emit_transfer("launch.install.assets", done, total);
-        }
-        if (done as u64) % 32 == 0 {
-            tokio::task::yield_now().await;
         }
     }
     ctx.emit("launch.install.assets", total, total, Some("succeeded"));

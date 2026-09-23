@@ -16,29 +16,90 @@ use crate::minecraft::install_ready::{
 };
 use crate::paths::PathLayout;
 use crate::progress::EventBus;
+use crate::settings::SettingsStore;
 use parking_lot::Mutex;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use tokio::sync::Notify;
+
+/// `concurrentDownloads` は「同時にネットワーク準備できるインスタンス数」。
+/// 1 インスタンスの準備＝スロット 1（アセット個数は数えない）。
+struct InstanceDownloadGate {
+    active: Mutex<usize>,
+    notify: Notify,
+}
+
+struct InstanceDownloadPermit<'a> {
+    gate: &'a InstanceDownloadGate,
+}
+
+impl Drop for InstanceDownloadPermit<'_> {
+    fn drop(&mut self) {
+        {
+            let mut active = self.gate.active.lock();
+            *active = active.saturating_sub(1);
+        }
+        self.gate.notify.notify_waiters();
+    }
+}
+
+impl InstanceDownloadGate {
+    fn new() -> Self {
+        Self {
+            active: Mutex::new(0),
+            notify: Notify::new(),
+        }
+    }
+
+    async fn acquire(&self, limit: usize) -> InstanceDownloadPermit<'_> {
+        let limit = limit.max(1);
+        loop {
+            {
+                let mut active = self.active.lock();
+                if *active < limit {
+                    *active += 1;
+                    return InstanceDownloadPermit { gate: self };
+                }
+            }
+            self.notify.notified().await;
+        }
+    }
+}
 
 pub struct MinecraftService {
     layout: PathLayout,
     events: Arc<EventBus>,
+    settings: Arc<SettingsStore>,
     inflight: Mutex<HashMap<String, ()>>,
+    instance_gate: InstanceDownloadGate,
 }
 
 impl MinecraftService {
-    pub fn new(layout: PathLayout, events: Arc<EventBus>) -> Self {
+    pub fn new(layout: PathLayout, events: Arc<EventBus>, settings: Arc<SettingsStore>) -> Self {
         Self {
             layout,
             events,
+            settings,
             inflight: Mutex::new(HashMap::new()),
+            instance_gate: InstanceDownloadGate::new(),
         }
     }
 
     pub fn minecraft_root(&self) -> PathBuf {
         PathBuf::from(&self.layout.minecraft)
+    }
+
+    /// 同時に準備できるインスタンス数（設定）。アセット並列数ではない。
+    fn max_concurrent_instances(&self) -> usize {
+        self.settings
+            .get()
+            .ok()
+            .and_then(|s| s.get("concurrentDownloads").and_then(|v| v.as_u64()))
+            .map(|n| n as usize)
+            .unwrap_or(10)
+            .clamp(1, 32)
     }
 
     fn ctx(&self, session_id: &str) -> InstallContext {
@@ -88,6 +149,19 @@ impl MinecraftService {
 
         if let Some(ready_id) = find_ready_version_id(&root, &mc, &loader, lv.as_deref()) {
             tracing::info!("Reusing installed {ready_id} (skip network install)");
+            ensure_natives(&ctx, &ready_id).await?;
+            return Ok(ready_id);
+        }
+
+        // 未準備のときだけインスタンス枠を確保（枠＝インスタンス 1）
+        let _permit = self
+            .instance_gate
+            .acquire(self.max_concurrent_instances())
+            .await;
+
+        // 待ちのあいだに他インスタンスが同じ版を入れ終わっている場合
+        if let Some(ready_id) = find_ready_version_id(&root, &mc, &loader, lv.as_deref()) {
+            tracing::info!("Reusing installed {ready_id} after waiting for download slot");
             ensure_natives(&ctx, &ready_id).await?;
             return Ok(ready_id);
         }

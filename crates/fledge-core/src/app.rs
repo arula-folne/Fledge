@@ -74,6 +74,7 @@ impl AppState {
         let minecraft = Arc::new(MinecraftService::new(
             layout.clone(),
             Arc::clone(&events),
+            Arc::clone(&settings),
         ));
         let launch = Arc::new(LaunchOrchestrator::new(
             Arc::clone(&auth),
