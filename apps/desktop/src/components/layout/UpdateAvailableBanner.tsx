@@ -175,7 +175,7 @@ export function UpdateAvailableBanner() {
           <button
             type="button"
             className={[
-              'flex size-10 shrink-0 items-center justify-center rounded-full border transition',
+              'flex size-8 shrink-0 items-center justify-center rounded-full border transition',
               checkFeedback === 'failed'
                 ? 'border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 text-[var(--color-danger)]'
                 : checkFeedback === 'up-to-date'
@@ -188,7 +188,7 @@ export function UpdateAvailableBanner() {
             onClick={() => void handleManualCheck()}
           >
             <IconRefresh
-              size={18}
+              size={16}
               stroke={1.75}
               className={checking ? 'animate-spin' : ''}
               aria-hidden
