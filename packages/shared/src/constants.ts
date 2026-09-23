@@ -49,11 +49,11 @@ export const UPDATER = {
   latestReleaseUrl: 'https://api.github.com/repos/arula-folne/Fledge/releases/latest',
   /** プレリリース利用者向け。draft を除いてクライアント側で最新版を選ぶ。 */
   releasesUrl: 'https://api.github.com/repos/arula-folne/Fledge/releases?per_page=20',
-  /** available 結果のキャッシュ寿命 */
-  cacheTtlMs: 30 * 60 * 1000,
+  /** available / up-to-date 共通の短い TTL（連続リリース時に古い次版のまま固まらない） */
+  cacheTtlMs: 60 * 1000,
   /**
-   * up-to-date のキャッシュ寿命。長すぎると「最新のまま」と誤認し、
-   * その後に出た GitHub Release を見逃す。
+   * up-to-date 時のキャッシュ寿命。
+   * available も同じ短さにし、連続リリース時に古い「次の版」のまま固まらないようにする。
    */
   upToDateCacheTtlMs: 60 * 1000,
   fetchTimeoutMs: 15_000,

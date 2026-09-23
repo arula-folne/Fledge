@@ -71,11 +71,9 @@ function openProgressItem(
   item: HeaderProgressItem,
   navigate: ReturnType<typeof useNavigate>,
   setSettingsSection: (section: 'java') => void,
-  setLibraryFocus: (focus: { instanceId: string; tab: 'content' } | null) => void,
   byProfileId: Record<string, { sessionId: string }>,
 ) {
   if (item.kind === 'launch' && item.instanceId) {
-    setLibraryFocus({ instanceId: item.instanceId, tab: 'content' })
     navigate(`/library/${item.instanceId}`)
     return
   }
@@ -91,13 +89,10 @@ function openProgressItem(
 
   const instanceId =
     jobInstanceId(job) ??
+    item.instanceId ??
     Object.entries(byProfileId).find(([, s]) => s.sessionId === job.sessionId)?.[0]
 
   if (instanceId) {
-    setLibraryFocus({
-      instanceId,
-      tab: 'content',
-    })
     navigate(`/library/${instanceId}`)
   }
 }
@@ -183,7 +178,6 @@ export function TransferProgress() {
   const progressBySessionId = useLaunchStore((s) => s.progressBySessionId)
   const phaseMessageBySessionId = useLaunchStore((s) => s.phaseMessageBySessionId)
   const setSettingsSection = useUiStore((s) => s.setSettingsSection)
-  const setLibraryFocus = useUiStore((s) => s.setLibraryFocus)
   const [panelOpen, setPanelOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null)
@@ -280,7 +274,7 @@ export function TransferProgress() {
   const instances = instancesQuery.data ?? []
 
   const openItem = (item: HeaderProgressItem) => {
-    openProgressItem(item, navigate, setSettingsSection, setLibraryFocus, byProfileId)
+    openProgressItem(item, navigate, setSettingsSection, byProfileId)
     setPanelOpen(false)
   }
 

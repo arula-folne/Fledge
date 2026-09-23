@@ -32,7 +32,8 @@ const OWNER: &str = "arula-folne";
 const REPO: &str = "Fledge";
 const LATEST_RELEASE_URL: &str =
     "https://api.github.com/repos/arula-folne/Fledge/releases/latest";
-const CACHE_TTL_MS: i64 = 30 * 60 * 1000;
+const CACHE_TTL_MS: i64 = 60 * 1000;
+/// available / up-to-date とも短い TTL。available を長く抱えると連続リリース時に古い次版のまま固まる。
 const UP_TO_DATE_CACHE_TTL_MS: i64 = 60 * 1000;
 const FETCH_TIMEOUT_MS: u64 = 15_000;
 const GEN_LIST_PER_PAGE: u32 = 40;

@@ -3,14 +3,6 @@ import type { TransferJob } from '../../stores/appStores'
 import { formatProgressMessage } from '../../features/launch/formatProgressMessage'
 import { isSettingsJavaJob, jobInstanceId, jobPercent } from '../../features/transfers/transferJobs'
 
-const CONTENT_CATEGORIES = new Set<string>([
-  'mod',
-  'modpack',
-  'resourcepack',
-  'shader',
-  'datapack',
-])
-
 export type HeaderProgressIcon =
   | { type: 'instance'; instanceId?: string }
   | { type: 'java' }
@@ -36,44 +28,41 @@ function instanceName(instances: InstanceProfile[], instanceId: string | undefin
   return instances.find((i) => i.id === instanceId)?.name
 }
 
-function asContentCategory(value: unknown): ContentCategory | undefined {
-  return typeof value === 'string' && CONTENT_CATEGORIES.has(value)
-    ? (value as ContentCategory)
-    : undefined
-}
-
-function jobContentCategory(job: TransferJob): ContentCategory | undefined {
-  return asContentCategory(job.meta?.category) ?? asContentCategory(job.meta?.projectType)
-}
-
 function isInstanceCreateJob(job: TransferJob): boolean {
   return job.meta?.instanceReady === true || String(job.jobId).startsWith('instance-create-')
+}
+
+/** Mod / コンテンツ単体の転送（インスタンス単位にまとめる対象） */
+function isContentTransferJob(job: TransferJob): boolean {
+  return job.kind === 'content'
 }
 
 function transferIcon(job: TransferJob, instanceId: string | undefined): HeaderProgressIcon {
   if (isSettingsJavaJob(job) || job.kind === 'java') {
     return { type: 'java' }
   }
-  if (isInstanceCreateJob(job)) {
-    return { type: 'instance', instanceId }
-  }
-  if (job.kind === 'content') {
-    return { type: 'content', category: jobContentCategory(job) ?? 'mod' }
-  }
-  if (instanceId) {
+  // コンテンツもインスタンス単位表示（カテゴリアイコンは使わない）
+  if (instanceId || isInstanceCreateJob(job) || isContentTransferJob(job)) {
     return { type: 'instance', instanceId }
   }
   return { type: 'generic' }
 }
 
+function contentDetail(job: TransferJob, t: Translate): string {
+  if (job.status === 'completed') return t('content.installed')
+  if (job.status === 'failed') return t('header.progress.status.failed')
+  if (job.status === 'cancelled') return t('header.progress.status.cancelled')
+  return t('content.installing')
+}
+
 function transferDetail(job: TransferJob, t: Translate): string {
-  const name = job.meta.projectName ?? job.meta.name
   const atOrNearDone = (job.percent ?? 0) >= 99.5 || (job.total > 0 && job.current >= job.total)
 
+  if (isContentTransferJob(job)) {
+    return contentDetail(job, t)
+  }
+
   if (job.status === 'completed') {
-    if (job.kind === 'content') {
-      return t('content.installed')
-    }
     if (
       job.kind === 'install' ||
       job.messageKey?.startsWith('launch.install.') ||
@@ -91,20 +80,6 @@ function transferDetail(job: TransferJob, t: Translate): string {
     return job.meta.action === 'reinstall'
       ? t('transfer.javaReinstall', { major: job.meta.major })
       : t('transfer.java', { major: job.meta.major })
-  }
-  if (job.kind === 'content') {
-    // 転送完了直後〜展開中は「ダウンロードしています」のまま残さない
-    if (
-      (job.status === 'queued' || job.status === 'active') &&
-      (job.messageKey === 'content.downloading' || !job.messageKey) &&
-      atOrNearDone
-    ) {
-      return t('content.installing')
-    }
-    if (job.messageKey) return t(job.messageKey, { name })
-    return typeof name === 'string' && name.length > 0
-      ? t('transfer.content', { name })
-      : t('content.installing')
   }
   if (
     (job.status === 'queued' || job.status === 'active') &&
@@ -129,11 +104,45 @@ function transferTitle(job: TransferJob, instances: InstanceProfile[], t: Transl
   const instanceId = jobInstanceId(job)
   const name = instanceName(instances, instanceId)
   if (name) return name
-  if (job.kind === 'content') {
-    const project = job.meta.projectName ?? job.meta.name
-    if (typeof project === 'string' && project.length > 0) return project
-  }
+  // コンテンツ名は出さない（インスタンス不明時も汎用タイトル）
   return t('header.progress.genericTitle')
+}
+
+function averagePercent(jobs: TransferJob[]): number {
+  if (jobs.length === 0) return 0
+  const sum = jobs.reduce((acc, job) => acc + jobPercent(job), 0)
+  return sum / jobs.length
+}
+
+/**
+ * 同一インスタンスのコンテンツ転送を 1 行にまとめる。
+ * title / detail はインスタンス単位のみ（Mod 名・種別は出さない）。
+ */
+function pushContentInstanceItem(
+  items: HeaderProgressItem[],
+  instances: InstanceProfile[],
+  jobs: TransferJob[],
+  t: Translate,
+  idPrefix: string,
+) {
+  if (jobs.length === 0) return
+  const instanceId = jobInstanceId(jobs[0]!)
+  const representative = jobs[0]!
+  const failed = jobs.find((j) => j.status === 'failed' || j.status === 'cancelled')
+  const allDone = jobs.every((j) => j.status === 'completed')
+  const detailJob = failed ?? (allDone ? jobs[0]! : representative)
+
+  items.push({
+    id: `${idPrefix}:${instanceId ?? representative.jobId}`,
+    title: transferTitle(representative, instances, t),
+    detail: contentDetail(detailJob, t),
+    percent: allDone || failed ? (failed ? jobPercent(failed) : 100) : averagePercent(jobs),
+    sortKey: `${idPrefix}:${instanceId ?? representative.jobId}`,
+    kind: 'transfer',
+    icon: transferIcon(representative, instanceId),
+    job: representative,
+    instanceId,
+  })
 }
 
 export function buildHeaderProgressItems(input: {
@@ -195,12 +204,38 @@ export function buildHeaderProgressItems(input: {
     })
   }
 
+  const contentByInstance = new Map<string, TransferJob[]>()
+  const orphanContent: TransferJob[] = []
+  const otherJobs: TransferJob[] = []
+
   for (const job of Object.values(transferJobs)) {
     if (job.status !== 'queued' && job.status !== 'active') continue
     if (job.sessionId && activeSessionIds.has(job.sessionId)) continue
     const instanceId = jobInstanceId(job)
     if (instanceId && activeProfileIds.has(instanceId)) continue
 
+    if (isContentTransferJob(job)) {
+      if (instanceId) {
+        const list = contentByInstance.get(instanceId) ?? []
+        list.push(job)
+        contentByInstance.set(instanceId, list)
+      } else {
+        orphanContent.push(job)
+      }
+      continue
+    }
+    otherJobs.push(job)
+  }
+
+  for (const jobs of contentByInstance.values()) {
+    pushContentInstanceItem(items, instances, jobs, t, 'transfer:content')
+  }
+  for (const job of orphanContent) {
+    pushContentInstanceItem(items, instances, [job], t, 'transfer:content')
+  }
+
+  for (const job of otherJobs) {
+    const instanceId = jobInstanceId(job)
     items.push({
       id: `transfer:${job.jobId}`,
       title: transferTitle(job, instances, t),
@@ -223,20 +258,34 @@ export function buildHeaderHistoryItems(input: {
   t: Translate
 }): HeaderProgressItem[] {
   const { instances, history, t } = input
-  return history.map((job) => {
+  const items: HeaderProgressItem[] = []
+  const seenContentInstances = new Set<string>()
+
+  for (const job of history) {
     const instanceId = jobInstanceId(job)
+
+    if (isContentTransferJob(job)) {
+      const key = instanceId ?? job.jobId
+      if (seenContentInstances.has(key)) continue
+      seenContentInstances.add(key)
+      pushContentInstanceItem(items, instances, [job], t, `history:${job.finishedAt ?? 0}`)
+      continue
+    }
+
     const percent =
       job.status === 'completed' ? 100 : job.percent != null ? job.percent : jobPercent(job)
-    return {
+    items.push({
       id: `history:${job.jobId}:${job.finishedAt ?? 0}`,
       title: transferTitle(job, instances, t),
       detail: transferDetail(job, t),
       percent,
       sortKey: `history:${job.jobId}`,
-      kind: 'transfer' as const,
+      kind: 'transfer',
       icon: transferIcon(job, instanceId),
       job,
       instanceId,
-    }
-  })
+    })
+  }
+
+  return items
 }

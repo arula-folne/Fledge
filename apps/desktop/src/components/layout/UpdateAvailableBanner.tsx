@@ -148,13 +148,14 @@ export function UpdateAvailableBanner() {
           ? t('updater.restarting')
           : null
 
-  const checkLabel = checking
-    ? t('header.checkForUpdatesChecking')
-    : checkFeedback === 'up-to-date'
-      ? t('header.updateUpToDate')
-      : checkFeedback === 'failed'
-        ? t('header.updateCheckFailed')
-        : t('header.checkForUpdates')
+  const checkTitle =
+    checking
+      ? t('header.checkForUpdatesChecking')
+      : checkFeedback === 'up-to-date'
+        ? t('header.updateUpToDate')
+        : checkFeedback === 'failed'
+          ? t('header.updateCheckFailed')
+          : t('header.checkForUpdates')
 
   return (
     <>
@@ -175,25 +176,24 @@ export function UpdateAvailableBanner() {
           <button
             type="button"
             className={[
-              'flex min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none transition',
+              'flex size-7 shrink-0 items-center justify-center rounded-full border transition',
               checkFeedback === 'failed'
                 ? 'border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 text-[var(--color-danger)]'
                 : checkFeedback === 'up-to-date'
                   ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]'
                   : 'border-[var(--color-border)] bg-[var(--color-surface)]/80 text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]',
             ].join(' ')}
-            aria-label={t('header.checkForUpdates')}
-            title={t('header.checkForUpdates')}
+            aria-label={checkTitle}
+            title={checkTitle}
             disabled={checking}
             onClick={() => void handleManualCheck()}
           >
             <IconRefresh
-              size={13}
+              size={14}
               stroke={1.75}
-              className={['shrink-0', checking ? 'animate-spin' : ''].join(' ')}
+              className={checking ? 'animate-spin' : ''}
               aria-hidden
             />
-            <span className="truncate">{checkLabel}</span>
           </button>
         ) : null}
       </div>
