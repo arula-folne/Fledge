@@ -57,6 +57,7 @@ export async function preparePostUpdateSettings(appCtx: LauncherApp): Promise<Se
   if (settings.installOnboardingCompleted !== true) {
     patch.installOnboardingCompleted = true
     patch.termsAcceptedInApp = true
+    patch.privacyNoticeAcknowledged = true
   }
 
   if (!pendingForCurrent) {

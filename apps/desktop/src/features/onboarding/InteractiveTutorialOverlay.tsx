@@ -247,6 +247,7 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
         return fledgeApi.settings.set({
           installOnboardingCompleted: true,
           termsAcceptedInApp: true,
+          privacyNoticeAcknowledged: true,
         })
       }
       return null

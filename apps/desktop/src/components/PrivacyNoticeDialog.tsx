@@ -33,9 +33,11 @@ export function PrivacyNoticeDialog() {
     },
   })
 
+  // 新オンボーディング（利用規約同意）済みなら旧プライバシー同意は出さない
   const open =
     settingsQuery.isSuccess &&
     settingsQuery.data.installOnboardingCompleted === true &&
+    settingsQuery.data.termsAcceptedInApp !== true &&
     settingsQuery.data.privacyNoticeAcknowledged !== true
 
   return (

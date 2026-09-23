@@ -283,6 +283,10 @@ impl AppState {
                 .as_object_mut()
                 .unwrap()
                 .insert("termsAcceptedInApp".into(), json!(true));
+            patch
+                .as_object_mut()
+                .unwrap()
+                .insert("privacyNoticeAcknowledged".into(), json!(true));
         }
         if !pending_for_current {
             let from = pending

@@ -62,6 +62,7 @@ export function InstallOnboardingFlowDialog({
         return fledgeApi.settings.set({
           installOnboardingCompleted: true,
           termsAcceptedInApp: true,
+          privacyNoticeAcknowledged: true,
         })
       }
       return null

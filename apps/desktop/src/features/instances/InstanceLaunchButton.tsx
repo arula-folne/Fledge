@@ -184,7 +184,10 @@ export function InstanceLaunchButton({
     })
     await queryClient.invalidateQueries({ queryKey: ['settings'] })
     try {
-      await fledgeApi.launch.start(instanceId)
+      await fledgeApi.launch.start(
+        instanceId,
+        sessionAccount?.id ? { accountId: sessionAccount.id } : undefined,
+      )
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
     } catch {
       // 状態イベントで通知
@@ -239,6 +242,8 @@ export function InstanceLaunchButton({
         </button>
       </div>
     )
+  } else if (busyInstalling) {
+    // header 等: 準備中はログインボタンを出さず、グレー開始＋リングのままにする
   } else if (state === 'running') {
     action = (
       <Button

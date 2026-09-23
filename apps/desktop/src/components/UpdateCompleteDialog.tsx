@@ -49,8 +49,9 @@ export function UpdateCompleteDialog() {
       title={t('update.completeTitle')}
       onClose={() => undefined}
       dismissible={false}
-      size="md"
+      size="xl"
       scrollable
+      backdrop="soft"
       overlayClassName="z-[96]"
       footer={
         <Button
@@ -63,25 +64,25 @@ export function UpdateCompleteDialog() {
         </Button>
       }
     >
-      <div className="space-y-3 text-sm leading-relaxed text-[var(--color-text)]">
-        <p className="text-center text-sm font-medium">
+      <div className="space-y-4 text-[15px] leading-relaxed text-[var(--color-text)]">
+        <p className="font-medium">
           {notice.fromVersion
             ? t('update.completeVersion', { from: notice.fromVersion, to: notice.toVersion })
             : t('update.completeVersionTo', { to: notice.toVersion })}
         </p>
-        <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2">
-          <p className="mb-1.5 text-xs font-semibold tracking-wide text-[var(--color-text-muted)]">
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-[var(--color-text-muted)]">
             {t('update.completeChanges')}
           </p>
           {notes ? (
-            <div className="max-h-56 overflow-auto">
-              <MarkdownBody text={notes} className="changelog-plain leading-relaxed" />
+            <div className="max-h-[min(55vh,28rem)] overflow-auto pr-1">
+              <MarkdownBody text={notes} className="changelog-plain text-[15px] leading-relaxed" />
             </div>
           ) : (
-            <p className="text-[12px] text-[var(--color-text-muted)]">{t('update.completeChangesEmpty')}</p>
+            <p className="text-[var(--color-text-muted)]">{t('update.completeChangesEmpty')}</p>
           )}
         </div>
-        {error ? <p className="text-sm text-[var(--color-danger)]">{error}</p> : null}
+        {error ? <p className="text-[var(--color-danger)]">{error}</p> : null}
       </div>
     </Dialog>
   )
