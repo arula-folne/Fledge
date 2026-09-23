@@ -1,4 +1,4 @@
-**Fledge Ver.0.5.15**
+**Fledge Ver.0.5.16**
 
 アップデート確認用のリリースです。
 
@@ -8,8 +8,8 @@
 
 ## 配布
 
-- タグ: `v0.5.15`
-- インストーラ: **`Fledge_0.5.15_x64-setup.exe`**
-- 表示: `Ver.0.5.15`
+- タグ: `v0.5.16`
+- インストーラ: **`Fledge_0.5.16_x64-setup.exe`**
+- 表示: `Ver.0.5.16`
 
 不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。

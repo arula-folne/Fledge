@@ -1,6 +1,6 @@
 [package]
 name = "fledge-desktop"
-version = "0.5.15"
+version = "0.5.16"
 description = "Fledge desktop shell (Tauri)"
 edition.workspace = true
 license.workspace = true
