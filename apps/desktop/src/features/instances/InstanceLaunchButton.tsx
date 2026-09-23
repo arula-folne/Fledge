@@ -224,8 +224,21 @@ export function InstanceLaunchButton({
     </Button>
   )
 
-  if (busyInstalling) {
-    // 作成／インストール／起動準備中は × にせず、グレーの開始＋ぐるぐるリング
+  // カード上（icon/sm）は角丸四角ボタンに円リングを被せない — TransferProgress と同じ円形にする
+  if (busyInstalling && (size === 'icon' || size === 'sm')) {
+    action = (
+      <div className="relative size-10 shrink-0" aria-busy="true">
+        <BusyRing />
+        <button
+          type="button"
+          disabled
+          aria-label={t('content.creatingInstance')}
+          className="absolute inset-[3px] grid place-items-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]"
+        >
+          <IconPlayerPlay size={16} stroke={1.75} aria-hidden />
+        </button>
+      </div>
+    )
   } else if (state === 'running') {
     action = (
       <Button
@@ -398,15 +411,9 @@ export function InstanceLaunchButton({
     </div>
   ) : null
 
-  const actionWithBusyRing = busyInstalling ? (
-    size === 'icon' || size === 'sm' ? (
-      <div className="relative size-10 shrink-0">
-        <BusyRing />
-        <div className="absolute inset-[3px] flex [&_button]:h-full [&_button]:min-h-0 [&_button]:w-full [&_button]:min-w-0 [&_button]:p-0">
-          {action}
-        </div>
-      </div>
-    ) : (
+  // icon/sm のビジー表示は既にリング込み。大きいボタンだけ外側にリングを付ける。
+  const actionWithBusyRing =
+    busyInstalling && size !== 'icon' && size !== 'sm' ? (
       <div className="relative inline-flex items-center justify-center">
         <span
           className="pointer-events-none absolute left-1/2 top-1/2 aspect-square h-[calc(100%+0.5rem)] min-h-11 -translate-x-1/2 -translate-y-1/2"
@@ -416,10 +423,9 @@ export function InstanceLaunchButton({
         </span>
         <div className="relative z-[1]">{action}</div>
       </div>
+    ) : (
+      action
     )
-  ) : (
-    action
-  )
 
   return (
     <div

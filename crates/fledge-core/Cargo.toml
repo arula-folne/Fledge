@@ -1,6 +1,6 @@
 [package]
 name = "fledge-core"
-version = "0.5.11"
+version = "0.5.12"
 description = "Fledge launcher core (Rust)"
 edition.workspace = true
 license.workspace = true
