@@ -173,24 +173,32 @@ export function InstanceWizard({ open, onClose, onBack, title }: Props) {
   const versionPickGroups = useMemo<ListPickGroup[]>(() => {
     const items = filteredMcVersions
       .filter((v) => includeSnapshots || v.type === 'release')
-      .map((v) => ({
-        value: v.id,
-        label: v.id,
-        suffix:
-          v.type === 'snapshot'
-            ? t('instances.versionGroup.snapshot')
-            : v.type === 'release'
-              ? t('instances.versionGroup.release')
-              : undefined,
-        suffixTone:
-          v.type === 'snapshot'
-            ? ('snapshot' as const)
-            : v.type === 'release'
-              ? ('release' as const)
-              : undefined,
-      }))
+      .map((v) => {
+        // Minecraft 公式の種別表記はロケールに関わらず英語固定
+        const suffix =
+          v.type === 'release'
+            ? 'Release'
+            : v.type === 'snapshot'
+              ? 'Snapshot'
+              : v.type === 'old_beta'
+                ? 'Beta'
+                : v.type === 'old_alpha'
+                  ? 'Alpha'
+                  : undefined
+        const suffixTone =
+          v.type === 'release'
+            ? ('release' as const)
+            : v.type === 'snapshot'
+              ? ('snapshot' as const)
+              : v.type === 'old_beta'
+                ? ('beta' as const)
+                : v.type === 'old_alpha'
+                  ? ('alpha' as const)
+                  : undefined
+        return { value: v.id, label: v.id, suffix, suffixTone }
+      })
     return items.length ? [{ items }] : []
-  }, [filteredMcVersions, includeSnapshots, t])
+  }, [filteredMcVersions, includeSnapshots])
   const otherVersionOptions = useMemo(
     () =>
       loaderVersions.map((v) => ({

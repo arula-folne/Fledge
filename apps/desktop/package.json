@@ -1,6 +1,6 @@
 {
   "name": "@fledge/desktop",
-  "version": "0.5.12",
+  "version": "0.5.13",
   "private": true,
   "description": "Fledge desktop application (Tauri)",
   "type": "module",

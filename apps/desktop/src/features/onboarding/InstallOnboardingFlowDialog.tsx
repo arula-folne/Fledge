@@ -135,21 +135,24 @@ export function InstallOnboardingFlowDialog({
   const body = (() => {
     switch (step.kind) {
       case 'welcome':
+        // 言語設定に関わらず英語固定（ブランドメッセージ）
         return (
           <div className="flex flex-col items-center gap-3 text-center">
             <h2
               id={titleId}
-              className="text-3xl font-bold tracking-tight text-white drop-shadow-sm sm:text-4xl"
+              className="text-3xl font-bold tracking-tight text-[var(--color-text)] drop-shadow-sm sm:text-4xl"
             >
-              {t('onboarding.welcomeHeadline')}
+              Welcome to Fledge !
             </h2>
-            <p className="max-w-md text-base text-white/80 sm:text-lg">{t('onboarding.welcomeSubline')}</p>
+            <p className="max-w-md text-base text-[var(--color-text-muted)] sm:text-lg">
+              Thanks for installing!
+            </p>
           </div>
         )
       case 'terms':
         return (
-          <div className="mx-auto max-h-[min(60vh,28rem)] max-w-2xl space-y-3 overflow-y-auto text-left text-sm leading-relaxed text-white/90">
-            <h2 id={titleId} className="text-center text-xl font-semibold text-white">
+          <div className="mx-auto max-h-[min(60vh,28rem)] max-w-2xl space-y-3 overflow-y-auto text-left text-sm leading-relaxed text-[var(--color-text)]">
+            <h2 id={titleId} className="text-center text-xl font-semibold text-[var(--color-text)]">
               {t('onboarding.termsTitle')}
             </h2>
             {t('onboarding.termsBody')
@@ -157,11 +160,11 @@ export function InstallOnboardingFlowDialog({
               .map((paragraph, index) => (
                 <p key={index}>{paragraph}</p>
               ))}
-            <p className="text-xs text-white/60">
+            <p className="text-xs text-[var(--color-text-muted)]">
               {t('onboarding.termsFullLink')}{' '}
               <a
                 href="https://github.com/arula-folne/Fledge/blob/main/TERMS.md"
-                className="text-white underline underline-offset-2 hover:text-white/90"
+                className="underline underline-offset-2 hover:opacity-90"
                 target="_blank"
                 rel="noreferrer"
               >
@@ -173,10 +176,12 @@ export function InstallOnboardingFlowDialog({
       case 'tutorial-offer':
         return (
           <div className="flex max-w-md flex-col items-center gap-3 text-center">
-            <h2 id={titleId} className="text-2xl font-semibold text-white">
+            <h2 id={titleId} className="text-2xl font-semibold text-[var(--color-text)]">
               {t('onboarding.tutorialOfferTitle')}
             </h2>
-            <p className="text-sm leading-relaxed text-white/80">{t('onboarding.tutorialOfferBody')}</p>
+            <p className="text-sm leading-relaxed text-[var(--color-text-muted)]">
+              {t('onboarding.tutorialOfferBody')}
+            </p>
           </div>
         )
       default:
@@ -195,7 +200,7 @@ export function InstallOnboardingFlowDialog({
         type="button"
         aria-label={dismissible ? t('common.close') : undefined}
         tabIndex={dismissible ? 0 : -1}
-        className="absolute inset-0 bg-black/45 backdrop-blur-md"
+        className="absolute inset-0 backdrop-blur-md"
         onClick={dismissible ? onClose : undefined}
       />
       <div className="relative z-[1] flex w-full max-w-3xl flex-col items-center gap-8">
