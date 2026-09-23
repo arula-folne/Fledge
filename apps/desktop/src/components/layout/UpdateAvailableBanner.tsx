@@ -175,12 +175,12 @@ export function UpdateAvailableBanner() {
           <button
             type="button"
             className={[
-              'flex size-7 shrink-0 items-center justify-center rounded-full border transition',
+              'flex size-10 shrink-0 items-center justify-center rounded-full border transition',
               checkFeedback === 'failed'
                 ? 'border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 text-[var(--color-danger)]'
                 : checkFeedback === 'up-to-date'
                   ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]'
-                  : 'border-[var(--color-border)] bg-[var(--color-surface)]/80 text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]',
+                  : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
             ].join(' ')}
             aria-label={checkTitle}
             title={checkTitle}
@@ -188,7 +188,7 @@ export function UpdateAvailableBanner() {
             onClick={() => void handleManualCheck()}
           >
             <IconRefresh
-              size={14}
+              size={18}
               stroke={1.75}
               className={checking ? 'animate-spin' : ''}
               aria-hidden
