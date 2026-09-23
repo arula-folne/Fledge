@@ -123,11 +123,10 @@ export function UpdateAvailableBanner() {
     try {
       const result = await fledgeApi.updater.check(channel, { force: true })
       queryClient.setQueryData(['updater', 'check', channel], result)
-      if (result.status === 'available' && result.nextVersion) {
-        openDialog(result)
-      } else if (result.status === 'up-to-date') {
+      // 更新ありのときはダイアログを開かずバッジ表示のみ（クリックで開く）
+      if (result.status === 'up-to-date') {
         setCheckFeedback('up-to-date')
-      } else {
+      } else if (result.status !== 'available' || !result.nextVersion) {
         setCheckFeedback('failed')
       }
     } catch {
