@@ -113,8 +113,12 @@ export class GithubReleaseUpdater implements Updater {
 
   constructor(private readonly layout: PathLayout) {}
 
-  async check(channel: UpdateChannel = 'stable'): Promise<UpdateCheckResult> {
-    const cached = await this.readCache(channel)
+  async check(
+    channel: UpdateChannel = 'stable',
+    opts?: { force?: boolean },
+  ): Promise<UpdateCheckResult> {
+    const force = Boolean(opts?.force)
+    const cached = force ? null : await this.readCache(channel)
     if (cached && this.isCacheFresh(cached.fetchedAt, cached.result)) {
       const reconciled = reconcileCachedUpdateResult(cached.result, effectiveAppVersion())
       if (reconciled) {
@@ -129,7 +133,7 @@ export class GithubReleaseUpdater implements Updater {
       }
     }
 
-    const inflight = this.refreshTail.get(channel)
+    const inflight = force ? undefined : this.refreshTail.get(channel)
     if (inflight) return inflight
 
     const refresh = this.fetchAndResolve(channel)

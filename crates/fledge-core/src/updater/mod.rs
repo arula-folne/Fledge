@@ -99,7 +99,7 @@ impl UpdaterService {
         }
     }
 
-    pub async fn check(&self, channel: &str) -> CoreResult<Value> {
+    pub async fn check(&self, channel: &str, force: bool) -> CoreResult<Value> {
         let channel = normalize_channel(channel);
         if std::env::var_os("FLEDGE_LIGHT_START").is_some() {
             return Ok(json!({
@@ -109,18 +109,20 @@ impl UpdaterService {
             }));
         }
 
-        if let Some(cached) = self.read_cache(channel)? {
-            if self.is_cache_fresh(&cached.fetched_at, &cached.result) {
-                if let Some(reconciled) =
-                    reconcile_cached_update_result(&cached.result, &effective_app_version())
-                {
-                    if reconciled.get("status") != cached.result.get("status")
-                        || reconciled.get("currentVersion") != cached.result.get("currentVersion")
+        if !force {
+            if let Some(cached) = self.read_cache(channel)? {
+                if self.is_cache_fresh(&cached.fetched_at, &cached.result) {
+                    if let Some(reconciled) =
+                        reconcile_cached_update_result(&cached.result, &effective_app_version())
                     {
-                        self.write_cache(channel, &reconciled)?;
+                        if reconciled.get("status") != cached.result.get("status")
+                            || reconciled.get("currentVersion") != cached.result.get("currentVersion")
+                        {
+                            self.write_cache(channel, &reconciled)?;
+                        }
+                        self.sync_pending(channel, &reconciled);
+                        return Ok(reconciled);
                     }
-                    self.sync_pending(channel, &reconciled);
-                    return Ok(reconciled);
                 }
             }
         }
@@ -150,7 +152,7 @@ impl UpdaterService {
         let channel = normalize_channel(channel);
         self.emit_updater_progress(0.0, 0.0, Some(0.0), "updater.downloading", Some("active"));
 
-        let check = self.check(channel).await?;
+        let check = self.check(channel, false).await?;
         let installer_path = self
             .download_installer(channel, |current, total, percent| {
                 self.emit_updater_progress(
@@ -213,7 +215,7 @@ impl UpdaterService {
     where
         F: FnMut(f64, f64, Option<f64>),
     {
-        let mut result = self.check(channel).await?;
+        let mut result = self.check(channel, false).await?;
         if result.get("status").and_then(|v| v.as_str()) != Some("available")
             || result.get("downloadUrl").is_none()
         {

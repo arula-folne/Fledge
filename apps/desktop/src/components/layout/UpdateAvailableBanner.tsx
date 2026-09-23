@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { IconDownload } from '@tabler/icons-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { IconDownload, IconRefresh } from '@tabler/icons-react'
 import {
   APP_VERSION,
   type ProgressEvent,
@@ -20,6 +20,7 @@ type PromptState = {
 }
 
 type ApplyPhase = 'idle' | 'downloading' | 'preparing' | 'restarting'
+type CheckFeedback = 'up-to-date' | 'failed' | null
 
 /**
  * a / b / c / ut / up は GitHub プレリリースのため /releases/latest では見えない。
@@ -30,15 +31,18 @@ function updateChannelForBuild(): UpdateChannel {
 }
 
 /**
- * ヘッダー右: GitHub Releases に新しい版があるときに案内する。
+ * ヘッダー右: 更新確認ボタンと、新しい版があるときの案内。
  */
 export function UpdateAvailableBanner() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const channel = updateChannelForBuild()
   const [prompt, setPrompt] = useState<PromptState | null>(null)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [phase, setPhase] = useState<ApplyPhase>('idle')
   const [percent, setPercent] = useState(0)
+  const [checkFeedback, setCheckFeedback] = useState<CheckFeedback>(null)
+  const [checking, setChecking] = useState(false)
 
   const updateQuery = useQuery({
     queryKey: ['updater', 'check', channel],
@@ -70,6 +74,12 @@ export function UpdateAvailableBanner() {
     })
   }, [])
 
+  useEffect(() => {
+    if (!checkFeedback) return
+    const timer = window.setTimeout(() => setCheckFeedback(null), 3200)
+    return () => window.clearTimeout(timer)
+  }, [checkFeedback])
+
   const applyMutation = useMutation({
     mutationFn: () => fledgeApi.updater.apply(channel),
     onMutate: () => {
@@ -94,8 +104,6 @@ export function UpdateAvailableBanner() {
   const showUpdate = update?.status === 'available' && Boolean(update.nextVersion)
   const applying = applyMutation.isPending || phase === 'restarting'
 
-  if (!showUpdate && !applying) return null
-
   const openDialog = (result: UpdateCheckResult) => {
     if (applying) return
     setApplyError(null)
@@ -106,6 +114,27 @@ export function UpdateAvailableBanner() {
   const closeDialog = () => {
     if (applying) return
     setPrompt(null)
+  }
+
+  const handleManualCheck = async () => {
+    if (checking || applying) return
+    setCheckFeedback(null)
+    setChecking(true)
+    try {
+      const result = await fledgeApi.updater.check(channel, { force: true })
+      queryClient.setQueryData(['updater', 'check', channel], result)
+      if (result.status === 'available' && result.nextVersion) {
+        openDialog(result)
+      } else if (result.status === 'up-to-date') {
+        setCheckFeedback('up-to-date')
+      } else {
+        setCheckFeedback('failed')
+      }
+    } catch {
+      setCheckFeedback('failed')
+    } finally {
+      setChecking(false)
+    }
   }
 
   const nextVersion = prompt?.result.nextVersion ?? update?.nextVersion ?? ''
@@ -119,10 +148,18 @@ export function UpdateAvailableBanner() {
           ? t('updater.restarting')
           : null
 
+  const checkLabel = checking
+    ? t('header.checkForUpdatesChecking')
+    : checkFeedback === 'up-to-date'
+      ? t('header.updateUpToDate')
+      : checkFeedback === 'failed'
+        ? t('header.updateCheckFailed')
+        : t('header.checkForUpdates')
+
   return (
     <>
-      <div className="flex min-w-0 shrink-0 items-center gap-1">
-        {update?.nextVersion && !applying ? (
+      <div className="flex min-w-0 shrink-0 items-center gap-1.5">
+        {showUpdate && update?.nextVersion && !applying ? (
           <button
             type="button"
             className="flex min-w-0 items-center gap-1.5 rounded-full border border-[var(--color-accent)]/35 bg-[var(--color-accent)]/10 px-3 py-1 text-[11px] font-medium leading-none text-[var(--color-accent)] transition hover:bg-[var(--color-accent)]/18"
@@ -131,6 +168,32 @@ export function UpdateAvailableBanner() {
           >
             <IconDownload size={13} stroke={1.75} className="shrink-0" aria-hidden />
             <span className="truncate">{t('header.updateAvailable')}</span>
+          </button>
+        ) : null}
+
+        {!applying ? (
+          <button
+            type="button"
+            className={[
+              'flex min-w-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium leading-none transition',
+              checkFeedback === 'failed'
+                ? 'border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 text-[var(--color-danger)]'
+                : checkFeedback === 'up-to-date'
+                  ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]'
+                  : 'border-[var(--color-border)] bg-[var(--color-surface)]/80 text-[var(--color-text-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-text)]',
+            ].join(' ')}
+            aria-label={t('header.checkForUpdates')}
+            title={t('header.checkForUpdates')}
+            disabled={checking}
+            onClick={() => void handleManualCheck()}
+          >
+            <IconRefresh
+              size={13}
+              stroke={1.75}
+              className={['shrink-0', checking ? 'animate-spin' : ''].join(' ')}
+              aria-hidden
+            />
+            <span className="truncate">{checkLabel}</span>
           </button>
         ) : null}
       </div>

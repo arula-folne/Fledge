@@ -445,13 +445,20 @@ export function registerIpc(
   )
 
   ipcMain.handle(IPC.newsList, async () => appCtx.news.list())
-  ipcMain.handle(IPC.updaterCheck, async (_e, channel?: unknown) => {
+  ipcMain.handle(IPC.updaterCheck, async (_e, arg?: unknown) => {
     if (isLightStart()) {
       return { status: 'up-to-date' as const, currentVersion: APP_VERSION }
     }
-    const resolved =
-      channel === 'prerelease' || channel === 'stable' ? channel : ('stable' as const)
-    return appCtx.updater.check(resolved)
+    let channel: 'stable' | 'prerelease' = 'stable'
+    let force = false
+    if (typeof arg === 'string') {
+      channel = arg === 'prerelease' ? 'prerelease' : 'stable'
+    } else if (arg && typeof arg === 'object') {
+      const opts = arg as { channel?: unknown; force?: unknown }
+      channel = opts.channel === 'prerelease' ? 'prerelease' : 'stable'
+      force = opts.force === true
+    }
+    return appCtx.updater.check(channel, { force })
   })
   ipcMain.handle(IPC.updaterApply, async (_e, channel?: unknown) => {
     if (!app.isPackaged) {

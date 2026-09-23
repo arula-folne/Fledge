@@ -294,7 +294,11 @@ const api: FledgeApi = {
     sessions: () => ipcRenderer.invoke(IPC.launchSessions),
   },
   updater: {
-    check: (channel) => ipcRenderer.invoke(IPC.updaterCheck, channel ?? 'stable'),
+    check: (channel, opts) =>
+      ipcRenderer.invoke(IPC.updaterCheck, {
+        channel: channel ?? 'stable',
+        force: Boolean(opts?.force),
+      }),
     apply: (channel) => ipcRenderer.invoke(IPC.updaterApply, channel ?? 'stable'),
   },
   cache: {

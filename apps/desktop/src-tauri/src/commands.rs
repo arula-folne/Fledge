@@ -863,13 +863,19 @@ async fn dispatch(
 
         // updater
         "updater:check" => {
-            let channel = first_string(&args).unwrap_or_else(|| "stable".into());
+            let channel = args
+                .get("channel")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .or_else(|| first_string(&args))
+                .unwrap_or_else(|| "stable".into());
             let channel = if channel == "prerelease" {
                 "prerelease"
             } else {
                 "stable"
             };
-            state.updater.check(channel).await.map_err(map_err)
+            let force = args.get("force").and_then(|v| v.as_bool()).unwrap_or(false);
+            state.updater.check(channel, force).await.map_err(map_err)
         }
         "updater:apply" => {
             if state.is_dev {

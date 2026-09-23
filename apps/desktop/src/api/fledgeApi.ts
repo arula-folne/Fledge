@@ -182,7 +182,10 @@ export type FledgeApi = {
     >
   }
   updater: {
-    check: (channel?: UpdateChannel) => Promise<UpdateCheckResult>
+    check: (
+      channel?: UpdateChannel,
+      opts?: { force?: boolean },
+    ) => Promise<UpdateCheckResult>
     apply: (channel?: UpdateChannel) => Promise<void>
   }
   cache: {

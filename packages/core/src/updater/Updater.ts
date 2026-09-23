@@ -7,7 +7,7 @@ export type UpdaterDownloadProgress = {
 }
 
 export interface Updater {
-  check(channel?: UpdateChannel): Promise<UpdateCheckResult>
+  check(channel?: UpdateChannel, opts?: { force?: boolean }): Promise<UpdateCheckResult>
   /** 利用可能な更新のインストーラーをダウンロードし、ローカルパスを返す */
   downloadInstaller(
     channel?: UpdateChannel,

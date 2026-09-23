@@ -2,7 +2,10 @@ import type { UpdateChannel, UpdateCheckResult } from '@fledge/shared'
 import type { Updater } from './Updater.js'
 
 export class NoopUpdater implements Updater {
-  async check(_channel?: UpdateChannel): Promise<UpdateCheckResult> {
+  async check(
+    _channel?: UpdateChannel,
+    _opts?: { force?: boolean },
+  ): Promise<UpdateCheckResult> {
     return { status: 'unavailable', messageKey: 'updater.noop' }
   }
 

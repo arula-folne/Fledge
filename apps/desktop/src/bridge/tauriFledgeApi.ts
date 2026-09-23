@@ -139,7 +139,11 @@ export function createTauriFledgeApi(): FledgeApi {
       sessions: () => call(IPC.launchSessions),
     },
     updater: {
-      check: (channel) => call(IPC.updaterCheck, channel ?? 'stable'),
+      check: (channel, opts) =>
+        call(IPC.updaterCheck, {
+          channel: channel ?? 'stable',
+          force: Boolean(opts?.force),
+        }),
       apply: (channel) => call(IPC.updaterApply, channel ?? 'stable'),
     },
     cache: {
