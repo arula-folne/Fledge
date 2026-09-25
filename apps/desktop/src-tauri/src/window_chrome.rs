@@ -65,8 +65,10 @@ fn read_logical_size(window: &WebviewWindow) -> Option<(i64, i64)> {
 }
 
 /// Resize the launcher window from settings (no-op while maximized/fullscreen).
+/// UI zoom は最大化中でも常に適用する。
 pub fn apply_launcher_window_size(window: &WebviewWindow, settings: &Value) {
     if window.is_fullscreen().unwrap_or(false) || window.is_maximized().unwrap_or(false) {
+        apply_window_ui_scale(window, settings);
         return;
     }
     let width = clamp(
