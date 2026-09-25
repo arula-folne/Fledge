@@ -130,7 +130,7 @@ export function createTauriFledgeApi(): FledgeApi {
       refresh: (opts) => call(IPC.versionsRefresh, opts),
     },
     news: {
-      list: () => call(IPC.newsList),
+      list: (opts) => call(IPC.newsList, opts?.force ? { force: true } : null),
     },
     launch: {
       start: (profileId, opts) => call(IPC.launchStart, packArgs(profileId, opts)),

@@ -21,12 +21,13 @@
  * 1. APP_VERSION だけを編集
  * 2. リポジトリルートで `pnpm version:sync` を実行
  *    （package.json / Cargo.toml / tauri.conf / Rust `APP_VERSION` まで同期）
- * 3. お知らせ（news/news.ja.json）にリリース条目を手動追加
+ * 3. お知らせ（news/news.ja.json）にリリース条目を追加し、
+ *    apps/desktop/resources/news.ja.json へもコピー（**毎回必須**）
  * 4. RELEASE_NOTES.md に GitHub Release 用の更新内容を書く
  *    （見出しは `**Fledge Ver.X.Y.Z**` のみ。「第3世代・Tauri シェル / Latest」等の括弧書きは付けない）
  * 5. `v{APP_VERSION}` タグを push（例: v0.5.0）
  */
-export const APP_VERSION = '0.5.29' as const
+export const APP_VERSION = '0.5.30' as const
 
 /** UI 表示用（`Ver.X.X.X`） */
 export const APP_VERSION_LABEL = `Ver.${APP_VERSION}` as const

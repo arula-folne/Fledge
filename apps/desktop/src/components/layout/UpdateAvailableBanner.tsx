@@ -122,7 +122,17 @@ export function UpdateAvailableBanner() {
     setCheckFeedback(null)
     setChecking(true)
     try {
-      const result = await fledgeApi.updater.check(channel, { force: true })
+      const [result] = await Promise.all([
+        fledgeApi.updater.check(channel, { force: true }),
+        fledgeApi.news.list({ force: true }).then(
+          (items) => {
+            queryClient.setQueryData(['news'], items)
+          },
+          () => {
+            /* お知らせ取得失敗は更新確認結果を阻害しない */
+          },
+        ),
+      ])
       queryClient.setQueryData(['updater', 'check', channel], result)
       // 更新ありのときはダイアログを開かずバッジ表示のみ（クリックで開く）
       if (result.status === 'up-to-date') {

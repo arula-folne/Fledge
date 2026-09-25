@@ -175,7 +175,7 @@ export type FledgeApi = {
     }) => Promise<void>
   }
   news: {
-    list: () => Promise<NewsItem[]>
+    list: (opts?: { force?: boolean }) => Promise<NewsItem[]>
   }
   launch: {
     start: (profileId: string, opts?: { accountId?: string }) => Promise<{ sessionId: string }>

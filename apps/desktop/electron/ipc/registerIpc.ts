@@ -444,7 +444,9 @@ export function registerIpc(
     },
   )
 
-  ipcMain.handle(IPC.newsList, async () => appCtx.news.list())
+  ipcMain.handle(IPC.newsList, async (_e, opts?: { force?: boolean }) =>
+    appCtx.news.list({ force: Boolean(opts?.force) }),
+  )
   ipcMain.handle(IPC.updaterCheck, async (_e, arg?: unknown) => {
     if (isLightStart()) {
       return { status: 'up-to-date' as const, currentVersion: APP_VERSION }

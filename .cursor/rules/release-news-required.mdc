@@ -1,0 +1,25 @@
+---
+description: リリース時は必ずお知らせ（news）も更新し、Latest と揃える
+alwaysApply: true
+---
+
+# リリース時のお知らせ更新（必須）
+
+バージョンを上げて GitHub Latest リリースを出すときは、**必ずお知らせも同時に更新する**。抜け漏れ禁止。
+
+## 必須ファイル
+
+1. `news/news.ja.json` … 先頭に新エントリ（`id` / `title` / `body` / `publishedAt` / `url`）
+2. `apps/desktop/resources/news.ja.json` … 上記をコピー（バンドル用）
+3. `RELEASE_NOTES.md` … 見出しは `**Fledge Ver.X.Y.Z**` のみ
+
+## 手順の位置づけ
+
+`packages/shared/src/version.ts` のリリース手順どおり:
+
+1. `APP_VERSION` 更新 → `pnpm version:sync`
+2. **お知らせ追加（上記）**
+3. RELEASE_NOTES 更新
+4. ビルド → タグ → `gh release create --latest`
+
+お知らせ未更新のままリリースしない。

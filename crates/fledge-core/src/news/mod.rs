@@ -35,7 +35,7 @@ impl NewsService {
         }
     }
 
-    pub async fn list(&self) -> CoreResult<Value> {
+    pub async fn list(&self, force: bool) -> CoreResult<Value> {
         let local = self.read_local()?;
         {
             let mut fp = self.last_fingerprint.lock();
@@ -44,17 +44,27 @@ impl NewsService {
             }
         }
 
+        // 手動更新確認など: TTL を無視してリモートを待ち、最新を返す
+        if force {
+            if let Ok(Some(items)) = self.refresh_remote(true).await {
+                if items.as_array().map(|a| !a.is_empty()).unwrap_or(false) {
+                    return Ok(items);
+                }
+            }
+            return Ok(local);
+        }
+
         if std::env::var_os("FLEDGE_LIGHT_START").is_some() {
             let layout = self.layout.clone();
             let events = Arc::clone(&self.events);
             tokio::spawn(async move {
                 let svc = NewsService::new(layout, events);
-                let _ = svc.refresh_remote().await;
+                let _ = svc.refresh_remote(false).await;
             });
             return Ok(local);
         }
 
-        let remote_fut = self.refresh_remote();
+        let remote_fut = self.refresh_remote(false);
         let raced = tokio::select! {
             r = remote_fut => r.ok().flatten(),
             _ = tokio::time::sleep(Duration::from_millis(800)) => None,
@@ -101,27 +111,30 @@ impl NewsService {
         age.num_milliseconds() >= 0 && age.num_milliseconds() < CACHE_TTL_MS
     }
 
-    async fn refresh_remote(&self) -> CoreResult<Option<Value>> {
+    async fn refresh_remote(&self, force: bool) -> CoreResult<Option<Value>> {
         {
             let mut refreshing = self.refreshing.lock();
             if *refreshing {
-                if self.is_cache_fresh() {
+                if !force && self.is_cache_fresh() {
                     return Ok(read_news_file(&self.cache_path())?);
                 }
-                return Ok(None);
+                if !force {
+                    return Ok(None);
+                }
+                // force: 進行中の取得があっても TTL 無視で再取得する
             }
             *refreshing = true;
         }
 
         let result = async {
-            if self.is_cache_fresh() {
+            if !force && self.is_cache_fresh() {
                 return Ok(read_news_file(&self.cache_path())?);
             }
             match self.fetch_remote_and_cache().await {
                 Ok(items) => {
                     let next = fingerprint(&items);
                     let mut fp = self.last_fingerprint.lock();
-                    if *fp != next {
+                    if force || *fp != next {
                         *fp = next;
                         self.events.emit_news_updated(items.clone());
                     }

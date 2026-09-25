@@ -300,7 +300,10 @@ async fn dispatch(
         }
 
         // news
-        "news:list" => state.news.list().await.map_err(map_err),
+        "news:list" => {
+            let force = args.get("force").and_then(|v| v.as_bool()).unwrap_or(false);
+            state.news.list(force).await.map_err(map_err)
+        }
 
         // versions
         "versions:list-minecraft" => {

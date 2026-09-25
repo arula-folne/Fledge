@@ -148,7 +148,7 @@ export type FledgeApi = {
     }) => Promise<void>
   }
   news: {
-    list: () => Promise<NewsItem[]>
+    list: (opts?: { force?: boolean }) => Promise<NewsItem[]>
   }
   launch: {
     start: (profileId: string, opts?: { accountId?: string }) => Promise<{ sessionId: string }>
@@ -284,7 +284,7 @@ const api: FledgeApi = {
     refresh: (opts) => ipcRenderer.invoke(IPC.versionsRefresh, opts),
   },
   news: {
-    list: () => ipcRenderer.invoke(IPC.newsList),
+    list: (opts) => ipcRenderer.invoke(IPC.newsList, opts?.force ? { force: true } : undefined),
   },
   launch: {
     start: (profileId, opts) => ipcRenderer.invoke(IPC.launchStart, profileId, opts),

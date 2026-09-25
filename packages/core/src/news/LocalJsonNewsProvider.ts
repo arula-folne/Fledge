@@ -48,15 +48,23 @@ export class LocalJsonNewsProvider implements NewsProvider {
     private readonly onUpdated?: (items: NewsItem[]) => void,
   ) {}
 
-  async list(): Promise<NewsItem[]> {
+  async list(opts?: { force?: boolean }): Promise<NewsItem[]> {
+    const force = Boolean(opts?.force)
     const local = await this.readLocal()
     this.lastFingerprint ||= fingerprint(local)
-    // 更新・インストール直後はリモート待ちしない（最大4秒の体感遅延を避ける）
-    if (process.env.FLEDGE_LIGHT_START === '1') {
-      void this.refreshRemote()
+
+    if (force) {
+      const remote = await this.refreshRemote(true)
+      if (remote?.length) return remote
       return local
     }
-    const remote = this.refreshRemote()
+
+    // 更新・インストール直後はリモート待ちしない（最大4秒の体感遅延を避ける）
+    if (process.env.FLEDGE_LIGHT_START === '1') {
+      void this.refreshRemote(false)
+      return local
+    }
+    const remote = this.refreshRemote(false)
     // 可能なら今回の呼び出しでリモートを待ち、古いキャッシュだけを返さない
     const raced = await Promise.race([
       remote,
@@ -101,18 +109,18 @@ export class LocalJsonNewsProvider implements NewsProvider {
     return Number.isFinite(age) && age >= 0 && age < NEWS.cacheTtlMs
   }
 
-  private refreshRemote(): Promise<NewsItem[] | null> {
-    if (this.refreshTail) return this.refreshTail
+  private refreshRemote(force = false): Promise<NewsItem[] | null> {
+    if (this.refreshTail && !force) return this.refreshTail
 
-    this.refreshTail = (async () => {
+    const run = (async () => {
       const meta = await this.readMeta()
-      if (this.isCacheFresh(meta)) {
+      if (!force && this.isCacheFresh(meta)) {
         return readNewsFile(this.cachePath())
       }
       try {
         const items = await this.fetchRemoteAndCache()
         const next = fingerprint(items)
-        if (next !== this.lastFingerprint) {
+        if (force || next !== this.lastFingerprint) {
           this.lastFingerprint = next
           this.onUpdated?.(items)
         }
@@ -120,11 +128,16 @@ export class LocalJsonNewsProvider implements NewsProvider {
       } catch {
         return null
       }
-    })().finally(() => {
-      this.refreshTail = null
-    })
+    })()
 
-    return this.refreshTail
+    if (!force) {
+      this.refreshTail = run.finally(() => {
+        this.refreshTail = null
+      })
+      return this.refreshTail
+    }
+
+    return run
   }
 
   private async fetchRemoteAndCache(): Promise<NewsItem[]> {
