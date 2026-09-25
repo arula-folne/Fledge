@@ -1,6 +1,6 @@
 [package]
 name = "fledge-core"
-version = "0.5.25"
+version = "0.5.26"
 description = "Fledge launcher core (Rust)"
 edition.workspace = true
 license.workspace = true
@@ -28,6 +28,7 @@ flate2 = { workspace = true }
 futures-util = { workspace = true }
 hex = { workspace = true }
 discord-rich-presence = "1.1.0"
+encoding_rs = "0.8"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = [

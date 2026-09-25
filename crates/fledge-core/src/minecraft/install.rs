@@ -327,15 +327,26 @@ async fn run_installer(java_path: &str, installer: &Path, minecraft_root: &Path)
     ensure_launcher_profiles(minecraft_root)?;
 
     let java = PathBuf::from(java_path);
-    let installer_abs = fs::canonicalize(installer).unwrap_or_else(|_| installer.to_path_buf());
-    let root_abs = fs::canonicalize(minecraft_root).unwrap_or_else(|_| minecraft_root.to_path_buf());
+    // Forge / NeoForge は `\\?\` 付き正規化パスを解釈できないことが多い
+    let installer_abs = path_for_external_tool(installer);
+    let root_abs = path_for_external_tool(minecraft_root);
 
-    let output = tokio::process::Command::new(&java)
-        .arg("-jar")
+    let mut cmd = tokio::process::Command::new(&java);
+    cmd.arg("-jar")
         .arg(&installer_abs)
         .arg("--installClient")
         .arg(&root_abs)
         .current_dir(&root_abs)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+    #[cfg(windows)]
+    {
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+
+    let output = cmd
         .output()
         .await
         .map_err(|e| CoreError::msg(e.to_string()))?;
@@ -344,14 +355,46 @@ async fn run_installer(java_path: &str, installer: &Path, minecraft_root: &Path)
         return Ok(());
     }
 
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    let stdout = decode_process_bytes(&output.stdout);
+    let stderr = decode_process_bytes(&output.stderr);
     let combined = format!("{stdout}\n{stderr}");
     let detail = installer_failure_detail(&combined);
     Err(CoreError::msg(format!(
         "Installer exited with {}; {detail}",
         output.status
     )))
+}
+
+/// 外部ツール（Forge インストーラ等）向けに、Windows の拡張パス接頭辞を外す。
+fn path_for_external_tool(path: &Path) -> PathBuf {
+    let abs = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    strip_windows_verbatim_prefix(&abs)
+}
+
+fn strip_windows_verbatim_prefix(path: &Path) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let s = path.to_string_lossy();
+        if let Some(rest) = s.strip_prefix(r"\\?\") {
+            if let Some(unc) = rest.strip_prefix(r"UNC\") {
+                return PathBuf::from(format!(r"\\{unc}"));
+            }
+            return PathBuf::from(rest);
+        }
+    }
+    path.to_path_buf()
+}
+
+fn decode_process_bytes(bytes: &[u8]) -> String {
+    if bytes.is_empty() {
+        return String::new();
+    }
+    if let Ok(s) = std::str::from_utf8(bytes) {
+        return s.to_owned();
+    }
+    // 日本語 Windows の Java はしばしば CP932（Shift_JIS）で出力する
+    let (cow, _, _) = encoding_rs::SHIFT_JIS.decode(bytes);
+    cow.into_owned()
 }
 
 fn installer_failure_detail(log: &str) -> String {
