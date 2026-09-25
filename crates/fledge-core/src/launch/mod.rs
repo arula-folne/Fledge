@@ -1126,6 +1126,11 @@ fn game_exit_error_detail(instance_dir: &Path, exit_code: i32) -> String {
     let mut parts = vec![format!("exit code {exit_code}")];
     if let Some(snippet) = crash_snippet_from_latest_log(instance_dir) {
         parts.push(snippet);
+    } else {
+        parts.push(
+            "latest.log がありません（ゲーム開始前に終了した可能性。Forge の module-path や Java 引数を確認）"
+                .into(),
+        );
     }
     parts.join("\n")
 }

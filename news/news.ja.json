@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.5.32",
+    "title": "【バージョンアップ】Fledge Ver.0.5.32",
+    "body": "**Fledge Ver.0.5.32** を公開しました。\n\n## 主な変更\n\n- Forge 起動時に module-path が壊れて即終了する問題を修正（`${library_directory}` 未展開）\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-09-25T17:10:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.5.32"
+  },
+  {
     "id": "v0.5.31",
     "title": "【バージョンアップ】Fledge Ver.0.5.31",
     "body": "**Fledge Ver.0.5.31** を公開しました。\n\n## 主な変更\n\n- 起動失敗時のエラー表示に原因（終了コード・ログ抜粋など）を表示\n- お知らせを閉じてもライブラリのカード列数が変わらないよう修正\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

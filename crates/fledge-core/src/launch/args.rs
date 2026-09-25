@@ -69,6 +69,23 @@ pub fn build_java_command(input: &LaunchArgInput) -> Vec<String> {
         "natives_directory".into(),
         natives.to_string_lossy().into_owned(),
     );
+    vars.insert(
+        "library_directory".into(),
+        input
+            .minecraft_root
+            .join("libraries")
+            .to_string_lossy()
+            .into_owned(),
+    );
+    // Forge 等の module-path 結合子（Windows `;` / Unix `:`）
+    vars.insert(
+        "classpath_separator".into(),
+        if cfg!(windows) {
+            ";".into()
+        } else {
+            ":".into()
+        },
+    );
     vars.insert("launcher_name".into(), LAUNCHER_NAME.into());
     vars.insert("launcher_version".into(), LAUNCHER_VERSION.into());
     vars.insert("classpath".into(), classpath);
@@ -332,4 +349,40 @@ pub fn jvm_args_from_profile(profile: &Value) -> Vec<String> {
                 .collect()
         })
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn substitute_forge_library_directory_placeholders() {
+        let mut vars = HashMap::new();
+        vars.insert(
+            "library_directory".into(),
+            r"D:\Games\Minecraft\Clients\Fledge\data\meta\libraries".into(),
+        );
+        vars.insert("classpath_separator".into(), ";".into());
+        vars.insert("version_name".into(), "1.20.1-forge-47.4.10".into());
+
+        let module_path = substitute(
+            "${library_directory}/cpw/mods/bootstraplauncher/1.1.2/bootstraplauncher-1.1.2.jar${classpath_separator}${library_directory}/cpw/mods/securejarhandler/2.1.10/securejarhandler-2.1.10.jar",
+            &vars,
+        );
+        assert!(
+            !module_path.contains("${"),
+            "placeholders must be expanded: {module_path}"
+        );
+        assert!(module_path.contains(r"\libraries\cpw\mods\bootstraplauncher") || module_path.contains("/libraries/cpw/mods/bootstraplauncher") || module_path.contains(r"\libraries/cpw/mods/bootstraplauncher"));
+        assert!(module_path.contains(';'));
+
+        let ignore = substitute(
+            "-DignoreList=bootstraplauncher,${version_name}.jar",
+            &vars,
+        );
+        assert_eq!(
+            ignore,
+            "-DignoreList=bootstraplauncher,1.20.1-forge-47.4.10.jar"
+        );
+    }
 }
