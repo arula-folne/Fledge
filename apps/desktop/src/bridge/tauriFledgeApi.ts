@@ -72,6 +72,7 @@ export function createTauriFledgeApi(): FledgeApi {
       getProject: (projectId) => call(IPC.contentGetProject, projectId),
       listVersions: (input) => call(IPC.contentListVersions, input),
       install: (req) => call(IPC.contentInstall, req),
+      installLocal: (req) => call(IPC.contentInstallLocal, req),
       listInstalled: (instanceId, category) =>
         call(IPC.contentListInstalled, packArgs(instanceId, category)),
       setEnabled: (instanceId, entryId, enabled) =>

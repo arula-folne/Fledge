@@ -27,6 +27,7 @@ import {
 import { ContentCategoryIcon, ContentCategoryLabel, ContentFilterAllLabel } from './contentCategoryIcons'
 import { SlidingPillTabs } from '../../components/ui/SlidingPillTabs'
 import { useTransferStore } from '../../stores/appStores'
+import { ContentDropOverlay, useContentFileDrop } from './ContentDropZone'
 
 type Props = {
   instance: InstanceProfile
@@ -120,6 +121,7 @@ export function ContentTab({ instance }: Props) {
 
   const openInstalledProject = useCallback(
     (item: InstalledContent) => {
+      if (item.provider === 'local') return
       navigate(`/library/${instance.id}/project/${encodeURIComponent(item.projectId)}`)
     },
     [instance.id, navigate],
@@ -148,6 +150,37 @@ export function ContentTab({ instance }: Props) {
   const removeMutation = useMutation({
     mutationFn: (id: string) => fledgeApi.content.remove(instance.id, id),
     onSuccess: () => void invalidate(),
+  })
+
+  const installLocalMutation = useMutation({
+    mutationFn: (paths: string[]) =>
+      fledgeApi.content.installLocal({ instanceId: instance.id, paths }),
+    onSuccess: async (result) => {
+      await invalidate()
+      if (result.errors.length > 0) {
+        const message = result.errors
+          .map((err) => (err.startsWith('content.error.') ? t(err) : err))
+          .join('\n')
+        window.alert(message)
+      }
+    },
+    onError: (err) => {
+      const key = err instanceof Error ? err.message : String(err)
+      window.alert(key.startsWith('content.error.') ? t(key) : key)
+    },
+  })
+
+  const onDropPaths = useCallback(
+    (paths: string[]) => {
+      if (paths.length === 0 || installLocalMutation.isPending) return
+      installLocalMutation.mutate(paths)
+    },
+    [installLocalMutation],
+  )
+
+  const { active: dropActive, previews: dropPreviews } = useContentFileDrop({
+    enabled: true,
+    onDropPaths,
   })
 
   const updatesMutation = useMutation({
@@ -209,6 +242,7 @@ export function ContentTab({ instance }: Props) {
   const items = rawItems
 
   const hasStableUpdate = (item: InstalledContent) =>
+    item.provider !== 'local' &&
     Boolean(
       item.updateAvailable &&
         item.latestVersionId &&
@@ -401,16 +435,18 @@ export function ContentTab({ instance }: Props) {
             >
               {menu.item.enabled ? t('content.disable') : t('content.enable')}
             </button>
-            <button
-              type="button"
-              className="block w-full px-3 py-2 text-left text-sm transition hover:bg-[var(--color-hover)]"
-              onClick={() => {
-                setVersionPickItem(menu.item)
-                closeMenu()
-              }}
-            >
-              {t('content.changeVersion')}
-            </button>
+            {menu.item.provider !== 'local' ? (
+              <button
+                type="button"
+                className="block w-full px-3 py-2 text-left text-sm transition hover:bg-[var(--color-hover)]"
+                onClick={() => {
+                  setVersionPickItem(menu.item)
+                  closeMenu()
+                }}
+              >
+                {t('content.changeVersion')}
+              </button>
+            ) : null}
             <div className="my-1 border-t border-[var(--color-border)]" />
             <button
               type="button"
@@ -428,7 +464,8 @@ export function ContentTab({ instance }: Props) {
       : null
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-1.5">
+    <div className="relative flex h-full min-h-0 flex-col gap-1.5">
+      <ContentDropOverlay active={dropActive} previews={dropPreviews} />
       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
         <SlidingPillTabs
           className="min-w-0 flex-1"
@@ -483,6 +520,7 @@ export function ContentTab({ instance }: Props) {
           <p className="mt-1.5 text-xs text-[var(--color-text-muted)]">
             {listFilter === 'all' ? t('content.empty') : t('content.emptyFiltered')}
           </p>
+          <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">{t('content.dropHint')}</p>
           <Button className="mt-2 px-2.5 py-1 text-xs" variant="primary" onClick={openBrowsePage}>
             <IconPlus size={14} stroke={1.75} />
             {t('content.add')}
@@ -509,7 +547,7 @@ export function ContentTab({ instance }: Props) {
                 }}
               >
                 <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2">
-                  {item.iconUrl ? (
+                  {item.iconUrl && item.provider !== 'local' ? (
                     <img
                       src={item.iconUrl}
                       alt=""
@@ -538,7 +576,9 @@ export function ContentTab({ instance }: Props) {
                         ? ` → ${item.latestVersionNumber}`
                         : ''}
                       {' · '}
-                      {item.provider}
+                      {item.provider === 'local'
+                        ? t('content.provider.local')
+                        : item.provider}
                       {!item.enabled ? ` · ${t('content.disabled')}` : ''}
                     </div>
                   </div>

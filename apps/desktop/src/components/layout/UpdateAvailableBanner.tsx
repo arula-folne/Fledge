@@ -12,6 +12,7 @@ import { fledgeApi } from '../../api/fledgeApi'
 import { Dialog } from '../ui/Dialog'
 import { Button } from '../ui/Button'
 import { ProgressBar } from '../ui/ProgressBar'
+import { HoverTip } from '../ui/HoverTip'
 import { MarkdownBody } from '../../features/content/MarkdownBody'
 
 type PromptState = {
@@ -160,40 +161,43 @@ export function UpdateAvailableBanner() {
     <>
       <div className="flex min-w-0 shrink-0 items-center gap-1.5">
         {showUpdate && update?.nextVersion && !applying ? (
-          <button
-            type="button"
-            className="flex min-w-0 items-center gap-1.5 rounded-full border border-[var(--color-accent)]/35 bg-[var(--color-accent)]/10 px-3 py-1 text-[11px] font-medium leading-none text-[var(--color-accent)] transition hover:bg-[var(--color-accent)]/18"
-            aria-label={t('header.updateAvailable')}
-            onClick={() => openDialog(update)}
-          >
-            <IconDownload size={13} stroke={1.75} className="shrink-0" aria-hidden />
-            <span className="truncate">{t('header.updateAvailable')}</span>
-          </button>
+          <HoverTip label={t('header.updateAvailable')} delayMs={280}>
+            <button
+              type="button"
+              className="flex min-w-0 items-center gap-1.5 rounded-full border border-[var(--color-accent)]/35 bg-[var(--color-accent)]/10 px-3 py-1 text-[11px] font-medium leading-none text-[var(--color-accent)] transition hover:bg-[var(--color-accent)]/18"
+              aria-label={t('header.updateAvailable')}
+              onClick={() => openDialog(update)}
+            >
+              <IconDownload size={13} stroke={1.75} className="shrink-0" aria-hidden />
+              <span className="truncate">{t('header.updateAvailable')}</span>
+            </button>
+          </HoverTip>
         ) : null}
 
         {!applying ? (
-          <button
-            type="button"
-            className={[
-              'flex size-8 shrink-0 items-center justify-center rounded-full border transition',
-              checkFeedback === 'failed'
-                ? 'border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 text-[var(--color-danger)]'
-                : checkFeedback === 'up-to-date'
-                  ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]'
-                  : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
-            ].join(' ')}
-            aria-label={checkTitle}
-            title={checkTitle}
-            disabled={checking}
-            onClick={() => void handleManualCheck()}
-          >
-            <IconRefresh
-              size={16}
-              stroke={1.75}
-              className={checking ? 'animate-spin' : ''}
-              aria-hidden
-            />
-          </button>
+          <HoverTip label={checkTitle} delayMs={280}>
+            <button
+              type="button"
+              className={[
+                'flex size-8 shrink-0 items-center justify-center rounded-full border transition',
+                checkFeedback === 'failed'
+                  ? 'border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 text-[var(--color-danger)]'
+                  : checkFeedback === 'up-to-date'
+                    ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]'
+                    : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
+              ].join(' ')}
+              aria-label={checkTitle}
+              disabled={checking}
+              onClick={() => void handleManualCheck()}
+            >
+              <IconRefresh
+                size={16}
+                stroke={1.75}
+                className={checking ? 'animate-spin' : ''}
+                aria-hidden
+              />
+            </button>
+          </HoverTip>
         ) : null}
       </div>
 

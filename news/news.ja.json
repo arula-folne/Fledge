@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.5.27",
+    "title": "【バージョンアップ】Fledge Ver.0.5.27",
+    "body": "**Fledge Ver.0.5.27** を公開しました。\n\n## 主な変更\n\n- 更新確認ボタンを Fledge 独自のホバー表示に変更\n- インスタンス詳細へ Mod / リソースパック / シェーダー等を DnD 追加\n- ローカル追加時は Fledge のカテゴリアイコンを表示\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-09-25T16:20:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.5.27"
+  },
+  {
     "id": "v0.5.26",
     "title": "【バージョンアップ】Fledge Ver.0.5.26",
     "body": "**Fledge Ver.0.5.26** を公開しました。\n\n## 主な変更\n\n- Forge / NeoForge インストール時に cmd が一瞬出る問題を修正\n- Windows パス起因のインストーラ失敗を修正\n- エラーメッセージの文字化けを軽減\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

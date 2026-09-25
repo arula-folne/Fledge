@@ -710,7 +710,7 @@ export const ContentCategorySchema = z.enum([
 ])
 export type ContentCategory = z.infer<typeof ContentCategorySchema>
 
-export const ContentSourceIdSchema = z.enum(['modrinth'])
+export const ContentSourceIdSchema = z.enum(['modrinth', 'local'])
 export type ContentSourceId = z.infer<typeof ContentSourceIdSchema>
 
 export const ContentProviderIdSchema = ContentSourceIdSchema

@@ -87,6 +87,11 @@ export type FledgeApi = {
       loaders?: ContentLoaderFilter[]
     }) => Promise<ContentVersion[]>
     install: (req: ContentInstallRequest) => Promise<InstalledContent>
+    installLocal: (req: {
+      instanceId: string
+      paths: string[]
+      category?: ContentCategory
+    }) => Promise<{ installed: InstalledContent[]; errors: string[] }>
     listInstalled: (instanceId: string, category?: ContentCategory) => Promise<InstalledContent[]>
     setEnabled: (instanceId: string, entryId: string, enabled: boolean) => Promise<InstalledContent>
     remove: (instanceId: string, entryId: string) => Promise<void>

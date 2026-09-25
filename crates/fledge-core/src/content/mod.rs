@@ -27,6 +27,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
+use zip::ZipArchive;
 
 const INDEX_DIR: &str = ".fledge";
 const INDEX_FILE: &str = "content-index.json";
@@ -289,6 +290,133 @@ impl ContentService {
             }
         }
         Ok(primary_entry.unwrap_or_else(|| to_installed_entry(&primary, true)))
+    }
+
+    /// ローカルファイル（.jar / .zip 等）をインスタンスへコピーして index に登録する。
+    pub fn install_local(&self, req: &Value) -> CoreResult<Value> {
+        let instance_id = req
+            .get("instanceId")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| CoreError::msg("instanceId required"))?;
+        let paths = req
+            .get("paths")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| CoreError::msg("paths required"))?;
+        let category_override = req.get("category").and_then(|v| v.as_str());
+        let profile = self
+            .instances
+            .get(instance_id)?
+            .ok_or_else(|| CoreError::msg(format!("Instance not found: {instance_id}")))?;
+        let loader = profile
+            .get("loader")
+            .and_then(|v| v.as_str())
+            .unwrap_or("vanilla");
+
+        let mut installed = Vec::new();
+        let mut errors = Vec::new();
+        for path_v in paths {
+            let Some(path_str) = path_v.as_str() else {
+                continue;
+            };
+            match self.install_local_file(instance_id, Path::new(path_str), category_override, loader)
+            {
+                Ok(entry) => installed.push(entry),
+                Err(err) => errors.push(format!(
+                    "{}: {}",
+                    Path::new(path_str)
+                        .file_name()
+                        .map(|s| s.to_string_lossy().into_owned())
+                        .unwrap_or_else(|| path_str.to_string()),
+                    err
+                )),
+            }
+        }
+
+        if installed.is_empty() && !errors.is_empty() {
+            return Err(CoreError::msg(errors.join("\n")));
+        }
+        Ok(json!({
+          "installed": installed,
+          "errors": errors,
+        }))
+    }
+
+    fn install_local_file(
+        &self,
+        instance_id: &str,
+        path: &Path,
+        category_override: Option<&str>,
+        loader: &str,
+    ) -> CoreResult<Value> {
+        if !path.is_file() {
+            return Err(CoreError::msg("file not found"));
+        }
+        let file_name = path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| CoreError::msg("invalid file name"))?
+            .to_string();
+        let category = category_override
+            .map(|s| s.to_string())
+            .or_else(|| detect_local_content_category(path))
+            .ok_or_else(|| CoreError::msg("content.error.localUnsupportedType"))?;
+
+        if category == "modpack" || file_name.to_lowercase().ends_with(".mrpack") {
+            return Err(CoreError::msg("content.error.modpackUseCreate"));
+        }
+        if category == "plugin" {
+            return Err(CoreError::msg("content.error.pluginUnsupported"));
+        }
+        if loader == "vanilla" && (category == "mod" || category == "shader") {
+            return Err(CoreError::msg("content.error.vanillaCategoryUnsupported"));
+        }
+
+        let data = fs::read(path)?;
+        let (sha1, sha512) = file_hashes(&data);
+        let stem = Path::new(&file_name)
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&file_name);
+        let project_id = format!("local-{sha1}");
+        let instance_dir = self.instances.instance_dir(instance_id);
+        let dest_dir = instance_dir.join(category_dir(&category));
+        fs::create_dir_all(&dest_dir)?;
+        let dest_path = dest_dir.join(&file_name);
+        let staging = dest_path.with_extension(format!("local-{}", Uuid::new_v4()));
+        fs::write(&staging, &data)?;
+
+        let entry = json!({
+          "id": Uuid::new_v4().to_string(),
+          "provider": "local",
+          "projectId": project_id,
+          "versionId": sha1.clone(),
+          "slug": stem,
+          "name": stem,
+          "versionNumber": "local",
+          "category": category,
+          "fileName": file_name,
+          "iconUrl": Value::Null,
+          "sha1": sha1,
+          "sha512": sha512,
+          "fileSize": data.len() as u64,
+          "projectMetadataResolved": false,
+          "enabled": true,
+          "installedAt": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+          "updateAvailable": false
+        });
+
+        self.finalize_installed(
+            instance_id,
+            &instance_dir,
+            "local",
+            entry.get("projectId").and_then(|v| v.as_str()).unwrap_or(""),
+            &category,
+            &file_name,
+            entry.clone(),
+            &staging,
+            &dest_path,
+        )?;
+        Ok(entry)
     }
 
     pub async fn create_instance_from_project(&self, req: &Value) -> CoreResult<Value> {
@@ -1480,6 +1608,53 @@ fn category_dir(category: &str) -> String {
         "datapack" => "world/datapacks".into(),
         _ => "mods".into(),
     }
+}
+
+/// 拡張子と zip 内構造からカテゴリを推定する。
+fn detect_local_content_category(path: &Path) -> Option<String> {
+    let name = path.file_name()?.to_str()?.to_lowercase();
+    if name.ends_with(".mrpack") {
+        return Some("modpack".into());
+    }
+    if name.ends_with(".jar") {
+        return Some("mod".into());
+    }
+    if !name.ends_with(".zip") {
+        return None;
+    }
+    let file = fs::File::open(path).ok()?;
+    let mut archive = ZipArchive::new(file).ok()?;
+    let mut has_pack_mcmeta = false;
+    let mut has_shaders = false;
+    let mut has_data = false;
+    let mut has_assets = false;
+    for i in 0..archive.len() {
+        let Ok(entry) = archive.by_index(i) else { continue };
+        let n = entry.name().replace('\\', "/").to_lowercase();
+        if n == "pack.mcmeta" || n.ends_with("/pack.mcmeta") {
+            has_pack_mcmeta = true;
+        }
+        if n.starts_with("shaders/") || n.contains("/shaders/") {
+            has_shaders = true;
+        }
+        if n.starts_with("data/") || n.contains("/data/") {
+            has_data = true;
+        }
+        if n.starts_with("assets/") || n.contains("/assets/") {
+            has_assets = true;
+        }
+    }
+    if has_shaders {
+        return Some("shader".into());
+    }
+    if has_data && has_pack_mcmeta && !has_assets {
+        return Some("datapack".into());
+    }
+    if has_pack_mcmeta || has_assets {
+        return Some("resourcepack".into());
+    }
+    // 不明な zip はリソースパックとして扱う（よくある配布形式）
+    Some("resourcepack".into())
 }
 
 fn loader_to_filters(loader: &str) -> Vec<String> {

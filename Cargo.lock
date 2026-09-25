@@ -1164,7 +1164,7 @@ dependencies = [
 
 [[package]]
 name = "fledge-core"
-version = "0.5.26"
+version = "0.5.27"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1193,7 +1193,7 @@ dependencies = [
 
 [[package]]
 name = "fledge-desktop"
-version = "0.5.26"
+version = "0.5.27"
 dependencies = [
  "arboard",
  "base64 0.22.1",

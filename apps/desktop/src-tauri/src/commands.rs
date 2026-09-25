@@ -427,6 +427,10 @@ async fn dispatch(
             let result = state.content.install(&args).await.map_err(map_err)?;
             Ok(result)
         }
+        "content:install-local" => {
+            let result = state.content.install_local(&args).map_err(map_err)?;
+            Ok(result)
+        }
         "content:list-installed" => {
             let (id_v, cat_v) = two_args_optional(&args)?;
             let id = id_v

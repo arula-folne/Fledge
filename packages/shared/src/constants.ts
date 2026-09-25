@@ -138,6 +138,7 @@ export const IPC = {
   contentGetProject: 'content:get-project',
   contentListVersions: 'content:list-versions',
   contentInstall: 'content:install',
+  contentInstallLocal: 'content:install-local',
   contentListInstalled: 'content:list-installed',
   contentSetEnabled: 'content:set-enabled',
   contentRemove: 'content:remove',
