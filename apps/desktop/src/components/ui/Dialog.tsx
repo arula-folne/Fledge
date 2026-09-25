@@ -47,7 +47,7 @@ export function Dialog({
   size = 'md',
   backdrop = 'default',
   dismissible = true,
-  overlayClassName = 'z-[100]',
+  overlayClassName = 'z-[80]',
   fixedHeight = false,
   compact = false,
   panelClassName = '',
