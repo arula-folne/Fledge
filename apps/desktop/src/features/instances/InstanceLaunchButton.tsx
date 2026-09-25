@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -29,7 +29,7 @@ type Props = {
   showProgress?: boolean
 }
 
-/** インストール／作成中と同じぐるぐるリング */
+/** インストール／作成中と同じぐるぐるリング（円） */
 function BusyRing() {
   return (
     <svg
@@ -57,6 +57,75 @@ function BusyRing() {
         strokeDasharray="22 76"
       />
     </svg>
+  )
+}
+
+/** 楕円（カプセル）ボタンの縁を追うぐるぐる */
+function BusyCapsuleRing({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [box, setBox] = useState<{ w: number; h: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const update = () => {
+      const { width, height } = el.getBoundingClientRect()
+      if (width > 0 && height > 0) setBox({ w: width, h: height })
+    }
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const stroke = 2.5
+  const inset = stroke / 2
+  const w = box?.w ?? 0
+  const h = box?.h ?? 0
+  const rw = Math.max(0, w - stroke)
+  const rh = Math.max(0, h - stroke)
+  const rx = rh / 2
+
+  return (
+    <div ref={ref} className="relative inline-flex" aria-busy="true">
+      {box ? (
+        <svg
+          className="pointer-events-none absolute inset-0 overflow-visible"
+          width={w}
+          height={h}
+          aria-hidden
+        >
+          <rect
+            x={inset}
+            y={inset}
+            width={rw}
+            height={rh}
+            rx={rx}
+            ry={rx}
+            fill="none"
+            stroke="var(--color-accent)"
+            strokeOpacity="0.22"
+            strokeWidth={stroke}
+          />
+          <rect
+            className="busy-capsule-arc"
+            x={inset}
+            y={inset}
+            width={rw}
+            height={rh}
+            rx={rx}
+            ry={rx}
+            fill="none"
+            stroke="var(--color-accent)"
+            strokeWidth={stroke}
+            strokeLinecap="round"
+            pathLength={1}
+            strokeDasharray="0.2 0.8"
+          />
+        </svg>
+      ) : null}
+      {children}
+    </div>
   )
 }
 
@@ -243,7 +312,27 @@ export function InstanceLaunchButton({
       </div>
     )
   } else if (busyInstalling) {
-    // header / lg 等の楕円ボタンには円リングを重ねない（グレー無効のまま）
+    // header / lg: 楕円のまま無効化し、縁に沿うぐるぐる
+    action = (
+      <BusyCapsuleRing>
+        <Button
+          variant="secondary"
+          className={[
+            sizeClass,
+            className,
+            '!rounded-full border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] opacity-80',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          disabled
+          aria-label={t('content.creatingInstance')}
+          aria-busy
+        >
+          <IconPlayerPlay size={playIconSize} stroke={1.75} />
+          {t('home.play')}
+        </Button>
+      </BusyCapsuleRing>
+    )
   } else if (state === 'running') {
     action = (
       <Button
@@ -416,7 +505,7 @@ export function InstanceLaunchButton({
     </div>
   ) : null
 
-  // icon/sm は BusyRing 込み。header 等の楕円ボタンには円リングを付けない
+  // icon/sm は円リング、header/lg は楕円縁リング
 
   return (
     <div

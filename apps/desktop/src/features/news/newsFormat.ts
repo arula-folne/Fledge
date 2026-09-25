@@ -6,17 +6,8 @@ export function parseNewsTitle(title: string): { category: string | null; label:
   return { category: match[1] ?? null, label: match[2] || title }
 }
 
-export function newsCategoryClass(category: string): string {
-  switch (category) {
-    case '重要':
-      return 'border-[var(--color-danger)]/30 bg-[var(--color-danger)]/10 text-[var(--color-danger)]'
-    case 'バージョンアップ':
-      return 'border-[var(--color-success)]/30 bg-[var(--color-success)]/10 text-[var(--color-success)]'
-    case '修正':
-      return 'border-[var(--color-version-snapshot)]/30 bg-[var(--color-version-snapshot)]/10 text-[var(--color-version-snapshot)]'
-    default:
-      return 'border-[var(--color-border)] bg-[var(--color-accent-soft)] text-[var(--color-text-muted)]'
-  }
+export function newsCategoryClass(_category: string): string {
+  return 'border-[var(--color-accent)]/25 bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
 }
 
 /** 一覧用: Markdown を除いた先頭の概要文 */

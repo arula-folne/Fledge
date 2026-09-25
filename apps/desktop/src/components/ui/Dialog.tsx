@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { IconX } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 
@@ -33,6 +34,7 @@ type Props = {
 
 /**
  * 中央モーダル。Backdrop blur / Esc / 外側クリック対応。
+ * body へ portal し、シェル内の z-index / backdrop-filter と競合しないようにする。
  */
 export function Dialog({
   open,
@@ -45,7 +47,7 @@ export function Dialog({
   size = 'md',
   backdrop = 'default',
   dismissible = true,
-  overlayClassName = 'z-[80]',
+  overlayClassName = 'z-[100]',
   fixedHeight = false,
   compact = false,
   panelClassName = '',
@@ -107,7 +109,7 @@ export function Dialog({
 
   if (!open) return null
 
-  return (
+  return createPortal(
     <div
       className={[
         'fixed inset-x-0 bottom-0 top-[var(--titlebar-offset,0px)] flex',
@@ -251,6 +253,7 @@ export function Dialog({
         }
       `}</style>
       )}
-    </div>
+    </div>,
+    document.body,
   )
 }

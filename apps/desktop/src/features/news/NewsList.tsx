@@ -40,7 +40,7 @@ function NewsItemButton({
   return (
     <button
       type="button"
-      className="flex h-full w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-[var(--news-card-px)] py-[var(--news-card-py)] text-left transition hover:border-[var(--color-accent)]/30 hover:bg-[var(--color-hover)]/60"
+      className="flex h-full w-full rounded-[var(--radius-sm)] border border-[var(--color-accent)]/20 bg-[var(--color-accent)]/8 px-[var(--news-card-px)] py-[var(--news-card-py)] text-left transition hover:border-[var(--color-accent)]/35 hover:bg-[var(--color-accent)]/14"
       onClick={() => onSelect(item)}
     >
       <NewsArticleLayout
@@ -70,8 +70,8 @@ function NewsArchiveListItem({
       className={[
         'w-full rounded-[var(--radius-sm)] border px-2 py-2 text-left transition',
         selected
-          ? 'border-[var(--color-selection)] bg-[var(--color-selection-soft)]'
-          : 'border-transparent hover:border-[var(--color-border)] hover:bg-[var(--color-hover)]/60',
+          ? 'border-[var(--color-accent)]/35 bg-[var(--color-accent)]/12'
+          : 'border-transparent hover:border-[var(--color-accent)]/20 hover:bg-[var(--color-accent)]/8',
       ].join(' ')}
       onClick={() => onSelect(item)}
     >
@@ -273,14 +273,14 @@ export function NewsList({
       }
     >
       <div className="mb-2 flex shrink-0 items-center gap-1">
-        <h2 className="min-w-0 flex-1 text-[length:var(--news-section-title)] font-medium text-[var(--color-text-muted)]">
+        <h2 className="min-w-0 flex-1 text-[length:var(--news-section-title)] font-medium text-[var(--color-accent)]">
           {t('news.title')}
         </h2>
         {showMinimize ? (
           <HoverTip label={t('news.minimize')}>
             <button
               type="button"
-              className="grid size-9 shrink-0 place-items-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
+              className="grid size-9 shrink-0 place-items-center rounded-[var(--radius-sm)] text-[var(--color-accent)]/70 transition hover:bg-[var(--color-accent)]/12 hover:text-[var(--color-accent)]"
               aria-label={t('news.minimize')}
               disabled={hideMutation.isPending}
               onClick={() => hideMutation.mutate()}
@@ -312,14 +312,13 @@ export function NewsList({
 
       {showViewAll ? (
         <div className="mt-auto shrink-0 pt-2 pr-0.5">
-          <Button
+          <button
             type="button"
-            variant="secondary"
-            className="min-h-[var(--news-view-all-min-h)] w-full justify-center py-[var(--news-card-py)] text-[length:var(--news-preview-body)]"
+            className="flex min-h-[var(--news-view-all-min-h)] w-full items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-accent)]/25 bg-[var(--color-accent)]/8 py-[var(--news-card-py)] text-[length:var(--news-preview-body)] font-medium text-[var(--color-accent)] transition hover:border-[var(--color-accent)]/40 hover:bg-[var(--color-accent)]/14"
             onClick={() => setArchiveOpen(true)}
           >
             {t('news.viewAll')}
-          </Button>
+          </button>
         </div>
       ) : null}
 

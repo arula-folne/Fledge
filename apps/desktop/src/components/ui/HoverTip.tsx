@@ -13,6 +13,8 @@ import { createPortal } from 'react-dom'
 
 const DEFAULT_DELAY_MS = 450
 
+type Placement = 'top' | 'right'
+
 type Props = {
   label: string
   children: ReactElement<{
@@ -25,6 +27,8 @@ type Props = {
   /** 表示までの待ち時間。すぐクリックされた場合は出さない */
   delayMs?: number
   disabled?: boolean
+  /** top: 上中央 / right: 右隣（折りたたみサイドバー向け） */
+  placement?: Placement
 }
 
 function mergeRefs<T>(...refs: Array<Ref<T> | undefined>) {
@@ -46,6 +50,7 @@ export function HoverTip({
   children,
   delayMs = DEFAULT_DELAY_MS,
   disabled = false,
+  placement = 'top',
 }: Props) {
   const tipId = useId()
   const anchorRef = useRef<HTMLElement | null>(null)
@@ -70,12 +75,18 @@ export function HoverTip({
     const el = anchorRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
-    const tipWidth = Math.min(16 * 16, window.innerWidth - 16)
-    let left = rect.left + rect.width / 2
-    left = Math.max(8 + tipWidth / 2, Math.min(left, window.innerWidth - 8 - tipWidth / 2))
-    setPos({ top: rect.top - 8, left })
+    if (placement === 'right') {
+      const left = Math.min(rect.right + 8, window.innerWidth - 12)
+      const top = rect.top + rect.height / 2
+      setPos({ top, left })
+    } else {
+      const tipWidth = Math.min(16 * 16, window.innerWidth - 16)
+      let left = rect.left + rect.width / 2
+      left = Math.max(8 + tipWidth / 2, Math.min(left, window.innerWidth - 8 - tipWidth / 2))
+      setPos({ top: rect.top - 8, left })
+    }
     setOpen(true)
-  }, [])
+  }, [placement])
 
   const scheduleShow = useCallback(() => {
     if (disabled || !label) return
@@ -116,6 +127,11 @@ export function HoverTip({
     },
   })
 
+  const tipClass =
+    placement === 'right'
+      ? 'pointer-events-none fixed z-[11010] max-w-[16rem] -translate-y-1/2 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-[11px] leading-snug text-[var(--color-text)] shadow-sm'
+      : 'pointer-events-none fixed z-[11010] max-w-[16rem] -translate-x-1/2 -translate-y-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-[11px] leading-snug text-[var(--color-text)] shadow-sm'
+
   return (
     <>
       {child}
@@ -124,7 +140,7 @@ export function HoverTip({
             <div
               id={tipId}
               role="tooltip"
-              className="pointer-events-none fixed z-[11010] max-w-[16rem] -translate-x-1/2 -translate-y-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-[11px] leading-snug text-[var(--color-text)] shadow-sm"
+              className={tipClass}
               style={{ top: pos.top, left: pos.left }}
             >
               {label}

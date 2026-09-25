@@ -56,6 +56,10 @@ import { mcFaceUrl } from '../features/auth/mcFace'
 import { cropSkinFaceDataUrl } from '../features/auth/skinFace'
 import { applyTheme, defaultThemeColorsForMode, type ThemeColorPair } from '../styles/theme'
 import { ProgressBar } from '../components/ui/ProgressBar'
+import {
+  SlidingSelectionPill,
+  useSlidingSelectionPill,
+} from '../components/ui/SlidingSelectionPill'
 
 export default function SettingsPage() {
   const { t } = useTranslation()
@@ -64,6 +68,7 @@ export default function SettingsPage() {
   const setSection = useUiStore((s) => s.setSettingsSection)
   const section =
     sectionRaw === 'debug' && !import.meta.env.DEV ? 'appGeneral' : sectionRaw
+  const { containerRef, setItemRef, pill, pillReady } = useSlidingSelectionPill(section)
 
   const debugLibraryGrid = useDebugStore((s) => s.libraryGridDebug)
   const debugPlaceholders = useDebugStore((s) => s.libraryPlaceholders)
@@ -380,60 +385,71 @@ export default function SettingsPage() {
 
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(13.5rem,max-content)_minmax(0,1fr)] gap-4 overflow-hidden">
         <nav
-          className="season-readable-panel flex h-fit max-h-full w-full min-w-0 max-w-[22rem] flex-col gap-0.5 self-start overflow-x-auto overflow-y-auto px-2 py-2"
+          className="season-readable-panel flex h-fit max-h-full w-full min-w-0 max-w-[22rem] flex-col self-start overflow-x-auto overflow-y-auto px-2 py-2"
           aria-label={t('settings.title')}
         >
-          {navGroups.map((group, groupIndex) => (
-            <div key={group.id} className={groupIndex > 0 ? 'mt-3 min-w-max' : 'min-w-max'}>
-              {group.label ? (
-                <p
-                  className={[
-                    'mb-1 w-fit whitespace-nowrap rounded-[var(--radius-sm)] px-2 py-0.5 text-[11px] font-semibold tracking-wide',
-                    group.labelClassName,
-                  ].join(' ')}
-                >
-                  {group.label}
-                </p>
-              ) : null}
-              <div className="flex min-w-max flex-col gap-0.5">
-                {group.items.map((tab) => {
-                  const TabIcon = tab.Icon
-                  return (
-                    <button
-                      key={tab.id}
-                      type="button"
-                      className={[
-                        'flex w-max min-w-full items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-sm',
-                        section === tab.id
-                          ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
-                          : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
-                      ].join(' ')}
-                      onClick={() => setSection(tab.id)}
-                    >
-                      <TabIcon
-                        size={18}
-                        stroke={1.7}
-                        className={['shrink-0', tab.iconClassName].join(' ')}
-                      />
-                      <span className="whitespace-nowrap leading-snug">
-                        {tab.label}
-                      </span>
-                      {tab.beta ? (
-                        <span className="locale-chrome-badge shrink-0 rounded-full bg-[var(--color-version-snapshot)]/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--color-version-snapshot)]">
-                          {t('settings.language.beta')}
+          <div
+            ref={(el) => {
+              containerRef.current = el
+            }}
+            className="relative flex min-w-max flex-col gap-0.5"
+          >
+            <SlidingSelectionPill pill={pill} ready={pillReady} />
+            {navGroups.map((group, groupIndex) => (
+              <div key={group.id} className={groupIndex > 0 ? 'mt-3 min-w-max' : 'min-w-max'}>
+                {group.label ? (
+                  <p
+                    className={[
+                      'mb-1 w-fit whitespace-nowrap rounded-[var(--radius-sm)] px-2 py-0.5 text-[11px] font-semibold tracking-wide',
+                      group.labelClassName,
+                    ].join(' ')}
+                  >
+                    {group.label}
+                  </p>
+                ) : null}
+                <div className="flex min-w-max flex-col gap-0.5">
+                  {group.items.map((tab) => {
+                    const TabIcon = tab.Icon
+                    const active = section === tab.id
+                    return (
+                      <button
+                        key={tab.id}
+                        ref={(el) => setItemRef(tab.id, el)}
+                        type="button"
+                        className={[
+                          'relative z-[1] flex w-max min-w-full items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-sm transition-colors duration-100',
+                          active
+                            ? 'font-medium text-[var(--color-selection)]'
+                            : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
+                        ].join(' ')}
+                        onClick={() => setSection(tab.id)}
+                      >
+                        <TabIcon
+                          size={18}
+                          stroke={1.7}
+                          className={['shrink-0', tab.iconClassName].join(' ')}
+                        />
+                        <span className="whitespace-nowrap leading-snug">
+                          {tab.label}
                         </span>
-                      ) : null}
-                    </button>
-                  )
-                })}
+                        {tab.beta ? (
+                          <span className="locale-chrome-badge shrink-0 rounded-full bg-[var(--color-version-snapshot)]/15 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-[var(--color-version-snapshot)]">
+                            {t('settings.language.beta')}
+                          </span>
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </nav>
 
         <div
+          key={section}
           className={[
-            'flex min-h-0 min-w-0 flex-col overflow-hidden',
+            'route-page flex min-h-0 min-w-0 flex-col overflow-hidden',
             section === 'minecraftInitial' ? 'gap-3' : 'gap-4',
           ].join(' ')}
           data-fledge-tutorial="tutorial-settings-content"

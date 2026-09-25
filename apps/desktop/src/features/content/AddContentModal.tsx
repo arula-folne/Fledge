@@ -642,8 +642,8 @@ export function AddContentModal({
               />
             ) : null}
 
-            <div className="flex shrink-0 flex-wrap items-center gap-2">
-              <div className="relative min-w-[14rem] flex-1">
+            <div className="flex shrink-0 flex-col gap-2">
+              <div className="relative w-full">
                 <IconSearch
                   size={16}
                   stroke={1.75}
@@ -663,39 +663,36 @@ export function AddContentModal({
                   className="w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] py-1.5 pl-9 pr-3 text-sm outline-none focus:border-[var(--color-accent)]"
                 />
               </div>
-              <label className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-                {t('content.sort.label')}
-                <Select
-                  value={sort}
-                  onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
-                  className="min-w-[8rem]"
-                  options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
-                    value: s,
-                    label: t(`content.sort.${s}`),
-                  }))}
-                />
-              </label>
-              <label className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-                {t('content.showCount')}
-                <Select
-                  value={String(pageSize)}
-                  onChange={(e) =>
-                    setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
-                  }
-                  className="min-w-[4.5rem]"
-                  options={PAGE_SIZES.map((n) => ({
-                    value: String(n),
-                    label: String(n),
-                  }))}
-                />
-              </label>
-              {total > 0 ? (
-                <span className="text-sm tabular-nums text-[var(--color-text-muted)]">
-                  {t('content.resultCount', { total: total.toLocaleString('ja-JP') })}
-                </span>
-              ) : null}
-              <div className="ml-auto">
-                <PageNav page={page} pageCount={pageCount} onChange={setPage} />
+              <div className="flex flex-nowrap items-center gap-2">
+                <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+                  {t('content.sort.label')}
+                  <Select
+                    value={sort}
+                    onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
+                    className="min-w-[8rem]"
+                    options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
+                      value: s,
+                      label: t(`content.sort.${s}`),
+                    }))}
+                  />
+                </label>
+                <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+                  {t('content.showCount')}
+                  <Select
+                    value={String(pageSize)}
+                    onChange={(e) =>
+                      setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
+                    }
+                    className="min-w-[4.5rem]"
+                    options={PAGE_SIZES.map((n) => ({
+                      value: String(n),
+                      label: String(n),
+                    }))}
+                  />
+                </label>
+                <div className="ml-auto shrink-0">
+                  <PageNav page={page} pageCount={pageCount} onChange={setPage} />
+                </div>
               </div>
             </div>
 

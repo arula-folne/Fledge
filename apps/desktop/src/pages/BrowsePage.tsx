@@ -79,6 +79,16 @@ function buildSearchInput(input: {
   }
 }
 
+/** 同一カテゴリのページ送り中は前結果を残し、件数・ページャー幅のちらつきを防ぐ */
+function keepSearchDataForSameCategory<T>(
+  previousData: T | undefined,
+  previousQuery: { queryKey: readonly unknown[] } | undefined,
+  category: ContentCategory,
+): T | undefined {
+  const prev = previousQuery?.queryKey[1] as ContentSearchQuery | undefined
+  return prev?.category === category ? previousData : undefined
+}
+
 export default function BrowsePage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
@@ -165,6 +175,8 @@ export default function BrowsePage() {
     queryKey: ['content-search', searchInput],
     queryFn: () => fledgeApi.content.search(searchInput),
     enabled: !selectedProject && !isFavoritesTab(searchTab),
+    placeholderData: (previousData, previousQuery) =>
+      keepSearchDataForSameCategory(previousData, previousQuery, filterCategory),
     staleTime: 30_000,
     gcTime: 90_000,
     retry: 2,
@@ -424,8 +436,8 @@ export default function BrowsePage() {
             />
           ) : null}
 
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <div className="relative min-w-[14rem] flex-1">
+          <div className="flex shrink-0 flex-col gap-2">
+            <div className="relative w-full">
               <IconSearch
                 size={16}
                 stroke={1.75}
@@ -445,39 +457,36 @@ export default function BrowsePage() {
                 className="w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] py-1.5 pl-9 pr-3 text-sm outline-none focus:border-[var(--color-accent)]"
               />
             </div>
-            <label className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-              {t('content.sort.label')}
-              <Select
-                value={sort}
-                onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
-                className="min-w-[8rem]"
-                options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
-                  value: s,
-                  label: t(`content.sort.${s}`),
-                }))}
-              />
-            </label>
-            <label className="flex items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-              {t('content.showCount')}
-              <Select
-                value={String(pageSize)}
-                onChange={(e) =>
-                  setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
-                }
-                className="min-w-[4.5rem]"
-                options={PAGE_SIZES.map((n) => ({
-                  value: String(n),
-                  label: String(n),
-                }))}
-              />
-            </label>
-            {total > 0 ? (
-              <span className="text-sm tabular-nums text-[var(--color-text-muted)]">
-                {t('content.resultCount', { total: total.toLocaleString('ja-JP') })}
-              </span>
-            ) : null}
-            <div className="ml-auto">
-              <PageNav page={page} pageCount={pageCount} onChange={setPage} />
+            <div className="flex flex-nowrap items-center gap-2">
+              <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+                {t('content.sort.label')}
+                <Select
+                  value={sort}
+                  onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
+                  className="min-w-[8rem]"
+                  options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
+                    value: s,
+                    label: t(`content.sort.${s}`),
+                  }))}
+                />
+              </label>
+              <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+                {t('content.showCount')}
+                <Select
+                  value={String(pageSize)}
+                  onChange={(e) =>
+                    setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
+                  }
+                  className="min-w-[4.5rem]"
+                  options={PAGE_SIZES.map((n) => ({
+                    value: String(n),
+                    label: String(n),
+                  }))}
+                />
+              </label>
+              <div className="ml-auto shrink-0">
+                <PageNav page={page} pageCount={pageCount} onChange={setPage} />
+              </div>
             </div>
           </div>
 
@@ -514,7 +523,7 @@ export default function BrowsePage() {
           <div
             ref={listScrollRef}
             className={[
-              'min-h-0 flex-1 overflow-y-auto transition-opacity',
+              'min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] transition-opacity',
               searchQuery.isFetching && !searchQuery.isPending ? 'opacity-80' : '',
             ].join(' ')}
           >
@@ -573,11 +582,11 @@ export default function BrowsePage() {
             )}
           </div>
 
-          {pageCount > 1 ? (
-            <div className="flex shrink-0 justify-end border-t border-[var(--color-border)] pt-2">
+          <div className="flex min-h-9 shrink-0 items-center justify-end border-t border-[var(--color-border)] pt-2">
+            {pageCount > 1 ? (
               <PageNav page={page} pageCount={pageCount} onChange={setPage} />
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
       </div>
       {versionDialog}

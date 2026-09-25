@@ -53,7 +53,7 @@ export default function HomePage() {
           <HoverTip label={t('news.show')}>
             <button
               type="button"
-              className="grid size-9 shrink-0 place-items-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
+              className="grid size-9 shrink-0 place-items-center rounded-[var(--radius-sm)] text-[var(--color-accent)]/70 transition hover:bg-[var(--color-accent)]/12 hover:text-[var(--color-accent)]"
               aria-label={t('news.show')}
               disabled={showNewsMutation.isPending}
               onClick={() => showNewsMutation.mutate()}
