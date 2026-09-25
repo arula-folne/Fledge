@@ -108,6 +108,7 @@
   "launch.error.showDetails": "Detail kesalahan peluncuran",
   "launch.error.noInstance": "Pilih instans",
   "launch.error.alreadyRunning": "Proses peluncuran sudah berjalan",
+  "launch.error.causeLabel": "Cause",
   "library.title": "Pustaka",
   "library.create": "Instans baru",
   "library.empty": "Belum ada instans",

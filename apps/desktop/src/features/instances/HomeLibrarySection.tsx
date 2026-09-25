@@ -85,11 +85,9 @@ function useLibraryGridDebug(enabled: boolean) {
 
 type Props = {
   instances: InstanceProfile[]
-  /** お知らせ最小化時はライブラリ幅が広がるので 1 行 4 件 */
-  newsMinimized?: boolean
 }
 
-export function HomeLibrarySection({ instances, newsMinimized = false }: Props) {
+export function HomeLibrarySection({ instances }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -273,10 +271,7 @@ export function HomeLibrarySection({ instances, newsMinimized = false }: Props) 
         <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
           <div
             ref={showGridDebug ? gridRef : undefined}
-            className={[
-              'grid grid-cols-1 gap-2 sm:grid-cols-2',
-              newsMinimized ? 'lg:grid-cols-4' : 'lg:grid-cols-3',
-            ].join(' ')}
+            className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3"
           >
             {items.map((item, index) => (
               <div key={item.id} className="flex h-full min-w-0 items-stretch gap-1">

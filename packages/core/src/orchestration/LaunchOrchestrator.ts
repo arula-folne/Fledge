@@ -195,12 +195,15 @@ export class LaunchOrchestrator {
       this.sessions.delete(sessionId)
       return { sessionId }
     } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err)
       const messageKey =
         err && typeof err === 'object' && 'messageKey' in err
           ? String((err as { messageKey: string }).messageKey)
           : 'launch.error.generic'
-      this.deps.logger.error('launcher', `Prepare failed: ${messageKey}`)
-      this.emitState(session, 'error', messageKey)
+      const detail =
+        messageKey === 'launch.error.generic' && raw && raw !== messageKey ? raw : undefined
+      this.deps.logger.error('launcher', `Prepare failed: ${messageKey}${detail ? `: ${detail}` : ''}`)
+      this.emitState(session, 'error', messageKey, detail)
       this.sessions.delete(sessionId)
       throw Object.assign(err instanceof Error ? err : new Error(String(err)), { messageKey })
     }
@@ -401,11 +404,9 @@ export class LaunchOrchestrator {
         const current = this.sessions.get(sessionId)
         if (!current) return
         this.stopInitialSettingsWatchers(current)
-        this.deps.logger.error(
-          'launcher',
-          `Game process failed to start: ${err instanceof Error ? err.message : String(err)}`,
-        )
-        this.emitState(current, 'error', 'launch.error.generic')
+        const detail = err instanceof Error ? err.message : String(err)
+        this.deps.logger.error('launcher', `Game process failed to start: ${detail}`)
+        this.emitState(current, 'error', 'launch.error.generic', detail)
         this.sessions.delete(sessionId)
       })
       child.on('exit', (code) => {
@@ -415,7 +416,12 @@ export class LaunchOrchestrator {
         void this.finalizeInitialSettingsCommit(current, code ?? 0)
         if (code && code !== 0) {
           this.deps.logger.error('launcher', `Minecraft exited with code ${code}`)
-          this.emitState(current, 'error', 'launch.error.gameExited')
+          this.emitState(
+            current,
+            'error',
+            'launch.error.gameExited',
+            `exit code ${code}`,
+          )
         } else {
           current.state = 'exited'
           this.deps.events.emitState({
@@ -445,17 +451,20 @@ export class LaunchOrchestrator {
 
       return { sessionId }
     } catch (err) {
+      const raw = err instanceof Error ? err.message : String(err)
       const messageKey =
         err instanceof AuthError
           ? err.messageKey
           : err && typeof err === 'object' && 'messageKey' in err
             ? String((err as { messageKey: string }).messageKey)
             : 'launch.error.generic'
+      const detail =
+        messageKey === 'launch.error.generic' && raw && raw !== messageKey ? raw : undefined
       this.deps.logger.error(
         'launcher',
-        `Launch failed: ${messageKey}: ${err instanceof Error ? err.message : String(err)}`,
+        `Launch failed: ${messageKey}: ${raw}`,
       )
-      this.emitState(session, 'error', messageKey)
+      this.emitState(session, 'error', messageKey, detail)
       this.sessions.delete(sessionId)
       throw Object.assign(err instanceof Error ? err : new Error(String(err)), { messageKey })
     }
@@ -875,6 +884,7 @@ export class LaunchOrchestrator {
     session: Session,
     state: LaunchStateEvent['state'],
     errorMessageKey?: string,
+    errorDetail?: string,
   ): void {
     session.state = state
     this.deps.events.emitState({
@@ -883,6 +893,7 @@ export class LaunchOrchestrator {
       accountId: session.accountId,
       state,
       errorMessageKey,
+      errorDetail,
     })
   }
 

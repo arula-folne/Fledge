@@ -223,7 +223,11 @@ impl JavaManager {
         self.end_exclusive(major);
         result?;
         self.detect_managed_java(major)?
-            .ok_or_else(|| CoreError::msg("launch.error.generic"))
+            .ok_or_else(|| {
+                CoreError::msg(format!(
+                    "Java {major} install finished but java.exe was not found"
+                ))
+            })
     }
 
     fn resolve_required_major(&self, minecraft_version: &str) -> u32 {
@@ -411,7 +415,11 @@ impl JavaManager {
         let resolved = if java_exe.is_file() {
             java_exe
         } else {
-            find_java_exe(&dest_dir).ok_or_else(|| CoreError::msg("launch.error.generic"))?
+            find_java_exe(&dest_dir).ok_or_else(|| {
+                CoreError::msg(format!(
+                    "Java {major} archive extracted but java.exe was not found"
+                ))
+            })?
         };
         let version = version_label
             .or_else(|| read_jdk_release_version(&dest_dir))

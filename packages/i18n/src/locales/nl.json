@@ -108,6 +108,7 @@
   "launch.error.showDetails": "Details van startfout",
   "launch.error.noInstance": "Selecteer een instantie",
   "launch.error.alreadyRunning": "Er is al een start bezig",
+  "launch.error.causeLabel": "Cause",
   "library.title": "Bibliotheek",
   "library.create": "Nieuwe instantie",
   "library.empty": "Nog geen instanties",

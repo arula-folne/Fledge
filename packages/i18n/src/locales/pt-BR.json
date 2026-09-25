@@ -108,6 +108,7 @@
   "launch.error.showDetails": "Detalhes do erro de inicializaﾃｧﾃ｣o",
   "launch.error.noInstance": "Selecione uma instﾃ｢ncia",
   "launch.error.alreadyRunning": "Um lanﾃｧamento jﾃ｡ estﾃ｡ em andamento",
+  "launch.error.causeLabel": "Cause",
   "library.title": "Biblioteca",
   "library.create": "Nova instﾃ｢ncia",
   "library.empty": "Nenhuma instﾃ｢ncia ainda",

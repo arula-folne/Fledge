@@ -191,7 +191,7 @@ impl LaunchOrchestrator {
                 guard_cancel: Arc::new(AtomicBool::new(false)),
             },
         );
-        self.emit_state(&session_id, profile_id, "", "preparing", None);
+        self.emit_state(&session_id, profile_id, "", "preparing", None, None);
 
         let outcome = async {
             let mc = profile
@@ -234,13 +234,20 @@ impl LaunchOrchestrator {
                     status: Some("completed".into()),
                     meta: None,
                 });
-                self.emit_state(&session_id, profile_id, "", "idle", None);
+                self.emit_state(&session_id, profile_id, "", "idle", None, None);
                 self.sessions.lock().remove(&session_id);
                 Ok(json!({ "sessionId": session_id }))
             }
             Err(err) => {
-                let key = err.to_string();
-                self.emit_state(&session_id, profile_id, "", "error", Some(&key));
+                let (key, detail) = split_launch_error(&err);
+                self.emit_state(
+                    &session_id,
+                    profile_id,
+                    "",
+                    "error",
+                    Some(&key),
+                    detail.as_deref(),
+                );
                 self.sessions.lock().remove(&session_id);
                 Err(err)
             }
@@ -282,7 +289,7 @@ impl LaunchOrchestrator {
                 guard_cancel: Arc::new(AtomicBool::new(false)),
             },
         );
-        self.emit_state(&session_id, profile_id, &account_hint, "preparing", None);
+        self.emit_state(&session_id, profile_id, &account_hint, "preparing", None, None);
 
         match self
             .start_inner(&session_id, profile_id, &profile, account_id, &abort)
@@ -290,13 +297,14 @@ impl LaunchOrchestrator {
         {
             Ok(v) => Ok(v),
             Err(err) => {
-                let key = err.to_string();
+                let (key, detail) = split_launch_error(&err);
                 self.emit_state(
                     &session_id,
                     profile_id,
                     &account_hint,
                     "error",
                     Some(&key),
+                    detail.as_deref(),
                 );
                 if let Some(s) = self.sessions.lock().remove(&session_id) {
                     s.guard_cancel.store(true, Ordering::SeqCst);
@@ -412,7 +420,9 @@ impl LaunchOrchestrator {
             )
             .await?;
             if !verify_minecraft_options_file(&instance_dir, &initial.options) {
-                return Err(CoreError::msg("launch.error.generic"));
+                return Err(CoreError::msg(
+                    "Minecraft initial options.txt could not be verified before launch",
+                ));
             }
             if let Some(s) = self.sessions.lock().get_mut(session_id) {
                 s.initial_settings_verified_at_spawn = true;
@@ -425,6 +435,7 @@ impl LaunchOrchestrator {
             profile_id,
             &account_id_resolved,
             "launching",
+            None,
             None,
         );
 
@@ -493,6 +504,7 @@ impl LaunchOrchestrator {
             profile_id,
             &account_id_resolved,
             "running",
+            None,
             None,
         );
         self.emit_phase(session_id, "running", "launch.phase.running");
@@ -579,18 +591,24 @@ impl LaunchOrchestrator {
                 code.unwrap_or(0),
             );
 
-            let (state, err_key) = if code.unwrap_or(0) != 0 {
-                ("error", Some("launch.error.gameExited"))
+            let exit_code = code.unwrap_or(0);
+            let (state, err_key, err_detail) = if exit_code != 0 {
+                (
+                    "error",
+                    Some("launch.error.gameExited"),
+                    Some(game_exit_error_detail(&dir_for_exit, exit_code)),
+                )
             } else {
-                ("exited", None)
+                ("exited", None, None)
             };
             events.emit_launch_state(json!({
               "sessionId": wait_sid,
               "profileId": wait_pid,
               "accountId": wait_aid,
               "state": state,
-              "code": code.unwrap_or(0),
-              "errorMessageKey": err_key
+              "code": exit_code,
+              "errorMessageKey": err_key,
+              "errorDetail": err_detail
             }));
             sessions.lock().remove(&wait_sid);
         });
@@ -858,6 +876,7 @@ impl LaunchOrchestrator {
         account_id: &str,
         state: &str,
         error_message_key: Option<&str>,
+        error_detail: Option<&str>,
     ) {
         if let Some(s) = self.sessions.lock().get_mut(session_id) {
             s.state = match state {
@@ -874,7 +893,8 @@ impl LaunchOrchestrator {
           "profileId": profile_id,
           "accountId": account_id,
           "state": state,
-          "errorMessageKey": error_message_key
+          "errorMessageKey": error_message_key,
+          "errorDetail": error_detail
         }));
     }
 
@@ -1063,5 +1083,92 @@ fn spawn_kill(child: Arc<AsyncMutex<GameProcess>>) {
                 });
             }
         });
+    }
+}
+
+/// i18n キー（ドット区切り・空白なし）ならキーのみ。それ以外は generic + 詳細。
+fn split_launch_error(err: &CoreError) -> (String, Option<String>) {
+    let raw = err.to_string();
+    let trimmed = raw.trim();
+    if looks_like_message_key(trimmed) {
+        return (trimmed.to_string(), None);
+    }
+    ("launch.error.generic".into(), Some(trimmed.to_string()))
+}
+
+fn looks_like_message_key(value: &str) -> bool {
+    if value.is_empty() || value.contains(' ') || value.contains('\n') {
+        return false;
+    }
+    let mut parts = value.split('.');
+    let Some(first) = parts.next() else {
+        return false;
+    };
+    if first.is_empty()
+        || !first
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic())
+    {
+        return false;
+    }
+    let mut count = 1usize;
+    for part in parts {
+        if part.is_empty() || !part.chars().all(|c| c.is_ascii_alphanumeric()) {
+            return false;
+        }
+        count += 1;
+    }
+    count >= 2
+}
+
+fn game_exit_error_detail(instance_dir: &Path, exit_code: i32) -> String {
+    let mut parts = vec![format!("exit code {exit_code}")];
+    if let Some(snippet) = crash_snippet_from_latest_log(instance_dir) {
+        parts.push(snippet);
+    }
+    parts.join("\n")
+}
+
+fn crash_snippet_from_latest_log(instance_dir: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(latest_log_path(instance_dir)).ok()?;
+    if text.trim().is_empty() {
+        return None;
+    }
+    const MARKERS: &[&str] = &[
+        "---- Minecraft Crash Report ----",
+        "Exception in thread",
+        "Caused by:",
+        "java.lang.",
+        "Error occurred during initialization",
+        "Could not find or load main class",
+        "UnsupportedClassVersionError",
+        "NoClassDefFoundError",
+        "Mixin apply failed",
+        "Incompatible mods found",
+    ];
+    let lines: Vec<&str> = text.lines().map(str::trim).filter(|l| !l.is_empty()).collect();
+    let mut start = None;
+    for (i, line) in lines.iter().enumerate().rev() {
+        if MARKERS.iter().any(|m| line.contains(m)) {
+            start = Some(i);
+            break;
+        }
+    }
+    let start = start.unwrap_or_else(|| lines.len().saturating_sub(8));
+    let end = (start + 12).min(lines.len());
+    let chunk = lines[start..end].join("\n");
+    if chunk.is_empty() {
+        return None;
+    }
+    const MAX: usize = 700;
+    if chunk.len() > MAX {
+        let mut cut = MAX;
+        while cut > 0 && !chunk.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        Some(format!("{}…", &chunk[..cut]))
+    } else {
+        Some(chunk)
     }
 }

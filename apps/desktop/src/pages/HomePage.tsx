@@ -41,7 +41,7 @@ export default function HomePage() {
       ].join(' ')}
     >
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden lg:h-full">
-        <HomeLibrarySection instances={instances} newsMinimized={!showNews} />
+        <HomeLibrarySection instances={instances} />
       </div>
 
       {showNews ? (

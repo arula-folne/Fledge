@@ -108,6 +108,7 @@
   "launch.error.showDetails": "Detalles del error de inicio",
   "launch.error.noInstance": "Selecciona una instancia",
   "launch.error.alreadyRunning": "Ya hay un lanzamiento en curso",
+  "launch.error.causeLabel": "Cause",
   "library.title": "Biblioteca",
   "library.create": "Nueva instancia",
   "library.empty": "Aﾃｺn no hay instancias",

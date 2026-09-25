@@ -108,6 +108,7 @@
   "launch.error.showDetails": "Launch error details",
   "launch.error.noInstance": "Select an instance",
   "launch.error.alreadyRunning": "A launch is already in progress",
+  "launch.error.causeLabel": "Cause",
   "library.title": "Library",
   "library.create": "New instance",
   "library.empty": "No instances yet",

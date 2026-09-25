@@ -108,6 +108,7 @@
   "launch.error.showDetails": "Dettagli errore di avvio",
   "launch.error.noInstance": "Seleziona un'istanza",
   "launch.error.alreadyRunning": "Un lancio ﾃｨ giﾃ in corso",
+  "launch.error.causeLabel": "Cause",
   "library.title": "Biblioteca",
   "library.create": "Nuova istanza",
   "library.empty": "Nessuna istanza ancora",

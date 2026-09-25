@@ -622,6 +622,8 @@ export const LaunchStateEventSchema = z.object({
   state: LaunchStateSchema,
   code: z.number().optional(),
   errorMessageKey: z.string().optional(),
+  /** 技術的な原因（終了コード・ログ抜粋・例外メッセージなど）。UI で要約の下に表示 */
+  errorDetail: z.string().optional(),
 })
 export type LaunchStateEvent = z.infer<typeof LaunchStateEventSchema>
 

@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.5.31",
+    "title": "【バージョンアップ】Fledge Ver.0.5.31",
+    "body": "**Fledge Ver.0.5.31** を公開しました。\n\n## 主な変更\n\n- 起動失敗時のエラー表示に原因（終了コード・ログ抜粋など）を表示\n- お知らせを閉じてもライブラリのカード列数が変わらないよう修正\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-09-25T17:00:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.5.31"
+  },
+  {
     "id": "v0.5.30",
     "title": "【バージョンアップ】Fledge Ver.0.5.30",
     "body": "**Fledge Ver.0.5.30** を公開しました。\n\n## 主な変更\n\n- 更新確認ボタンを押すとお知らせもリアルタイムで再取得・反映\n- リリース時のお知らせ更新を手順として必須化\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

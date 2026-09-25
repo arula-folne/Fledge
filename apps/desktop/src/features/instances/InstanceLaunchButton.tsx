@@ -11,6 +11,7 @@ import {
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
 import { formatProgressMessage } from '../launch/formatProgressMessage'
+import { formatLaunchErrorDisplay } from '../launch/formatLaunchErrorDisplay'
 import { startLogin } from '../auth/loginAction'
 import { sessionQueryOptions } from '../auth/sessionCache'
 import { useLaunchStore, useUiStore, useInstanceCreateStore } from '../../stores/appStores'
@@ -207,10 +208,21 @@ export function InstanceLaunchButton({
   const errorMessageKey = useLaunchStore((s) =>
     s.errorProfileId === instanceId ? s.errorMessageKey : null,
   )
+  const errorDetail = useLaunchStore((s) =>
+    s.errorProfileId === instanceId ? s.errorDetail : null,
+  )
   const launchErrorPreview = useDebugStore((s) => s.launchErrorPreview)
   const previewErrorKey =
     IS_DEV && launchErrorPreview && !errorMessageKey ? 'launch.error.gameExited' : null
   const displayErrorKey = errorMessageKey ?? previewErrorKey
+  const displayErrorDetail =
+    errorDetail ??
+    (IS_DEV && launchErrorPreview && !errorMessageKey
+      ? 'exit code 1\njava.lang.Exception: (debug preview)'
+      : null)
+  const errorDisplay = displayErrorKey
+    ? formatLaunchErrorDisplay(t, displayErrorKey, displayErrorDetail)
+    : null
 
   const busyInstalling =
     creating || state === 'preparing' || state === 'launching'
@@ -374,7 +386,7 @@ export function InstanceLaunchButton({
 
   const showProgressBlock =
     showProgress && (state === 'preparing' || state === 'launching')
-  const showError = Boolean(displayErrorKey)
+  const showError = Boolean(errorDisplay)
   const [errorOpen, setErrorOpen] = useState(false)
   const [errorHover, setErrorHover] = useState(false)
   const errorWrapRef = useRef<HTMLDivElement>(null)
@@ -433,7 +445,7 @@ export function InstanceLaunchButton({
       const btn = errorBtnRef.current
       if (!btn) return
       const rect = btn.getBoundingClientRect()
-      const width = Math.min(288, window.innerWidth * 0.7)
+      const width = Math.min(360, window.innerWidth * 0.82)
       let left = rect.right - width
       left = Math.max(8, Math.min(left, window.innerWidth - width - 8))
       const placeAbove = rect.top > 80
@@ -487,7 +499,7 @@ export function InstanceLaunchButton({
             <div
               ref={errorTipRef}
               role="tooltip"
-              className="pointer-events-auto fixed z-[200] w-[min(18rem,70vw)] rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs leading-relaxed text-[var(--color-danger)] shadow-md"
+              className="pointer-events-auto fixed z-[200] w-[min(22.5rem,82vw)] max-h-[min(40vh,16rem)] overflow-y-auto rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs leading-relaxed shadow-md"
               style={{
                 top: errorPos.top,
                 left: errorPos.left,
@@ -497,7 +509,17 @@ export function InstanceLaunchButton({
               onMouseEnter={() => setErrorHoverSoon(true)}
               onMouseLeave={() => setErrorHoverSoon(false)}
             >
-              {t(displayErrorKey!)}
+              <p className="font-medium text-[var(--color-danger)]">{errorDisplay!.summary}</p>
+              {errorDisplay!.detail ? (
+                <div className="mt-2 space-y-1 border-t border-[var(--color-border)] pt-2">
+                  <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
+                    {t('launch.error.causeLabel')}
+                  </p>
+                  <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-snug text-[var(--color-text)]">
+                    {errorDisplay!.detail}
+                  </pre>
+                </div>
+              ) : null}
             </div>,
             document.body,
           )

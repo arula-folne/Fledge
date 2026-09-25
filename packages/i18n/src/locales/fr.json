@@ -108,6 +108,7 @@
   "launch.error.showDetails": "Dﾃｩtails de l窶册rreur de lancement",
   "launch.error.noInstance": "Sﾃｩlectionnez une instance",
   "launch.error.alreadyRunning": "Un lancement est dﾃｩjﾃ en cours",
+  "launch.error.causeLabel": "Cause",
   "library.title": "Bibliothﾃｨque",
   "library.create": "Nouvelle instance",
   "library.empty": "Aucune instance pour le moment",

@@ -28,6 +28,8 @@ type LaunchStore = {
   progress: ProgressEvent | null
   phaseMessageKey: string | null
   errorMessageKey: string | null
+  /** 起動失敗の技術的原因（UI ポップアップ用） */
+  errorDetail: string | null
   errorProfileId: string | null
   lastExitCode: number | null
   applyStateEvent: (e: LaunchStateEvent) => void
@@ -71,6 +73,7 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
   progress: null,
   phaseMessageKey: null,
   errorMessageKey: null,
+  errorDetail: null,
   errorProfileId: null,
   lastExitCode: null,
 
@@ -126,6 +129,14 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
                 ? null
                 : s.errorMessageKey
               : s.errorMessageKey,
+        errorDetail:
+          e.state === 'error'
+            ? (e.errorDetail?.trim() ? e.errorDetail : null)
+            : e.state === 'preparing' || e.state === 'launching' || e.state === 'running'
+              ? e.profileId === s.errorProfileId
+                ? null
+                : s.errorDetail
+              : s.errorDetail,
         errorProfileId:
           e.state === 'error'
             ? (e.profileId ?? s.errorProfileId)
@@ -202,6 +213,8 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
       progress: null,
       phaseMessageKey: null,
       errorMessageKey: null,
+      errorDetail: null,
+      errorProfileId: null,
       lastExitCode: null,
     }),
 
