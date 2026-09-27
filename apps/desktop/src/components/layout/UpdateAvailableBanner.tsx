@@ -44,6 +44,8 @@ export function UpdateAvailableBanner() {
   const [percent, setPercent] = useState(0)
   const [checkFeedback, setCheckFeedback] = useState<CheckFeedback>(null)
   const [checking, setChecking] = useState(false)
+  /** 押下のたびにアイコンを再マウントして spin を必ず再開する */
+  const [spinKey, setSpinKey] = useState(0)
 
   const updateQuery = useQuery({
     queryKey: ['updater', 'check', channel],
@@ -121,6 +123,8 @@ export function UpdateAvailableBanner() {
     if (checking || applying) return
     setCheckFeedback(null)
     setChecking(true)
+    setSpinKey((k) => k + 1)
+    const startedAt = Date.now()
     try {
       const [result] = await Promise.all([
         fledgeApi.updater.check(channel, { force: true }),
@@ -143,6 +147,12 @@ export function UpdateAvailableBanner() {
     } catch {
       setCheckFeedback('failed')
     } finally {
+      // キャッシュ命中などで一瞬で終わる場合も、確認アニメーションが見えるよう最低時間を確保
+      const elapsed = Date.now() - startedAt
+      const minSpinMs = 700
+      if (elapsed < minSpinMs) {
+        await new Promise((resolve) => window.setTimeout(resolve, minSpinMs - elapsed))
+      }
       setChecking(false)
     }
   }
@@ -201,6 +211,7 @@ export function UpdateAvailableBanner() {
               onClick={() => void handleManualCheck()}
             >
               <IconRefresh
+                key={spinKey}
                 size={16}
                 stroke={1.75}
                 className={checking ? 'animate-spin' : ''}
