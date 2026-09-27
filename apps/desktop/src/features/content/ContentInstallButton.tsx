@@ -1,5 +1,5 @@
 import { forwardRef } from 'react'
-import { IconCheck, IconDownload } from '@tabler/icons-react'
+import { IconCheck, IconDownload, IconLoader2 } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 
 const EASE = 'duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]'
@@ -26,16 +26,25 @@ const iconOnlySizeClass = 'size-10 p-0'
 
 const versionSizeClass = 'h-11 min-w-[9rem] max-w-[12rem] px-2.5 text-sm'
 
-function InstallIcon({ installed }: { installed: boolean }) {
+function InstallIcon({ installed, installing }: { installed: boolean; installing: boolean }) {
   return (
     <span className="relative inline-flex size-4 shrink-0 items-center justify-center" aria-hidden>
+      <IconLoader2
+        size={16}
+        stroke={1.75}
+        className={[
+          'absolute transition-[opacity,transform]',
+          EASE,
+          installing ? 'animate-spin scale-100 opacity-100' : 'scale-75 opacity-0',
+        ].join(' ')}
+      />
       <IconDownload
         size={16}
         stroke={1.75}
         className={[
           'absolute transition-[opacity,transform]',
           EASE,
-          installed ? 'scale-75 opacity-0' : 'scale-100 opacity-100',
+          !installing && !installed ? 'scale-100 opacity-100' : 'scale-75 opacity-0',
         ].join(' ')}
       />
       <IconCheck
@@ -44,7 +53,7 @@ function InstallIcon({ installed }: { installed: boolean }) {
         className={[
           'absolute transition-[opacity,transform]',
           EASE,
-          installed ? 'scale-100 opacity-100' : 'scale-75 opacity-0',
+          !installing && installed ? 'scale-100 opacity-100' : 'scale-75 opacity-0',
         ].join(' ')}
       />
     </span>
@@ -136,13 +145,12 @@ export const ContentInstallButton = forwardRef<HTMLButtonElement, Props>(
           installed
             ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] opacity-80 shadow-none'
             : 'border-transparent bg-[rgb(176,214,232)] text-[rgb(36,78,102)] hover:brightness-110 disabled:opacity-50',
-          installing && iconOnly ? 'animate-pulse' : '',
           dim,
           className,
         ].join(' ')}
         onClick={disabled || installed ? undefined : onInstall}
       >
-        <InstallIcon installed={installed} />
+        <InstallIcon installed={installed} installing={installing} />
         {iconOnly ? null : (
           <InstallLabel installed={installed} installing={installing} mode={mode} />
         )}
@@ -165,10 +173,14 @@ export function ContentVersionInstallButton({
   const { t } = useTranslation()
   const aria =
     mode === 'create'
-      ? t('content.createInstance')
+      ? installing
+        ? t('content.creatingInstance')
+        : t('content.createInstance')
       : installed
         ? t('content.installed')
-        : t('content.install')
+        : installing
+          ? t('content.installing')
+          : t('content.install')
 
   return (
     <button
@@ -188,7 +200,7 @@ export function ContentVersionInstallButton({
       ].join(' ')}
       onClick={installed || installing ? undefined : onInstall}
     >
-      <InstallIcon installed={installed} />
+      <InstallIcon installed={installed} installing={installing} />
       <InstallLabel installed={installed} installing={installing} compact mode={mode} />
     </button>
   )

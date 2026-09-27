@@ -22,6 +22,7 @@ import {
   type Loader,
   type MrpackExportCandidates,
   type MrpackExportContentCandidate,
+  type MrpackExportDirListing,
   type MrpackExportOptions,
   type MrpackExportOverrideCandidate,
   loaderToContentFilters,
@@ -62,11 +63,24 @@ type IndexFile = { items: InstalledContent[]; invalidItems?: unknown[] }
 
 const EXPORT_EXCLUDED_ROOTS = new Set([
   '.fledge',
+])
+
+/** 既定では選ばないが、ユーザーが探索して含められるルート */
+const EXPORT_DEFAULT_UNSELECTED_ROOTS = new Set([
   'saves',
   'logs',
   'screenshots',
   'crash-reports',
   'backups',
+])
+
+const EXPORT_DEFAULT_SELECTED_ROOTS = new Set([
+  'mods',
+  'resourcepacks',
+  'shaderpacks',
+  'datapacks',
+  'config',
+  'defaultconfigs',
 ])
 
 async function listFilesRecursive(root: string, rel = ''): Promise<string[]> {
@@ -142,6 +156,23 @@ function isExportExcludedPath(rel: string): boolean {
     EXPORT_EXCLUDED_ROOTS.has(root) ||
     lower.endsWith('.disabled')
   )
+}
+
+function isExportPathSelected(rel: string, selected: Set<string>): boolean {
+  const lower = rel.replaceAll('\\', '/').toLowerCase()
+  for (const raw of selected) {
+    const sel = raw.replaceAll('\\', '/').toLowerCase().replace(/\/+$/, '')
+    if (!sel) continue
+    if (lower === sel || lower.startsWith(`${sel}/`)) return true
+  }
+  return false
+}
+
+function defaultSelectedExportRoot(name: string): boolean {
+  const lower = name.toLowerCase()
+  if (EXPORT_DEFAULT_UNSELECTED_ROOTS.has(lower)) return false
+  if (EXPORT_DEFAULT_SELECTED_ROOTS.has(lower)) return true
+  return false
 }
 
 type ResolvedContentExport = {
@@ -730,7 +761,7 @@ export class ContentService {
       overrides.push({
         path: rel,
         size,
-        defaultSelected: true,
+        defaultSelected: defaultSelectedExportRoot(rel.split('/')[0] ?? rel),
       })
     }
     overrides.sort((a, b) => a.path.localeCompare(b.path, 'ja'))
@@ -741,6 +772,66 @@ export class ContentService {
       contents,
       overrides,
     }
+  }
+
+  /** インスタンス内ディレクトリを1階層一覧（mrpack エクスポートの探索用） */
+  async listMrpackExportDir(
+    instanceId: string,
+    relativePath = '',
+  ): Promise<MrpackExportDirListing> {
+    const profile = await this.instances.get(instanceId)
+    if (!profile) throw new Error(`Instance not found: ${instanceId}`)
+    const instanceDir = this.instances.instanceDir(instanceId)
+    const normalized = relativePath.replaceAll('\\', '/').replace(/^\/+|\/+$/g, '')
+    if (normalized.includes('..') || isExportExcludedPath(normalized || '.fledge')) {
+      throw new Error('Invalid export path')
+    }
+    const dir = normalized ? path.join(instanceDir, normalized) : instanceDir
+    let entries: import('node:fs').Dirent[]
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true })
+    } catch {
+      return { path: normalized, entries: [] }
+    }
+
+    const rows: MrpackExportDirListing['entries'] = []
+    for (const entry of entries) {
+      const childRel = normalized ? `${normalized}/${entry.name}` : entry.name
+      const childNorm = childRel.replaceAll('\\', '/')
+      if (isExportExcludedPath(childNorm)) continue
+      if (entry.name === '.fledge' || entry.name.toLowerCase() === 'profile.json') continue
+      if (/^icon\.[^.]+$/i.test(entry.name) && !normalized) continue
+
+      const full = path.join(dir, entry.name)
+      let size = 0
+      let mtimeMs = 0
+      try {
+        const stat = await fs.stat(full)
+        size = entry.isDirectory() ? 0 : stat.size
+        mtimeMs = stat.mtimeMs
+      } catch {
+        continue
+      }
+
+      const rootName = (normalized ? normalized.split('/')[0] : entry.name) ?? entry.name
+      rows.push({
+        name: entry.name,
+        path: childNorm,
+        kind: entry.isDirectory() ? 'directory' : 'file',
+        size,
+        mtimeMs,
+        defaultSelected: !normalized
+          ? defaultSelectedExportRoot(entry.name)
+          : defaultSelectedExportRoot(rootName),
+      })
+    }
+
+    rows.sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === 'directory' ? -1 : 1
+      return a.name.localeCompare(b.name, 'ja', { sensitivity: 'base' })
+    })
+
+    return { path: normalized, entries: rows }
   }
 
   /** インスタンス構成を Modrinth Modpack Format (.mrpack) で保存する。 */
@@ -808,7 +899,7 @@ export class ContentService {
       if (
         isExportExcludedPath(rel) ||
         referencedPaths.has(lower) ||
-        (filterOverrides && !selectedOverrides.has(lower)) ||
+        (filterOverrides && !isExportPathSelected(rel, selectedOverrides)) ||
         (filterContent &&
           contentPathToId.has(lower) &&
           !selectedContent.has(contentPathToId.get(lower)!))
@@ -833,7 +924,7 @@ export class ContentService {
     const mrpackIndex: MrpackIndex = {
       formatVersion: 1,
       game: 'minecraft',
-      versionId: randomUUID(),
+      versionId: options?.versionId?.trim() || '1.0.0',
       name: options?.name?.trim() || profile.name,
       summary:
         options?.summary?.trim() ||

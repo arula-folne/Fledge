@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { getFledgeUiScaleRoot } from '../../components/layout/fledgeUiScaleRoot'
 import { IconUser } from '@tabler/icons-react'
 import { fledgeApi } from '../../api/fledgeApi'
 import { applyLoggedInAccount, loadSessionQuery, sessionQueryOptions } from './sessionCache'
@@ -270,7 +271,7 @@ export function AccountChip() {
               ) : null}
             </div>
           </div>,
-          document.body,
+          getFledgeUiScaleRoot(),
         )
       : null
 

@@ -84,7 +84,9 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<string | null>(null)
   const [restartNoticeOpen, setRestartNoticeOpen] = useState(false)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
+  const [resetDoneOpen, setResetDoneOpen] = useState(false)
   const [factoryResetOpen, setFactoryResetOpen] = useState(false)
+  const [factoryResetConfirmReady, setFactoryResetConfirmReady] = useState(false)
   const [factoryResetProgress, setFactoryResetProgress] = useState<{
     percent: number
     messageKey: string
@@ -167,7 +169,7 @@ export default function SettingsPage() {
     onSuccess: async (next) => {
       applyTheme(next)
       queryClient.setQueryData(['settings'], next)
-      setMessage(t('settings.resetAllDone'))
+      setResetDoneOpen(true)
     },
     onError: (err) => {
       setMessage(err instanceof Error ? err.message : String(err))
@@ -199,6 +201,16 @@ export default function SettingsPage() {
       setMessage(err instanceof Error ? err.message : String(err))
     },
   })
+
+  useEffect(() => {
+    if (!factoryResetOpen || factoryResetMutation.isPending) {
+      setFactoryResetConfirmReady(false)
+      return
+    }
+    setFactoryResetConfirmReady(false)
+    const timer = window.setTimeout(() => setFactoryResetConfirmReady(true), 2000)
+    return () => window.clearTimeout(timer)
+  }, [factoryResetOpen, factoryResetMutation.isPending])
 
   useEffect(() => {
     return fledgeApi.on.progress((e) => {
@@ -770,16 +782,6 @@ export default function SettingsPage() {
                 saveRestartRequiredSetting({ hardwareAcceleration })
               }
             />
-            <div className="space-y-3 border-t border-[var(--color-border)] pt-5">
-              <p className="text-xs text-[var(--color-text-muted)]">{t('settings.resetAllHint')}</p>
-              <Button
-                variant="danger"
-                disabled={resetMutation.isPending}
-                onClick={() => setResetConfirmOpen(true)}
-              >
-                {t('settings.resetAll')}
-              </Button>
-            </div>
           </Section>
         </>
       ) : null}
@@ -1085,6 +1087,17 @@ export default function SettingsPage() {
               </Button>
             </div>
             <div>
+              <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.resetAll')}</h3>
+              <p className="mt-1 mb-2 text-xs text-[var(--color-text-muted)]">{t('settings.resetAllHint')}</p>
+              <Button
+                variant="warning"
+                disabled={resetMutation.isPending}
+                onClick={() => setResetConfirmOpen(true)}
+              >
+                {t('settings.resetAll')}
+              </Button>
+            </div>
+            <div>
               <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.factoryReset')}</h3>
               <p className="mt-1 mb-2 text-xs text-[var(--color-text-muted)]">{t('settings.factoryResetHint')}</p>
               <Button
@@ -1135,6 +1148,7 @@ export default function SettingsPage() {
         title={t('settings.resetAll')}
         body={t('settings.resetAllConfirm')}
         confirmLabel={t('settings.resetAll')}
+        confirmVariant="warning"
         pending={resetMutation.isPending}
         onCancel={() => setResetConfirmOpen(false)}
         onConfirm={() => {
@@ -1143,6 +1157,19 @@ export default function SettingsPage() {
           })
         }}
       />
+      <Dialog
+        open={resetDoneOpen}
+        title={t('settings.resetAllDoneTitle')}
+        onClose={() => setResetDoneOpen(false)}
+        compact
+        footer={
+          <Button type="button" variant="primary" onClick={() => setResetDoneOpen(false)}>
+            {t('common.close')}
+          </Button>
+        }
+      >
+        <p className="text-sm leading-relaxed text-[var(--color-text)]">{t('settings.resetAllDone')}</p>
+      </Dialog>
       <Dialog
         open={factoryResetOpen}
         title={
@@ -1167,6 +1194,11 @@ export default function SettingsPage() {
               <Button
                 type="button"
                 variant="danger"
+                disabled={!factoryResetConfirmReady}
+                className={[
+                  'transition-opacity duration-500',
+                  factoryResetConfirmReady ? 'opacity-100' : '!opacity-35',
+                ].join(' ')}
                 onClick={() => factoryResetMutation.mutate()}
               >
                 {t('settings.factoryReset')}

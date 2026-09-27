@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { getFledgeUiScaleRoot } from '../../components/layout/fledgeUiScaleRoot'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -247,7 +248,7 @@ export function ScreenshotGallery({
               {t('library.screenshotDelete')}
             </button>
           </div>,
-          document.body,
+          getFledgeUiScaleRoot(),
         )
       : null
 

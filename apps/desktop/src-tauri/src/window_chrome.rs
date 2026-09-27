@@ -104,10 +104,9 @@ pub fn apply_launcher_window_size(window: &WebviewWindow, settings: &Value) {
 }
 
 pub fn apply_window_ui_scale(window: &WebviewWindow, settings: &Value) {
-    let scale = settings
-        .get("uiScale")
-        .and_then(|v| v.as_str())
-        .unwrap_or("normal");
+    // WebView zoom は常にノーマル相当。UI サイズ差はフロントの CSS zoom で付ける
+    //（タイトルバーを拡大再ラスタでぼやけさせないため）。settings は将来用に受け取る。
+    let _ = settings;
     let size = window
         .inner_size()
         .ok()
@@ -116,7 +115,7 @@ pub fn apply_window_ui_scale(window: &WebviewWindow, settings: &Value) {
             (s.width as f64 / factor, s.height as f64 / factor)
         })
         .unwrap_or((1280.0, 720.0));
-    let zoom = resolve_window_zoom_factor(scale, size.0, size.1);
+    let zoom = resolve_window_zoom_factor("normal", size.0, size.1);
     let bits = zoom.to_bits();
     let prev = LAST_UI_ZOOM_BITS.load(Ordering::Relaxed);
     if prev != 0 && (f64::from_bits(prev) - zoom).abs() < 0.005 {

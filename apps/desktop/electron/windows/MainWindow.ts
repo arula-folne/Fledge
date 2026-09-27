@@ -35,7 +35,8 @@ export function applyWindowUiScale(win: BrowserWindow, scale: UiScale = activeUi
   const size = win.getSize()
   const width = size[0] ?? LAUNCHER_WINDOW_MIN_WIDTH
   const height = size[1] ?? LAUNCHER_WINDOW_MIN_HEIGHT
-  const factor = resolveWindowZoomFactor(scale, width, height)
+  // WebView zoom は常にノーマル相当。UI サイズ差はフロントの CSS zoom で付ける。
+  const factor = resolveWindowZoomFactor('normal', width, height)
   if (Math.abs(win.webContents.getZoomFactor() - factor) < 0.005) return
   win.webContents.setZoomFactor(factor)
 }

@@ -23,6 +23,7 @@ import type {
   LoaderGameVersionListResult,
   LoaderVersionListResult,
   MrpackExportCandidates,
+  MrpackExportDirListing,
   MrpackExportOptions,
   NewsItem,
   PathInfo,
@@ -112,6 +113,10 @@ export type FledgeApi = {
     importMrpack: () => Promise<InstanceProfile | null>
     importMrpackFromPath: (filePath: string) => Promise<InstanceProfile>
     listMrpackExportCandidates: (instanceId: string) => Promise<MrpackExportCandidates>
+    listMrpackExportDir: (
+      instanceId: string,
+      relativePath?: string,
+    ) => Promise<MrpackExportDirListing>
     exportMrpack: (instanceId: string, options?: MrpackExportOptions) => Promise<string | null>
   }
   skins: {

@@ -394,7 +394,7 @@ export default function BrowsePage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden">
       <header className="shrink-0">
         <h1 className="text-lg font-semibold text-[var(--color-text)]">{t('content.browsePageTitle')}</h1>
         <p className="mt-0.5 text-sm text-[var(--color-text-muted)]">{t('content.browsePageSubtitle')}</p>
@@ -416,7 +416,14 @@ export default function BrowsePage() {
             setTags([])
           }}
         />
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+        <div
+          ref={listScrollRef}
+          className={[
+            'min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] transition-opacity',
+            searchQuery.isFetching && !searchQuery.isPending ? 'opacity-80' : '',
+          ].join(' ')}
+        >
+          <div className="flex flex-col gap-2 pb-2">
           <div data-fledge-tutorial="tutorial-browse-tabs">
             <ContentSearchCategoryTabs
               tabs={browsePageSearchTabs()}
@@ -436,7 +443,7 @@ export default function BrowsePage() {
             />
           ) : null}
 
-          <div className="flex shrink-0 flex-col gap-2">
+          <div className="flex flex-col gap-2">
             <div className="relative w-full">
               <IconSearch
                 size={16}
@@ -484,7 +491,7 @@ export default function BrowsePage() {
                   }))}
                 />
               </label>
-              <div className="ml-auto shrink-0">
+              <div className="ml-auto mr-8 shrink-0">
                 <PageNav page={page} pageCount={pageCount} onChange={setPage} />
               </div>
             </div>
@@ -520,13 +527,6 @@ export default function BrowsePage() {
             </p>
           ) : null}
 
-          <div
-            ref={listScrollRef}
-            className={[
-              'min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable] transition-opacity',
-              searchQuery.isFetching && !searchQuery.isPending ? 'opacity-80' : '',
-            ].join(' ')}
-          >
             {searchQuery.isPending && !searchQuery.data && !isFavoritesTab(searchTab) ? (
               <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
             ) : searchQuery.isError && hits.length === 0 ? null : hits.length === 0 ? (
@@ -580,12 +580,12 @@ export default function BrowsePage() {
                 }}
               />
             )}
-          </div>
 
-          <div className="flex min-h-9 shrink-0 items-center justify-end border-t border-[var(--color-border)] pt-2">
-            {pageCount > 1 ? (
+          {pageCount > 1 ? (
+            <div className="flex min-h-9 items-center justify-end border-t border-[var(--color-border)] pr-8 pt-2">
               <PageNav page={page} pageCount={pageCount} onChange={setPage} />
-            ) : null}
+            </div>
+          ) : null}
           </div>
         </div>
       </div>

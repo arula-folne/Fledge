@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
+import { getFledgeUiScaleRoot } from '../../components/layout/fledgeUiScaleRoot'
 import { useTranslation } from 'react-i18next'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { fledgeApi } from '../../api/fledgeApi'
@@ -378,6 +379,6 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
         </div>
       </div>
     </div>,
-    document.body,
+    getFledgeUiScaleRoot(),
   )
 }

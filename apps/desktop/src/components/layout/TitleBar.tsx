@@ -6,6 +6,7 @@ import { TextLogo } from '../brand/TextLogo'
 
 /**
  * OS 枠なし時の独自タイトルバー（Tabler Icons）
+ * WebView zoom の影響外（ノーマル固定）で描画し、ぼやけを防ぐ。
  */
 export function TitleBar() {
   const { t } = useTranslation()
@@ -27,7 +28,7 @@ export function TitleBar() {
   return (
     <header
       data-tauri-drag-region
-      className="relative z-[110] flex h-8 shrink-0 items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] select-none"
+      className="flex h-8 w-full items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] select-none"
       style={{ WebkitAppRegion: 'drag' } as CSSProperties}
     >
       <div className="flex min-w-0 flex-1 items-center gap-2 px-2.5" data-tauri-drag-region>
@@ -41,7 +42,7 @@ export function TitleBar() {
           label={t('window.minimize')}
           onClick={() => void fledgeApi.window.minimize()}
         >
-          <IconMinus size={14} stroke={1.75} />
+          <IconMinus size={14} stroke={1.75} className="block" />
         </TitleBtn>
         <TitleBtn
           label={maximized ? t('window.restore') : t('window.maximize')}
@@ -50,9 +51,9 @@ export function TitleBar() {
           }}
         >
           {maximized ? (
-            <IconCopy size={13} stroke={1.75} />
+            <IconCopy size={13} stroke={1.75} className="block" />
           ) : (
-            <IconSquare size={13} stroke={1.75} />
+            <IconSquare size={13} stroke={1.75} className="block" />
           )}
         </TitleBtn>
         <TitleBtn
@@ -60,7 +61,7 @@ export function TitleBar() {
           danger
           onClick={() => void fledgeApi.window.close()}
         >
-          <IconX size={14} stroke={1.75} />
+          <IconX size={14} stroke={1.75} className="block" />
         </TitleBtn>
       </div>
     </header>

@@ -111,18 +111,20 @@ export default function InstanceContentBrowsePage({ mode }: Props) {
         </div>
       )}
     >
-      <AddContentModal
-        open
-        browseMode={browseMode}
-        onClose={goDetail}
-        instance={instance}
-        projectId={projectId}
-        onSelectProject={selectProject}
-        onBackFromProject={backFromProject}
-        onInstalled={() => {
-          void queryClient.invalidateQueries({ queryKey: ['content-installed', instance.id] })
-        }}
-      />
+      <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+        <AddContentModal
+          open
+          browseMode={browseMode}
+          onClose={goDetail}
+          instance={instance}
+          projectId={projectId}
+          onSelectProject={selectProject}
+          onBackFromProject={backFromProject}
+          onInstalled={() => {
+            void queryClient.invalidateQueries({ queryKey: ['content-installed', instance.id] })
+          }}
+        />
+      </div>
     </RouteErrorBoundary>
   )
 }

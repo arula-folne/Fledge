@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { getFledgeUiScaleRoot } from '../../components/layout/fledgeUiScaleRoot'
 import { useTranslation } from 'react-i18next'
 
 export type InstanceContextMenuState = {
@@ -100,6 +101,6 @@ export function InstanceContextMenu({
       <div className="my-1 border-t border-[var(--color-border)]" />
       <MenuItem label={t('instances.delete')} danger onClick={onDelete} />
     </div>,
-    document.body,
+    getFledgeUiScaleRoot(),
   )
 }

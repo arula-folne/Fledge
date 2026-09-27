@@ -1,10 +1,12 @@
-import { IconStar, IconStarFilled } from '@tabler/icons-react'
+import { IconDownload, IconHistory, IconStar, IconStarFilled } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 import type { ContentProject } from '@fledge/shared'
 import { HoverTip } from '../../components/ui/HoverTip'
+import { ContentFallbackIcon } from './contentCategoryIcons'
 import { ContentInstallButton } from './ContentInstallButton'
 import { ProjectTagRow } from './ContentTags'
 import { formatJaCount } from '../../utils/formatJaCount'
+import { formatRelativeTime } from '../../utils/formatRelativeTime'
 
 type Props = {
   hit: ContentProject
@@ -51,6 +53,7 @@ export function ContentSearchHitRow({
         ? t('content.installed')
         : t('content.installHover')
   const favoriteTip = favorited ? t('content.favorite.removeHover') : t('content.favorite.addHover')
+  const updatedLabel = formatRelativeTime(hit.dateModified, t)
 
   return (
     <li>
@@ -114,7 +117,7 @@ export function ContentSearchHitRow({
               ].join(' ')}
             />
           ) : (
-            <div className="size-12 shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)]" />
+            <ContentFallbackIcon size={24} boxClassName="size-12" />
           )}
           <div className="grid min-w-0 flex-1 grid-rows-[auto_1.25rem_minmax(1.5rem,auto)] gap-1.5">
             <div className="flex min-w-0 items-baseline gap-2.5">
@@ -129,7 +132,8 @@ export function ContentSearchHitRow({
                   {t('content.favorite.incompatible')}
                 </span>
               ) : null}
-              <span className="ml-auto shrink-0 text-sm tabular-nums leading-snug text-[var(--color-text-muted)]">
+              <span className="ml-auto inline-flex shrink-0 items-center gap-1 text-sm tabular-nums leading-snug text-[var(--color-text-muted)]">
+                <IconDownload size={15} stroke={1.75} className="shrink-0 opacity-80" aria-hidden />
                 {formatJaCount(hit.downloads)}
               </span>
             </div>
@@ -138,18 +142,26 @@ export function ContentSearchHitRow({
                 ? t('content.favorite.incompatible')
                 : hit.description?.trim() || '\u00a0'}
             </p>
-            <div className="min-h-[1.5rem] overflow-x-clip pb-px leading-5">
-              {compatDebug ? (
-                <p className="overflow-x-clip text-ellipsis whitespace-nowrap font-mono text-[11px] leading-5 text-[var(--color-text-muted)]">
-                  {compatDebug}
-                </p>
-              ) : (
-                <ProjectTagRow
-                  categories={hit.displayCategories ?? []}
-                  loaders={hit.loaders ?? []}
-                  tagIcons={tagIcons}
-                />
-              )}
+            <div className="flex min-h-[1.5rem] items-center gap-2 overflow-x-clip pb-px leading-5">
+              <div className="min-w-0 flex-1 overflow-x-clip">
+                {compatDebug ? (
+                  <p className="overflow-x-clip text-ellipsis whitespace-nowrap font-mono text-[11px] leading-5 text-[var(--color-text-muted)]">
+                    {compatDebug}
+                  </p>
+                ) : (
+                  <ProjectTagRow
+                    categories={hit.displayCategories ?? []}
+                    loaders={hit.loaders ?? []}
+                    tagIcons={tagIcons}
+                  />
+                )}
+              </div>
+              {updatedLabel ? (
+                <span className="inline-flex shrink-0 items-center gap-1 text-sm tabular-nums text-[var(--color-text-muted)]">
+                  <IconHistory size={15} stroke={1.75} className="shrink-0 opacity-80" aria-hidden />
+                  {updatedLabel}
+                </span>
+              ) : null}
             </div>
           </div>
         </button>

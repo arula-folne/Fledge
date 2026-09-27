@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { getFledgeUiScaleRoot } from '../../components/layout/fledgeUiScaleRoot'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import {
@@ -521,7 +522,7 @@ export function InstanceLaunchButton({
                 </div>
               ) : null}
             </div>,
-            document.body,
+            getFledgeUiScaleRoot(),
           )
         : null}
     </div>

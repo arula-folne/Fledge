@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, PropsWithChildren } from 'react'
 
 type Props = PropsWithChildren<
   ButtonHTMLAttributes<HTMLButtonElement> & {
-    variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'success'
+    variant?: 'primary' | 'secondary' | 'danger' | 'warning' | 'ghost' | 'success'
   }
 >
 
@@ -13,6 +13,9 @@ const styles: Record<NonNullable<Props['variant']>, string> = {
     'rounded-[var(--radius-sm)] bg-[var(--color-surface)] text-[var(--color-text)] border border-[var(--color-border)] hover:bg-[var(--color-hover)] disabled:opacity-50',
   danger:
     'rounded-full bg-[var(--color-danger)] !text-white hover:bg-[color-mix(in_srgb,var(--color-danger)_88%,white)] disabled:opacity-50',
+  /** 設定リセット向けのアンバー */
+  warning:
+    'rounded-full bg-[#d97706] !text-white hover:bg-[#b45309] disabled:opacity-50',
   ghost:
     'rounded-[var(--radius-sm)] bg-transparent text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)] disabled:opacity-50',
   success:

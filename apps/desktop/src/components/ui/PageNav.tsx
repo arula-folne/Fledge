@@ -1,3 +1,4 @@
+import { IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
 
 type Props = {
@@ -23,16 +24,18 @@ function pageItems(current: number, total: number): Array<number | 'gap'> {
   return [1, 'gap', current - 1, current, current + 1, 'gap', total]
 }
 
-const btn =
-  'inline-flex h-7 items-center justify-center rounded-[var(--radius-sm)] px-1.5 text-sm leading-none tabular-nums transition-colors disabled:opacity-40'
+const circleBtn =
+  'inline-flex shrink-0 items-center justify-center rounded-full text-sm leading-none tabular-nums transition-colors disabled:opacity-40'
 
 export function PageNav({ page, pageCount, onChange }: Props) {
   const { t } = useTranslation()
   const total = Math.max(1, pageCount)
   const current = Math.min(total, Math.max(1, page))
-  // 最大桁（最終ページ）に合わせて各スロット幅を固定
+  // 最大桁（最終ページ）に合わせて各スロット幅を固定（円からはみ出さない最小）
   const slotCh = Math.max(2, String(total).length)
-  const slotStyle = { minWidth: `calc(${slotCh}ch + 0.75rem)` }
+  const slotPx = Math.max(28, slotCh * 8 + 12)
+  const slotStyle = { width: slotPx, height: slotPx, minWidth: slotPx }
+  const chevronSize = Math.max(16, Math.round(slotPx * 0.6))
   const items = pageItems(current, total)
   // 7 スロット分の幅を常に確保（総ページが少ないときも右端がずれない）
   const slotCount = Math.max(items.length, total > 7 ? 7 : total)
@@ -42,23 +45,25 @@ export function PageNav({ page, pageCount, onChange }: Props) {
       className="flex shrink-0 items-center gap-0.5"
       aria-label={t('content.pager')}
       style={{
-        minWidth: `calc(5.5rem + ${slotCount} * (${slotCh}ch + 0.75rem + 0.125rem))`,
+        minWidth: `calc(${slotCount + 2} * (${slotPx}px + 0.125rem))`,
       }}
     >
       <button
         type="button"
-        className={`${btn} px-2 text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]`}
+        style={slotStyle}
+        className={`${circleBtn} text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]`}
         disabled={current <= 1}
+        aria-label={t('content.prevPage')}
         onClick={() => onChange(current - 1)}
       >
-        {t('content.prevPage')}
+        <IconChevronLeft size={chevronSize} stroke={1.75} aria-hidden />
       </button>
       <div className="flex flex-1 items-center justify-center gap-0.5">
         {items.map((item, index) =>
           item === 'gap' ? (
             <span
               key={`gap-${index}`}
-              className="inline-flex h-7 items-center justify-center text-xs text-[var(--color-text-muted)]"
+              className="inline-flex items-center justify-center text-xs text-[var(--color-text-muted)]"
               style={slotStyle}
               aria-hidden
             >
@@ -72,7 +77,7 @@ export function PageNav({ page, pageCount, onChange }: Props) {
               aria-label={t('content.pageAria', { page: item })}
               style={slotStyle}
               className={[
-                btn,
+                circleBtn,
                 item === current
                   ? 'bg-[var(--color-selection-soft)] font-medium text-[var(--color-selection)]'
                   : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
@@ -86,12 +91,15 @@ export function PageNav({ page, pageCount, onChange }: Props) {
       </div>
       <button
         type="button"
-        className={`${btn} px-2 text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]`}
+        style={slotStyle}
+        className={`${circleBtn} text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]`}
         disabled={current >= total}
+        aria-label={t('content.nextPage')}
         onClick={() => onChange(current + 1)}
       >
-        {t('content.nextPage')}
+        <IconChevronRight size={chevronSize} stroke={1.75} aria-hidden />
       </button>
     </nav>
   )
 }
+

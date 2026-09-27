@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { getFledgeUiScaleRoot } from './fledgeUiScaleRoot'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
@@ -349,7 +350,7 @@ export function TransferProgress() {
               ) : null}
             </div>
           </div>,
-          document.body,
+          getFledgeUiScaleRoot(),
         )
       : null
 

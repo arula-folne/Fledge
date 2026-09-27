@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { getFledgeUiScaleRoot } from '../../components/layout/fledgeUiScaleRoot'
 import { useTranslation } from 'react-i18next'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
@@ -192,7 +193,7 @@ export function InstallOnboardingFlowDialog({
 
   return createPortal(
     <div
-      className="fixed inset-x-0 bottom-0 top-[var(--titlebar-offset,0px)] z-[95] flex items-center justify-center p-6"
+      className="absolute inset-0 z-[95] flex items-center justify-center p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby={titleId}
@@ -212,6 +213,6 @@ export function InstallOnboardingFlowDialog({
         </div>
       </div>
     </div>,
-    document.body,
+    getFledgeUiScaleRoot(),
   )
 }

@@ -10,6 +10,7 @@ import {
   type Ref,
 } from 'react'
 import { createPortal } from 'react-dom'
+import { getFledgeUiScaleRoot } from '../layout/fledgeUiScaleRoot'
 
 const DEFAULT_DELAY_MS = 450
 
@@ -145,7 +146,7 @@ export function HoverTip({
             >
               {label}
             </div>,
-            document.body,
+            getFledgeUiScaleRoot(),
           )
         : null}
     </>

@@ -154,6 +154,7 @@ export const IPC = {
   contentImportMrpack: 'content:import-mrpack',
   contentImportMrpackFromPath: 'content:import-mrpack-from-path',
   contentListMrpackExportCandidates: 'content:list-mrpack-export-candidates',
+  contentListMrpackExportDir: 'content:list-mrpack-export-dir',
   contentExportMrpack: 'content:export-mrpack',
 } as const
 

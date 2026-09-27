@@ -94,6 +94,8 @@ export function createTauriFledgeApi(): FledgeApi {
       importMrpackFromPath: (filePath) => call(IPC.contentImportMrpackFromPath, filePath),
       listMrpackExportCandidates: (instanceId) =>
         call(IPC.contentListMrpackExportCandidates, instanceId),
+      listMrpackExportDir: (instanceId, relativePath) =>
+        call(IPC.contentListMrpackExportDir, packArgs(instanceId, relativePath ?? '')),
       exportMrpack: (instanceId, options) =>
         call(IPC.contentExportMrpack, packArgs(instanceId, options)),
     },

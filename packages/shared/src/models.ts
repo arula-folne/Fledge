@@ -273,6 +273,51 @@ export function resolveUiScaleZoom(scale: UiScale): number {
   return UI_SCALE_BASE * UI_SCALE_FACTORS[scale]
 }
 
+/** 小さいウィンドウでは UI 崩れ防止のためズーム上限を下げる（デスクトップと同値） */
+export function zoomCapForWindowSize(width: number, height: number): number {
+  if (height <= 560 || width <= 1000) return 0.78
+  return Number.POSITIVE_INFINITY
+}
+
+/** ウィンドウサイズを反映した実際の WebView zoom */
+export function resolveWindowZoomFactor(
+  scale: UiScale,
+  width: number,
+  height: number,
+): number {
+  return Math.round(Math.min(resolveUiScaleZoom(scale), zoomCapForWindowSize(width, height)) * 1000) / 1000
+}
+
+/**
+ * タイトルバーをノーマル UI サイズの見た目に保つ逆スケール。
+ * @deprecated WebView zoom 打ち消し用途。本文 CSS zoom 方式では contentUiZoomFactor を使う。
+ */
+export function titleBarCounterScale(
+  scale: UiScale,
+  width: number,
+  height: number,
+): number {
+  const actual = resolveWindowZoomFactor(scale, width, height)
+  const normal = resolveWindowZoomFactor('normal', width, height)
+  if (actual <= 0) return 1
+  return Math.round((normal / actual) * 1000) / 1000
+}
+
+/**
+ * タイトルバー以外に掛ける CSS zoom。
+ * WebView zoom は常にノーマル相当にし、本文だけこの倍率で拡縮する（タイトルバーのぼやけ防止）。
+ */
+export function contentUiZoomFactor(
+  scale: UiScale,
+  width: number,
+  height: number,
+): number {
+  const actual = resolveWindowZoomFactor(scale, width, height)
+  const normal = resolveWindowZoomFactor('normal', width, height)
+  if (normal <= 0) return 1
+  return Math.round((actual / normal) * 1000) / 1000
+}
+
 /** アプリ起動直後に開く画面 */
 export const StartupPageSchema = z.enum(['home', 'library'])
 export type StartupPage = z.infer<typeof StartupPageSchema>
@@ -964,10 +1009,30 @@ export const MrpackExportCandidatesSchema = z.object({
 })
 export type MrpackExportCandidates = z.infer<typeof MrpackExportCandidatesSchema>
 
+/** mrpack エクスポート用のディレクトリ一覧（Modrinth App 風の探索） */
+export const MrpackExportDirEntrySchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  kind: z.enum(['file', 'directory']),
+  size: z.number().int().nonnegative(),
+  mtimeMs: z.number().nonnegative(),
+  defaultSelected: z.boolean(),
+})
+export type MrpackExportDirEntry = z.infer<typeof MrpackExportDirEntrySchema>
+
+export const MrpackExportDirListingSchema = z.object({
+  path: z.string(),
+  entries: z.array(MrpackExportDirEntrySchema),
+})
+export type MrpackExportDirListing = z.infer<typeof MrpackExportDirListingSchema>
+
 export const MrpackExportOptionsSchema = z.object({
   contentIds: z.array(z.string()),
+  /** ファイルまたはディレクトリ（ディレクトリは配下すべて） */
   overridePaths: z.array(z.string()),
   name: z.string().min(1).max(256).optional(),
+  /** パックのバージョン表示（modrinth.index.json の versionId） */
+  versionId: z.string().min(1).max(128).optional(),
   summary: z.string().max(2000).optional(),
 })
 export type MrpackExportOptions = z.infer<typeof MrpackExportOptionsSchema>

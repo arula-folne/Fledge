@@ -555,6 +555,18 @@ async fn dispatch(
                 .await
                 .map_err(map_err)
         }
+        "content:list-mrpack-export-dir" => {
+            let (id_v, path_v) = two_args_optional(&args)?;
+            let id = id_v
+                .as_str()
+                .ok_or_else(|| "instanceId required".to_string())?;
+            let rel = path_v.as_ref().and_then(|v| v.as_str()).unwrap_or("");
+            state
+                .content
+                .list_mrpack_export_dir(id, rel)
+                .await
+                .map_err(map_err)
+        }
         "content:export-mrpack" => {
             let (id_v, opts_v) = two_args_optional(&args)?;
             let id = id_v

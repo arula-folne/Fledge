@@ -27,6 +27,7 @@ import {
   type Loader,
   type LoaderVersionListResult,
   type MrpackExportCandidates,
+  type MrpackExportDirListing,
   type MrpackExportOptions,
   type NewsItem,
   type PathInfo,
@@ -106,6 +107,10 @@ export type FledgeApi = {
     importMrpack: () => Promise<InstanceProfile | null>
     importMrpackFromPath: (filePath: string) => Promise<InstanceProfile>
     listMrpackExportCandidates: (instanceId: string) => Promise<MrpackExportCandidates>
+    listMrpackExportDir: (
+      instanceId: string,
+      relativePath?: string,
+    ) => Promise<MrpackExportDirListing>
     exportMrpack: (instanceId: string, options?: MrpackExportOptions) => Promise<string | null>
   }
   skins: {
@@ -257,6 +262,8 @@ const api: FledgeApi = {
       ipcRenderer.invoke(IPC.contentImportMrpackFromPath, filePath),
     listMrpackExportCandidates: (instanceId: string) =>
       ipcRenderer.invoke(IPC.contentListMrpackExportCandidates, instanceId),
+    listMrpackExportDir: (instanceId, relativePath) =>
+      ipcRenderer.invoke(IPC.contentListMrpackExportDir, instanceId, relativePath ?? ''),
     exportMrpack: (instanceId, options) =>
       ipcRenderer.invoke(IPC.contentExportMrpack, instanceId, options),
   },

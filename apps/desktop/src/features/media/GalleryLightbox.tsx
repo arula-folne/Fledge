@@ -1,5 +1,6 @@
 import { useCallback, useEffect, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { getFledgeUiScaleRoot } from '../../components/layout/fledgeUiScaleRoot'
 import { useTranslation } from 'react-i18next'
 import { IconArrowLeft, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
 import { Button } from '../../components/ui/Button'
@@ -61,7 +62,7 @@ export function GalleryLightbox({
   if (!item) return null
 
   return createPortal(
-    <div className="fixed inset-x-0 bottom-0 top-[var(--titlebar-offset,0px)] z-[100] flex flex-col bg-black/85">
+    <div className="absolute inset-0 z-[100] flex flex-col bg-black/85">
       <div
         className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4 pb-[4.5rem]"
         onClick={onClose}
@@ -121,6 +122,6 @@ export function GalleryLightbox({
         <div aria-hidden />
       </div>
     </div>,
-    document.body,
+    getFledgeUiScaleRoot(),
   )
 }

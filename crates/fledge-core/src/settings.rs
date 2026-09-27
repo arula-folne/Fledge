@@ -110,7 +110,23 @@ impl SettingsStore {
     }
 
     pub fn reset(&self) -> CoreResult<Value> {
-        let settings = default_settings();
+        // ウェルカム／利用規約は完全リセット時のみ再表示する。設定リセットでは完了フラグを残す。
+        let previous = self.get().ok();
+        let mut settings = default_settings();
+        if let (Some(prev), Some(obj)) = (previous.as_ref(), settings.as_object_mut()) {
+            for key in [
+                "installOnboardingCompleted",
+                "termsAcceptedInApp",
+                "privacyNoticeAcknowledged",
+                "selectedSkinId",
+                "skinModel",
+                "skinCapeIds",
+            ] {
+                if let Some(v) = prev.get(key) {
+                    obj.insert(key.into(), v.clone());
+                }
+            }
+        }
         self.save(&settings)?;
         Ok(settings)
     }

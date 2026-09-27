@@ -8,7 +8,9 @@ type Props = {
   body: string
   confirmLabel: string
   cancelLabel?: string
+  /** @deprecated confirmVariant を優先 */
   danger?: boolean
+  confirmVariant?: 'primary' | 'danger' | 'warning'
   pending?: boolean
   onCancel: () => void
   onConfirm: () => void
@@ -21,11 +23,13 @@ export function ConfirmDialog({
   confirmLabel,
   cancelLabel,
   danger = true,
+  confirmVariant,
   pending = false,
   onCancel,
   onConfirm,
 }: Props) {
   const { t } = useTranslation()
+  const variant = confirmVariant ?? (danger ? 'danger' : 'primary')
   return (
     <Dialog
       open={open}
@@ -37,12 +41,7 @@ export function ConfirmDialog({
           <Button type="button" disabled={pending} onClick={onCancel}>
             {cancelLabel ?? t('common.cancel')}
           </Button>
-          <Button
-            type="button"
-            variant={danger ? 'danger' : 'primary'}
-            disabled={pending}
-            onClick={onConfirm}
-          >
+          <Button type="button" variant={variant} disabled={pending} onClick={onConfirm}>
             {confirmLabel}
           </Button>
         </>

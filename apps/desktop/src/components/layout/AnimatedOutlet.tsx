@@ -11,7 +11,7 @@ export function AnimatedOutlet() {
   return (
     <div
       key={segment}
-      className="route-page flex min-h-0 flex-1 flex-col overflow-hidden"
+      className="route-page flex h-full min-h-0 flex-1 flex-col overflow-hidden"
     >
       <Outlet />
     </div>

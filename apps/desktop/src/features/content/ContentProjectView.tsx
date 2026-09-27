@@ -14,6 +14,7 @@ import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
 import { formatJaCount } from '../../utils/formatJaCount'
 import { ContentInstallButton, ContentVersionInstallButton } from './ContentInstallButton'
+import { ContentFallbackIcon } from './contentCategoryIcons'
 import { MarkdownBody } from './MarkdownBody'
 import { EnvironmentPanel, LoaderInlineList, LOADER_IDS, tagLabel } from './ContentTags'
 import { GalleryLightbox } from '../media/GalleryLightbox'
@@ -144,7 +145,7 @@ export function ContentProjectView({
             className="size-14 shrink-0 rounded-[var(--radius-sm)] object-cover"
           />
         ) : (
-          <div className="size-14 shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)]" />
+          <ContentFallbackIcon size={28} boxClassName="size-14" />
         )}
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-semibold leading-tight">{project.name}</h2>

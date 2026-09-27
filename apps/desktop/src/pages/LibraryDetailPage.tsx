@@ -1,5 +1,6 @@
 import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState, type ComponentType, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
+import { getFledgeUiScaleRoot } from '../components/layout/fledgeUiScaleRoot'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
@@ -540,7 +541,7 @@ export default function LibraryDetailPage() {
                 {t('instances.export')}
               </button>
             </div>,
-            document.body,
+            getFledgeUiScaleRoot(),
           )
         : null}
 
@@ -783,6 +784,7 @@ export default function LibraryDetailPage() {
       <ExportMrpackDialog
         open={exportOpen}
         instanceId={instance.id}
+        instanceName={instance.name}
         onClose={() => setExportOpen(false)}
         onExported={() => setMessage(t('instances.exported'))}
         onError={(err) => setMessage(err)}

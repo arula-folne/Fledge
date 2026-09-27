@@ -553,7 +553,7 @@ export function AddContentModal({
   if (!open) return null
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-hidden">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden">
       <header className="flex shrink-0 items-start justify-between gap-3">
         <div className="min-w-0">
           <h1 className="truncate text-lg font-semibold text-[var(--color-text)]">{dialogTitle}</h1>
@@ -614,7 +614,14 @@ export function AddContentModal({
               setTags([])
             }}
           />
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-hidden">
+          <div
+            ref={listScrollRef}
+            className={[
+              'min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden transition-opacity',
+              searchQuery.isFetching && !searchQuery.isPending ? 'opacity-80' : '',
+            ].join(' ')}
+          >
+            <div className="flex flex-col gap-2 pb-2">
             <ContentSearchCategoryTabs
               tabs={instanceBrowseSearchTabs(instance.loader)}
               active={searchTab}
@@ -642,7 +649,7 @@ export function AddContentModal({
               />
             ) : null}
 
-            <div className="flex shrink-0 flex-col gap-2">
+            <div className="flex flex-col gap-2">
               <div className="relative w-full">
                 <IconSearch
                   size={16}
@@ -690,7 +697,7 @@ export function AddContentModal({
                     }))}
                   />
                 </label>
-                <div className="ml-auto shrink-0">
+                <div className="ml-auto mr-8 shrink-0">
                   <PageNav page={page} pageCount={pageCount} onChange={setPage} />
                 </div>
               </div>
@@ -724,13 +731,6 @@ export function AddContentModal({
               </p>
             ) : null}
 
-            <div
-              ref={listScrollRef}
-              className={[
-                'min-h-0 flex-1 overflow-y-auto transition-opacity',
-                searchQuery.isFetching && !searchQuery.isPending ? 'opacity-80' : '',
-              ].join(' ')}
-            >
               {searchQuery.isPending && !searchQuery.data && !isFavoritesTab(searchTab) ? (
                 <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
               ) : searchQuery.isError && hits.length === 0 ? null : hits.length === 0 ? (
@@ -775,13 +775,13 @@ export function AddContentModal({
                   }}
                 />
               )}
-            </div>
 
             {pageCount > 1 ? (
-              <div className="flex shrink-0 justify-end border-t border-[var(--color-border)] pt-2">
+              <div className="flex justify-end border-t border-[var(--color-border)] pr-8 pt-2">
                 <PageNav page={page} pageCount={pageCount} onChange={setPage} />
               </div>
             ) : null}
+            </div>
           </div>
         </div>
       )}

@@ -143,7 +143,18 @@ export class SettingsStore {
   }
 
   async reset(): Promise<Settings> {
-    const next = SettingsSchema.parse({ selectedInstanceId: null })
+    const previous = await this.get().catch(() => null)
+    const next = SettingsSchema.parse({
+      selectedInstanceId: null,
+      // ウェルカムは完全リセット時のみ再表示
+      installOnboardingCompleted: previous?.installOnboardingCompleted ?? true,
+      termsAcceptedInApp: previous?.termsAcceptedInApp ?? true,
+      privacyNoticeAcknowledged: previous?.privacyNoticeAcknowledged ?? true,
+      // スキン選択はデータとして維持
+      selectedSkinId: previous?.selectedSkinId,
+      skinModel: previous?.skinModel,
+      skinCapeIds: previous?.skinCapeIds,
+    })
     await this.save(next)
     this.cache = next
     return next

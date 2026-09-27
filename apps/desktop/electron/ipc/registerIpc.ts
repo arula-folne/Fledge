@@ -360,6 +360,11 @@ export function registerIpc(
     appCtx.content.listMrpackExportCandidates(instanceId),
   )
   ipcMain.handle(
+    IPC.contentListMrpackExportDir,
+    async (_e, instanceId: string, relativePath?: string) =>
+      appCtx.content.listMrpackExportDir(instanceId, relativePath ?? ''),
+  )
+  ipcMain.handle(
     IPC.contentExportMrpack,
     async (_e, instanceId: string, options?: MrpackExportOptions) => {
     const profile = await appCtx.instances.get(instanceId)

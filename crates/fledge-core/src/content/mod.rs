@@ -35,13 +35,23 @@ const UA_DOWNLOAD: &str = "Fledge/0.5.0 (content-download)";
 /// ダウンロード中の進捗通知間隔（UI / IPC 負荷を抑える）
 const PROGRESS_EMIT_INTERVAL: Duration = Duration::from_millis(150);
 
-const EXPORT_EXCLUDED: &[&str] = &[
-    ".fledge",
+const EXPORT_EXCLUDED: &[&str] = &[".fledge"];
+
+const EXPORT_DEFAULT_UNSELECTED: &[&str] = &[
     "saves",
     "logs",
     "screenshots",
     "crash-reports",
     "backups",
+];
+
+const EXPORT_DEFAULT_SELECTED: &[&str] = &[
+    "mods",
+    "resourcepacks",
+    "shaderpacks",
+    "datapacks",
+    "config",
+    "defaultconfigs",
 ];
 
 pub struct ContentService {
@@ -885,10 +895,11 @@ impl ContentService {
             }
             let full = instance_dir.join(&rel);
             let Ok(meta) = fs::metadata(&full) else { continue };
+            let root = rel.split('/').next().unwrap_or(rel.as_str());
             overrides.push(json!({
               "path": rel.replace('\\', "/"),
               "size": meta.len(),
-              "defaultSelected": true
+              "defaultSelected": default_selected_export_root(root)
             }));
         }
         overrides.sort_by(|a, b| {
@@ -903,6 +914,90 @@ impl ContentService {
           "contents": contents,
           "overrides": overrides
         }))
+    }
+
+    pub async fn list_mrpack_export_dir(
+        &self,
+        instance_id: &str,
+        relative_path: &str,
+    ) -> CoreResult<Value> {
+        let _profile = self
+            .instances
+            .get(instance_id)?
+            .ok_or_else(|| CoreError::msg(format!("Instance not found: {instance_id}")))?;
+        let instance_dir = self.instances.instance_dir(instance_id);
+        let normalized = relative_path
+            .replace('\\', "/")
+            .trim_matches('/')
+            .to_string();
+        if normalized.contains("..")
+            || (!normalized.is_empty() && is_export_excluded(&normalized))
+        {
+            return Err(CoreError::msg("Invalid export path"));
+        }
+        let dir = if normalized.is_empty() {
+            instance_dir.clone()
+        } else {
+            instance_dir.join(&normalized)
+        };
+        let Ok(read) = fs::read_dir(&dir) else {
+            return Ok(json!({ "path": normalized, "entries": [] }));
+        };
+        let mut entries = Vec::new();
+        for entry in read.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let child = if normalized.is_empty() {
+                name.clone()
+            } else {
+                format!("{normalized}/{name}")
+            };
+            let child_norm = child.replace('\\', "/");
+            if is_export_excluded(&child_norm) {
+                continue;
+            }
+            if name.eq_ignore_ascii_case(".fledge") || name.eq_ignore_ascii_case("profile.json") {
+                continue;
+            }
+            if normalized.is_empty() && regex_icon(&name) {
+                continue;
+            }
+            let Ok(ft) = entry.file_type() else { continue };
+            let Ok(meta) = entry.metadata() else { continue };
+            let kind = if ft.is_dir() { "directory" } else { "file" };
+            let root_name = if normalized.is_empty() {
+                name.as_str()
+            } else {
+                normalized.split('/').next().unwrap_or(name.as_str())
+            };
+            let mtime_ms = meta
+                .modified()
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis() as f64)
+                .unwrap_or(0.0);
+            entries.push(json!({
+              "name": name,
+              "path": child_norm,
+              "kind": kind,
+              "size": if ft.is_dir() { 0 } else { meta.len() },
+              "mtimeMs": mtime_ms,
+              "defaultSelected": default_selected_export_root(root_name)
+            }));
+        }
+        entries.sort_by(|a, b| {
+            let ak = a.get("kind").and_then(|v| v.as_str()).unwrap_or("");
+            let bk = b.get("kind").and_then(|v| v.as_str()).unwrap_or("");
+            match (ak, bk) {
+                ("directory", "file") => std::cmp::Ordering::Less,
+                ("file", "directory") => std::cmp::Ordering::Greater,
+                _ => {
+                    let an = a.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                    let bn = b.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                    an.to_lowercase().cmp(&bn.to_lowercase())
+                }
+            }
+        });
+        Ok(json!({ "path": normalized, "entries": entries }))
     }
 
     pub async fn export_mrpack(
@@ -983,7 +1078,7 @@ impl ContentService {
                 continue;
             }
             if let Some(sel) = &selected_overrides {
-                if !sel.contains(&lower) {
+                if !is_export_path_selected(&rel, sel) {
                     continue;
                 }
             } else if options.is_some() {
@@ -1009,10 +1104,16 @@ impl ContentService {
                     .insert(key.into(), json!(lv));
             }
         }
+        let version_id = options
+            .and_then(|o| o.get("versionId"))
+            .and_then(|v| v.as_str())
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .unwrap_or("1.0.0");
         let mrpack_index = json!({
           "formatVersion": 1,
           "game": "minecraft",
-          "versionId": Uuid::new_v4().to_string(),
+          "versionId": version_id,
           "name": options.and_then(|o| o.get("name")).and_then(|v| v.as_str()).filter(|s| !s.trim().is_empty())
             .map(|s| s.to_string())
             .unwrap_or_else(|| profile.get("name").and_then(|v| v.as_str()).unwrap_or("modpack").to_string()),
@@ -1744,6 +1845,28 @@ fn is_export_excluded(rel: &str) -> bool {
         || regex_icon(&normalized)
         || EXPORT_EXCLUDED.contains(&root.as_str())
         || lower.ends_with(".disabled")
+}
+
+fn is_export_path_selected(rel: &str, selected: &HashSet<String>) -> bool {
+    let lower = rel.replace('\\', "/").to_lowercase();
+    for sel_raw in selected {
+        let sel = sel_raw.trim_end_matches('/').to_lowercase();
+        if sel.is_empty() {
+            continue;
+        }
+        if lower == sel || lower.starts_with(&format!("{sel}/")) {
+            return true;
+        }
+    }
+    false
+}
+
+fn default_selected_export_root(name: &str) -> bool {
+    let lower = name.to_lowercase();
+    if EXPORT_DEFAULT_UNSELECTED.contains(&lower.as_str()) {
+        return false;
+    }
+    EXPORT_DEFAULT_SELECTED.contains(&lower.as_str())
 }
 
 fn regex_icon(name: &str) -> bool {

@@ -2,6 +2,7 @@ import { useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { IconX } from '@tabler/icons-react'
 import { useTranslation } from 'react-i18next'
+import { getFledgeUiScaleRoot } from '../layout/fledgeUiScaleRoot'
 
 type Props = {
   open: boolean
@@ -112,7 +113,8 @@ export function Dialog({
   return createPortal(
     <div
       className={[
-        'fixed inset-x-0 bottom-0 top-[var(--titlebar-offset,0px)] flex',
+        // scale root 内（タイトルバー下）なので absolute inset-0
+        'absolute inset-0 flex',
         full ? 'items-stretch p-0' : 'items-center justify-center p-4',
         overlayClassName,
       ]
@@ -254,6 +256,6 @@ export function Dialog({
       `}</style>
       )}
     </div>,
-    document.body,
+    getFledgeUiScaleRoot(),
   )
 }

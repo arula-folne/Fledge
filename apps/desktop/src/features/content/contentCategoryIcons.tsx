@@ -2,6 +2,7 @@ import type { ComponentType } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   IconBraces,
+  IconCube,
   IconLayoutGrid,
   IconPackages,
   IconPalette,
@@ -48,6 +49,34 @@ export function ContentCategoryIcon({
       className={[CONTENT_CATEGORY_COLORS[category], 'shrink-0', className].join(' ')}
       aria-hidden
     />
+  )
+}
+
+/** プロジェクト画像がないときのフォールバック（Minecraft ブロック風） */
+export function ContentFallbackIcon({
+  size = 18,
+  boxClassName = '',
+  iconClassName = '',
+}: {
+  size?: number
+  /** 外側の正方形コンテナ用クラス（例: size-10） */
+  boxClassName?: string
+  iconClassName?: string
+}) {
+  return (
+    <div
+      className={[
+        'flex shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)]',
+        boxClassName,
+      ].join(' ')}
+      aria-hidden
+    >
+      <IconCube
+        size={size}
+        stroke={1.6}
+        className={['text-[var(--color-accent)]', iconClassName].join(' ')}
+      />
+    </div>
   )
 }
 

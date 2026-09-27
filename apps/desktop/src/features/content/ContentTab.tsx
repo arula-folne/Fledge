@@ -1,13 +1,16 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
+import { getFledgeUiScaleRoot } from '../../components/layout/fledgeUiScaleRoot'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   IconArrowUp,
+  IconArrowsExchange,
   IconLayoutGrid,
   IconPlus,
   IconRefresh,
+  IconShare,
   IconTrash,
 } from '@tabler/icons-react'
 import type { ContentVersion, InstalledContent, InstanceProfile } from '@fledge/shared'
@@ -24,7 +27,8 @@ import {
   parseContentFilter,
   writeContentFilter,
 } from '../../navigation/libraryDetailSearch'
-import { ContentCategoryIcon, ContentCategoryLabel, ContentFilterAllLabel } from './contentCategoryIcons'
+import { ContentCategoryIcon, ContentCategoryLabel, ContentFallbackIcon, ContentFilterAllLabel } from './contentCategoryIcons'
+import { ContentShareDialog } from './ContentShareDialog'
 import { SlidingPillTabs } from '../../components/ui/SlidingPillTabs'
 import { useTransferStore } from '../../stores/appStores'
 import { ContentDropOverlay, useContentFileDrop } from './ContentDropZone'
@@ -59,15 +63,18 @@ export function ContentTab({ instance }: Props) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
-  const [removeTarget, setRemoveTarget] = useState<InstalledContent | null>(null)
+  const [removeTargets, setRemoveTargets] = useState<InstalledContent[] | null>(null)
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
   const [bulkTargets, setBulkTargets] = useState<BulkStableTarget[]>([])
   const [bulkResolving, setBulkResolving] = useState(false)
   const [versionPickItem, setVersionPickItem] = useState<InstalledContent | null>(null)
   const [versionChange, setVersionChange] = useState<VersionChangeTarget | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
+  const [shareItems, setShareItems] = useState<InstalledContent[] | null>(null)
   const [menu, setMenu] = useState<ContentMenuState>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const [menuPos, setMenuPos] = useState({ x: 0, y: 0 })
+  const selectAllRef = useRef<HTMLInputElement>(null)
 
   const listFilter = parseContentFilter(searchParams.get('category'))
   const listCategories = useMemo(
@@ -148,7 +155,20 @@ export function ContentTab({ instance }: Props) {
   })
 
   const removeMutation = useMutation({
-    mutationFn: (id: string) => fledgeApi.content.remove(instance.id, id),
+    mutationFn: async (ids: string[]) => {
+      for (const id of ids) {
+        await fledgeApi.content.remove(instance.id, id)
+      }
+    },
+    onSuccess: () => void invalidate(),
+  })
+
+  const bulkToggleMutation = useMutation({
+    mutationFn: async (input: { ids: string[]; enabled: boolean }) => {
+      for (const id of input.ids) {
+        await fledgeApi.content.setEnabled(instance.id, id, input.enabled)
+      }
+    },
     onSuccess: () => void invalidate(),
   })
 
@@ -240,6 +260,55 @@ export function ContentTab({ instance }: Props) {
 
   const rawItems = installedQuery.data ?? []
   const items = rawItems
+
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [listFilter, instance.id])
+
+  useEffect(() => {
+    const visible = new Set(items.map((item) => item.id))
+    setSelectedIds((prev) => {
+      let changed = false
+      const next = new Set<string>()
+      for (const id of prev) {
+        if (visible.has(id)) next.add(id)
+        else changed = true
+      }
+      return changed ? next : prev
+    })
+  }, [items])
+
+  const selectedItems = useMemo(
+    () => items.filter((item) => selectedIds.has(item.id)),
+    [items, selectedIds],
+  )
+  const selectedCount = selectedItems.length
+  const allSelected = items.length > 0 && selectedCount === items.length
+  const someSelected = selectedCount > 0 && !allSelected
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someSelected
+    }
+  }, [someSelected])
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      if (items.length > 0 && prev.size === items.length) return new Set()
+      return new Set(items.map((item) => item.id))
+    })
+  }, [items])
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
 
   const hasStableUpdate = (item: InstalledContent) =>
     item.provider !== 'local' &&
@@ -447,19 +516,29 @@ export function ContentTab({ instance }: Props) {
                 {t('content.changeVersion')}
               </button>
             ) : null}
+            <button
+              type="button"
+              className="block w-full px-3 py-2 text-left text-sm transition hover:bg-[var(--color-hover)]"
+              onClick={() => {
+                setShareItems([menu.item])
+                closeMenu()
+              }}
+            >
+              {t('content.share')}
+            </button>
             <div className="my-1 border-t border-[var(--color-border)]" />
             <button
               type="button"
               className="block w-full px-3 py-2 text-left text-sm text-[var(--color-danger)] transition hover:bg-[var(--color-danger)]/10"
               onClick={() => {
-                setRemoveTarget(menu.item)
+                setRemoveTargets([menu.item])
                 closeMenu()
               }}
             >
               {t('content.remove')}
             </button>
           </div>,
-          document.body,
+          getFledgeUiScaleRoot(),
         )
       : null
 
@@ -527,130 +606,215 @@ export function ContentTab({ instance }: Props) {
           </Button>
         </div>
       ) : (
-        <ul className="min-h-0 flex-1 overflow-y-auto rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
-          {items.map((item, index) => {
-            const installing = installingProjectIds.has(item.projectId)
-            return (
-              <li
-                key={item.id}
-                className={[
-                  'flex cursor-pointer items-stretch border-b border-[var(--color-border)] transition-colors hover:bg-[var(--color-hover)]/60',
-                  index % 2 === 1 ? 'bg-[var(--color-zebra)]' : 'bg-[var(--color-surface)]',
-                ].join(' ')}
-                onClick={() => openInstalledProject(item)}
-                onContextMenu={(e) => openContextMenu(e, item)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    openInstalledProject(item)
-                  }
-                }}
+        <div className="flex min-h-0 flex-1 flex-col gap-1.5">
+          {selectedCount > 0 ? (
+            <div className="flex shrink-0 flex-wrap items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5">
+              <span className="mr-1 text-xs font-medium text-[var(--color-text)]">
+                {t('content.selectedCount', { count: selectedCount })}
+              </span>
+              <Button
+                variant="secondary"
+                className="px-2 py-1 text-xs"
+                disabled={bulkToggleMutation.isPending}
+                onClick={() =>
+                  bulkToggleMutation.mutate(
+                    { ids: selectedItems.map((item) => item.id), enabled: false },
+                    { onSettled: clearSelection },
+                  )
+                }
               >
-                <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2">
-                  {item.iconUrl && item.provider !== 'local' ? (
-                    <img
-                      src={item.iconUrl}
-                      alt=""
-                      width={40}
-                      height={40}
-                      loading="lazy"
-                      decoding="async"
-                      className="size-10 shrink-0 rounded-[var(--radius-sm)] object-cover"
-                    />
-                  ) : (
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)]">
-                      <ContentCategoryIcon category={item.category} size={18} />
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium leading-snug">{item.name}</div>
-                    <div className="truncate text-xs leading-snug text-[var(--color-text-muted)]">
-                      {listFilter === 'all' ? (
-                        <>
-                          {t(`content.category.${item.category}`)}
-                          {' · '}
-                        </>
-                      ) : null}
-                      {item.versionNumber}
-                      {hasStableUpdate(item) && item.latestVersionNumber
-                        ? ` → ${item.latestVersionNumber}`
-                        : ''}
-                      {' · '}
-                      {item.provider === 'local'
-                        ? t('content.provider.local')
-                        : item.provider}
-                      {!item.enabled ? ` · ${t('content.disabled')}` : ''}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-1 py-2 pr-5">
-                  <div className="mr-3">
-                  <HoverTip
-                    label={
-                      hasStableUpdate(item)
-                        ? t('content.changeVersionUpdateAvailable')
-                        : t('content.changeVersion')
+                {t('content.disable')}
+              </Button>
+              <Button
+                variant="secondary"
+                className="px-2 py-1 text-xs"
+                disabled={bulkToggleMutation.isPending}
+                onClick={() =>
+                  bulkToggleMutation.mutate(
+                    { ids: selectedItems.map((item) => item.id), enabled: true },
+                    { onSettled: clearSelection },
+                  )
+                }
+              >
+                {t('content.enable')}
+              </Button>
+              <Button
+                variant="secondary"
+                className="px-2 py-1 text-xs"
+                onClick={() => setShareItems(selectedItems)}
+              >
+                <IconShare size={14} stroke={1.75} />
+                {t('content.share')}
+              </Button>
+              <Button
+                variant="danger"
+                className="px-2 py-1 text-xs"
+                onClick={() => setRemoveTargets(selectedItems)}
+              >
+                <IconTrash size={14} stroke={1.75} />
+                {t('content.remove')}
+              </Button>
+              <button
+                type="button"
+                className="ml-auto text-xs text-[var(--color-accent)] hover:underline"
+                onClick={clearSelection}
+              >
+                {t('content.selectNone')}
+              </button>
+            </div>
+          ) : null}
+          <ul className="min-h-0 flex-1 overflow-y-auto rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)]">
+            <li className="sticky top-0 z-[1] flex items-center border-b border-[var(--color-border)] bg-[var(--color-surface)] py-2.5">
+              <label className="inline-flex cursor-pointer items-center gap-2 pl-3 pr-2 text-xs text-[var(--color-text-muted)]">
+                <input
+                  ref={selectAllRef}
+                  type="checkbox"
+                  className="size-4 shrink-0 accent-[var(--color-accent)]"
+                  checked={allSelected}
+                  aria-label={t('content.selectAll')}
+                  onChange={toggleSelectAll}
+                />
+                {t('content.selectAll')}
+              </label>
+            </li>
+            {items.map((item, index) => {
+              const installing = installingProjectIds.has(item.projectId)
+              const checked = selectedIds.has(item.id)
+              return (
+                <li
+                  key={item.id}
+                  className={[
+                    'flex cursor-pointer items-stretch border-b border-[var(--color-border)] transition-colors hover:bg-[var(--color-hover)]/60',
+                    index % 2 === 1 ? 'bg-[var(--color-zebra)]' : 'bg-[var(--color-surface)]',
+                    checked ? 'bg-[var(--color-accent-soft)]/35' : '',
+                  ].join(' ')}
+                  onClick={() => openInstalledProject(item)}
+                  onContextMenu={(e) => openContextMenu(e, item)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      openInstalledProject(item)
                     }
-                    disabled={installing}
-                  >
-                    <button
-                      type="button"
-                      className={[
-                        'relative inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] transition-colors',
-                        hasStableUpdate(item)
-                          ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] ring-1 ring-[var(--color-accent)]/35 hover:bg-[color-mix(in_srgb,var(--color-accent-soft)_80%,var(--color-accent))]'
-                          : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
-                      ].join(' ')}
-                      aria-label={
-                        hasStableUpdate(item)
-                          ? t('content.changeVersionUpdateAvailable')
-                          : t('content.changeVersion')
-                      }
-                      disabled={installing}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setVersionPickItem(item)
-                      }}
-                    >
-                      <IconRefresh size={18} stroke={1.6} aria-hidden />
-                      {hasStableUpdate(item) ? (
-                        <span
-                          className="absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-on-accent)] shadow-sm"
-                          aria-hidden
-                        >
-                          <IconArrowUp size={9} stroke={2.5} />
-                        </span>
-                      ) : null}
-                    </button>
-                  </HoverTip>
-                  </div>
+                  }}
+                >
                   <div
+                    className="flex shrink-0 items-center pl-3 pr-3"
                     onClick={(e) => e.stopPropagation()}
                     onKeyDown={(e) => e.stopPropagation()}
                   >
-                    <Switch
-                      checked={item.enabled}
-                      disabled={toggleMutation.isPending && toggleMutation.variables?.id === item.id}
-                      aria-label={item.enabled ? t('content.disable') : t('content.enable')}
-                      onChange={(enabled) => toggleMutation.mutate({ id: item.id, enabled })}
+                    <input
+                      type="checkbox"
+                      className="size-4 shrink-0 accent-[var(--color-accent)]"
+                      checked={checked}
+                      aria-label={t('content.selectItem', { name: item.name })}
+                      onChange={() => toggleSelected(item.id)}
                     />
                   </div>
-                  <button
-                    type="button"
-                    className="inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/10"
-                    aria-label={t('content.remove')}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setRemoveTarget(item)
-                    }}
-                  >
-                    <IconTrash size={24} stroke={1.25} aria-hidden />
-                  </button>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+                  <div className="flex min-w-0 flex-1 items-center gap-3 py-4 pl-1.5 pr-3">
+                    {item.iconUrl && item.provider !== 'local' ? (
+                      <img
+                        src={item.iconUrl}
+                        alt=""
+                        width={40}
+                        height={40}
+                        loading="lazy"
+                        decoding="async"
+                        className="size-10 shrink-0 rounded-[var(--radius-sm)] object-cover"
+                      />
+                    ) : (
+                      <ContentFallbackIcon size={20} boxClassName="size-10" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-medium leading-snug">{item.name}</div>
+                      <div className="truncate text-xs leading-snug text-[var(--color-text-muted)]">
+                        {listFilter === 'all' ? (
+                          <>
+                            {t(`content.category.${item.category}`)}
+                            {' · '}
+                          </>
+                        ) : null}
+                        {item.versionNumber}
+                        {hasStableUpdate(item) && item.latestVersionNumber
+                          ? ` → ${item.latestVersionNumber}`
+                          : ''}
+                        {' · '}
+                        {item.provider === 'local'
+                          ? t('content.provider.local')
+                          : item.provider}
+                        {!item.enabled ? ` · ${t('content.disabled')}` : ''}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1 py-4 pr-5">
+                    <div className="mr-3">
+                      <HoverTip
+                        label={
+                          hasStableUpdate(item)
+                            ? t('content.changeVersionUpdateAvailable')
+                            : t('content.changeVersion')
+                        }
+                        disabled={installing}
+                      >
+                        <button
+                          type="button"
+                          className={[
+                            'relative inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] transition-colors',
+                            hasStableUpdate(item)
+                              ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] ring-1 ring-[var(--color-accent)]/35 hover:bg-[color-mix(in_srgb,var(--color-accent-soft)_80%,var(--color-accent))]'
+                              : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
+                          ].join(' ')}
+                          aria-label={
+                            hasStableUpdate(item)
+                              ? t('content.changeVersionUpdateAvailable')
+                              : t('content.changeVersion')
+                          }
+                          disabled={installing}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setVersionPickItem(item)
+                          }}
+                        >
+                          <IconArrowsExchange size={18} stroke={1.6} aria-hidden />
+                          {hasStableUpdate(item) ? (
+                            <span
+                              className="absolute -right-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-on-accent)] shadow-sm"
+                              aria-hidden
+                            >
+                              <IconArrowUp size={9} stroke={2.5} />
+                            </span>
+                          ) : null}
+                        </button>
+                      </HoverTip>
+                    </div>
+                    <div
+                      className="inline-flex h-[27px] w-[45px] shrink-0 items-center justify-center"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <Switch
+                        checked={item.enabled}
+                        disabled={toggleMutation.isPending && toggleMutation.variables?.id === item.id}
+                        aria-label={item.enabled ? t('content.disable') : t('content.enable')}
+                        onChange={(enabled) => toggleMutation.mutate({ id: item.id, enabled })}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/10"
+                      aria-label={t('content.remove')}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setRemoveTargets([item])
+                      }}
+                    >
+                      <IconTrash size={24} stroke={1.25} aria-hidden />
+                    </button>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       )}
 
       {menuPortal}
@@ -695,18 +859,31 @@ export function ContentTab({ instance }: Props) {
       />
 
       <ConfirmDialog
-        open={removeTarget != null}
+        open={removeTargets != null}
         title={t('content.remove')}
-        body={t('content.removeConfirm')}
+        body={
+          removeTargets && removeTargets.length > 1
+            ? t('content.bulkRemoveConfirm', { count: removeTargets.length })
+            : t('content.removeConfirm')
+        }
         confirmLabel={t('content.remove')}
         pending={removeMutation.isPending}
-        onCancel={() => setRemoveTarget(null)}
+        onCancel={() => setRemoveTargets(null)}
         onConfirm={() => {
-          if (!removeTarget) return
-          removeMutation.mutate(removeTarget.id, {
-            onSettled: () => setRemoveTarget(null),
+          if (!removeTargets || removeTargets.length === 0) return
+          const ids = removeTargets.map((item) => item.id)
+          removeMutation.mutate(ids, {
+            onSettled: () => {
+              setRemoveTargets(null)
+              clearSelection()
+            },
           })
         }}
+      />
+      <ContentShareDialog
+        open={shareItems != null}
+        items={shareItems ?? []}
+        onClose={() => setShareItems(null)}
       />
       <Dialog
         open={bulkConfirmOpen}
@@ -762,9 +939,7 @@ export function ContentTab({ instance }: Props) {
                   className="size-9 shrink-0 rounded-[var(--radius-sm)] object-cover"
                 />
               ) : (
-                <div className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-accent-soft)]">
-                  <ContentCategoryIcon category={item.category} size={16} />
-                </div>
+                <ContentFallbackIcon size={16} boxClassName="size-9" />
               )}
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium text-[var(--color-text)]">
