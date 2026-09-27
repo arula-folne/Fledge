@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.5.34",
+    "title": "【バージョンアップ】Fledge Ver.0.5.34",
+    "body": "**Fledge Ver.0.5.34** を公開しました。\n\n## 主な変更\n\n- チュートリアル完了後、設定を開いたときに基本設定が表示されるよう修正\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-09-27T14:00:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.5.34"
+  },
+  {
     "id": "v0.5.33",
     "title": "【バージョンアップ】Fledge Ver.0.5.33",
     "body": "**Fledge Ver.0.5.33** を公開しました。\n\n## 主な変更\n\n- コンテンツ一覧のチェック選択・一括操作・共有\n- mrpack エクスポートのフォルダ選択とパック名・バージョン\n- 検索結果にダウンロード／最終更新アイコン\n- UI サイズ変更時のタイトルバーアイコンぼやけを修正\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

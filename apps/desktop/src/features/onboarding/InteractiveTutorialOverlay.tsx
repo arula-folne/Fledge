@@ -262,6 +262,8 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
         }
         queryClient.setQueryData(['settings'], next)
       }
+      // 最終ステップがリソース管理のため、完了後は基本設定に戻す
+      setSettingsSection('appGeneral')
       stopInteractive()
       navigate('/')
       onDone()
@@ -277,6 +279,7 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
       completeMutation.mutate()
       return
     }
+    setSettingsSection('appGeneral')
     stopInteractive()
     navigate('/')
     onDone()
