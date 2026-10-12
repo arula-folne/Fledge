@@ -244,9 +244,12 @@ export const MEMORY_GC_WARN_ABOVE_MB = 24576
 export const ThemeModeSchema = z.enum(['light', 'dark', 'color', 'oled', 'system'])
 export type ThemeMode = z.infer<typeof ThemeModeSchema>
 
-/** スタンダードテーマ / シーズンテーマ（完全に別系統） */
-export const ThemeFamilySchema = z.enum(['standard', 'season'])
-export type ThemeFamily = z.infer<typeof ThemeFamilySchema>
+/** スタンダード / シーズン（別系統） */
+export const ThemeFamilySchema = z.preprocess(
+  (value) => (value === 'variety' || value === 'image' ? 'standard' : value),
+  z.enum(['standard', 'season']),
+)
+export type ThemeFamily = 'standard' | 'season'
 
 /** ランチャー UI の大きさ（zoom 係数はデスクトップ側） */
 export const UiScaleSchema = z.enum(['compact', 'normal', 'large', 'wide'])
@@ -456,7 +459,7 @@ export const SettingsSchemaBase = z.object({
   windowHeight: z.number().int().optional(),
 
   // 表示設定
-  /** standard = スタンダードテーマ / season = シーズンテーマ */
+  /** standard / season */
   themeFamily: ThemeFamilySchema.default('standard'),
   themeMode: ThemeModeSchema.default('light'),
   /** 選択中のシーズンテーマ ID（themeFamily が season のとき）。カタログに残る過去分も指定可 */
@@ -726,6 +729,26 @@ export type UpdateCheckResult = z.infer<typeof UpdateCheckResultSchema>
 
 export const JAVA_MANAGED_MAJORS = [25, 21, 17, 8] as const
 export type JavaManagedMajor = (typeof JAVA_MANAGED_MAJORS)[number]
+
+/**
+ * Minecraft バージョンから必要 Java メジャーを推定。
+ * 26.x 以降は年号バージョン（java-runtime-epsilon = 25）。
+ */
+export function requiredJavaMajor(minecraftVersion: string): number {
+  const m = /^(\d+)\.(\d+)/.exec(minecraftVersion)
+  if (!m) return 21
+  const major = Number(m[1])
+  const minor = Number(m[2])
+  if (major >= 26) return 25
+  if (major !== 1) return 21
+  if (minor <= 16) return 8
+  if (minor < 20) return 17
+  if (minor === 20) {
+    const patch = Number((/^\d+\.\d+\.(\d+)/.exec(minecraftVersion) ?? [])[1] ?? 0)
+    return patch >= 5 ? 21 : 17
+  }
+  return 21
+}
 
 export const JavaRuntimeViewSchema = z.object({
   major: z.union([z.literal(8), z.literal(17), z.literal(21), z.literal(25)]),

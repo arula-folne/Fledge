@@ -6,6 +6,7 @@ import {
   applyPreviewPose,
   enqueueSkinRender,
   loadSkinView3d,
+  previewPixelRatio,
   renderSkinSnapshotToCanvas,
   toSkinViewModel,
   yieldToUi,
@@ -31,7 +32,8 @@ type Props = {
 const STAGE_BG =
   'radial-gradient(ellipse at 50% 38%, color-mix(in srgb, var(--color-accent-soft) 75%, transparent), transparent 58%), linear-gradient(180deg, color-mix(in srgb, var(--color-border) 22%, var(--color-surface)), var(--color-bg))'
 
-const INTERACTIVE_ZOOM = 0.88
+/** ボックス内の余白を少し残す（下げるとキャラが小さく見える。画質には影響しない） */
+const INTERACTIVE_ZOOM = 0.78
 
 function resetInteractiveView(viewer: SkinViewer, showCape = false): void {
   viewer.zoom = INTERACTIVE_ZOOM
@@ -117,7 +119,15 @@ function SnapshotPreview({
       const dest = canvasRef.current
       if (!dest) return
       try {
-        await renderSkinSnapshotToCanvas(dest, skinUrl, model, viewSize.width, viewSize.height, zoom)
+        await renderSkinSnapshotToCanvas(
+          dest,
+          skinUrl,
+          model,
+          viewSize.width,
+          viewSize.height,
+          zoom,
+          { highQuality: true },
+        )
         if (requestId.current === id) setReady(true)
       } catch (err) {
         console.error('Skin preview failed:', err)
@@ -196,7 +206,8 @@ function InteractivePreview({
         enableControls: true,
         zoom: INTERACTIVE_ZOOM,
         fov: 42,
-        pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+        // 読込は同じ。描画解像度だけ上げて輪郭を滑らかに
+        pixelRatio: previewPixelRatio(),
       })
       if (disposed) {
         viewer.dispose()
@@ -328,9 +339,11 @@ function InteractivePreview({
       if (!viewer) return
       const nextW = Math.max(1, Math.round(el.clientWidth))
       const nextH = Math.max(1, Math.round(el.clientHeight))
-      if (viewer.width !== nextW || viewer.height !== nextH) {
-        viewer.setSize(nextW, nextH)
-      }
+      if (viewer.width === nextW && viewer.height === nextH) return
+      viewer.setSize(nextW, nextH)
+      // 縦長・全画面でもキャラが枠に収まるよう距離を再調整
+      viewer.adjustCameraDistance()
+      viewer.controls.update()
     }
     update()
     const ro = new ResizeObserver(update)

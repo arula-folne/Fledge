@@ -46,7 +46,7 @@ export function ContentCategoryIcon({
     <Icon
       size={size}
       stroke={1.75}
-      className={[CONTENT_CATEGORY_COLORS[category], 'shrink-0', className].join(' ')}
+      className={[CONTENT_CATEGORY_COLORS[category], 'block shrink-0', className].join(' ')}
       aria-hidden
     />
   )
@@ -89,9 +89,9 @@ export function ContentCategoryLabel({
 }) {
   const { t } = useTranslation()
   return (
-    <span className="inline-flex items-center gap-1">
+    <span className="inline-flex items-center gap-1 leading-none">
       <ContentCategoryIcon category={category} size={iconSize} />
-      {t(`content.category.${category}`)}
+      <span className="leading-none">{t(`content.category.${category}`)}</span>
     </span>
   )
 }
@@ -99,9 +99,9 @@ export function ContentCategoryLabel({
 export function ContentFilterAllLabel({ iconSize = 14 }: { iconSize?: number }) {
   const { t } = useTranslation()
   return (
-    <span className="inline-flex items-center gap-1">
-      <IconLayoutGrid size={iconSize} stroke={1.75} className="shrink-0" aria-hidden />
-      {t('content.category.all')}
+    <span className="inline-flex items-center gap-1 leading-none">
+      <IconLayoutGrid size={iconSize} stroke={1.75} className="block shrink-0" aria-hidden />
+      <span className="leading-none">{t('content.category.all')}</span>
     </span>
   )
 }

@@ -1,6 +1,6 @@
 {
   "name": "@fledge/i18n",
-  "version": "0.5.35",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "main": "./dist/index.js",
@@ -19,6 +19,7 @@
     "lint": "eslint src --max-warnings 0"
   },
   "devDependencies": {
+    "google-translate-api-x": "^10.7.3",
     "typescript": "^5.8.2"
   }
 }

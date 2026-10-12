@@ -13,6 +13,10 @@ void i18n
     resources,
     lng: defaultLocale,
     fallbackLng: defaultLocale,
+    // zh-CN / pt-BR などを locale 分割せず、登録キーそのまま解決する
+    load: 'currentOnly',
+    supportedLngs: [...Object.keys(resources), 'cimode'],
+    nonExplicitSupportedLngs: false,
     interpolation: { escapeValue: false },
   })
   .then(() => {

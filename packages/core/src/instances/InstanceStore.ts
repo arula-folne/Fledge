@@ -185,6 +185,10 @@ export class InstanceStore {
     } else if (icon) {
       merged.iconFile = iconFile
     }
+    // Vanilla へ切り替えたときは旧 loaderVersion を残さない
+    if (merged.loader === 'vanilla') {
+      delete merged.loaderVersion
+    }
 
     const next = InstanceProfileSchema.parse(merged)
     await fs.writeFile(this.profilePath(id), JSON.stringify(next, null, 2), 'utf8')

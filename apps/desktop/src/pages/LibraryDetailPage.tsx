@@ -17,10 +17,18 @@ import {
   IconPuzzle,
   IconSettings,
   IconSparkles,
+  IconTool,
   IconTrash,
   IconWorld,
 } from '@tabler/icons-react'
-import { DEFAULT_INSTANCE_ICON_PRESET, type InstanceIconPreset, type InstanceSubfolder } from '@fledge/shared'
+import {
+  DEFAULT_INSTANCE_ICON_PRESET,
+  loaderToContentFilters,
+  requiredJavaMajor,
+  type InstanceIconPreset,
+  type InstanceSubfolder,
+  type Loader,
+} from '@fledge/shared'
 import { fledgeApi } from '../api/fledgeApi'
 import { RouteErrorBoundary } from '../components/RouteErrorBoundary'
 import { Button } from '../components/ui/Button'
@@ -37,9 +45,11 @@ import {
 } from '../features/instances/instanceIconPresets'
 import { InstanceLaunchButton } from '../features/instances/InstanceLaunchButton'
 import { InstanceLogConsole } from '../features/instances/InstanceLogConsole'
+import { InstanceVersionEditDialog } from '../features/instances/InstanceVersionEditDialog'
 import { ScreenshotsTab } from '../features/instances/ScreenshotsTab'
 import { ExportMrpackDialog } from '../features/content/ExportMrpackDialog'
 import { formatLastPlayed, formatLoaderLabel } from '../features/instances/instanceMeta'
+import { HoverTip } from '../components/ui/HoverTip'
 import { parseLibraryTab, writeLibraryTab } from '../navigation/libraryDetailSearch'
 import { useUiStore, type LibraryDetailTab } from '../stores/appStores'
 
@@ -153,6 +163,12 @@ export default function LibraryDetailPage() {
     DEFAULT_INSTANCE_ICON_PRESET,
   )
   const [headerIconImage, setHeaderIconImage] = useState<InstanceIconFilePick | null>(null)
+  const [versionEditOpen, setVersionEditOpen] = useState(false)
+  const [contentCompatOpen, setContentCompatOpen] = useState(false)
+  const [pendingContentTarget, setPendingContentTarget] = useState<{
+    minecraftVersion: string
+    loader: Loader
+  } | null>(null)
   const settingsOpen = editingInstanceId === instanceId
 
   const instanceQuery = useQuery({
@@ -190,7 +206,12 @@ export default function LibraryDetailPage() {
   }, [instanceId, tab, setLibraryFocus])
 
   useEffect(() => {
-    if (!settingsOpen) setHeaderIconOpen(false)
+    if (!settingsOpen) {
+      setHeaderIconOpen(false)
+      setVersionEditOpen(false)
+      setContentCompatOpen(false)
+      setPendingContentTarget(null)
+    }
   }, [settingsOpen])
 
   useEffect(() => {
@@ -251,6 +272,79 @@ export default function LibraryDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ['instances'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
       navigate('/')
+    },
+  })
+
+  const versionChangeMutation = useMutation({
+    mutationFn: async (next: {
+      minecraftVersion: string
+      loader: Loader
+      loaderVersion?: string
+    }) => {
+      if (!instance) throw new Error('no instance')
+      return fledgeApi.instances.update(instance.id, {
+        minecraftVersion: next.minecraftVersion,
+        loader: next.loader,
+        loaderVersion: next.loader === 'vanilla' ? undefined : next.loaderVersion,
+      })
+    },
+    onSuccess: async (updated) => {
+      setVersionEditOpen(false)
+      await queryClient.invalidateQueries({ queryKey: ['instances'] })
+      const installed = await fledgeApi.content.listInstalled(updated.id)
+      if (installed.length === 0) {
+        setPendingContentTarget(null)
+        setContentCompatOpen(false)
+        setEditingInstanceId(null)
+        return
+      }
+      setPendingContentTarget({
+        minecraftVersion: updated.minecraftVersion,
+        loader: updated.loader,
+      })
+      setContentCompatOpen(true)
+    },
+    onError: (err) => {
+      setMessage(err instanceof Error ? err.message : String(err))
+    },
+  })
+
+  const contentCompatMutation = useMutation({
+    mutationFn: async () => {
+      if (!instance || !pendingContentTarget) throw new Error('no target')
+      const gameVersion = pendingContentTarget.minecraftVersion
+      const loaders = loaderToContentFilters(pendingContentTarget.loader)
+      const installed = await fledgeApi.content.listInstalled(instance.id)
+      for (const item of installed) {
+        if (item.provider === 'local' || item.projectId.startsWith('pack:')) continue
+        const useLoaders = item.category === 'mod' || item.category === 'modpack'
+        const versions = await fledgeApi.content.listVersions({
+          projectId: item.projectId,
+          gameVersion,
+          loaders: useLoaders ? loaders : [],
+        })
+        const compatible =
+          versions.find((v) => !v.versionType || v.versionType === 'release') ?? versions[0]
+        if (!compatible || compatible.id === item.versionId) continue
+        await fledgeApi.content.install({
+          instanceId: instance.id,
+          provider: item.provider,
+          projectId: item.projectId,
+          category: item.category,
+          versionId: compatible.id,
+          gameVersion,
+          loaders: useLoaders ? loaders : [],
+        })
+      }
+    },
+    onSuccess: async () => {
+      setContentCompatOpen(false)
+      setPendingContentTarget(null)
+      setEditingInstanceId(null)
+      await queryClient.invalidateQueries({ queryKey: ['content-installed', instanceId] })
+    },
+    onError: (err) => {
+      setMessage(err instanceof Error ? err.message : String(err))
     },
   })
 
@@ -555,17 +649,17 @@ export default function LibraryDetailPage() {
             return {
               id: item.id,
               label: (
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-1 leading-none">
                   <TabIcon
                     size={15}
                     stroke={1.75}
                     className={[
-                      'shrink-0',
+                      'block shrink-0',
                       selected ? 'text-[var(--color-on-selection)]' : item.iconClassName,
                     ].join(' ')}
                     aria-hidden
                   />
-                  {item.label}
+                  <span className="leading-none">{item.label}</span>
                 </span>
               ),
             }
@@ -723,22 +817,43 @@ export default function LibraryDetailPage() {
             </div>
           </div>
           <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-3 py-2 text-sm">
-            <div className="text-xs text-[var(--color-text-muted)]">{t('instances.version')}</div>
-            <div className="mt-0.5">{instance.minecraftVersion}</div>
-            <p className="mt-1 text-xs text-[var(--color-text-muted)]">
-              {t('library.versionReadonly')}
-            </p>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1 space-y-2">
+                <div>
+                  <div className="text-xs text-[var(--color-text-muted)]">{t('instances.version')}</div>
+                  <div className="mt-0.5">{instance.minecraftVersion}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-[var(--color-text-muted)]">{t('instances.loader')}</div>
+                  <div className="mt-0.5">
+                    {formatLoaderLabel(instance.loader, t)}
+                    {instance.loader !== 'vanilla' && instance.loaderVersion
+                      ? ` · ${instance.loaderVersion}`
+                      : ''}
+                  </div>
+                </div>
+              </div>
+              <HoverTip label={t('instances.versionChange.editAria')}>
+                <button
+                  type="button"
+                  className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[color-mix(in_srgb,var(--color-version-snapshot)_75%,transparent)] text-white hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-selection)]"
+                  aria-label={t('instances.versionChange.editAria')}
+                  disabled={versionChangeMutation.isPending}
+                  onClick={() => setVersionEditOpen(true)}
+                >
+                  <IconTool size={18} stroke={1.75} />
+                </button>
+              </HoverTip>
+            </div>
           </div>
-          <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-3 py-2 text-sm">
-            <div className="text-xs text-[var(--color-text-muted)]">{t('instances.loader')}</div>
-            <div className="mt-0.5">{formatLoaderLabel(instance.loader, t)}</div>
-          </div>
-          <div className="rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-3 py-2 text-sm">
+          <div className="text-sm">
             <div className="text-xs text-[var(--color-text-muted)]">{t('instances.java')}</div>
             <div className="mt-0.5">
-              {instance.java.strategy === 'auto'
-                ? t('instances.javaAuto')
-                : (instance.java.path ?? t('instances.javaAuto'))}
+              {instance.java.strategy === 'path' && instance.java.path
+                ? instance.java.path
+                : t('instances.javaUsed', {
+                    version: requiredJavaMajor(instance.minecraftVersion),
+                  })}
             </div>
           </div>
           <MemorySnapSlider
@@ -801,6 +916,32 @@ export default function LibraryDetailPage() {
             onSettled: () => setDeleteOpen(false),
           })
         }}
+      />
+      <InstanceVersionEditDialog
+        open={versionEditOpen}
+        instance={instance}
+        pending={versionChangeMutation.isPending}
+        onClose={() => setVersionEditOpen(false)}
+        onApply={(next) => versionChangeMutation.mutate(next)}
+      />
+      <ConfirmDialog
+        open={contentCompatOpen}
+        title={t('instances.versionChange.contentTitle')}
+        body={t('instances.versionChange.contentBody', {
+          game: pendingContentTarget?.minecraftVersion ?? instance.minecraftVersion,
+          loader: formatLoaderLabel(pendingContentTarget?.loader ?? instance.loader, t),
+        })}
+        confirmLabel={t('instances.versionChange.updateContent')}
+        cancelLabel={t('instances.versionChange.keepContent')}
+        confirmVariant="primary"
+        pending={contentCompatMutation.isPending}
+        onCancel={() => {
+          if (contentCompatMutation.isPending) return
+          setContentCompatOpen(false)
+          setPendingContentTarget(null)
+          setEditingInstanceId(null)
+        }}
+        onConfirm={() => contentCompatMutation.mutate()}
       />
     </div>
   )

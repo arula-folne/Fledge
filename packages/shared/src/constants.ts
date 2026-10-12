@@ -24,11 +24,12 @@ export const MAX_UPLOADED_SKINS = 10
  * スキン一覧サムネイル（3D スナップショット）の解像度。
  * バージョンを上げると保存済みサムネイルは再生成される。
  */
-export const SKIN_THUMB_VERSION = 3
+export const SKIN_THUMB_VERSION = 4
 export const SKIN_THUMB = {
-  width: 336,
-  height: 402,
-  zoom: 0.72,
+  width: 448,
+  height: 536,
+  /** 選択中プレビューと同じくらいの余白 */
+  zoom: 0.78,
 } as const
 
 /** お知らせの GitHub 正本とキャッシュ設定 */

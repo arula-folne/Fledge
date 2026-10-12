@@ -195,10 +195,23 @@ impl SettingsStore {
             "curseforgeApiKeyConfigured",
             "curseforgeApiKeyFromEnv",
             "useOsWindowChrome",
+            "varietyThemeId",
+            "varietyVariantId",
+            "themeImageLight",
+            "themeImageDark",
         ] {
             if obj.remove(key).is_some() {
                 dirty = true;
             }
+        }
+
+        // 廃止したテーマ系統はスタンダードへ戻す
+        if matches!(
+            obj.get("themeFamily").and_then(|v| v.as_str()),
+            Some("variety") | Some("image")
+        ) {
+            obj.insert("themeFamily".into(), Value::from("standard"));
+            dirty = true;
         }
 
         // 旧既定（同時DL 8 / 書き込み 4）は両方 10 へ

@@ -2,7 +2,11 @@ import { useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { SkinEntry, SkinModel } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
-import { loadSkinView3d, renderSkinThumbDataUrl } from '../../components/skin/skinSnapshot'
+import {
+  loadSkinView3d,
+  renderSkinThumbDataUrl,
+  SKIN_THUMB_VERSION,
+} from '../../components/skin/skinSnapshot'
 import { skinThumbQueryKey } from '../../components/skin/SkinCachedThumb'
 import { defaultSkinTextureUrl } from '../../components/skin/defaultSkinUrls'
 import { isTauriApp, localFileAssetUrl } from '../../components/skin/skinUrls'
@@ -82,6 +86,36 @@ export function SkinWarmupHost() {
 
         if (skin.source === 'upload') {
           await warmThumb(queryClient, skin.id, skin.model, cancelled)
+        } else if (skin.source === 'default') {
+          const url = defaultSkinTextureUrl(skin.id)
+          if (url) {
+            try {
+              await queryClient.fetchQuery({
+                queryKey: ['skin-render-thumb', SKIN_THUMB_VERSION, url, skin.model],
+                queryFn: () => renderSkinThumbDataUrl(url, skin.model),
+                staleTime: Infinity,
+              })
+            } catch {
+              /* 欠損は Skin 画面側で生成 */
+            }
+          }
+        }
+      }
+
+      // 一覧のデフォルトも先に温める
+      for (const skin of skins.filter((s) => s.source === 'default')) {
+        if (cancelled) return
+        if (targets.some((t) => t.id === skin.id)) continue
+        const url = defaultSkinTextureUrl(skin.id)
+        if (!url) continue
+        try {
+          await queryClient.fetchQuery({
+            queryKey: ['skin-render-thumb', SKIN_THUMB_VERSION, url, skin.model],
+            queryFn: () => renderSkinThumbDataUrl(url, skin.model),
+            staleTime: Infinity,
+          })
+        } catch {
+          /* ignore */
         }
       }
     }

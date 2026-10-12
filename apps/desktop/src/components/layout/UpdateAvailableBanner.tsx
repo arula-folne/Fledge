@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { IconDownload, IconRefresh } from '@tabler/icons-react'
@@ -24,6 +24,16 @@ type ApplyPhase = 'idle' | 'downloading' | 'preparing' | 'restarting'
 type CheckFeedback = 'up-to-date' | 'failed' | null
 
 /**
+ * 1 サイクル（複数回転）の時間。整数サイクルで止めて静止向きと揃える。
+ * ease-out なので初速がやや速く、終わりに向けてゆるやかに減速する。
+ */
+const REFRESH_SPIN_DURATION_MS = 1100
+/** 1 サイクルの回転数（反時計回り） */
+const REFRESH_SPIN_TURNS = 2
+/** 初速やや速め → 後半ゆっくり（眺めやすい減速） */
+const REFRESH_SPIN_EASING = 'cubic-bezier(0.08, 0.7, 0.2, 1)'
+
+/**
  * a / b / c / ut / up は GitHub プレリリースのため /releases/latest では見えない。
  * これらのビルドでは prerelease チャネルを見る。
  */
@@ -44,8 +54,8 @@ export function UpdateAvailableBanner() {
   const [percent, setPercent] = useState(0)
   const [checkFeedback, setCheckFeedback] = useState<CheckFeedback>(null)
   const [checking, setChecking] = useState(false)
-  /** 押下のたびにアイコンを再マウントして spin を必ず再開する */
-  const [spinKey, setSpinKey] = useState(0)
+  const refreshIconRef = useRef<SVGSVGElement | null>(null)
+  const refreshSpinRef = useRef<Animation | null>(null)
 
   const updateQuery = useQuery({
     queryKey: ['updater', 'check', channel],
@@ -119,12 +129,48 @@ export function UpdateAvailableBanner() {
     setPrompt(null)
   }
 
+  const stopRefreshSpin = async () => {
+    const anim = refreshSpinRef.current
+    refreshSpinRef.current = null
+    if (!anim) return
+    const current =
+      typeof anim.currentTime === 'number' && Number.isFinite(anim.currentTime)
+        ? anim.currentTime
+        : 0
+    const cycles = Math.max(1, Math.ceil(current / REFRESH_SPIN_DURATION_MS))
+    const effect = anim.effect
+    if (effect && 'updateTiming' in effect) {
+      effect.updateTiming({ iterations: cycles })
+    }
+    try {
+      await anim.finished
+    } catch {
+      /* cancel 時は無視 */
+    }
+    anim.cancel()
+  }
+
   const handleManualCheck = async () => {
     if (checking || applying) return
     setCheckFeedback(null)
     setChecking(true)
-    setSpinKey((k) => k + 1)
-    const startedAt = Date.now()
+
+    refreshSpinRef.current?.cancel()
+    const icon = refreshIconRef.current
+    if (icon) {
+      refreshSpinRef.current = icon.animate(
+        [
+          { transform: 'rotate(0deg)' },
+          { transform: `rotate(${-360 * REFRESH_SPIN_TURNS}deg)` },
+        ],
+        {
+          duration: REFRESH_SPIN_DURATION_MS,
+          iterations: Infinity,
+          easing: REFRESH_SPIN_EASING,
+        },
+      )
+    }
+
     try {
       const [result] = await Promise.all([
         fledgeApi.updater.check(channel, { force: true }),
@@ -147,12 +193,7 @@ export function UpdateAvailableBanner() {
     } catch {
       setCheckFeedback('failed')
     } finally {
-      // キャッシュ命中などで一瞬で終わる場合も、確認アニメーションが見えるよう最低時間を確保
-      const elapsed = Date.now() - startedAt
-      const minSpinMs = 700
-      if (elapsed < minSpinMs) {
-        await new Promise((resolve) => window.setTimeout(resolve, minSpinMs - elapsed))
-      }
+      await stopRefreshSpin()
       setChecking(false)
     }
   }
@@ -199,22 +240,24 @@ export function UpdateAvailableBanner() {
             <button
               type="button"
               className={[
-                'flex size-8 shrink-0 items-center justify-center rounded-full border transition',
-                checkFeedback === 'failed'
-                  ? 'border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 text-[var(--color-danger)]'
-                  : checkFeedback === 'up-to-date'
-                    ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]'
-                    : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
+                'flex size-8 shrink-0 items-center justify-center rounded-full border transition-[color,background-color,border-color] duration-300',
+                checking
+                  ? 'border-[var(--color-accent)]/45 bg-[var(--color-accent)]/12 text-[var(--color-accent)]'
+                  : checkFeedback === 'failed'
+                    ? 'border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10 text-[var(--color-danger)]'
+                    : checkFeedback === 'up-to-date'
+                      ? 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)]'
+                      : 'border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
               ].join(' ')}
               aria-label={checkTitle}
               disabled={checking}
               onClick={() => void handleManualCheck()}
             >
               <IconRefresh
-                key={spinKey}
+                ref={refreshIconRef}
                 size={16}
                 stroke={1.75}
-                className={checking ? 'animate-spin' : ''}
+                className="transition-colors duration-300"
                 aria-hidden
               />
             </button>

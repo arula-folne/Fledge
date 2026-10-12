@@ -41,6 +41,16 @@ export function toSkinViewModel(model: SkinModel): 'slim' | 'default' {
   return model === 'slim' ? 'slim' : 'default'
 }
 
+/**
+ * プレビュー描画のピクセル比。
+ * テクスチャ読込は変わらず、フレームバッファだけ上げて輪郭を滑らかにする。
+ * 1x ディスプレイでも最低 2x、高DPI は最大 3x。
+ */
+export function previewPixelRatio(): number {
+  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+  return Math.min(Math.max(dpr, 2), 3)
+}
+
 export function applyPreviewPose(viewer: SkinViewer, _opts?: { showCape?: boolean }): void {
   // 正面寄りの定位置（マント有無で横向きにしない。ドラッグで背面を見られる）
   const yaw = -Math.PI / 5.5
@@ -53,9 +63,43 @@ export function applyPreviewPose(viewer: SkinViewer, _opts?: { showCape?: boolea
   viewer.adjustCameraDistance()
 }
 
+const PREVIEW_SUN_NAME = 'fledgePreviewSun'
+
+/** 影modの昼のような太陽光。カメラ基準で位置固定し、回転しても背面が常時影にならない */
 export function applyPreviewLights(viewer: SkinViewer): void {
-  viewer.globalLight.intensity = 2.4
-  viewer.cameraLight.intensity = 0.5
+  // 昼空の柔らかい塗りつぶし（暖色はごく弱く）
+  viewer.globalLight.intensity = 1.55
+  viewer.globalLight.color.set(0xf7f5f2)
+  // カメラ側の弱い補助
+  viewer.cameraLight.intensity = 0.4
+  viewer.cameraLight.color.set(0xfaf9f7)
+
+  type SceneLight = typeof viewer.cameraLight
+  // 旧実装でシーン直下に置いた太陽光があれば外す
+  const orphan = viewer.scene.getObjectByName(PREVIEW_SUN_NAME)
+  if (orphan && orphan.parent === viewer.scene) {
+    viewer.scene.remove(orphan)
+  }
+
+  let sun = viewer.camera.getObjectByName(PREVIEW_SUN_NAME) as SceneLight | null
+  if (!sun) {
+    const LightCtor = viewer.cameraLight.constructor as new (
+      color?: number,
+      intensity?: number,
+    ) => SceneLight
+    sun = new LightCtor(0xf8f6f1, 1.9)
+    sun.name = PREVIEW_SUN_NAME
+    // 減衰なしで遠方の太陽のように当てる
+    sun.distance = 0
+    sun.decay = 0
+    // カメラに追従 → 視点まわりで位置固定、背面を見てもキー光が当たる
+    viewer.camera.add(sun)
+  }
+  sun.intensity = 1.9
+  sun.color.set(0xf8f6f1)
+  // カメラ空間: -X=画面左 / +Y=上 / -Z=被写体方向
+  // → 画面左上から差し、正面のスキンから見ると右斜め上
+  sun.position.set(-14, 18, -6)
 }
 
 export async function renderSkinSnapshotToCanvas(
@@ -65,10 +109,12 @@ export async function renderSkinSnapshotToCanvas(
   cssWidth: number,
   cssHeight: number,
   zoom: number,
+  options?: { highQuality?: boolean },
 ): Promise<void> {
   await yieldToUi()
   const { SkinViewer } = await loadSkinView3d()
-  const pixelRatio = Math.min(2, typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1)
+  const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1
+  const pixelRatio = options?.highQuality ? previewPixelRatio() : Math.min(2, dpr)
   const glCanvas = document.createElement('canvas')
   const viewer = new SkinViewer({
     canvas: glCanvas,
@@ -96,7 +142,9 @@ export async function renderSkinSnapshotToCanvas(
     target.height = glCanvas.height
     const ctx = target.getContext('2d')
     if (!ctx) return
-    ctx.imageSmoothingEnabled = false
+    // 高解像度→表示サイズへ落とすとき輪郭だけ滑らかに（テクセルは Nearest のまま）
+    ctx.imageSmoothingEnabled = Boolean(options?.highQuality)
+    ctx.imageSmoothingQuality = options?.highQuality ? 'high' : 'low'
     ctx.clearRect(0, 0, target.width, target.height)
     ctx.drawImage(glCanvas, 0, 0)
   } finally {
@@ -114,6 +162,8 @@ export async function renderSkinThumbDataUrl(skinUrl: string, model: SkinModel):
       SKIN_THUMB.width,
       SKIN_THUMB.height,
       SKIN_THUMB.zoom,
+      // 一覧もプレビューと同じ太陽光・高解像度で生成
+      { highQuality: true },
     )
     return canvas.toDataURL('image/png')
   })

@@ -369,9 +369,15 @@ export class ContentService {
           const current = await this.readIndex(instanceId)
           let changed = false
           for (const item of current.items) {
-            if (item.projectMetadataResolved) continue
+            if (item.projectMetadataResolved || item.projectId.startsWith('pack:')) continue
             const project = metadata.get(item.projectId)
-            if (!project) continue
+            if (!project) {
+              // Modrinth に無い → デフォルト（キューブ）アイコン。再問い合わせしない
+              if (item.iconUrl != null) item.iconUrl = null
+              item.projectMetadataResolved = true
+              changed = true
+              continue
+            }
             item.slug = project.slug
             item.name = project.name
             item.iconUrl = project.iconUrl
@@ -384,6 +390,29 @@ export class ContentService {
       } catch (err) {
         this.logger.warn('downloader', `Modrinth metadata hydration failed: ${String(err)}`)
       }
+    }
+    // pack:（cdn 外）は Modrinth アイコンを持たない。旧 index の modpack 画像を除去
+    const needsPackSanitize = index.items.some(
+      (item) => item.projectId.startsWith('pack:') && (item.iconUrl != null || !item.projectMetadataResolved),
+    )
+    if (needsPackSanitize) {
+      index = await this.withIndexLock(instanceId, async () => {
+        const current = await this.readIndex(instanceId)
+        let changed = false
+        for (const item of current.items) {
+          if (!item.projectId.startsWith('pack:')) continue
+          if (item.iconUrl != null) {
+            item.iconUrl = null
+            changed = true
+          }
+          if (!item.projectMetadataResolved) {
+            item.projectMetadataResolved = true
+            changed = true
+          }
+        }
+        if (changed) await this.writeIndex(instanceId, current)
+        return current
+      })
     }
     const items = index.items
     if (!category) return items
@@ -608,7 +637,6 @@ export class ContentService {
       name: req.instanceName?.trim() || project.name,
       versionId: version.id,
       versionNumber: version.versionNumber,
-      iconUrl: project.iconUrl,
       fallbackGameVersions: version.gameVersions,
       fallbackLoaders: version.loaders,
       requestedGameVersion: req.gameVersion,
@@ -625,7 +653,6 @@ export class ContentService {
       name: path.basename(filePath, path.extname(filePath)),
       versionId: randomUUID(),
       versionNumber: 'imported',
-      iconUrl: null,
       fallbackGameVersions: [],
       fallbackLoaders: [],
     })
@@ -637,7 +664,6 @@ export class ContentService {
       name: string
       versionId: string
       versionNumber: string
-      iconUrl: string | null
       fallbackGameVersions: string[]
       fallbackLoaders: string[]
       requestedGameVersion?: string
@@ -691,7 +717,6 @@ export class ContentService {
             packName: index.name?.trim() || pack.name,
             versionId: pack.versionId,
             versionNumber: pack.versionNumber,
-            iconUrl: pack.iconUrl,
             projectMetadata,
           }),
         ),
@@ -958,7 +983,6 @@ export class ContentService {
       packName: string
       versionId: string
       versionNumber: string
-      iconUrl: string | null
       projectMetadata: Promise<
         Map<string, { slug: string; name: string; iconUrl: string | null }>
       >
@@ -972,6 +996,8 @@ export class ContentService {
     const category = packFileCategory(rel)
     const fileName = path.basename(rel)
     const projectId = projectIdFromDownloadUrl(downloadUrl, rel)
+    const externalPackFile = projectId.startsWith('pack:')
+    // 個別コンテンツのアイコンは Modrinth メタ取得時のみ。無い場合は UI のキューブへ
     const entry = this.toInstalledEntry({
       provider: 'modrinth',
       projectId,
@@ -981,13 +1007,13 @@ export class ContentService {
       versionNumber: packMeta.versionNumber,
       category,
       fileName,
-      iconUrl: packMeta.iconUrl,
+      iconUrl: null,
       downloadUrl,
       sha1: file.hashes?.sha1,
       sha512: file.hashes?.sha512,
       fileSize: file.fileSize,
       env: file.env,
-      projectMetadataResolved: false,
+      projectMetadataResolved: externalPackFile,
     })
     const parentRel = path.dirname(rel).replaceAll('\\', '/')
     const indexDir = categoryDir(category).replaceAll('\\', '/')
@@ -1024,12 +1050,14 @@ export class ContentService {
         })
         if (ctx.signal.aborted) return
         if (canIndex) {
-          const project = (await packMeta.projectMetadata).get(projectId)
-          if (project) {
-            entry.slug = project.slug
-            entry.name = project.name
-            entry.iconUrl = project.iconUrl
-            entry.projectMetadataResolved = true
+          if (!externalPackFile) {
+            const project = (await packMeta.projectMetadata).get(projectId)
+            if (project) {
+              entry.slug = project.slug
+              entry.name = project.name
+              entry.iconUrl = project.iconUrl
+              entry.projectMetadataResolved = true
+            }
           }
           await this.finalizeInstalledContent(
             instanceId,

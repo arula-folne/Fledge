@@ -16,6 +16,17 @@ export function instanceScreenshotUrl(
   fileName: string,
   absolutePath?: string | null,
 ): string {
+  // プロモ／ブラウザデモ用: data URL・http(s)・同一オリジン相対パスはそのまま表示
+  if (
+    absolutePath &&
+    (absolutePath.startsWith('data:') ||
+      absolutePath.startsWith('http://') ||
+      absolutePath.startsWith('https://') ||
+      absolutePath.startsWith('blob:') ||
+      absolutePath.startsWith('/'))
+  ) {
+    return absolutePath
+  }
   if (absolutePath && isTauriRuntime()) {
     try {
       return convertFileSrc(absolutePath)

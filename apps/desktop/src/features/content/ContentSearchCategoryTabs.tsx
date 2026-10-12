@@ -24,9 +24,9 @@ export function ContentSearchCategoryTabs({ tabs, active, onChange, onPrefetch }
       items={tabs.map((tab) => ({
         id: tab,
         label: isFavoritesTab(tab) ? (
-          <span className="inline-flex items-center gap-1">
-            <IconStar size={15} stroke={1.75} className="shrink-0" aria-hidden />
-            {t('content.category.favorites')}
+          <span className="inline-flex items-center gap-1 leading-none">
+            <IconStar size={15} stroke={1.75} className="block shrink-0" aria-hidden />
+            <span className="leading-none">{t('content.category.favorites')}</span>
           </span>
         ) : (
           <ContentCategoryLabel category={tab} iconSize={15} />

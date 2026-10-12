@@ -38,12 +38,15 @@ import {
 import { useTranslation } from 'react-i18next'
 import { EMPTY_MINECRAFT_INITIAL_SETTINGS, type MinecraftInitialSettings } from '@fledge/shared'
 import { MINECRAFT_LANGUAGES } from '../../data/minecraftLanguages'
+import type { SettingsSearchItemId } from '../../features/settings/settingsSearch'
 import { Button } from '../ui/Button'
 import { MinecraftKeybindsDialog } from './MinecraftKeybindsDialog'
 
 type Props = {
   value: MinecraftInitialSettings
   onChange: (next: MinecraftInitialSettings) => void
+  searchQuery?: string
+  isItemVisible?: (id: SettingsSearchItemId) => boolean
   labels: {
     hint: string
     reset: string
@@ -1014,7 +1017,13 @@ function Group({
   )
 }
 
-export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props) {
+export function MinecraftInitialSettingsPanel({
+  value,
+  onChange,
+  labels,
+  searchQuery = '',
+  isItemVisible,
+}: Props) {
   const { t } = useTranslation()
   const current = { ...EMPTY_MINECRAFT_INITIAL_SETTINGS, ...value, keybinds: value.keybinds ?? {} }
   const patch = (partial: Partial<MinecraftInitialSettings>) =>
@@ -1022,13 +1031,49 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
   const [keybindsOpen, setKeybindsOpen] = useState(false)
   const navRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Partial<Record<InitialSectionId, HTMLDivElement | null>>>({})
+  const searching = searchQuery.trim().length > 0
+  const show = (id: SettingsSearchItemId) =>
+    !searching || !isItemVisible || isItemVisible(id)
 
-  const sections: { id: InitialSectionId; label: string; icon: SettingIcon }[] = [
+  const gameVisible =
+    show('mc.lang') ||
+    show('mc.subtitles') ||
+    show('mc.autoJump') ||
+    show('mc.bobView') ||
+    show('mc.fov')
+  const videoVisible =
+    show('mc.maxFps') ||
+    show('mc.vsync') ||
+    show('mc.fpsCondition') ||
+    show('mc.guiScale') ||
+    show('mc.brightness') ||
+    show('mc.renderDistance') ||
+    show('mc.simulationDistance') ||
+    show('mc.showFps') ||
+    show('mc.fpsExtended') ||
+    show('mc.fpsContrast')
+  const audioVisible =
+    show('mc.masterVolume') ||
+    show('mc.music') ||
+    show('mc.weather') ||
+    show('mc.record') ||
+    show('mc.block')
+  const controlsVisible =
+    show('mc.mouseSensitivity') || show('mc.operatorItemsTab') || show('mc.keybinds')
+
+  const allSections: { id: InitialSectionId; label: string; icon: SettingIcon }[] = [
     { id: 'game', label: labels.game, icon: IconDeviceGamepad2 },
     { id: 'video', label: labels.video, icon: IconDeviceDesktop },
     { id: 'audio', label: labels.audio, icon: IconVolume },
     { id: 'controls', label: labels.controls, icon: IconKeyboard },
   ]
+  const sections = allSections.filter((section) => {
+    if (!searching) return true
+    if (section.id === 'game') return gameVisible
+    if (section.id === 'video') return videoVisible
+    if (section.id === 'audio') return audioVisible
+    return controlsVisible
+  })
 
   const scrollToSection = (id: InitialSectionId) => {
     const el = sectionRefs.current[id]
@@ -1038,8 +1083,11 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden">
+      {!searching ? (
       <p className="shrink-0 text-xs leading-relaxed text-[var(--color-text-muted)]">{labels.hint}</p>
+      ) : null}
 
+      {sections.length > 0 ? (
       <div
         ref={navRef}
         className="flex shrink-0 flex-wrap gap-2"
@@ -1059,8 +1107,10 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           </Button>
         ))}
       </div>
+      ) : null}
 
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden pr-1 overscroll-contain">
+      {gameVisible ? (
       <Group
         sectionId="game"
         sectionRef={(node) => {
@@ -1069,6 +1119,7 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
         title={labels.game}
         icon={IconDeviceGamepad2}
         headerAction={
+          !searching ? (
           <Button
             type="button"
             variant="secondary"
@@ -1077,13 +1128,17 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           >
             {t('settings.minecraftInitial.resetAll')}
           </Button>
+          ) : null
         }
       >
+        {show('mc.lang') ? (
         <LanguageSelect
           value={current.lang}
           onChange={(lang) => patch({ lang })}
           labels={labels}
         />
+        ) : null}
+        {show('mc.subtitles') ? (
         <NullableBoolRow
           icon={IconTextCaption}
           label={labels.subtitles}
@@ -1091,6 +1146,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(showSubtitles) => patch({ showSubtitles })}
           labels={labels}
         />
+        ) : null}
+        {show('mc.autoJump') ? (
         <NullableBoolRow
           icon={IconChevronsUp}
           label={labels.autoJump}
@@ -1098,6 +1155,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(autoJump) => patch({ autoJump })}
           labels={labels}
         />
+        ) : null}
+        {show('mc.bobView') ? (
         <NullableBoolRow
           icon={IconWaveSine}
           label={t('settings.minecraftInitial.bobView')}
@@ -1105,6 +1164,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(bobView) => patch({ bobView })}
           labels={labels}
         />
+        ) : null}
+        {show('mc.fov') ? (
         <SliderRow
           icon={IconViewfinder}
           label={labels.fov}
@@ -1122,8 +1183,11 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(fovDegrees) => patch({ fovDegrees })}
           labels={labels}
         />
+        ) : null}
       </Group>
+      ) : null}
 
+      {videoVisible ? (
       <Group
         sectionId="video"
         sectionRef={(node) => {
@@ -1132,6 +1196,7 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
         title={labels.video}
         icon={IconDeviceDesktop}
       >
+        {show('mc.maxFps') ? (
         <SliderRow
           icon={IconGauge}
           label={labels.maxFps}
@@ -1149,6 +1214,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           }
           labels={labels}
         />
+        ) : null}
+        {show('mc.vsync') ? (
         <NullableBoolRow
           icon={IconLayersIntersect}
           label={labels.vsync}
@@ -1156,6 +1223,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(enableVsync) => patch({ enableVsync })}
           labels={labels}
         />
+        ) : null}
+        {show('mc.fpsCondition') ? (
         <ChoiceList
           icon={IconClockPause}
           label={labels.fpsCondition}
@@ -1171,6 +1240,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
             })
           }
         />
+        ) : null}
+        {show('mc.guiScale') ? (
         <ChoiceList
           icon={IconLayoutBoard}
           label={labels.guiScale}
@@ -1185,6 +1256,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           ]}
           onChange={(raw) => patch({ guiScale: raw === '' ? null : Number(raw) })}
         />
+        ) : null}
+        {show('mc.brightness') ? (
         <SliderRow
           icon={IconSun}
           label={labels.brightness}
@@ -1203,6 +1276,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(n) => patch({ gamma: n === null ? null : n / 100 })}
           labels={labels}
         />
+        ) : null}
+        {show('mc.renderDistance') ? (
         <SliderRow
           icon={IconEye}
           label={labels.renderDistance}
@@ -1217,6 +1292,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           }
           labels={labels}
         />
+        ) : null}
+        {show('mc.simulationDistance') ? (
         <SliderRow
           icon={IconCpu}
           label={labels.simulationDistance}
@@ -1233,6 +1310,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           }
           labels={labels}
         />
+        ) : null}
+        {show('mc.showFps') ? (
         <NullableBoolRow
           icon={IconNumbers}
           label={t('settings.minecraftInitial.showFps')}
@@ -1240,6 +1319,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(showFps) => patch({ showFps })}
           labels={labels}
         />
+        ) : null}
+        {show('mc.fpsExtended') ? (
         <NullableBoolRow
           icon={IconChartLine}
           label={t('settings.minecraftInitial.fpsExtended')}
@@ -1247,6 +1328,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(fpsExtended) => patch({ fpsExtended })}
           labels={labels}
         />
+        ) : null}
+        {show('mc.fpsContrast') ? (
         <ChoiceList
           icon={IconContrast}
           label={t('settings.minecraftInitial.fpsContrast')}
@@ -1264,8 +1347,11 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
             })
           }
         />
+        ) : null}
       </Group>
+      ) : null}
 
+      {audioVisible ? (
       <Group
         sectionId="audio"
         sectionRef={(node) => {
@@ -1274,6 +1360,7 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
         title={labels.audio}
         icon={IconVolume}
       >
+        {show('mc.masterVolume') ? (
         <SliderRow
           icon={IconVolume}
           label={labels.masterVolume}
@@ -1286,6 +1373,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(n) => patch({ masterVolume: n === null ? null : n / 100 })}
           labels={labels}
         />
+        ) : null}
+        {show('mc.music') ? (
         <SliderRow
           icon={IconMusic}
           label={labels.music}
@@ -1298,6 +1387,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(n) => patch({ musicVolume: n === null ? null : n / 100 })}
           labels={labels}
         />
+        ) : null}
+        {show('mc.weather') ? (
         <SliderRow
           icon={IconCloudRain}
           label={t('settings.minecraftInitial.weather')}
@@ -1310,6 +1401,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(n) => patch({ weatherVolume: n === null ? null : n / 100 })}
           labels={labels}
         />
+        ) : null}
+        {show('mc.record') ? (
         <SliderRow
           icon={IconDisc}
           label={t('settings.minecraftInitial.record')}
@@ -1322,6 +1415,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(n) => patch({ recordVolume: n === null ? null : n / 100 })}
           labels={labels}
         />
+        ) : null}
+        {show('mc.block') ? (
         <SliderRow
           icon={IconCube}
           label={t('settings.minecraftInitial.block')}
@@ -1334,8 +1429,11 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(n) => patch({ blockVolume: n === null ? null : n / 100 })}
           labels={labels}
         />
+        ) : null}
       </Group>
+      ) : null}
 
+      {controlsVisible ? (
       <Group
         sectionId="controls"
         sectionRef={(node) => {
@@ -1344,6 +1442,7 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
         title={labels.controls}
         icon={IconKeyboard}
       >
+        {show('mc.mouseSensitivity') ? (
         <SliderRow
           icon={IconMouse}
           label={labels.mouseSensitivity}
@@ -1356,6 +1455,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(n) => patch({ mouseSensitivity: n === null ? null : n / 200 })}
           labels={labels}
         />
+        ) : null}
+        {show('mc.operatorItemsTab') ? (
         <NullableBoolRow
           icon={IconCrown}
           label={t('settings.minecraftInitial.operatorItemsTab')}
@@ -1363,6 +1464,8 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
           onChange={(operatorItemsTab) => patch({ operatorItemsTab })}
           labels={labels}
         />
+        ) : null}
+        {show('mc.keybinds') ? (
         <div className="space-y-2">
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
             <div className="min-w-0 flex-1">
@@ -1385,7 +1488,9 @@ export function MinecraftInitialSettingsPanel({ value, onChange, labels }: Props
             {t('settings.minecraftInitial.keybinds.versionNotice')}
           </p>
         </div>
+        ) : null}
       </Group>
+      ) : null}
       </div>
 
       <MinecraftKeybindsDialog

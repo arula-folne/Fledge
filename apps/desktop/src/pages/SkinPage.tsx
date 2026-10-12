@@ -12,8 +12,8 @@ import { TextField } from '../components/ui/TextField'
 import { SkinPreview } from '../components/skin/SkinPreview'
 import { CapeThumb } from '../components/skin/CapeThumb'
 import { SkinCachedThumb, skinThumbQueryKey } from '../components/skin/SkinCachedThumb'
-import { defaultSkinTextureUrl, defaultSkinThumbUrl } from '../components/skin/defaultSkinUrls'
-import { renderSkinThumbDataUrl } from '../components/skin/skinSnapshot'
+import { defaultSkinTextureUrl } from '../components/skin/defaultSkinUrls'
+import { renderSkinThumbDataUrl, SKIN_THUMB_VERSION } from '../components/skin/skinSnapshot'
 import { isTauriApp, localFileAssetUrl, preferElectronDefaultProtocol } from '../components/skin/skinUrls'
 import {
   patchSelectedSkinSettings,
@@ -196,12 +196,13 @@ export default function SkinPage() {
       ) : null}
 
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-        <aside className="relative z-10 flex min-h-0 flex-col items-center overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5">
+        <aside className="relative z-10 flex h-full min-h-0 flex-col items-center overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] p-2.5">
           <p className="mb-0.5 shrink-0 text-xs font-medium text-[var(--color-text)]">{t('skin.current')}</p>
           <p className="mb-2 shrink-0 text-[10px] leading-tight text-[var(--color-text-muted)]">
             {t('skin.dragHint')}
           </p>
-          <div className="relative isolate flex min-h-[220px] w-full flex-1 overflow-hidden rounded-[var(--radius-md)] lg:min-h-0 lg:max-h-[min(420px,55vh)]">
+          {/* 高さ上限を外し、パネル内の余白いっぱいに伸ばす（全画面対応） */}
+          <div className="relative isolate h-full min-h-[220px] w-full flex-1 overflow-hidden rounded-[var(--radius-md)]">
             {selectedSkin ? (
               <SkinEntryPreview
                 skin={selectedSkin}
@@ -225,6 +226,17 @@ export default function SkinPage() {
                 <span className="rounded-[var(--radius-sm)] bg-[var(--color-selection)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--color-on-selection)]">
                   {t('skin.using')}
                 </span>
+                <button
+                  type="button"
+                  className="inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
+                  aria-label={t('skin.edit')}
+                  onClick={() => {
+                    if (selectedSkin.source === 'upload') setEditing(selectedSkin)
+                    else setEditingCapeOnly(selectedSkin)
+                  }}
+                >
+                  <IconPencil size={20} stroke={1.8} />
+                </button>
               </div>
               <div className="mt-0.5 text-[11px] text-[var(--color-text-muted)]">
                 {selectedSkin.model === 'slim' ? t('skin.model.slim') : t('skin.model.wide')}
@@ -557,18 +569,47 @@ function useSkinImageUrl(skin: SkinEntry, enabled = true): string | undefined {
   return bundledTexture ?? dataQuery.data ?? assetUrl ?? electronDefault ?? undefined
 }
 
+/** デフォルトスキン用：同梱テクスチャからプレビューと同じ太陽光・高画質で描画 */
+function SkinRenderedThumb({
+  skinUrl,
+  model,
+  className = '',
+}: {
+  skinUrl: string
+  model: SkinModel
+  className?: string
+}) {
+  const thumbQuery = useQuery({
+    queryKey: ['skin-render-thumb', SKIN_THUMB_VERSION, skinUrl, model],
+    queryFn: () => renderSkinThumbDataUrl(skinUrl, model),
+    staleTime: Infinity,
+    gcTime: 60 * 60_000,
+  })
+
+  return (
+    <div className={['relative h-full w-full', className].join(' ')}>
+      {!thumbQuery.data ? (
+        <div className="absolute inset-0 animate-pulse bg-[var(--color-border)]/25" />
+      ) : null}
+      {thumbQuery.data ? (
+        <img
+          src={thumbQuery.data}
+          alt=""
+          className="h-full w-full object-contain"
+          draggable={false}
+          decoding="async"
+        />
+      ) : null}
+    </div>
+  )
+}
+
 function SkinEntryThumb({ skin }: { skin: SkinEntry }) {
-  const bundled = skin.source === 'default' ? defaultSkinThumbUrl(skin.id) : undefined
-  if (bundled) {
-    return (
-      <img
-        src={bundled}
-        alt=""
-        className="h-full w-full object-contain"
-        draggable={false}
-        decoding="async"
-      />
-    )
+  if (skin.source === 'default') {
+    const textureUrl = defaultSkinTextureUrl(skin.id)
+    if (textureUrl) {
+      return <SkinRenderedThumb skinUrl={textureUrl} model={skin.model} className="h-full w-full" />
+    }
   }
   return <SkinCachedThumb skinId={skin.id} model={skin.model} className="h-full w-full" />
 }

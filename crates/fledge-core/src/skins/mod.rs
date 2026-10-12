@@ -13,7 +13,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 const MAX_UPLOADED_SKINS: usize = 10;
-const SKIN_THUMB_VERSION: u32 = 3;
+const SKIN_THUMB_VERSION: u32 = 4;
 const SKIN_UPLOAD_URL: &str = "https://api.minecraftservices.com/minecraft/profile/skins";
 const PROFILE_URL: &str = "https://api.minecraftservices.com/minecraft/profile";
 const CAPE_ACTIVE_URL: &str = "https://api.minecraftservices.com/minecraft/profile/capes/active";

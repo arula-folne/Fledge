@@ -1,6 +1,15 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, Fragment, type CSSProperties } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  Fragment,
+  type CSSProperties,
+  type WheelEvent as ReactWheelEvent,
+} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   IconHome,
@@ -16,11 +25,12 @@ import { AccountChip } from '../../features/auth/AccountChip'
 import { LoginErrorDialog } from '../../features/auth/LoginErrorDialog'
 import { fledgeApi } from '../../api/fledgeApi'
 import { applyTheme, resolveSeasonDark } from '../../styles/theme'
+import { getSeasonTheme } from '../../styles/themeSeasons'
 import i18n from '../../i18n'
 import { TransferProgress } from './TransferProgress'
 import { UpdateAvailableBanner } from './UpdateAvailableBanner'
 import { AnimatedOutlet } from './AnimatedOutlet'
-import { SeasonThemeAtmosphere } from '../theme/SeasonThemeAtmosphere'
+import { ThemeIllustrationAtmosphere } from '../theme/ThemeIllustrationAtmosphere'
 import { HoverTip } from '../ui/HoverTip'
 
 const SIDEBAR_COLLAPSED_KEY = 'fledge.sidebarCollapsed'
@@ -45,14 +55,45 @@ function activeNavId(pathname: string): string {
 export function AppShell() {
   const { t } = useTranslation()
   const location = useLocation()
+  const navigate = useNavigate()
   const activeId = activeNavId(location.pathname)
   const navRef = useRef<HTMLElement>(null)
   const asideRef = useRef<HTMLElement>(null)
   const itemRefs = useRef<Record<string, HTMLAnchorElement | null>>({})
+  const navWheelAccRef = useRef(0)
   const [pill, setPill] = useState<{ top: number; left: number; width: number; height: number } | null>(
     null,
   )
   const [pillReady, setPillReady] = useState(false)
+
+  const onNavWheel = useCallback(
+    (event: ReactWheelEvent<HTMLElement>) => {
+      if (NAV_ITEMS.length < 2) return
+      const delta =
+        Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX
+      if (delta === 0) return
+
+      event.preventDefault()
+      event.stopPropagation()
+
+      navWheelAccRef.current += delta
+      const threshold = 36
+      if (Math.abs(navWheelAccRef.current) < threshold) return
+      const dir = navWheelAccRef.current > 0 ? 1 : -1
+      navWheelAccRef.current = 0
+
+      const idx = NAV_ITEMS.findIndex((item) => item.id === activeId)
+      const current = idx < 0 ? 0 : idx
+      const next = Math.max(0, Math.min(NAV_ITEMS.length - 1, current + dir))
+      const item = NAV_ITEMS[next]
+      if (!item || item.id === activeId) return
+      navigate(item.to)
+      requestAnimationFrame(() => {
+        itemRefs.current[item.id]?.scrollIntoView({ block: 'nearest' })
+      })
+    },
+    [activeId, navigate],
+  )
 
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -141,18 +182,38 @@ export function AppShell() {
   const settings = settingsQuery.data
   const seasonId =
     settings?.themeFamily === 'season' && settings.seasonThemeId ? settings.seasonThemeId : null
-  const seasonDark = settings && seasonId ? resolveSeasonDark(settings) : false
+  const illustrated = Boolean(seasonId)
+
+  let atmosphereKey: string | null = null
+  let atmosphereSrc: string | null = null
+  let atmosphereOverlay: string | null = null
+  if (settings && seasonId) {
+    const season = getSeasonTheme(seasonId)
+    const dark = resolveSeasonDark(settings)
+    atmosphereSrc =
+      (dark
+        ? (season?.illustration?.dark ?? season?.illustration?.light)
+        : (season?.illustration?.light ?? season?.illustration?.dark)) ?? null
+    atmosphereOverlay =
+      (dark ? season?.atmosphere.dark.overlayClass : season?.atmosphere.light.overlayClass) ?? null
+    atmosphereKey =
+      atmosphereSrc && atmosphereOverlay ? `${seasonId}:${dark ? 'dark' : 'light'}` : null
+  }
 
   return (
     <div className="relative flex h-full flex-col">
-      <SeasonThemeAtmosphere seasonId={seasonId} dark={seasonDark} />
+      <ThemeIllustrationAtmosphere
+        layerKey={atmosphereKey}
+        src={atmosphereSrc}
+        overlayClass={atmosphereOverlay}
+      />
       <div className="relative z-10 flex min-h-0 flex-1">
         <aside
           ref={asideRef}
           data-fledge-tutorial="tutorial-sidebar"
           className={[
             'season-shell-panel flex shrink-0 flex-col border-r border-[var(--color-border)] py-2 transition-[width] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
-            seasonId ? '' : 'bg-[var(--color-surface)]/90',
+            illustrated ? '' : 'bg-[var(--color-surface)]/90',
             collapsed ? 'w-14 items-center px-1.5' : 'w-44 px-2',
           ].join(' ')}
           style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
@@ -173,6 +234,7 @@ export function AppShell() {
           <nav
             ref={navRef}
             className={['relative flex flex-col', collapsed ? 'items-center gap-1.5' : 'gap-1'].join(' ')}
+            onWheel={onNavWheel}
           >
             {pill ? (
               <div
@@ -235,7 +297,7 @@ export function AppShell() {
             data-tauri-drag-region
             className={[
               'season-shell-panel relative z-20 flex h-[3.75rem] shrink-0 items-center gap-2 overflow-x-clip border-b border-[var(--color-border)] px-3',
-              seasonId ? '' : 'bg-[var(--color-surface)]/70',
+              illustrated ? '' : 'bg-[var(--color-surface)]/70',
             ].join(' ')}
             style={{ WebkitAppRegion: 'drag' } as CSSProperties}
           >

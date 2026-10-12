@@ -1,6 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+  type WheelEvent as ReactWheelEvent,
+} from 'react'
 import {
   IconAdjustments,
   IconBrandMinecraft,
@@ -13,8 +21,10 @@ import {
   IconLibrary,
   IconPalette,
   IconPlayerPlay,
+  IconSearch,
   IconUser,
   IconUsers,
+  IconX,
 } from '@tabler/icons-react'
 import { appLocales } from '@fledge/i18n'
 import {
@@ -60,15 +70,53 @@ import {
   SlidingSelectionPill,
   useSlidingSelectionPill,
 } from '../components/ui/SlidingSelectionPill'
+import {
+  isSettingsItemVisible,
+  matchSettingsSearch,
+  type SettingsSearchItemId,
+} from '../features/settings/settingsSearch'
 
 export default function SettingsPage() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const sectionRaw = useUiStore((s) => s.settingsSection)
   const setSection = useUiStore((s) => s.setSettingsSection)
   const section =
     sectionRaw === 'debug' && !import.meta.env.DEV ? 'appGeneral' : sectionRaw
   const { containerRef, setItemRef, pill, pillReady } = useSlidingSelectionPill(section)
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchActive = searchQuery.trim().length > 0
+  const { matchedIds, matchedSections } = useMemo(
+    () =>
+      matchSettingsSearch(searchQuery, i18n.language, {
+        includeDebug: import.meta.env.DEV,
+      }),
+    [searchQuery, i18n.language],
+  )
+  const showItem = useCallback(
+    (id: SettingsSearchItemId) => isSettingsItemVisible(matchedIds, id, searchQuery),
+    [matchedIds, searchQuery],
+  )
+
+  useEffect(() => {
+    if (!searchActive) return
+    if (matchedSections.size === 0) return
+    if (matchedSections.has(section)) return
+    const order = [
+      'appGeneral',
+      'appTheme',
+      'appLanguage',
+      'minecraftLaunch',
+      'minecraftInitial',
+      'java',
+      'account',
+      'resources',
+      'privacyCredits',
+      ...(import.meta.env.DEV ? (['debug'] as const) : []),
+    ] as const
+    const first = order.find((id) => matchedSections.has(id))
+    if (first) setSection(first)
+  }, [searchActive, matchedSections, section, setSection])
 
   const debugLibraryGrid = useDebugStore((s) => s.libraryGridDebug)
   const debugPlaceholders = useDebugStore((s) => s.libraryPlaceholders)
@@ -138,6 +186,10 @@ export default function SettingsPage() {
         const optimistic: Settings = { ...previous, ...partial }
         queryClient.setQueryData(['settings'], optimistic)
         applyTheme(optimistic)
+      }
+      // AppShell の effect 待ちだと保存完了時点で旧言語のまま残るため、ここで即切替
+      if (partial.locale && i18n.language !== partial.locale) {
+        void i18n.changeLanguage(partial.locale)
       }
       return { previous }
     },
@@ -385,6 +437,41 @@ export default function SettingsPage() {
   }
 
   const currentTab = tabs.find((tab) => tab.id === section)
+  const sectionHasHits = !searchActive || matchedSections.has(section)
+  const navWheelAccRef = useRef(0)
+
+  const onSettingsNavWheel = (event: ReactWheelEvent<HTMLElement>) => {
+    const ids = tabs
+      .map((tab) => tab.id)
+      .filter((id) => !searchActive || matchedSections.has(id))
+    if (ids.length < 2) return
+
+    const delta =
+      Math.abs(event.deltaY) >= Math.abs(event.deltaX) ? event.deltaY : event.deltaX
+    if (delta === 0) return
+
+    // メニュー上ではパネル内スクロールより項目切替を優先
+    event.preventDefault()
+    event.stopPropagation()
+
+    navWheelAccRef.current += delta
+    const threshold = 36
+    if (Math.abs(navWheelAccRef.current) < threshold) return
+    const dir = navWheelAccRef.current > 0 ? 1 : -1
+    navWheelAccRef.current = 0
+
+    const idx = ids.indexOf(section)
+    const current = idx < 0 ? 0 : idx
+    const next = Math.max(0, Math.min(ids.length - 1, current + dir))
+    const nextId = ids[next]
+    if (!nextId || nextId === section) return
+    const navEl = event.currentTarget
+    setSection(nextId)
+    requestAnimationFrame(() => {
+      const el = navEl.querySelector<HTMLElement>(`[data-settings-nav="${nextId}"]`)
+      el?.scrollIntoView({ block: 'nearest' })
+    })
+  }
 
   return (
     <div
@@ -399,6 +486,7 @@ export default function SettingsPage() {
         <nav
           className="season-readable-panel flex h-fit max-h-full w-full min-w-0 max-w-[22rem] flex-col self-start overflow-x-auto overflow-y-auto px-2 py-2"
           aria-label={t('settings.title')}
+          onWheel={onSettingsNavWheel}
         >
           <div
             ref={(el) => {
@@ -423,23 +511,31 @@ export default function SettingsPage() {
                   {group.items.map((tab) => {
                     const TabIcon = tab.Icon
                     const active = section === tab.id
+                    const dimmed = searchActive && !matchedSections.has(tab.id)
                     return (
                       <button
                         key={tab.id}
                         ref={(el) => setItemRef(tab.id, el)}
                         type="button"
+                        data-settings-nav={tab.id}
                         className={[
                           'relative z-[1] flex w-max min-w-full items-center gap-2 rounded-[var(--radius-sm)] px-2.5 py-1.5 text-left text-sm transition-colors duration-100',
                           active
                             ? 'font-medium text-[var(--color-selection)]'
-                            : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
+                            : dimmed
+                              ? 'text-[var(--color-text-muted)]/45 hover:bg-[var(--color-hover)] hover:text-[var(--color-text-muted)]'
+                              : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
                         ].join(' ')}
                         onClick={() => setSection(tab.id)}
                       >
                         <TabIcon
                           size={18}
                           stroke={1.7}
-                          className={['shrink-0', tab.iconClassName].join(' ')}
+                          className={[
+                            'shrink-0',
+                            dimmed ? 'opacity-45' : '',
+                            tab.iconClassName,
+                          ].join(' ')}
                         />
                         <span className="whitespace-nowrap leading-snug">
                           {tab.label}
@@ -459,13 +555,46 @@ export default function SettingsPage() {
         </nav>
 
         <div
-          key={section}
           className={[
             'route-page flex min-h-0 min-w-0 flex-col overflow-hidden',
             section === 'minecraftInitial' ? 'gap-3' : 'gap-4',
           ].join(' ')}
           data-fledge-tutorial="tutorial-settings-content"
         >
+          <div className="relative w-full shrink-0">
+            <IconSearch
+              size={16}
+              stroke={1.75}
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
+              aria-hidden
+            />
+            <input
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t('settings.searchPlaceholder')}
+              aria-label={t('settings.searchPlaceholder')}
+              className="w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] py-1.5 pl-9 pr-9 text-sm text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)]"
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                className="absolute right-1.5 top-1/2 grid size-7 -translate-y-1/2 place-items-center rounded-full text-[var(--color-text-muted)] transition hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]"
+                aria-label={t('common.close')}
+                onClick={() => setSearchQuery('')}
+              >
+                <IconX size={14} stroke={2} aria-hidden />
+              </button>
+            ) : null}
+          </div>
+
+          <div
+            key={section}
+            className={[
+              'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden',
+              section === 'minecraftInitial' ? 'gap-3' : 'gap-4',
+            ].join(' ')}
+          >
           {currentTab ? (
             <h2 className="flex min-w-0 shrink-0 items-center gap-2 text-lg font-semibold tracking-tight text-[var(--color-text)]">
               <currentTab.Icon
@@ -488,15 +617,23 @@ export default function SettingsPage() {
             </div>
           ) : null}
 
-      {section === 'minecraftLaunch' ? (
+      {searchActive && !sectionHasHits ? (
+        <p className="text-sm text-[var(--color-text-muted)]">{t('settings.searchEmpty')}</p>
+      ) : null}
+
+      {section === 'minecraftLaunch' && sectionHasHits ? (
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden pr-1 overscroll-contain">
+          {showItem('fullscreen') || showItem('gameWindowSize') ? (
           <Section title={t('settings.block.gameWindow')}>
+            {showItem('fullscreen') ? (
             <Toggle
               label={t('settings.fullscreen')}
               hint={t('settings.fullscreenHint')}
               checked={settings.gameFullscreen}
               onChange={(gameFullscreen) => saveMutation.mutate({ gameFullscreen })}
             />
+            ) : null}
+            {showItem('gameWindowSize') ? (
             <WindowSizeFields
               title={t('settings.windowSize')}
               hint={t('settings.windowSizeHint')}
@@ -514,14 +651,20 @@ export default function SettingsPage() {
                 saveMutation.mutate({ gameWindowWidth, gameWindowHeight })
               }
             />
+            ) : null}
           </Section>
+          ) : null}
+          {showItem('memory') || showItem('defaultJvmArgs') ? (
           <Section title={t('settings.block.gamePerformance')}>
+            {showItem('memory') ? (
             <MemorySnapSlider
               label={t('settings.memory')}
               hint={t('settings.memoryHint')}
               value={settings.defaultMemoryMaxMb}
               onChange={(defaultMemoryMaxMb) => saveMutation.mutate({ defaultMemoryMaxMb })}
             />
+            ) : null}
+            {showItem('defaultJvmArgs') ? (
             <TextField
               label={t('settings.defaultJvmArgs')}
               hint={t('settings.defaultJvmArgsHint')}
@@ -535,14 +678,18 @@ export default function SettingsPage() {
                 })
               }
             />
+            ) : null}
           </Section>
+          ) : null}
         </div>
       ) : null}
 
-      {section === 'minecraftInitial' ? (
+      {section === 'minecraftInitial' && sectionHasHits ? (
             <MinecraftInitialSettingsPanel
               value={settings.minecraftInitialSettings}
               onChange={(minecraftInitialSettings) => saveMutation.mutate({ minecraftInitialSettings })}
+              searchQuery={searchQuery}
+              isItemVisible={showItem}
               labels={{
                 hint: t('settings.minecraftInitial.hint'),
                 reset: t('settings.minecraftInitial.reset'),
@@ -583,9 +730,9 @@ export default function SettingsPage() {
             />
       ) : null}
 
-      {section !== 'minecraftInitial' && section !== 'minecraftLaunch' ? (
+      {section !== 'minecraftInitial' && section !== 'minecraftLaunch' && sectionHasHits ? (
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden pr-1 overscroll-contain">
-      {section === 'account' ? (
+      {section === 'account' && showItem('account') ? (
         <Section>
           {(() => {
             const account = sessionQuery.data?.account
@@ -731,7 +878,10 @@ export default function SettingsPage() {
       {section === 'appGeneral' ? (
         <>
           <Section title={t('settings.block.windowGeneral')}>
+            {!searchActive ? (
             <p className="text-xs text-[var(--color-text-muted)]">{t('settings.windowGeneralHint')}</p>
+            ) : null}
+            {showItem('launcherWindowSize') ? (
             <WindowSizeFields
               title={t('settings.launcherWindowSize')}
               hint={t('settings.launcherWindowSizeHint')}
@@ -752,28 +902,38 @@ export default function SettingsPage() {
                 saveMutation.mutate(launcherWindowPatch(launcherWindowWidth, launcherWindowHeight))
               }
             />
+            ) : null}
+            {showItem('uiScale') ? (
             <UiScalePicker
               value={settings.uiScale}
               onChange={(uiScale) => saveMutation.mutate({ uiScale })}
             />
+            ) : null}
+            {showItem('minimizeOnLaunch') ? (
             <Toggle
               label={t('settings.minimizeOnLaunch')}
               hint={t('settings.minimizeOnLaunchHint')}
               checked={settings.minimizeOnLaunch}
               onChange={(minimizeOnLaunch) => saveMutation.mutate({ minimizeOnLaunch })}
             />
+            ) : null}
+            {showItem('homeNewsVisible') ? (
             <Toggle
               label={t('settings.homeNewsVisible')}
               hint={t('settings.homeNewsVisibleHint')}
               checked={settings.homeNewsVisible}
               onChange={(homeNewsVisible) => saveMutation.mutate({ homeNewsVisible })}
             />
+            ) : null}
+            {showItem('discordRichPresence') ? (
             <Toggle
               label={t('settings.discordRichPresence')}
               hint={t('settings.discordRichPresenceHint')}
               checked={settings.discordRichPresence}
               onChange={(discordRichPresence) => saveMutation.mutate({ discordRichPresence })}
             />
+            ) : null}
+            {showItem('hardwareAcceleration') ? (
             <Toggle
               label={t('settings.hardwareAcceleration')}
               hint={t('settings.hardwareAccelerationHint')}
@@ -782,11 +942,12 @@ export default function SettingsPage() {
                 saveRestartRequiredSetting({ hardwareAcceleration })
               }
             />
+            ) : null}
           </Section>
         </>
       ) : null}
 
-      {section === 'appLanguage' ? (
+      {section === 'appLanguage' && showItem('language') ? (
         <Section title={t('settings.block.language')}>
           <p className="text-xs text-[var(--color-text-muted)]">{t('settings.language.hint')}</p>
           <p className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)] px-3 py-2 text-xs leading-relaxed text-[var(--color-text-muted)]">
@@ -816,7 +977,9 @@ export default function SettingsPage() {
                     saveMutation.mutate({ locale: locale.id })
                   }}
                 >
-                  <span className="font-medium">{t(locale.labelKey)}</span>
+                  <span className="font-medium">
+                    {i18n.getFixedT(locale.id)(locale.labelKey)}
+                  </span>
                   {selected ? (
                     <span className="text-xs text-[var(--color-accent)]">
                       {t('settings.language.selected')}
@@ -831,8 +994,12 @@ export default function SettingsPage() {
 
       {section === 'appTheme' ? (
         <>
+          {showItem('themeStandard') ? (
           <Section title={t('settings.block.standardTheme')}>
-            <div data-fledge-tutorial="tutorial-settings-theme">
+            <div
+              data-fledge-tutorial="tutorial-settings-theme"
+              className="flex flex-col gap-3"
+            >
             <ThemeModePicker
               value={settings.themeFamily === 'standard' ? settings.themeMode : null}
               labels={{
@@ -872,6 +1039,8 @@ export default function SettingsPage() {
             ) : null}
             </div>
           </Section>
+          ) : null}
+          {showItem('themeSeason') ? (
           <Section title={t('settings.block.seasonTheme')}>
             <SeasonTonePicker
               value={coerceSeasonTone(settings.themeMode)}
@@ -901,67 +1070,90 @@ export default function SettingsPage() {
               }}
             />
           </Section>
+          ) : null}
         </>
       ) : null}
 
       {section === 'privacyCredits' ? (
         <>
+          {showItem('privacy') ? (
           <Section title={t('settings.block.privacy')}>
             <p className="whitespace-pre-line text-sm text-[var(--color-text-muted)]">
               {t('settings.privacyNote')}
             </p>
           </Section>
+          ) : null}
+          {showItem('credits') ? (
           <Section title={t('settings.block.credits')}>
             <AppCredits />
           </Section>
+          ) : null}
+          {showItem('about') ? (
           <Section title={t('settings.block.about')}>
             <p className="whitespace-pre-line text-sm text-[var(--color-text-muted)]">
               {t('settings.aboutNote')}
             </p>
           </Section>
+          ) : null}
         </>
       ) : null}
 
       {import.meta.env.DEV && section === 'debug' ? (
         <>
+          {showItem('debug.libraryGrid') ||
+          showItem('debug.libraryPlaceholders') ||
+          showItem('debug.createSpin') ? (
           <Section title={t('settings.debug.block.library')}>
+            {showItem('debug.libraryGrid') ? (
             <Toggle
               label={t('settings.debug.libraryGrid')}
               hint={t('settings.debug.libraryGridHint')}
               checked={debugLibraryGrid}
               onChange={setDebugLibraryGrid}
             />
+            ) : null}
+            {showItem('debug.libraryPlaceholders') ? (
             <Toggle
               label={t('settings.debug.libraryPlaceholders')}
               hint={t('settings.debug.libraryPlaceholdersHint')}
               checked={debugPlaceholders}
               onChange={setDebugPlaceholders}
             />
+            ) : null}
+            {showItem('debug.createSpin') ? (
             <Toggle
               label={t('settings.debug.createSpin')}
               hint={t('settings.debug.createSpinHint')}
               checked={debugCreateSpin}
               onChange={setDebugCreateSpin}
             />
+            ) : null}
           </Section>
+          ) : null}
+          {showItem('debug.launchProgress') || showItem('debug.launchError') ? (
           <Section title={t('settings.debug.block.launch')}>
+            {showItem('debug.launchProgress') ? (
             <Toggle
               label={t('settings.debug.launchProgress')}
               hint={t('settings.debug.launchProgressHint')}
               checked={debugLaunchProgress}
               onChange={setDebugLaunchProgress}
             />
+            ) : null}
+            {showItem('debug.launchError') ? (
             <Toggle
               label={t('settings.debug.launchError')}
               hint={t('settings.debug.launchErrorHint')}
               checked={debugLaunchError}
               onChange={setDebugLaunchError}
             />
+            ) : null}
           </Section>
+          ) : null}
         </>
       ) : null}
 
-      {section === 'java' ? (
+      {section === 'java' && showItem('java') ? (
         <Section>
           <JavaRuntimePanel onMessage={setMessage} />
         </Section>
@@ -969,6 +1161,7 @@ export default function SettingsPage() {
 
       {section === 'resources' ? (
         <>
+          {showItem('appDirectory') ? (
           <Section title={t('settings.appDirectory')}>
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
@@ -1016,6 +1209,8 @@ export default function SettingsPage() {
               </div>
             </div>
           </Section>
+          ) : null}
+          {showItem('downloads') ? (
           <Section title={t('settings.block.downloads')}>
             <label className="flex flex-col gap-1 text-sm">
               <span className="font-medium text-[var(--color-text)]">{t('settings.concurrentDownloads')}</span>
@@ -1054,9 +1249,13 @@ export default function SettingsPage() {
               />
             </label>
           </Section>
+          ) : null}
+          {showItem('options') ? (
           <Section>
             <OptionsPanel onMessage={setMessage} />
           </Section>
+          ) : null}
+          {showItem('tutorial') ? (
           <Section title={t('settings.block.tutorial')}>
             <div>
               <h3 className="text-sm font-medium text-[var(--color-text)]">
@@ -1073,7 +1272,10 @@ export default function SettingsPage() {
               </Button>
             </div>
           </Section>
+          ) : null}
+          {showItem('clearCache') || showItem('resetAll') || showItem('factoryReset') ? (
           <Section title={t('settings.block.maintenance')}>
+            {showItem('clearCache') ? (
             <div>
               <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.clearCache')}</h3>
               <p className="mt-1 mb-2 text-xs text-[var(--color-text-muted)]">{t('settings.clearCacheHint')}</p>
@@ -1086,6 +1288,8 @@ export default function SettingsPage() {
                 {t('settings.clearCache')}
               </Button>
             </div>
+            ) : null}
+            {showItem('resetAll') ? (
             <div>
               <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.resetAll')}</h3>
               <p className="mt-1 mb-2 text-xs text-[var(--color-text-muted)]">{t('settings.resetAllHint')}</p>
@@ -1097,6 +1301,8 @@ export default function SettingsPage() {
                 {t('settings.resetAll')}
               </Button>
             </div>
+            ) : null}
+            {showItem('factoryReset') ? (
             <div>
               <h3 className="text-sm font-medium text-[var(--color-text)]">{t('settings.factoryReset')}</h3>
               <p className="mt-1 mb-2 text-xs text-[var(--color-text-muted)]">{t('settings.factoryResetHint')}</p>
@@ -1110,11 +1316,14 @@ export default function SettingsPage() {
                   : t('settings.factoryReset')}
               </Button>
             </div>
+            ) : null}
           </Section>
+          ) : null}
         </>
       ) : null}
         </div>
       ) : null}
+          </div>
         </div>
       </div>
 

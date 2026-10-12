@@ -1,6 +1,6 @@
 # Fledge 技術仕様
 
-最終更新: 2026-09-22
+最終更新: 2026-10-12
 
 GitHub リポジトリ向けの実装仕様です。アプリ紹介・機能のアピールは [README](../README.md) を先に読んでください。  
 開発手順は [development.md](./development.md) です。
@@ -12,7 +12,7 @@ GitHub リポジトリ向けの実装仕様です。アプリ紹介・機能の�
 ## 1. 位置づけ
 
 Fledge は Minecraft Java Edition 用の非公式デスクトップランチャーです。  
-バージョン **Ver.0.5.35**。製品 ID は `net.folne.fledge`。  
+バージョン **Ver.0.6.0**。製品 ID は `net.folne.fledge`。  
 **対応環境は Windows 11 のみ**です。
 
 製品方針:
@@ -261,7 +261,6 @@ README の製品説明と実装の差です。
 - CurseForge なし（Modrinth のみ）
 - サーバー向け **プラグイン** の導入は非対応（探索に出てもインストール不可）
 - インスタンス丸ごとの ZIP バックアップはなし（`.mrpack` エクスポートはある。アプリ設定は `option.flg`）
-- 作成後の Minecraft バージョン変更は未対応（UI 上リードオンリー）
 - 対応 OS は **Windows 11 のみ**（配布は Tauri NSIS / win32-x64）
 - `0.x.x` はベータ方針（`1.0.0` 以降を正式版とする）
 - 非日本語 UI 文言の一部は英語フォールバック／機械翻訳ベータ

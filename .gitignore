@@ -17,10 +17,40 @@ release
 .tmp
 *.pem
 *.key
+*.p12
+*.pfx
 *.tsbuildinfo
 apps/desktop/src-tauri/gen
 
 apps/desktop/data/
 
 .tools/
+
+# 秘密情報・資格情報の誤コミット防止
+**/credentials.json
+**/secrets.json
+**/*service-account*.json
+**/.npmrc.local
+**/id_rsa
+**/id_ed25519
+
+# pnpm ワークスペースではルートの pnpm-lock.yaml のみを使う
+packages/**/package-lock.json
+apps/**/package-lock.json
+
+# 翻訳作業の中間成果物・ローカル専用スクリプト（API キー混入リスクが高い）
+packages/i18n/scripts/
+scripts/fix-locale-encoding.mjs
+scripts/inspect-mojibake.mjs
+
+# プロモ動画・収録用はローカル専用（GitHub に上げない）
+promo-video/out/
+promo-video/raw/
+promo-video/.tmp-switch/
+promo-video/**/*.mp4
+promo-video/**/*.webm
+apps/desktop/promo.html
+apps/desktop/public/promo-shots/
+apps/desktop/scripts/record-promo.mjs
+apps/desktop/src/promo/
 

@@ -128,7 +128,8 @@ export function ContentTab({ instance }: Props) {
 
   const openInstalledProject = useCallback(
     (item: InstalledContent) => {
-      if (item.provider === 'local') return
+      // ローカル／mrpack の外部ファイル（Modrinth に無い）は詳細へ行けない
+      if (item.provider === 'local' || item.projectId.startsWith('pack:')) return
       navigate(`/library/${instance.id}/project/${encodeURIComponent(item.projectId)}`)
     },
     [instance.id, navigate],
@@ -547,7 +548,7 @@ export function ContentTab({ instance }: Props) {
       <ContentDropOverlay active={dropActive} previews={dropPreviews} />
       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
         <SlidingPillTabs
-          className="min-w-0 flex-1"
+          className="min-w-0"
           activeId={listFilter}
           onChange={(id) => changeFilter(id as ContentListFilter)}
           items={[
@@ -561,7 +562,7 @@ export function ContentTab({ instance }: Props) {
             })),
           ]}
         />
-        <div className="flex shrink-0 flex-wrap gap-1">
+        <div className="ml-auto flex shrink-0 flex-wrap gap-1">
           <Button
             variant={hasUpdates ? 'primary' : 'secondary'}
             className="px-2 py-1 text-xs"
@@ -711,7 +712,9 @@ export function ContentTab({ instance }: Props) {
                     />
                   </div>
                   <div className="flex min-w-0 flex-1 items-center gap-3 py-4 pl-1.5 pr-3">
-                    {item.iconUrl && item.provider !== 'local' ? (
+                    {item.iconUrl &&
+                    item.provider !== 'local' &&
+                    !item.projectId.startsWith('pack:') ? (
                       <img
                         src={item.iconUrl}
                         alt=""
@@ -930,7 +933,7 @@ export function ContentTab({ instance }: Props) {
               key={item.id}
               className="flex items-center gap-2.5 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 px-2.5 py-2"
             >
-              {item.iconUrl ? (
+              {item.iconUrl && !item.projectId.startsWith('pack:') ? (
                 <img
                   src={item.iconUrl}
                   alt=""

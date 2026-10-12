@@ -85,7 +85,8 @@ npm 上の `@xmcl/core` / `@xmcl/installer` は `main` がソースを指して�
 |------|------|
 | `FLEDGE_DISCORD_CLIENT_ID` | Discord Rich Presence の Application ID 上書き。未設定時は `packages/shared` の既定値 |
 
-シークレットをリポジトリに含めないでください。
+シークレットをリポジトリに含めないでください。  
+OpenAI / Anthropic / Gemini / GitHub PAT / CurseForge など個人用 API キーは、ソース・コミット・Issue / PR・チャット共有に載せないでください。翻訳作業の中間ファイルも GitHub へ上げません。
 
 ## パッケージの依存方向
 

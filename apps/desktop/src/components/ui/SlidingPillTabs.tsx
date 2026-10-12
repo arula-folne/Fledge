@@ -22,14 +22,24 @@ type Props = {
   onPrefetch?: (id: string) => void
   /** sm: インスタンス詳細 / コンテンツフィルター、md: 検索タブ */
   size?: 'sm' | 'md'
+  /**
+   * 項目全体を囲む加工フレーム（カプセル）。
+   * 既定 true（インスタンス詳細・コンテンツ検索など）。
+   */
+  framed?: boolean
   className?: string
   'aria-label'?: string
 }
+
+/** Modrinth 風のカプセル枠（縁＋面） */
+export const PILL_GROUP_FRAME_CLASS =
+  'rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] p-1 shadow-[inset_0_1px_0_color-mix(in_srgb,white_8%,transparent)]'
 
 type PillRect = { left: number; top: number; width: number; height: number }
 
 /**
  * 選択中のタブ下をピルがスライドするセグメントコントロール。
+ * 外側・選択面ともカプセルで、中身は縦横とも中央揃え。
  */
 export function SlidingPillTabs({
   items,
@@ -37,6 +47,7 @@ export function SlidingPillTabs({
   onChange,
   onPrefetch,
   size = 'sm',
+  framed = true,
   className = '',
   'aria-label': ariaLabel,
 }: Props) {
@@ -57,19 +68,21 @@ export function SlidingPillTabs({
       setPill(null)
       return
     }
-    const listBox = list.getBoundingClientRect()
-    const btnBox = btn.getBoundingClientRect()
+    // border 付きフレームでは getBoundingClientRect 差分だと clientLeft/Top 分ずれる。
     setPill({
-      left: btnBox.left - listBox.left + list.scrollLeft,
-      top: btnBox.top - listBox.top + list.scrollTop,
-      width: btnBox.width,
-      height: btnBox.height,
+      left: btn.offsetLeft,
+      top: btn.offsetTop,
+      width: btn.offsetWidth,
+      height: btn.offsetHeight,
     })
   }, [activeId])
 
   useLayoutEffect(() => {
     measure()
-    const frame = requestAnimationFrame(() => setReady(true))
+    const frame = requestAnimationFrame(() => {
+      measure()
+      setReady(true)
+    })
     const list = listRef.current
     if (!list) return () => cancelAnimationFrame(frame)
 
@@ -98,7 +111,9 @@ export function SlidingPillTabs({
     btnRefs.current.get(next)?.focus()
   }
 
-  const pad = size === 'md' ? 'px-2.5 py-1 text-sm' : 'px-2.5 py-1 text-xs'
+  // 固定高さ + leading-none で行ボックス下寄りを防ぐ（少し余白を持たせる）
+  const sizeClass =
+    size === 'md' ? 'h-9 px-3.5 text-sm' : 'h-8 px-3 text-xs'
 
   return (
     <div
@@ -106,13 +121,17 @@ export function SlidingPillTabs({
       role="tablist"
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
-      className={['relative flex flex-wrap gap-0.5', className].join(' ')}
+      className={[
+        'relative inline-flex max-w-full flex-nowrap items-center gap-0.5 overflow-x-auto',
+        framed ? PILL_GROUP_FRAME_CLASS : '',
+        className,
+      ].join(' ')}
     >
       {pill ? (
         <div
           aria-hidden
           className={[
-            'pointer-events-none absolute rounded-full bg-[var(--color-selection)]',
+            'pointer-events-none absolute left-0 top-0 rounded-full bg-[var(--color-selection)]',
             ready
               ? 'transition-[transform,width,height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none'
               : '',
@@ -141,8 +160,10 @@ export function SlidingPillTabs({
               if (!selected) onChange(item.id)
             }}
             className={[
-              'relative z-[1] inline-flex max-w-none items-center whitespace-nowrap rounded-full font-medium transition-colors',
-              pad,
+              'relative z-[1] inline-flex shrink-0 items-center justify-center gap-1 whitespace-nowrap rounded-full font-medium leading-none transition-colors',
+              '[&_svg]:block [&_svg]:shrink-0',
+              '[&_span]:inline-flex [&_span]:items-center [&_span]:gap-1 [&_span]:leading-none',
+              sizeClass,
               selected
                 ? 'text-[var(--color-on-selection)]'
                 : [

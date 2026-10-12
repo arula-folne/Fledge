@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { IconDownload, IconLayoutGrid } from '@tabler/icons-react'
 import type { ContentCategory } from '@fledge/shared'
+import { PILL_GROUP_FRAME_CLASS } from '../../components/ui/SlidingPillTabs'
 import { ContentCategoryIcon } from './contentCategoryIcons'
 import type { FavoriteCategoryFilter } from './contentFavoritesList'
 
@@ -34,9 +35,9 @@ export function FavoriteCategoryFilters({
 
   const buttonClass = (selected: boolean) =>
     [
-      'relative inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-sm)] transition-colors',
+      'relative inline-flex size-9 shrink-0 items-center justify-center rounded-full transition-colors',
       selected
-        ? 'bg-[var(--color-selection)] ring-1 ring-[var(--color-selection)]'
+        ? 'bg-[var(--color-selection)] text-[var(--color-on-selection)]'
         : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)]',
     ].join(' ')
 
@@ -55,7 +56,12 @@ export function FavoriteCategoryFilters({
 
   return (
     <div className="flex shrink-0 items-center gap-1.5">
-      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+      <div
+        className={[
+          'inline-flex min-w-0 max-w-full flex-nowrap items-center gap-1 overflow-x-auto',
+          PILL_GROUP_FRAME_CLASS,
+        ].join(' ')}
+      >
         <button
           type="button"
           className={buttonClass(active === 'all')}

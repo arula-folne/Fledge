@@ -406,7 +406,7 @@ textarea {
   z-index: 10001;
 }
 
-/* 繧､繝ｩ繧ｹ繝井ｻ倥″繧ｷ繝ｼ繧ｺ繝ｳ繝・・繝・*/
+/* イラスト付きシーズンテーマ */
 html[data-theme-season] body {
   background: transparent !important;
 }
@@ -421,7 +421,7 @@ html[data-theme-season] .season-shell-main {
   background: color-mix(in srgb, var(--color-bg) 18%, transparent);
 }
 
-/* シーズン背景上のメニュー用（読みやすさ用ガラス） */
+/* イラスト背景上のメニュー用（読みやすさ用ガラス） */
 html[data-theme-season] .season-readable-panel {
   backdrop-filter: blur(8px) saturate(1.05);
   -webkit-backdrop-filter: blur(8px) saturate(1.05);

@@ -2,6 +2,11 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import {
+  JAVA_MANAGED_MAJORS,
+  requiredJavaMajor,
+  type JavaManagedMajor,
+} from '@fledge/shared'
 import type { PathLayout } from '../app/paths.js'
 import type { Logger } from '../logging/Logger.js'
 import type { DownloadQueue } from '../download/DownloadQueue.js'
@@ -9,9 +14,8 @@ import { fetchToFile } from '../download/fetchBody.js'
 
 const execFileAsync = promisify(execFile)
 
-/** 管理対象の Java メジャー */
-export const JAVA_MANAGED_MAJORS = [25, 21, 17, 8] as const
-export type JavaManagedMajor = (typeof JAVA_MANAGED_MAJORS)[number]
+export { JAVA_MANAGED_MAJORS, requiredJavaMajor }
+export type { JavaManagedMajor }
 
 export type JavaRuntimeView = {
   major: JavaManagedMajor
@@ -31,26 +35,6 @@ export type JavaVerifyResult = {
   major: JavaManagedMajor
   detail: string
   detectedMajor: number | null
-}
-
-/**
- * Minecraft バージョンから必要 Java メジャーを推定。
- * 26.x 以降は年号バージョン（java-runtime-epsilon = 25）。
- */
-export function requiredJavaMajor(minecraftVersion: string): number {
-  const m = /^(\d+)\.(\d+)/.exec(minecraftVersion)
-  if (!m) return 21
-  const major = Number(m[1])
-  const minor = Number(m[2])
-  if (major >= 26) return 25
-  if (major !== 1) return 21
-  if (minor <= 16) return 8
-  if (minor < 20) return 17
-  if (minor === 20) {
-    const patch = Number((/^\d+\.\d+\.(\d+)/.exec(minecraftVersion) ?? [])[1] ?? 0)
-    return patch >= 5 ? 21 : 17
-  }
-  return 21
 }
 
 export class JavaManager {
