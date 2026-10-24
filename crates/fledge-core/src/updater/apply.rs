@@ -7,6 +7,7 @@ use crate::error::{CoreError, CoreResult};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::Duration;
 
 /// Install root for packaged Tauri / NSIS layout (exe directory).
 pub fn resolve_install_root() -> PathBuf {
@@ -192,14 +193,15 @@ End If
 KillFledgeApps
 WScript.Sleep 1200
 Log "starting app " & app
-sh.Run """" & app & """ --updated", 1, False
-WScript.Sleep 3000
+' cmd start で完全に独立起動（wscript 終了後も残る）
+sh.Run "cmd.exe /c start """" /B """ & app & """ --updated", 0, True
+WScript.Sleep 3500
 If CountFledgeApps() = 0 Then
   Log "retry launch (single-instance race?)"
   KillFledgeApps
-  WScript.Sleep 800
-  sh.Run """" & app & """ --updated", 1, False
-  WScript.Sleep 2000
+  WScript.Sleep 1000
+  sh.Run "cmd.exe /c start """" /B """ & app & """ --updated", 0, True
+  WScript.Sleep 2500
   If CountFledgeApps() = 0 Then
     Log "ERROR app did not stay running after launch"
     WScript.Quit 5
@@ -219,6 +221,9 @@ WScript.Quit 0
     fs::write(&vbs_path, vbs.replace('\n', "\r\n"))?;
 
     let waiter_pid = spawn_wscript_outside_job(&vbs_path)?;
+    if waiter_pid == 0 {
+        return Err(CoreError::msg("updater.applyFailed"));
+    }
 
     let _ = fs::OpenOptions::new()
         .create(true)
@@ -228,7 +233,7 @@ WScript.Quit 0
             use std::io::Write;
             writeln!(
                 f,
-                "[{}] spawned WMI wscript waiter target_pid={pid_to_wait_for} waiter_pid={waiter_pid}",
+                "[{}] spawned wscript waiter target_pid={pid_to_wait_for} waiter_pid={waiter_pid}",
                 chrono::Utc::now().to_rfc3339(),
             )
         });
@@ -236,26 +241,67 @@ WScript.Quit 0
     Ok(())
 }
 
-/// Create `wscript` via WMI so it is not killed with the app's Job Object.
+/// Job Object 外で待機スクリプトを起動する。
+///
+/// 以前のインライン PowerShell + `DETACHED_PROCESS` は stdout が空のまま
+/// `waiter_pid=0` で成功扱いになり、VBS が動かず再起動されないことがあった。
 fn spawn_wscript_outside_job(vbs_path: &Path) -> CoreResult<u32> {
+    match spawn_wscript_direct(vbs_path) {
+        Ok(pid) if pid_alive_soon(pid) => return Ok(pid),
+        Ok(pid) => tracing::warn!(pid, "direct wscript not alive; trying WMI"),
+        Err(err) => tracing::warn!(error = %err, "direct wscript failed; trying WMI"),
+    }
+
+    match spawn_wscript_via_wmi_ps1(vbs_path) {
+        Ok(pid) if pid_alive_soon(pid) => Ok(pid),
+        Ok(pid) => {
+            tracing::error!(pid, "WMI wscript pid invalid or dead");
+            Err(CoreError::msg("updater.applyFailed"))
+        }
+        Err(err) => {
+            tracing::error!(error = %err, "WMI wscript spawn failed");
+            Err(err)
+        }
+    }
+}
+
+fn spawn_wscript_direct(vbs_path: &Path) -> CoreResult<u32> {
+    let child = Command::new("wscript.exe")
+        .args(["//B", "//Nologo", &vbs_path.to_string_lossy()])
+        // DETACHED_PROCESS は付けない（出力喪失・起動失敗の原因になる）
+        .creation_flags(CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB | CREATE_NEW_PROCESS_GROUP)
+        .spawn()
+        .map_err(|e| CoreError::msg(format!("updater.applyFailed: {e}")))?;
+    Ok(child.id())
+}
+
+/// 引用符問題を避けるため .ps1 を書いてから実行する。
+fn spawn_wscript_via_wmi_ps1(vbs_path: &Path) -> CoreResult<u32> {
+    let dir = vbs_path.parent().unwrap_or_else(|| Path::new("."));
+    let ps1_path = dir.join(format!("spawn-waiter-{}.ps1", std::process::id()));
     let vbs_arg = vbs_path.to_string_lossy().replace('\'', "''");
-    let create_cmdline = format!("wscript.exe //B //Nologo \"{vbs_arg}\"");
-    let ps = format!(
-        "$r = ([wmiclass]'Win32_Process').Create('{create_cmdline}'); if ($null -eq $r) {{ throw 'WMI Create returned null' }}; if ($r.ReturnValue -ne 0) {{ throw \"WMI Create failed: $($r.ReturnValue)\" }}; Write-Output $r.ProcessId"
+    let script = format!(
+        "$cmd = 'wscript.exe //B //Nologo \"{vbs_arg}\"'\r\n\
+         $r = ([wmiclass]'Win32_Process').Create($cmd)\r\n\
+         if ($null -eq $r) {{ throw 'WMI Create returned null' }}\r\n\
+         if ($r.ReturnValue -ne 0) {{ throw \"WMI Create failed: $($r.ReturnValue)\" }}\r\n\
+         if (-not $r.ProcessId) {{ throw 'WMI Create returned empty ProcessId' }}\r\n\
+         Write-Output $r.ProcessId\r\n"
     );
+    fs::write(&ps1_path, script)?;
 
     let output = Command::new("powershell.exe")
         .args([
             "-NoProfile",
             "-ExecutionPolicy",
             "Bypass",
-            "-WindowStyle",
-            "Hidden",
-            "-Command",
-            &ps,
+            "-File",
+            &ps1_path.to_string_lossy(),
         ])
-        .creation_flags(CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB | DETACHED_PROCESS)
+        .creation_flags(CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB | CREATE_NEW_PROCESS_GROUP)
         .output();
+
+    let _ = fs::remove_file(&ps1_path);
 
     match output {
         Ok(out) if out.status.success() => {
@@ -265,27 +311,44 @@ fn spawn_wscript_outside_job(vbs_path: &Path) -> CoreResult<u32> {
                 .rev()
                 .find_map(|line| line.trim().parse::<u32>().ok())
                 .unwrap_or(0);
+            if pid == 0 {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                tracing::warn!(stdout = %stdout, stderr = %stderr, "WMI waiter returned pid 0");
+                return Err(CoreError::msg("updater.applyFailed"));
+            }
             Ok(pid)
         }
         Ok(out) => {
             let err = String::from_utf8_lossy(&out.stderr);
-            tracing::warn!(error = %err, "WMI waiter spawn failed; falling back to direct wscript");
-            spawn_wscript_direct(vbs_path)
+            Err(CoreError::msg(format!("updater.applyFailed: {err}")))
         }
-        Err(err) => {
-            tracing::warn!(error = %err, "powershell waiter spawn failed; falling back to direct wscript");
-            spawn_wscript_direct(vbs_path)
-        }
+        Err(err) => Err(CoreError::msg(format!("updater.applyFailed: {err}"))),
     }
 }
 
-fn spawn_wscript_direct(vbs_path: &Path) -> CoreResult<u32> {
-    let child = Command::new("wscript.exe")
-        .args(["//B", "//Nologo", &vbs_path.to_string_lossy()])
-        .creation_flags(CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB | DETACHED_PROCESS)
-        .spawn()
-        .map_err(|e| CoreError::msg(format!("updater.applyFailed: {e}")))?;
-    Ok(child.id())
+fn pid_alive_soon(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    std::thread::sleep(Duration::from_millis(250));
+    pid_alive(pid)
+}
+
+fn pid_alive(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    let output = Command::new("tasklist.exe")
+        .args(["/FI", &format!("PID eq {pid}"), "/NH"])
+        .creation_flags(CREATE_NO_WINDOW)
+        .output();
+    match output {
+        Ok(out) => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            stdout.contains(&pid.to_string())
+        }
+        Err(_) => false,
+    }
 }
 
 /// After app exit: run NSIS uninstaller if present, else remove install root,
@@ -399,12 +462,12 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 #[cfg(windows)]
 const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
 #[cfg(windows)]
-const DETACHED_PROCESS: u32 = 0x0000_0008;
+const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
 
 #[cfg(not(windows))]
 const CREATE_BREAKAWAY_FROM_JOB: u32 = 0;
 #[cfg(not(windows))]
-const DETACHED_PROCESS: u32 = 0;
+const CREATE_NEW_PROCESS_GROUP: u32 = 0;
 
 #[cfg(windows)]
 trait CreationFlagsExt {
