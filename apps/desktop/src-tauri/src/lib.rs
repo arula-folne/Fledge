@@ -21,7 +21,14 @@ pub fn run() {
     // 二重起動を防ぎ、既存ウィンドウを前面に出す
     #[cfg(desktop)]
     {
-        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // 更新後の再起動（--updated）が古いプロセスに吸われると新版が起動しない。
+            // その場合は既存側を終了し、待機スクリプトのリトライ起動に道を開ける。
+            let is_update_relaunch = args.iter().any(|a| a == "--updated");
+            if is_update_relaunch {
+                app.exit(0);
+                return;
+            }
             if let Some(window) = app.get_webview_window("main") {
                 let _ = window.show();
                 let _ = window.unminimize();

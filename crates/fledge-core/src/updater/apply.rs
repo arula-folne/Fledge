@@ -73,11 +73,12 @@ fn safe_rm_path(path: &Path) {
 
 /// Stage a hidden waiter that runs NSIS after this process exits, then relaunches.
 ///
-/// Tauri NSIS: `/UPDATE /S /D=<installDir>`.
+/// Tauri NSIS: `/UPDATE /S /D=<installDir>` (`/D=` must be last, unquoted).
 ///
-/// Do **not** use `cmd` + `tasklist | find`. With DETACHED_PROCESS the pipe to `find`
-/// breaks, `find` waits on stdin forever (console titled `find "pid"`), and updates hang.
-/// Window-less `wscript` + WMI wait avoids any console.
+/// The waiter is created with WMI `Win32_Process.Create` so it survives Job Object
+/// teardown when the app exits (plain `spawn` can die with the parent).
+/// Before NSIS / relaunch it kills leftover `fledge-desktop.exe` so file replace and
+/// single-instance handoff succeed, and retries launch once if the first start vanishes.
 pub fn spawn_installer_after_exit(
     installer_path: &Path,
     install_dir: &Path,
@@ -123,6 +124,25 @@ Sub Log(msg)
   ts.WriteLine Now & " " & msg
   ts.Close
 End Sub
+Sub KillFledgeApps()
+  On Error Resume Next
+  Dim p
+  For Each p In wmi.ExecQuery("SELECT ProcessId,Name FROM Win32_Process WHERE Name='fledge-desktop.exe' OR Name='Fledge.exe'")
+    Log "kill leftover " & p.Name & " pid=" & p.ProcessId
+    p.Terminate
+  Next
+  On Error GoTo 0
+End Sub
+Function CountFledgeApps()
+  Dim n, p
+  n = 0
+  On Error Resume Next
+  For Each p In wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE Name='fledge-desktop.exe' OR Name='Fledge.exe'")
+    n = n + 1
+  Next
+  On Error GoTo 0
+  CountFledgeApps = n
+End Function
 Log "wait pid=" & pid
 Do
   Set col = wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ProcessId=" & pid)
@@ -130,23 +150,26 @@ Do
   WScript.Sleep 800
 Loop
 Log "pid exited, settling"
-WScript.Sleep 1200
+WScript.Sleep 2500
+KillFledgeApps
+WScript.Sleep 1500
 If Not fso.FileExists(installer) Then
   Log "ERROR installer missing"
   WScript.Quit 2
 End If
-Log "launching NSIS"
+Log "launching NSIS /UPDATE /S /D=" & installDir
 ec = sh.Run("""" & installer & """ /UPDATE /S /D=" & installDir, 0, True)
 Log "NSIS exit=" & ec
 If ec <> 0 Then
   Log "ERROR NSIS failed"
   WScript.Quit ec
 End If
+' Prefer Tauri main binary; old Electron stub Fledge.exe must not win.
 app = ""
-If fso.FileExists(installDir & "\Fledge.exe") Then
-  app = installDir & "\Fledge.exe"
-ElseIf fso.FileExists(installDir & "\fledge-desktop.exe") Then
+If fso.FileExists(installDir & "\fledge-desktop.exe") Then
   app = installDir & "\fledge-desktop.exe"
+ElseIf fso.FileExists(installDir & "\Fledge.exe") Then
+  app = installDir & "\Fledge.exe"
 Else
   Set folder = fso.GetFolder(installDir)
   For Each file In folder.Files
@@ -162,12 +185,30 @@ If app = "" Then
   Log "ERROR app missing after install"
   WScript.Quit 3
 End If
+If fso.GetFile(app).Size < 1000000 Then
+  Log "ERROR app too small after install size=" & fso.GetFile(app).Size
+  WScript.Quit 4
+End If
+KillFledgeApps
+WScript.Sleep 1200
 Log "starting app " & app
 sh.Run """" & app & """ --updated", 1, False
-Log "done"
+WScript.Sleep 3000
+If CountFledgeApps() = 0 Then
+  Log "retry launch (single-instance race?)"
+  KillFledgeApps
+  WScript.Sleep 800
+  sh.Run """" & app & """ --updated", 1, False
+  WScript.Sleep 2000
+  If CountFledgeApps() = 0 Then
+    Log "ERROR app did not stay running after launch"
+    WScript.Quit 5
+  End If
+End If
+Log "done running=" & CountFledgeApps()
 On Error Resume Next
 fso.DeleteFile WScript.ScriptFullName, True
-WScript.Quit ec
+WScript.Quit 0
 "#,
         pid = pid_to_wait_for,
         installer = installer,
@@ -177,11 +218,7 @@ WScript.Quit ec
 
     fs::write(&vbs_path, vbs.replace('\n', "\r\n"))?;
 
-    Command::new("wscript.exe")
-        .args(["//B", "//Nologo", &vbs_path.to_string_lossy()])
-        .creation_flags(CREATE_NO_WINDOW)
-        .spawn()
-        .map_err(|e| CoreError::msg(format!("updater.applyFailed: {e}")))?;
+    let waiter_pid = spawn_wscript_outside_job(&vbs_path)?;
 
     let _ = fs::OpenOptions::new()
         .create(true)
@@ -191,12 +228,64 @@ WScript.Quit ec
             use std::io::Write;
             writeln!(
                 f,
-                "[{}] spawned hidden wscript waiter pid={pid_to_wait_for}",
+                "[{}] spawned WMI wscript waiter target_pid={pid_to_wait_for} waiter_pid={waiter_pid}",
                 chrono::Utc::now().to_rfc3339(),
             )
         });
 
     Ok(())
+}
+
+/// Create `wscript` via WMI so it is not killed with the app's Job Object.
+fn spawn_wscript_outside_job(vbs_path: &Path) -> CoreResult<u32> {
+    let vbs_arg = vbs_path.to_string_lossy().replace('\'', "''");
+    let create_cmdline = format!("wscript.exe //B //Nologo \"{vbs_arg}\"");
+    let ps = format!(
+        "$r = ([wmiclass]'Win32_Process').Create('{create_cmdline}'); if ($null -eq $r) {{ throw 'WMI Create returned null' }}; if ($r.ReturnValue -ne 0) {{ throw \"WMI Create failed: $($r.ReturnValue)\" }}; Write-Output $r.ProcessId"
+    );
+
+    let output = Command::new("powershell.exe")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-WindowStyle",
+            "Hidden",
+            "-Command",
+            &ps,
+        ])
+        .creation_flags(CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB | DETACHED_PROCESS)
+        .output();
+
+    match output {
+        Ok(out) if out.status.success() => {
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            let pid = stdout
+                .lines()
+                .rev()
+                .find_map(|line| line.trim().parse::<u32>().ok())
+                .unwrap_or(0);
+            Ok(pid)
+        }
+        Ok(out) => {
+            let err = String::from_utf8_lossy(&out.stderr);
+            tracing::warn!(error = %err, "WMI waiter spawn failed; falling back to direct wscript");
+            spawn_wscript_direct(vbs_path)
+        }
+        Err(err) => {
+            tracing::warn!(error = %err, "powershell waiter spawn failed; falling back to direct wscript");
+            spawn_wscript_direct(vbs_path)
+        }
+    }
+}
+
+fn spawn_wscript_direct(vbs_path: &Path) -> CoreResult<u32> {
+    let child = Command::new("wscript.exe")
+        .args(["//B", "//Nologo", &vbs_path.to_string_lossy()])
+        .creation_flags(CREATE_NO_WINDOW | CREATE_BREAKAWAY_FROM_JOB | DETACHED_PROCESS)
+        .spawn()
+        .map_err(|e| CoreError::msg(format!("updater.applyFailed: {e}")))?;
+    Ok(child.id())
 }
 
 /// After app exit: run NSIS uninstaller if present, else remove install root,
@@ -307,6 +396,15 @@ fn vbs_str(path: &Path) -> String {
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+#[cfg(windows)]
+const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+#[cfg(windows)]
+const DETACHED_PROCESS: u32 = 0x0000_0008;
+
+#[cfg(not(windows))]
+const CREATE_BREAKAWAY_FROM_JOB: u32 = 0;
+#[cfg(not(windows))]
+const DETACHED_PROCESS: u32 = 0;
 
 #[cfg(windows)]
 trait CreationFlagsExt {

@@ -909,7 +909,8 @@ async fn dispatch(
             state.updater.apply(channel).await.map_err(map_err)?;
             let handle = app.clone();
             tauri::async_runtime::spawn(async move {
-                tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+                // WMI 待機スクリプト起動完了後、ロック解除の余裕を置いて終了
+                tokio::time::sleep(std::time::Duration::from_millis(800)).await;
                 handle.exit(0);
             });
             Ok(Value::Null)
