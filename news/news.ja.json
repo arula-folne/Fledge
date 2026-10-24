@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.6.1",
+    "title": "【バージョンアップ】Fledge Ver.0.6.1",
+    "body": "**Fledge Ver.0.6.1** を公開しました。\n\n## 主な変更\n\n- アップデート確認用のマイナーリリース\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-10-25T01:45:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.6.1"
+  },
+  {
     "id": "v0.6.0",
     "title": "【バージョンアップ】Fledge Ver.0.6.0",
     "body": "**Fledge Ver.0.6.0** を公開しました。\n\n## 主な変更\n\n- 設定検索・対話チュートリアル・インスタンスのバージョン変更\n- 更新確認アニメーションとコンテンツ UI の改善\n- スキンプレビュー／シーズンテーマ表示の整理\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
