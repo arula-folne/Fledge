@@ -10,6 +10,7 @@ import { Button } from '../../components/ui/Button'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { useUiStore } from '../../stores/appStores'
 import { GalleryLightbox } from '../media/GalleryLightbox'
+import { ScreenshotImage } from './ScreenshotImage'
 import { instanceScreenshotUrl, isScreenshotFileName } from './screenshotUrls'
 
 export type ScreenshotGalleryEntry = {
@@ -80,6 +81,7 @@ export function ScreenshotGallery({
           instanceId: e.instanceId,
           instanceName: e.instanceName,
           fileName: e.fileName,
+          filePath: e.filePath,
         })),
     [entries, showInstanceLabel],
   )
@@ -303,9 +305,10 @@ export function ScreenshotGallery({
                             )
                           }
                         >
-                          <img
-                            src={item.url}
-                            alt={item.title ?? ''}
+                          <ScreenshotImage
+                            instanceId={item.instanceId}
+                            fileName={item.fileName}
+                            filePath={item.filePath}
                             loading="lazy"
                             decoding="async"
                             className="block aspect-video h-auto w-full object-cover"
@@ -337,9 +340,10 @@ export function ScreenshotGallery({
                     )
                   }
                 >
-                  <img
-                    src={item.url}
-                    alt={item.title ?? ''}
+                  <ScreenshotImage
+                    instanceId={item.instanceId}
+                    fileName={item.fileName}
+                    filePath={item.filePath}
                     loading="lazy"
                     decoding="async"
                     className="block aspect-video h-auto w-full object-cover"

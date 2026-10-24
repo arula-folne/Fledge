@@ -97,6 +97,7 @@ export type FledgeApi = {
     ) => Promise<ContentMediaItem[]>
     deleteMedia: (instanceId: string, kind: 'screenshots', fileName: string) => Promise<void>
     copyScreenshot: (instanceId: string, fileName: string) => Promise<void>
+    readScreenshot: (instanceId: string, fileName: string) => Promise<string | null>
     readLog: (
       instanceId: string,
       fileName: string,
@@ -252,6 +253,8 @@ const api: FledgeApi = {
       ipcRenderer.invoke(IPC.contentDeleteMedia, instanceId, kind, fileName),
     copyScreenshot: (instanceId, fileName) =>
       ipcRenderer.invoke(IPC.contentCopyScreenshot, instanceId, fileName),
+    readScreenshot: (instanceId, fileName) =>
+      ipcRenderer.invoke(IPC.contentReadScreenshot, instanceId, fileName),
     readLog: (instanceId: string, fileName: string) =>
       ipcRenderer.invoke(IPC.contentReadLog, instanceId, fileName),
     listCategoryTags: () => ipcRenderer.invoke(IPC.contentListCategoryTags),

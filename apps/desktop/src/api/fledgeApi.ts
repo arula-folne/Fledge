@@ -103,6 +103,8 @@ export type FledgeApi = {
     ) => Promise<ContentMediaItem[]>
     deleteMedia: (instanceId: string, kind: 'screenshots', fileName: string) => Promise<void>
     copyScreenshot: (instanceId: string, fileName: string) => Promise<void>
+    /** 共有読み込みで data URL を返す（ゲーム起動中の閲覧用） */
+    readScreenshot: (instanceId: string, fileName: string) => Promise<string | null>
     readLog: (
       instanceId: string,
       fileName: string,

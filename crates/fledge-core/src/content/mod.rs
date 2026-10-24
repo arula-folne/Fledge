@@ -16,6 +16,7 @@ use mrpack::{
     unzip_to_entries, version_id_from_download_url, write_mrpack_overrides, write_zip_entries,
     MrpackIndexFile,
 };
+use base64::{engine::general_purpose::STANDARD as B64, Engine};
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 use sha1::{Digest, Sha1};
@@ -1345,6 +1346,34 @@ impl ContentService {
         Ok(full)
     }
 
+    /// ゲーム起動中でも読めるよう共有モードで開き、data URL を返す。
+    pub fn read_screenshot_data_url(
+        &self,
+        instance_id: &str,
+        file_name: &str,
+    ) -> CoreResult<Value> {
+        let full = self.resolve_screenshot_path(instance_id, file_name)?;
+        if !full.is_file() {
+            return Ok(Value::Null);
+        }
+        let bytes = read_bytes_shared(&full).map_err(|e| CoreError::msg(e.to_string()))?;
+        let ext = full
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        let mime = match ext.as_str() {
+            "jpg" | "jpeg" => "image/jpeg",
+            "webp" => "image/webp",
+            "gif" => "image/gif",
+            _ => "image/png",
+        };
+        Ok(Value::String(format!(
+            "data:{mime};base64,{}",
+            B64.encode(bytes)
+        )))
+    }
+
     pub fn delete_media(&self, instance_id: &str, kind: &str, file_name: &str) -> CoreResult<()> {
         if kind != "screenshots" {
             return Err(CoreError::msg("Unsupported media kind"));
@@ -1698,6 +1727,27 @@ impl ContentService {
 
 struct IndexFile {
     items: Vec<Value>,
+}
+
+/// Windows ではゲーム等がファイルを掴んでいても読めるよう共有モードで開く。
+fn read_bytes_shared(path: &Path) -> std::io::Result<Vec<u8>> {
+    #[cfg(windows)]
+    {
+        use std::fs::OpenOptions;
+        use std::os::windows::fs::OpenOptionsExt;
+        // FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE
+        let mut file = OpenOptions::new()
+            .read(true)
+            .share_mode(0x0000_0007)
+            .open(path)?;
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)?;
+        Ok(buf)
+    }
+    #[cfg(not(windows))]
+    {
+        fs::read(path)
+    }
 }
 
 fn category_dir(category: &str) -> String {

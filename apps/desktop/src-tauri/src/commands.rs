@@ -497,6 +497,15 @@ async fn dispatch(
             copy_image_to_clipboard(&path)?;
             Ok(Value::Null)
         }
+        "content:read-screenshot" => {
+            let (id, file) = two_args(&args)?;
+            let id = id.as_str().ok_or_else(|| "instanceId required".to_string())?;
+            let file = file.as_str().ok_or_else(|| "fileName required".to_string())?;
+            state
+                .content
+                .read_screenshot_data_url(id, file)
+                .map_err(map_err)
+        }
         "content:read-log" => {
             let (id, file) = two_args(&args)?;
             let id = id.as_str().ok_or_else(|| "instanceId required".to_string())?;
@@ -1178,11 +1187,31 @@ async fn import_microsoft_skin_best_effort(state: &Arc<AppState>, account_id: &s
 }
 
 fn copy_image_to_clipboard(path: &std::path::Path) -> Result<(), String> {
-    let bytes = std::fs::read(path).map_err(|e| e.to_string())?;
+    let bytes = read_bytes_shared_for_clipboard(path).map_err(|e| e.to_string())?;
     let img = image_from_bytes(&bytes)?;
     let mut clipboard = arboard::Clipboard::new().map_err(|e| e.to_string())?;
     clipboard.set_image(img).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+fn read_bytes_shared_for_clipboard(path: &std::path::Path) -> std::io::Result<Vec<u8>> {
+    #[cfg(windows)]
+    {
+        use std::fs::OpenOptions;
+        use std::io::Read;
+        use std::os::windows::fs::OpenOptionsExt;
+        let mut file = OpenOptions::new()
+            .read(true)
+            .share_mode(0x0000_0007)
+            .open(path)?;
+        let mut buf = Vec::new();
+        file.read_to_end(&mut buf)?;
+        Ok(buf)
+    }
+    #[cfg(not(windows))]
+    {
+        std::fs::read(path)
+    }
 }
 
 fn image_from_bytes(bytes: &[u8]) -> Result<arboard::ImageData<'static>, String> {

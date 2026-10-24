@@ -85,6 +85,8 @@ export function createTauriFledgeApi(): FledgeApi {
         call(IPC.contentDeleteMedia, packArgs(instanceId, kind, fileName)),
       copyScreenshot: (instanceId, fileName) =>
         call(IPC.contentCopyScreenshot, packArgs(instanceId, fileName)),
+      readScreenshot: (instanceId, fileName) =>
+        call(IPC.contentReadScreenshot, packArgs(instanceId, fileName)),
       readLog: (instanceId, fileName) =>
         call(IPC.contentReadLog, packArgs(instanceId, fileName)),
       listCategoryTags: () => call(IPC.contentListCategoryTags),

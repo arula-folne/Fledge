@@ -1,14 +1,18 @@
-import { useCallback, useEffect, type MouseEvent as ReactMouseEvent } from 'react'
+import { useCallback, useEffect, useState, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { getFledgeUiScaleRoot } from '../../components/layout/fledgeUiScaleRoot'
 import { useTranslation } from 'react-i18next'
 import { IconArrowLeft, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
+import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
 
 export type GalleryItem = {
   url: string
   title?: string
   featured?: boolean
+  /** スクリーンショット時: asset URL 失敗時の共有読み込みフォールバック用 */
+  instanceId?: string
+  fileName?: string
 }
 
 type Props = {
@@ -59,6 +63,14 @@ export function GalleryLightbox({
     return () => window.removeEventListener('keydown', onKey, true)
   }, [onClose, goPrev, goNext])
 
+  const [src, setSrc] = useState(item?.url ?? '')
+  const [fallbackTried, setFallbackTried] = useState(false)
+
+  useEffect(() => {
+    setSrc(item?.url ?? '')
+    setFallbackTried(false)
+  }, [item?.url, index])
+
   if (!item) return null
 
   return createPortal(
@@ -69,11 +81,23 @@ export function GalleryLightbox({
         role="presentation"
       >
         <img
-          src={item.url}
-          alt={item.title ?? ''}
+          src={src}
+          alt=""
           decoding="async"
           className="max-h-full max-w-full object-contain"
           onClick={(e) => e.stopPropagation()}
+          onError={() => {
+            if (fallbackTried || !item.instanceId || !item.fileName) return
+            setFallbackTried(true)
+            void fledgeApi.content
+              .readScreenshot(item.instanceId, item.fileName)
+              .then((dataUrl) => {
+                if (dataUrl) setSrc(dataUrl)
+              })
+              .catch(() => {
+                /* keep broken state */
+              })
+          }}
           onContextMenu={(e) => {
             if (!onItemContextMenu) return
             e.preventDefault()

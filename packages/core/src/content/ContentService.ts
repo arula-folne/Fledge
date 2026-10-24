@@ -1497,6 +1497,29 @@ export class ContentService {
     return full
   }
 
+  /** ゲーム起動中でも読めるようファイルを開き data URL を返す */
+  async readScreenshotDataUrl(
+    instanceId: string,
+    fileName: string,
+  ): Promise<string | null> {
+    const full = this.resolveScreenshotPath(instanceId, fileName)
+    try {
+      const buf = await fs.readFile(full)
+      const lower = path.extname(full).toLowerCase()
+      const mime =
+        lower === '.jpg' || lower === '.jpeg'
+          ? 'image/jpeg'
+          : lower === '.webp'
+            ? 'image/webp'
+            : lower === '.gif'
+              ? 'image/gif'
+              : 'image/png'
+      return `data:${mime};base64,${buf.toString('base64')}`
+    } catch {
+      return null
+    }
+  }
+
   async deleteMedia(
     instanceId: string,
     kind: 'screenshots',

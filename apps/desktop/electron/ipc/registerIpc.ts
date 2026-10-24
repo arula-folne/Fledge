@@ -299,6 +299,14 @@ export function registerIpc(
       clipboard.writeImage(image)
     },
   )
+  ipcMain.handle(
+    IPC.contentReadScreenshot,
+    async (_e, instanceId: unknown, fileName: unknown) => {
+      if (typeof instanceId !== 'string' || !instanceId) throw new Error('Invalid instance id')
+      if (typeof fileName !== 'string' || !fileName) throw new Error('Invalid file name')
+      return appCtx.content.readScreenshotDataUrl(instanceId, fileName)
+    },
+  )
   ipcMain.handle(IPC.contentReadLog, async (_e, instanceId: unknown, fileName: unknown) => {
     if (typeof instanceId !== 'string' || !instanceId) throw new Error('Invalid instance id')
     if (typeof fileName !== 'string' || !fileName) throw new Error('Invalid log file name')
