@@ -1,4 +1,4 @@
-{
+﻿{
   "app.name": "Fledge",
   "nav.home": "Trang chủ",
   "nav.browse": "Nội dung",
@@ -182,6 +182,11 @@
   "content.dropHint": "Thả mod, gói tài nguyên, shader vào đây",
   "content.dropHintTypes": "Hỗ trợ .jar / .zip (hiển thị với các biểu tượng danh mục Fledge)",
   "content.provider.local": "Cục bộ",
+  "content.provider.modrinth": "Modrinth",
+  "content.provider.folne": "folne",
+  "content.provider.select": "Nguồn",
+  "content.provider.comingSoon": "Coming soon",
+  "content.provider.comingSoonBody": "Nội dung {{name}} sắp ra mắt. Vui lòng quay lại sau.",
   "content.error.localUnsupportedType": "Loại tệp không được hỗ trợ (chỉ .jar / .zip)",
   "content.emptyFiltered": "Chưa có nội dung thuộc loại này",
   "content.searchPlaceholder": "Tìm kiếm {{type}}…",

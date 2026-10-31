@@ -1,4 +1,4 @@
-{
+﻿{
   "app.name": "Fledge",
   "nav.home": "Ana sayfa",
   "nav.browse": "İçerik",
@@ -182,6 +182,11 @@
   "content.dropHint": "Drop mods, resource packs, shaders here",
   "content.dropHintTypes": "Supports .jar / .zip (shown with Fledge category icons)",
   "content.provider.local": "Local",
+  "content.provider.modrinth": "Modrinth",
+  "content.provider.folne": "folne",
+  "content.provider.select": "Kaynak",
+  "content.provider.comingSoon": "Coming soon",
+  "content.provider.comingSoonBody": "{{name}} içeriği yakında geliyor. Lütfen daha sonra tekrar bakın.",
   "content.error.localUnsupportedType": "Unsupported file type (.jar / .zip only)",
   "content.emptyFiltered": "Aún no hay contenido de este tipo",
   "content.searchPlaceholder": "Buscar {{type}}…",

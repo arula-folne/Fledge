@@ -1,4 +1,4 @@
-{
+﻿{
   "app.name": "Fledge",
   "nav.home": "首頁",
   "nav.browse": "內容",
@@ -182,6 +182,11 @@
   "content.dropHint": "將 Mod、資源包、光影拖放到此處",
   "content.dropHintTypes": "相容.jar / .zip（圖示為Fledge分類指示）",
   "content.provider.local": "當地的",
+  "content.provider.modrinth": "Modrinth",
+  "content.provider.folne": "folne",
+  "content.provider.select": "來源",
+  "content.provider.comingSoon": "Coming soon",
+  "content.provider.comingSoonBody": "{{name}} 內容即將推出，請稍後再來。",
   "content.error.localUnsupportedType": "不支援的檔案類型（僅 .jar / .zip）",
   "content.emptyFiltered": "該類型還沒有內容",
   "content.searchPlaceholder": "搜尋 {{type}}…",

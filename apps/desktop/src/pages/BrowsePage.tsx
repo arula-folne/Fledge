@@ -2,8 +2,8 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { IconSearch } from '@tabler/icons-react'
 import {
+  type ContentCatalogProviderId,
   type ContentCategory,
   type ContentLoaderFilter,
   type ContentProject,
@@ -14,6 +14,10 @@ import { PageNav } from '../components/ui/PageNav'
 import { ListPickDialog } from '../components/ui/ListPickDialog'
 import { Select } from '../components/ui/Select'
 import { ContentBrowseFilters } from '../features/content/ContentBrowseFilters'
+import { isFolneProvider } from '../features/content/contentCatalogProviders'
+import { ContentProviderComingSoon } from '../features/content/ContentProviderComingSoon'
+import { ContentProviderSourceTabs } from '../features/content/ContentProviderSourceTabs'
+import { ContentSearchBar } from '../features/content/ContentSearchBar'
 import {
   countFavoriteCategories,
   favoriteFilterTabs,
@@ -57,6 +61,7 @@ function needsLoaders(category: ContentCategory): boolean {
 
 function buildSearchInput(input: {
   category: ContentCategory
+  provider: ContentCatalogProviderId
   debouncedQuery: string
   gameVersion: string
   loaders: ContentLoaderFilter[]
@@ -72,7 +77,7 @@ function buildSearchInput(input: {
     loaders: needsLoaders(input.category) ? input.loaders : [],
     tags: input.tags,
     environments: [],
-    provider: 'modrinth',
+    provider: input.provider,
     sort: toContentSearchSort(input.sort),
     offset: (input.page - 1) * input.pageSize,
     limit: input.pageSize,
@@ -93,6 +98,7 @@ export default function BrowsePage() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [catalogProvider, setCatalogProvider] = useState<ContentCatalogProviderId>('modrinth')
   const [searchTab, setSearchTab] = useState<ContentSearchTab>(defaultBrowsePageTab())
   const [favoriteCategory, setFavoriteCategory] = useState<FavoriteCategoryFilter>('all')
   const [query, setQuery] = useState('')
@@ -156,10 +162,14 @@ export default function BrowsePage() {
     [versionsQuery.data?.versions],
   )
 
+  const folneCatalog = isFolneProvider(catalogProvider)
+  const showComingSoon = folneCatalog && !isFavoritesTab(searchTab)
+
   const searchInput = useMemo(
     () =>
       buildSearchInput({
         category: filterCategory,
+        provider: catalogProvider,
         debouncedQuery,
         gameVersion,
         loaders,
@@ -168,13 +178,23 @@ export default function BrowsePage() {
         page,
         pageSize,
       }),
-    [debouncedQuery, filterCategory, gameVersion, loaders, tags, sort, page, pageSize],
+    [
+      catalogProvider,
+      debouncedQuery,
+      filterCategory,
+      gameVersion,
+      loaders,
+      tags,
+      sort,
+      page,
+      pageSize,
+    ],
   )
 
   const searchQuery = useQuery({
     queryKey: ['content-search', searchInput],
     queryFn: () => fledgeApi.content.search(searchInput),
-    enabled: !selectedProject && !isFavoritesTab(searchTab),
+    enabled: !selectedProject && !isFavoritesTab(searchTab) && !showComingSoon,
     placeholderData: (previousData, previousQuery) =>
       keepSearchDataForSameCategory(previousData, previousQuery, filterCategory),
     staleTime: 30_000,
@@ -196,9 +216,14 @@ export default function BrowsePage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: (input: { id: string; versionId?: string; category: ContentCategory }) =>
+    mutationFn: (input: {
+      id: string
+      provider: ContentProject['provider']
+      versionId?: string
+      category: ContentCategory
+    }) =>
       fledgeApi.content.createInstance({
-        provider: 'modrinth',
+        provider: input.provider,
         projectId: input.id,
         category: input.category,
         versionId: input.versionId,
@@ -238,7 +263,12 @@ export default function BrowsePage() {
   })
 
   const requestCreate = useCallback(
-    (input: { id: string; versionId?: string; category: ContentCategory }) => {
+    (input: {
+      id: string
+      provider: ContentProject['provider']
+      versionId?: string
+      category: ContentCategory
+    }) => {
       setError(null)
       useInstanceCreateStore.getState().setLastError(null)
       navigate('/')
@@ -256,6 +286,7 @@ export default function BrowsePage() {
       attemptedVersionTarget.current = project.projectType === 'modpack' ? project : null
       requestCreate({
         id: project.id,
+        provider: project.provider,
         versionId,
         category: project.projectType || filterCategory,
       })
@@ -394,37 +425,51 @@ export default function BrowsePage() {
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-      <header className="shrink-0">
-        <h1 className="text-lg font-semibold text-[var(--color-text)]">{t('content.browsePageTitle')}</h1>
-        <p className="mt-0.5 text-sm text-[var(--color-text-muted)]">{t('content.browsePageSubtitle')}</p>
-      </header>
-
-      <div className="flex min-h-0 flex-1 gap-2 overflow-hidden">
-        <ContentBrowseFilters
-          category={filterCategory}
-          gameVersion={gameVersion}
-          loaders={loaders}
-          tags={tags}
-          versionOptions={versionOptions}
-          onGameVersion={setGameVersion}
-          onLoaders={setLoaders}
-          onTags={setTags}
-          onReset={() => {
-            setGameVersion('')
-            setLoaders(['fabric', 'neoforge', 'forge', 'quilt'])
-            setTags([])
-          }}
-        />
-        <div
-          ref={listScrollRef}
-          className={[
-            'min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] transition-opacity',
-            searchQuery.isFetching && !searchQuery.isPending ? 'opacity-80' : '',
-          ].join(' ')}
-        >
-          <div className="flex flex-col gap-2 pb-2">
-          <div data-fledge-tutorial="tutorial-browse-tabs">
+    <div className="flex h-full min-h-0 flex-1 items-stretch gap-2 overflow-hidden">
+      <div className="flex min-h-0 w-[18%] min-w-36 max-w-52 shrink-0 flex-col gap-1.5">
+        <header className="shrink-0">
+          <h1 className="text-lg font-semibold leading-tight text-[var(--color-text)]">
+            {t('content.browsePageTitle')}
+          </h1>
+          <p className="mt-0.5 text-sm leading-snug text-[var(--color-text-muted)]">
+            {t('content.browsePageSubtitle')}
+          </p>
+        </header>
+        {!showComingSoon ? (
+          <ContentBrowseFilters
+            category={filterCategory}
+            gameVersion={gameVersion}
+            loaders={loaders}
+            tags={tags}
+            versionOptions={versionOptions}
+            onGameVersion={setGameVersion}
+            onLoaders={setLoaders}
+            onTags={setTags}
+            onReset={() => {
+              setGameVersion('')
+              setLoaders(['fabric', 'neoforge', 'forge', 'quilt'])
+              setTags([])
+            }}
+          />
+        ) : null}
+      </div>
+      <div
+        ref={listScrollRef}
+        className={[
+          'flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] transition-opacity',
+          searchQuery.isFetching && !searchQuery.isPending ? 'opacity-80' : '',
+        ].join(' ')}
+      >
+        <div className="flex flex-col gap-1.5 pb-2 pt-0">
+          <div
+            data-fledge-tutorial="tutorial-browse-tabs"
+            className="flex flex-col items-start gap-1.5"
+          >
+            <ContentProviderSourceTabs
+              active={catalogProvider}
+              onChange={setCatalogProvider}
+              size="md"
+            />
             <ContentSearchCategoryTabs
               tabs={browsePageSearchTabs()}
               active={searchTab}
@@ -434,7 +479,7 @@ export default function BrowsePage() {
               }}
             />
           </div>
-          {isFavoritesTab(searchTab) ? (
+          {!showComingSoon && isFavoritesTab(searchTab) ? (
             <FavoriteCategoryFilters
               categories={favoriteCategoryTabs}
               counts={favoriteCategoryCounts}
@@ -444,59 +489,57 @@ export default function BrowsePage() {
           ) : null}
 
           <div className="flex flex-col gap-2">
-            <div className="relative w-full">
-              <IconSearch
-                size={16}
-                stroke={1.75}
-                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
-              />
-              <input
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={
-                  total > 0
-                    ? t('content.searchPlaceholderCount', {
-                        total: total.toLocaleString('ja-JP'),
-                        type: typeLabel,
-                      })
-                    : t('content.searchPlaceholder', { type: typeLabel })
-                }
-                className="w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] py-1.5 pl-9 pr-3 text-sm outline-none focus:border-[var(--color-accent)]"
-              />
-            </div>
-            <div className="flex flex-nowrap items-center gap-2">
-              <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-                {t('content.sort.label')}
-                <Select
-                  value={sort}
-                  onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
-                  className="min-w-[8rem]"
-                  options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
-                    value: s,
-                    label: t(`content.sort.${s}`),
-                  }))}
-                />
-              </label>
-              <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-                {t('content.showCount')}
-                <Select
-                  value={String(pageSize)}
-                  onChange={(e) =>
-                    setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
-                  }
-                  className="min-w-[4.5rem]"
-                  options={PAGE_SIZES.map((n) => ({
-                    value: String(n),
-                    label: String(n),
-                  }))}
-                />
-              </label>
-              <div className="ml-auto mr-8 shrink-0">
-                <PageNav page={page} pageCount={pageCount} onChange={setPage} />
+            <ContentSearchBar
+              query={query}
+              onQueryChange={setQuery}
+              placeholder={
+                total > 0
+                  ? t('content.searchPlaceholderCount', {
+                      total: total.toLocaleString('ja-JP'),
+                      type: typeLabel,
+                    })
+                  : t('content.searchPlaceholder', { type: typeLabel })
+              }
+            />
+            {!showComingSoon ? (
+              <div className="flex flex-nowrap items-center gap-2">
+                <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+                  {t('content.sort.label')}
+                  <Select
+                    value={sort}
+                    onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
+                    className="min-w-[8rem]"
+                    options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
+                      value: s,
+                      label: t(`content.sort.${s}`),
+                    }))}
+                  />
+                </label>
+                <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+                  {t('content.showCount')}
+                  <Select
+                    value={String(pageSize)}
+                    onChange={(e) =>
+                      setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
+                    }
+                    className="min-w-[4.5rem]"
+                    options={PAGE_SIZES.map((n) => ({
+                      value: String(n),
+                      label: String(n),
+                    }))}
+                  />
+                </label>
+                <div className="ml-auto mr-8 shrink-0">
+                  <PageNav page={page} pageCount={pageCount} onChange={setPage} />
+                </div>
               </div>
-            </div>
+            ) : null}
           </div>
 
+          {showComingSoon ? (
+            <ContentProviderComingSoon provider={catalogProvider} />
+          ) : (
+            <>
           {error ? (
             <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2.5 py-1.5 text-sm text-[var(--color-danger)]">
               {error}
@@ -586,7 +629,8 @@ export default function BrowsePage() {
               <PageNav page={page} pageCount={pageCount} onChange={setPage} />
             </div>
           ) : null}
-          </div>
+            </>
+          )}
         </div>
       </div>
       {versionDialog}

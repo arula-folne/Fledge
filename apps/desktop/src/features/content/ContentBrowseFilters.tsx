@@ -96,7 +96,7 @@ export function ContentBrowseFilters({
   return (
     <aside
       className={[
-        '@container/filter flex min-h-0 w-[18%] min-w-36 max-w-52 shrink-0 flex-col gap-1 overflow-hidden',
+        '@container/filter flex min-h-0 w-full flex-1 flex-col gap-1 overflow-hidden',
         'rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 p-2',
         'text-[clamp(11px,3cqi,14px)] [container-type:inline-size]',
       ].join(' ')}

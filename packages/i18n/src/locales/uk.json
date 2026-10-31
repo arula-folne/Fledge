@@ -1,4 +1,4 @@
-{
+﻿{
   "app.name": "Fledge",
   "nav.home": "Головна",
   "nav.browse": "Вміст",
@@ -182,6 +182,11 @@
   "content.dropHint": "Перетягніть сюда моды, resource packs, шейдеры",
   "content.dropHintTypes": "Поддерживаются .jar / .zip (иконки категорий Fledge)",
   "content.provider.local": "Локальний",
+  "content.provider.modrinth": "Modrinth",
+  "content.provider.folne": "folne",
+  "content.provider.select": "Джерело",
+  "content.provider.comingSoon": "Coming soon",
+  "content.provider.comingSoonBody": "Вміст {{name}} незабаром зʼявиться. Загляньте пізніше.",
   "content.error.localUnsupportedType": "Неподдерживаемый тип файла (только .jar / .zip)",
   "content.emptyFiltered": "Контента этого типа пока нет",
   "content.searchPlaceholder": "Пошук {{type}}…",

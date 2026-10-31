@@ -1,4 +1,4 @@
-{
+﻿{
   "app.name": "Fledge",
   "nav.home": "主页",
   "nav.browse": "内容",
@@ -182,6 +182,11 @@
   "content.dropHint": "将 Mod、资源包、着色器等拖放到此处",
   "content.dropHintTypes": "支持 .jar / .zip（显示 Fledge 分类图标）",
   "content.provider.local": "本地",
+  "content.provider.modrinth": "Modrinth",
+  "content.provider.folne": "folne",
+  "content.provider.select": "来源",
+  "content.provider.comingSoon": "Coming soon",
+  "content.provider.comingSoonBody": "{{name}} 内容即将推出，请稍后再来。",
   "content.error.localUnsupportedType": "不支持的文件类型（仅 .jar / .zip）",
   "content.emptyFiltered": "此类型尚无内容",
   "content.searchPlaceholder": "搜索 {{type}}…",

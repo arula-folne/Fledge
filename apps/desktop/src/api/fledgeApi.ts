@@ -74,7 +74,7 @@ export type FledgeApi = {
   content: {
     providers: () => Promise<
       Array<{
-        id: 'modrinth'
+        id: 'modrinth' | 'folne' | 'local'
         name: string
         available: boolean
         unavailableReasonKey?: string

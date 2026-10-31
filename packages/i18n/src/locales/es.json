@@ -1,4 +1,4 @@
-{
+﻿{
   "app.name": "Fledge",
   "nav.home": "Inicio",
   "nav.browse": "Contenido",
@@ -182,6 +182,11 @@
   "content.dropHint": "Suelta mods, packs de recursos y shaders aquí",
   "content.dropHintTypes": "Compatible con .jar / .zip (iconos de categoría Fledge)",
   "content.provider.local": "Local",
+  "content.provider.modrinth": "Modrinth",
+  "content.provider.folne": "folne",
+  "content.provider.select": "Fuente",
+  "content.provider.comingSoon": "Coming soon",
+  "content.provider.comingSoonBody": "El contenido de {{name}} estará disponible pronto. Vuelve más tarde.",
   "content.error.localUnsupportedType": "Tipo de archivo no compatible (.jar / .zip)",
   "content.emptyFiltered": "Aún no hay contenido de este tipo",
   "content.searchPlaceholder": "Buscar {{type}}…",

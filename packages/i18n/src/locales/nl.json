@@ -1,4 +1,4 @@
-{
+﻿{
   "app.name": "Fledge",
   "nav.home": "Start",
   "nav.browse": "Inhoud",
@@ -182,6 +182,11 @@
   "content.dropHint": "Sleep mods, resourcepacks en shaders hier",
   "content.dropHintTypes": "Ondersteunt .jar / .zip (Fledge-categorie-iconen)",
   "content.provider.local": "Lokaal",
+  "content.provider.modrinth": "Modrinth",
+  "content.provider.folne": "folne",
+  "content.provider.select": "Bron",
+  "content.provider.comingSoon": "Coming soon",
+  "content.provider.comingSoonBody": "{{name}}-content komt binnenkort. Kom later terug.",
   "content.error.localUnsupportedType": "Bestandstype niet ondersteund (.jar / .zip)",
   "content.emptyFiltered": "Nog geen content van dit type",
   "content.searchPlaceholder": "{{type}} zoeken…",

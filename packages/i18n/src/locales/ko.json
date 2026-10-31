@@ -1,4 +1,4 @@
-{
+﻿{
   "app.name": "Fledge",
   "nav.home": "홈",
   "nav.browse": "콘텐츠",
@@ -182,6 +182,11 @@
   "content.dropHint": "Mod, 리소스 팩, 셰이더 등을 여기에 드롭",
   "content.dropHintTypes": ".jar / .zip에 대응 (아이콘은 Fledge의 분류 표시)",
   "content.provider.local": "지역",
+  "content.provider.modrinth": "Modrinth",
+  "content.provider.folne": "folne",
+  "content.provider.select": "배포처",
+  "content.provider.comingSoon": "Coming soon",
+  "content.provider.comingSoonBody": "{{name}} 콘텐츠는 준비 중입니다. 잠시만 기다려 주세요.",
   "content.error.localUnsupportedType": "지원되지 않는 파일 형식(.jar/.zip)",
   "content.emptyFiltered": "이 유형에는 아직 콘텐츠가 없습니다.",
   "content.searchPlaceholder": "{{type}} 검색…",

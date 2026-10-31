@@ -780,8 +780,12 @@ export const ContentCategorySchema = z.enum([
 ])
 export type ContentCategory = z.infer<typeof ContentCategorySchema>
 
-export const ContentSourceIdSchema = z.enum(['modrinth', 'local'])
+export const ContentSourceIdSchema = z.enum(['modrinth', 'folne', 'local'])
 export type ContentSourceId = z.infer<typeof ContentSourceIdSchema>
+
+/** 検索 UI で切り替える配布カタログ（local はインストール済みのみ） */
+export const ContentCatalogProviderIdSchema = z.enum(['modrinth', 'folne'])
+export type ContentCatalogProviderId = z.infer<typeof ContentCatalogProviderIdSchema>
 
 export const ContentProviderIdSchema = ContentSourceIdSchema
 export type ContentProviderId = z.infer<typeof ContentProviderIdSchema>

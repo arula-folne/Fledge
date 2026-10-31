@@ -1,4 +1,4 @@
-{
+﻿{
   "app.name": "Fledge",
   "nav.home": "ホーム",
   "nav.browse": "コンテンツ",
@@ -158,6 +158,11 @@
   "content.dropHint": "Mod・リソースパック・シェーダーなどをここにドロップ",
   "content.dropHintTypes": ".jar / .zip に対応（アイコンは Fledge の分類表示）",
   "content.provider.local": "ローカル",
+  "content.provider.modrinth": "Modrinth",
+  "content.provider.folne": "folne",
+  "content.provider.select": "配布元",
+  "content.provider.comingSoon": "Coming soon",
+  "content.provider.comingSoonBody": "{{name}} のコンテンツは準備中です。しばらくお待ちください。",
   "content.error.localUnsupportedType": "未対応のファイル形式です（.jar / .zip）",
   "content.emptyFiltered": "この種類にはまだコンテンツがありません",
   "content.searchPlaceholder": "{{type}} を検索…",

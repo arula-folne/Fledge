@@ -1,4 +1,4 @@
-{
+﻿{
   "app.name": "Fledge",
   "nav.home": "หน้าแรก",
   "nav.browse": "เนื้อหา",
@@ -182,6 +182,11 @@
   "content.dropHint": "วาง Mod, resource pack, shader ที่นี่",
   "content.dropHintTypes": "รองรับ .jar / .zip (แสดงไอคอนหมวด Fledge)",
   "content.provider.local": "ในเครื่อง",
+  "content.provider.modrinth": "Modrinth",
+  "content.provider.folne": "folne",
+  "content.provider.select": "แหล่งที่มา",
+  "content.provider.comingSoon": "Coming soon",
+  "content.provider.comingSoonBody": "เนื้อหา {{name}} กำลังจะมาเร็วๆ นี้ กรุณากลับมาใหม่ภายหลัง",
   "content.error.localUnsupportedType": "ชนิดไฟล์ไม่รองรับ (เฉพาะ .jar / .zip)",
   "content.emptyFiltered": "ยังไม่มีเนื้อหาประเภทนี้",
   "content.searchPlaceholder": "ค้นหา {{type}}…",

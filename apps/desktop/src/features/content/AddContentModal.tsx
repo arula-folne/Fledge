@@ -1,8 +1,9 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { IconSearch, IconX } from '@tabler/icons-react'
+import { IconX } from '@tabler/icons-react'
 import {
+  type ContentCatalogProviderId,
   type ContentCategory,
   type ContentLoaderFilter,
   type ContentProject,
@@ -16,6 +17,10 @@ import { PageNav } from '../../components/ui/PageNav'
 import { Select } from '../../components/ui/Select'
 import { useTransferStore } from '../../stores/appStores'
 import { ContentBrowseFilters } from './ContentBrowseFilters'
+import { isFolneProvider } from './contentCatalogProviders'
+import { ContentProviderComingSoon } from './ContentProviderComingSoon'
+import { ContentProviderSourceTabs } from './ContentProviderSourceTabs'
+import { ContentSearchBar } from './ContentSearchBar'
 import {
   countFavoriteCategories,
   favoriteFilterTabs,
@@ -55,6 +60,7 @@ const SORTS = CONTENT_SEARCH_SORTS
 
 function buildContentSearchInput(input: {
   category: ContentCategory
+  provider: ContentCatalogProviderId
   debouncedQuery: string
   gameVersion: string
   loaders: ContentLoaderFilter[]
@@ -67,10 +73,11 @@ function buildContentSearchInput(input: {
     query: input.debouncedQuery,
     category: input.category,
     gameVersion: input.gameVersion.trim() || undefined,
-    loaders: input.category === 'mod' ? input.loaders : [],
+    loaders:
+      input.category === 'mod' || input.category === 'modpack' ? input.loaders : [],
     tags: input.tags,
     environments: [],
-    provider: 'modrinth',
+    provider: input.provider,
     sort: toContentSearchSort(input.sort),
     offset: (input.page - 1) * input.pageSize,
     limit: input.pageSize,
@@ -122,6 +129,7 @@ export function AddContentModal({
   const queryClient = useQueryClient()
   const wasBrowseOpenRef = useRef(false)
   const prevInstanceIdRef = useRef(instance.id)
+  const [catalogProvider, setCatalogProvider] = useState<ContentCatalogProviderId>('modrinth')
   const [searchTab, setSearchTab] = useState<ContentSearchTab>(() =>
     defaultInstanceBrowseTab(instance.loader),
   )
@@ -188,6 +196,7 @@ export function AddContentModal({
       prevInstanceIdRef.current = instance.id
     }
     if (open && browseMode && !wasBrowseOpenRef.current) {
+      setCatalogProvider('modrinth')
       setSearchTab(defaultInstanceBrowseTab(instance.loader))
       setFavoriteCategory('all')
       setBulkInstalling(false)
@@ -239,10 +248,15 @@ export function AddContentModal({
     }
   }, [searchTab, sort])
 
+  const folneCatalog = isFolneProvider(catalogProvider)
+  const showComingSoon = folneCatalog && !isFavoritesTab(searchTab)
+
   const prefetchCategorySearch = useCallback(
     (cat: ContentCategory, searchTags: string[] = []) => {
+      if (isFolneProvider(catalogProvider)) return Promise.resolve()
       const input = buildContentSearchInput({
         category: cat,
+        provider: catalogProvider,
         debouncedQuery,
         gameVersion,
         loaders,
@@ -258,7 +272,7 @@ export function AddContentModal({
         gcTime: 90_000,
       })
     },
-    [debouncedQuery, gameVersion, loaders, sort, pageSize, queryClient],
+    [catalogProvider, debouncedQuery, gameVersion, loaders, sort, pageSize, queryClient],
   )
 
   useEffect(() => {
@@ -281,6 +295,7 @@ export function AddContentModal({
     () =>
       buildContentSearchInput({
         category: filterCategory,
+        provider: catalogProvider,
         debouncedQuery,
         gameVersion,
         loaders,
@@ -289,13 +304,23 @@ export function AddContentModal({
         page,
         pageSize,
       }),
-    [debouncedQuery, filterCategory, gameVersion, loaders, tags, sort, page, pageSize],
+    [
+      catalogProvider,
+      debouncedQuery,
+      filterCategory,
+      gameVersion,
+      loaders,
+      tags,
+      sort,
+      page,
+      pageSize,
+    ],
   )
 
   const searchQuery = useQuery({
     queryKey: ['content-search', searchInput],
     queryFn: () => fledgeApi.content.search(searchInput),
-    enabled: open && browseMode && !projectId && !isFavoritesTab(searchTab),
+    enabled: open && browseMode && !projectId && !isFavoritesTab(searchTab) && !showComingSoon,
     placeholderData: (previousData, previousQuery) =>
       keepSearchDataForSameCategory(previousData, previousQuery, searchTab),
     staleTime: 30_000,
@@ -360,15 +385,21 @@ export function AddContentModal({
   })()
 
   const installMutation = useMutation({
-    mutationFn: (input: { id: string; versionId?: string; category: ContentCategory }) =>
+    mutationFn: (input: {
+      id: string
+      provider: ContentProject['provider']
+      versionId?: string
+      category: ContentCategory
+    }) =>
       fledgeApi.content.install({
         instanceId: instance.id,
-        provider: 'modrinth',
+        provider: input.provider,
         projectId: input.id,
         category: input.category,
         versionId: input.versionId,
         gameVersion: gameVersion.trim() || undefined,
-        loaders: input.category === 'mod' ? loaders : [],
+        loaders:
+          input.category === 'mod' || input.category === 'modpack' ? loaders : [],
       }),
     onError: (err, input) => {
       unmark(input.id)
@@ -393,7 +424,12 @@ export function AddContentModal({
   })
 
   const requestInstall = useCallback(
-    (input: { id: string; versionId?: string; category: ContentCategory }) => {
+    (input: {
+      id: string
+      provider: ContentProject['provider']
+      versionId?: string
+      category: ContentCategory
+    }) => {
       setError(null)
       mark(input.id, input.versionId)
       installMutation.mutate(input)
@@ -493,7 +529,7 @@ export function AddContentModal({
       try {
         await fledgeApi.content.install({
           instanceId: instance.id,
-          provider: 'modrinth',
+          provider: project.provider,
           projectId: project.id,
           category: project.projectType,
           gameVersion: gameVersion.trim() || undefined,
@@ -552,89 +588,117 @@ export function AddContentModal({
 
   if (!open) return null
 
+  const closeButton = (
+    <button
+      type="button"
+      aria-label={t('common.close')}
+      className="inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] transition hover:bg-[var(--color-hover)]"
+      onClick={onClose}
+    >
+      <IconX size={18} stroke={1.75} />
+    </button>
+  )
+
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col gap-2 overflow-hidden">
-      <header className="flex shrink-0 items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h1 className="truncate text-lg font-semibold text-[var(--color-text)]">{dialogTitle}</h1>
-          <p className="mt-0.5 truncate text-sm text-[var(--color-text-muted)]">{subtitle}</p>
-        </div>
-        <button
-          type="button"
-          aria-label={t('common.close')}
-          className="inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-text)] transition hover:bg-[var(--color-hover)]"
-          onClick={onClose}
-        >
-          <IconX size={18} stroke={1.75} />
-        </button>
-      </header>
-
       {projectId ? (
-        selected ? (
-          <Suspense fallback={<p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>}>
-            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-              <ContentProjectView
-                hit={selected}
+        <>
+          <header className="flex shrink-0 items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold text-[var(--color-text)]">{dialogTitle}</h1>
+              <p className="mt-0.5 truncate text-sm text-[var(--color-text-muted)]">{subtitle}</p>
+            </div>
+            {closeButton}
+          </header>
+          {selected ? (
+            <Suspense fallback={<p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>}>
+              <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                <ContentProjectView
+                  hit={selected}
+                  instance={instance}
+                  gameVersion={gameVersion}
+                  loaders={loaders}
+                  installed={resolveInstalled(selected.id)}
+                  installedVersionId={resolveInstalledVersionId(selected.id)}
+                  onBack={onBackFromProject}
+                  onInstall={(versionId) =>
+                    requestInstall({
+                      id: selected.id,
+                      provider: selected.provider,
+                      versionId,
+                      category: selected.projectType,
+                    })
+                  }
+                />
+              </div>
+            </Suspense>
+          ) : projectQuery.isError ? (
+            <p className="text-sm text-[var(--color-danger)]">
+              {projectQuery.error instanceof Error
+                ? projectQuery.error.message
+                : String(projectQuery.error)}
+            </p>
+          ) : (
+            <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
+          )}
+        </>
+      ) : (
+        <div className="flex min-h-0 flex-1 items-stretch gap-2 overflow-hidden">
+          <div className="flex min-h-0 w-[18%] min-w-36 max-w-52 shrink-0 flex-col gap-1.5">
+            <header className="shrink-0">
+              <h1 className="truncate text-lg font-semibold text-[var(--color-text)]">{dialogTitle}</h1>
+              <p className="mt-0.5 truncate text-sm text-[var(--color-text-muted)]">{subtitle}</p>
+            </header>
+            {!showComingSoon ? (
+              <ContentBrowseFilters
                 instance={instance}
+                category={filterCategory}
                 gameVersion={gameVersion}
                 loaders={loaders}
-                installed={resolveInstalled(selected.id)}
-                installedVersionId={resolveInstalledVersionId(selected.id)}
-                onBack={onBackFromProject}
-                onInstall={(versionId) =>
-                  requestInstall({ id: selected.id, versionId, category: selected.projectType })
-                }
+                tags={tags}
+                versionOptions={versionOptions}
+                onGameVersion={setGameVersion}
+                onLoaders={setLoaders}
+                onTags={setTags}
+                onReset={() => {
+                  setGameVersion(instance.minecraftVersion)
+                  setLoaders(loaderToContentFilters(instance.loader))
+                  setTags([])
+                }}
               />
-            </div>
-          </Suspense>
-        ) : projectQuery.isError ? (
-          <p className="text-sm text-[var(--color-danger)]">
-            {projectQuery.error instanceof Error
-              ? projectQuery.error.message
-              : String(projectQuery.error)}
-          </p>
-        ) : (
-          <p className="text-sm text-[var(--color-text-muted)]">{t('common.loading')}</p>
-        )
-      ) : (
-        <div className="flex min-h-0 flex-1 gap-2 overflow-hidden">
-          <ContentBrowseFilters
-            instance={instance}
-            category={filterCategory}
-            gameVersion={gameVersion}
-            loaders={loaders}
-            tags={tags}
-            versionOptions={versionOptions}
-            onGameVersion={setGameVersion}
-            onLoaders={setLoaders}
-            onTags={setTags}
-            onReset={() => {
-              setGameVersion(instance.minecraftVersion)
-              setLoaders(loaderToContentFilters(instance.loader))
-              setTags([])
-            }}
-          />
+            ) : null}
+          </div>
           <div
             ref={listScrollRef}
             className={[
-              'min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden transition-opacity',
+              'flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden transition-opacity',
               searchQuery.isFetching && !searchQuery.isPending ? 'opacity-80' : '',
             ].join(' ')}
           >
-            <div className="flex flex-col gap-2 pb-2">
-            <ContentSearchCategoryTabs
-              tabs={instanceBrowseSearchTabs(instance.loader)}
-              active={searchTab}
-              onChange={(next) => {
-                setTags([])
-                setSearchTab(next)
-              }}
-              onPrefetch={(tab) => {
-                if (isFavoritesTab(tab)) return
-                void prefetchCategorySearch(tab, tab === searchTab ? tags : [])
-              }}
-            />
-            {isFavoritesTab(searchTab) ? (
+            <div className="flex flex-col gap-1.5 pb-2 pt-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex min-w-0 flex-col items-start gap-1.5">
+                <ContentProviderSourceTabs
+                  active={catalogProvider}
+                  onChange={setCatalogProvider}
+                  size="md"
+                />
+                <ContentSearchCategoryTabs
+                  tabs={instanceBrowseSearchTabs(instance.loader)}
+                  active={searchTab}
+                  onChange={(next) => {
+                    setTags([])
+                    setSearchTab(next)
+                  }}
+                  onPrefetch={(tab) => {
+                    if (isFavoritesTab(tab) || showComingSoon) return
+                    void prefetchCategorySearch(tab, tab === searchTab ? tags : [])
+                  }}
+                />
+              </div>
+              {closeButton}
+            </div>
+            {!showComingSoon && isFavoritesTab(searchTab) ? (
               <FavoriteCategoryFilters
                 categories={favoriteCategoryTabs}
                 counts={favoriteCategoryCounts}
@@ -650,59 +714,57 @@ export function AddContentModal({
             ) : null}
 
             <div className="flex flex-col gap-2">
-              <div className="relative w-full">
-                <IconSearch
-                  size={16}
-                  stroke={1.75}
-                  className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--color-text-muted)]"
-                />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder={
-                    total > 0
-                      ? t('content.searchPlaceholderCount', {
-                          total: total.toLocaleString('ja-JP'),
-                          type: typeLabel,
-                        })
-                      : t('content.searchPlaceholder', { type: typeLabel })
-                  }
-                  className="w-full rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-input)] py-1.5 pl-9 pr-3 text-sm outline-none focus:border-[var(--color-accent)]"
-                />
-              </div>
-              <div className="flex flex-nowrap items-center gap-2">
-                <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-                  {t('content.sort.label')}
-                  <Select
-                    value={sort}
-                    onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
-                    className="min-w-[8rem]"
-                    options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
-                      value: s,
-                      label: t(`content.sort.${s}`),
-                    }))}
-                  />
-                </label>
-                <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-                  {t('content.showCount')}
-                  <Select
-                    value={String(pageSize)}
-                    onChange={(e) =>
-                      setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
-                    }
-                    className="min-w-[4.5rem]"
-                    options={PAGE_SIZES.map((n) => ({
-                      value: String(n),
-                      label: String(n),
-                    }))}
-                  />
-                </label>
-                <div className="ml-auto mr-8 shrink-0">
-                  <PageNav page={page} pageCount={pageCount} onChange={setPage} />
+              <ContentSearchBar
+                query={query}
+                onQueryChange={setQuery}
+                placeholder={
+                  total > 0
+                    ? t('content.searchPlaceholderCount', {
+                        total: total.toLocaleString('ja-JP'),
+                        type: typeLabel,
+                      })
+                    : t('content.searchPlaceholder', { type: typeLabel })
+                }
+              />
+              {!showComingSoon ? (
+                <div className="flex flex-nowrap items-center gap-2">
+                  <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+                    {t('content.sort.label')}
+                    <Select
+                      value={sort}
+                      onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
+                      className="min-w-[8rem]"
+                      options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
+                        value: s,
+                        label: t(`content.sort.${s}`),
+                      }))}
+                    />
+                  </label>
+                  <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+                    {t('content.showCount')}
+                    <Select
+                      value={String(pageSize)}
+                      onChange={(e) =>
+                        setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
+                      }
+                      className="min-w-[4.5rem]"
+                      options={PAGE_SIZES.map((n) => ({
+                        value: String(n),
+                        label: String(n),
+                      }))}
+                    />
+                  </label>
+                  <div className="ml-auto mr-8 shrink-0">
+                    <PageNav page={page} pageCount={pageCount} onChange={setPage} />
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </div>
 
+            {showComingSoon ? (
+              <ContentProviderComingSoon provider={catalogProvider} />
+            ) : (
+              <>
             {error ? (
               <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2.5 py-1.5 text-sm text-[var(--color-danger)]">
                 {error}
@@ -768,7 +830,11 @@ export function AddContentModal({
                       onToggleFavorite={() => toggleFavorite(hit)}
                       onOpen={() => onSelectProject(hit)}
                       onInstall={() =>
-                        requestInstall({ id: hit.id, category: hit.projectType })
+                        requestInstall({
+                          id: hit.id,
+                          provider: hit.provider,
+                          category: hit.projectType,
+                        })
                       }
                     />
                     )
@@ -781,6 +847,8 @@ export function AddContentModal({
                 <PageNav page={page} pageCount={pageCount} onChange={setPage} />
               </div>
             ) : null}
+              </>
+            )}
             </div>
           </div>
         </div>

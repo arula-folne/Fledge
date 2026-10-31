@@ -1,4 +1,4 @@
-{
+﻿{
   "app.name": "Fledge",
   "nav.home": "Beranda",
   "nav.browse": "Konten",
@@ -182,6 +182,11 @@
   "content.dropHint": "Letakkan mod, paket sumber daya, shader di sini",
   "content.dropHintTypes": "Mendukung .jar / .zip (ikon kategori Fledge)",
   "content.provider.local": "Lokal",
+  "content.provider.modrinth": "Modrinth",
+  "content.provider.folne": "folne",
+  "content.provider.select": "Sumber",
+  "content.provider.comingSoon": "Coming soon",
+  "content.provider.comingSoonBody": "Konten {{name}} segera hadir. Silakan cek lagi nanti.",
   "content.error.localUnsupportedType": "Jenis berkas tidak didukung (.jar / .zip)",
   "content.emptyFiltered": "Belum ada konten jenis ini",
   "content.searchPlaceholder": "Cari {{type}}…",

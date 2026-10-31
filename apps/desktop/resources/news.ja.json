@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.6.5",
+    "title": "【バージョンアップ】Fledge Ver.0.6.5",
+    "body": "**Fledge Ver.0.6.5** を公開しました。\\n\\n## 主な変更\\n\\n- コンテンツ検索に配布元 folne を追加（Coming soon）\\n- Modrinth / folne の切り替え UI とお気に入り共通化\\n- 検索画面レイアウトと配布元ボタンの色分けを改善\\n\\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-10-31T05:46:53.727Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.6.5"
+  },
+  {
     "id": "v0.6.4",
     "title": "【バージョンアップ】Fledge Ver.0.6.4",
     "body": "**Fledge Ver.0.6.4** を公開しました。\n\n## 主な変更\n\n- アップデート後にアプリが再起動しない問題を修正\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
@@ -580,4 +587,4 @@
     "publishedAt": "2026-08-05T00:00:00.000Z",
     "url": "https://github.com/arula-folne/Fledge/blob/main/PRIVACY.md"
   }
-]
+]\n

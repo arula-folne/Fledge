@@ -741,9 +741,9 @@ export function ContentTab({ instance }: Props) {
                           ? ` → ${item.latestVersionNumber}`
                           : ''}
                         {' · '}
-                        {item.provider === 'local'
-                          ? t('content.provider.local')
-                          : item.provider}
+                        {t(`content.provider.${item.provider}`, {
+                          defaultValue: item.provider,
+                        })}
                         {!item.enabled ? ` · ${t('content.disabled')}` : ''}
                       </div>
                     </div>

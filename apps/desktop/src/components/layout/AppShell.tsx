@@ -317,7 +317,7 @@ export function AppShell() {
           </header>
           <main
             className={[
-              'season-shell-main flex min-h-0 flex-1 flex-col overflow-hidden p-3',
+              'season-shell-main flex min-h-0 flex-1 flex-col overflow-hidden px-3 pb-3 pt-2',
             ].join(' ')}
             style={{ WebkitAppRegion: 'no-drag' } as CSSProperties}
           >

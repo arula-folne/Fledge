@@ -12,6 +12,10 @@ export type SlidingPillTabItem = {
   label: ReactNode
   /** 非選択時のラベル色（アイコン色など） */
   inactiveClassName?: string
+  /** 選択中のスライド面の背景色など */
+  activePillClassName?: string
+  /** 選択中の文字色（既定: on-selection） */
+  activeTextClassName?: string
   ariaLabel?: string
 }
 
@@ -114,6 +118,7 @@ export function SlidingPillTabs({
   // 固定高さ + leading-none で行ボックス下寄りを防ぐ（少し余白を持たせる）
   const sizeClass =
     size === 'md' ? 'h-9 px-3.5 text-sm' : 'h-8 px-3 text-xs'
+  const activeItem = items.find((item) => item.id === activeId)
 
   return (
     <div
@@ -131,9 +136,10 @@ export function SlidingPillTabs({
         <div
           aria-hidden
           className={[
-            'pointer-events-none absolute left-0 top-0 rounded-full bg-[var(--color-selection)]',
+            'pointer-events-none absolute left-0 top-0 rounded-full',
+            activeItem?.activePillClassName ?? 'bg-[var(--color-selection)]',
             ready
-              ? 'transition-[transform,width,height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none'
+              ? 'transition-[transform,width,height,background-color] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none'
               : '',
           ].join(' ')}
           style={{
@@ -165,7 +171,7 @@ export function SlidingPillTabs({
               '[&_span]:inline-flex [&_span]:items-center [&_span]:gap-1 [&_span]:leading-none',
               sizeClass,
               selected
-                ? 'text-[var(--color-on-selection)]'
+                ? (item.activeTextClassName ?? 'text-[var(--color-on-selection)]')
                 : [
                     'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
                     item.inactiveClassName ?? '',

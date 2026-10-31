@@ -8,14 +8,33 @@ export function isFavoritesTab(tab: ContentSearchTab): tab is 'favorites' {
   return tab === 'favorites'
 }
 
-/** インスタンス作成用 Browse ページ（Modpack の左は Modpack、Mod の左にお気に入り） */
+/** カテゴリ楕円内の並び: Modpack → Mod → リソースパック → データパック → シェーダー */
+const BROWSE_CATEGORY_ORDER: ContentCategory[] = [
+  'modpack',
+  'mod',
+  'resourcepack',
+  'datapack',
+  'shader',
+]
+
+/**
+ * コンテンツ検索のタブ。
+ * UI では (配布元) (お気に入り) (カテゴリ…) の 3 楕円に分ける。
+ */
 export function browsePageSearchTabs(): ContentSearchTab[] {
-  return ['modpack', 'favorites', 'mod', 'resourcepack', 'shader', 'datapack']
+  return ['favorites', ...BROWSE_CATEGORY_ORDER]
 }
 
-/** インスタンスへのコンテンツ追加モーダル（ローダーに応じて種別を制限） */
+/** インスタンスへのコンテンツ追加（ローダーで種別を制限。Modpack は閲覧・お気に入り用） */
 export function instanceBrowseSearchTabs(loader: Loader): ContentSearchTab[] {
-  return ['favorites', ...contentCategoriesForLoader(loader)]
+  const allowed = new Set(contentCategoriesForLoader(loader))
+  const cats = BROWSE_CATEGORY_ORDER.filter(
+    (c) => c === 'modpack' || allowed.has(c),
+  )
+  if (loader === 'vanilla') {
+    return ['favorites', ...cats.filter((c) => allowed.has(c))]
+  }
+  return ['favorites', ...cats]
 }
 
 export function defaultInstanceBrowseTab(loader: Loader = 'fabric'): ContentSearchTab {

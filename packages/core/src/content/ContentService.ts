@@ -323,6 +323,12 @@ export class ContentService {
         name: 'Modrinth',
         available: true,
       },
+      {
+        id: 'folne',
+        name: 'folne',
+        available: false,
+        unavailableReasonKey: 'content.provider.comingSoon',
+      },
     ]
   }
 
@@ -332,6 +338,14 @@ export class ContentService {
 
   async search(raw: unknown): Promise<ContentSearchResult> {
     const query = ContentSearchQuerySchema.parse(raw)
+    if (query.provider === 'folne') {
+      return {
+        hits: [],
+        offset: query.offset,
+        limit: query.limit,
+        total: 0,
+      }
+    }
     return this.modrinth.search({ ...query, provider: 'modrinth' })
   }
 
