@@ -244,7 +244,6 @@ export function HomeLibrarySection({ instances }: Props) {
         <div className="sticky top-0 z-20 w-fit shrink-0 rounded bg-black/80 px-2 py-1 font-mono text-[11px] text-lime-300 shadow">
           debug · {gridDebug.cols} cols/row · bp={gridDebug.bp} · vw={gridDebug.width}px · items=
           {items.length}
-          {newsMinimized ? ' · newsMin' : ''}
           {usePlaceholders ? ' · placeholders' : ''}
         </div>
       ) : null}
