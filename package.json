@@ -1,7 +1,7 @@
 {
   "name": "fledge",
   "private": true,
-  "version": "0.6.5",
+  "version": "0.6.6",
   "description": "軽快・モダンな UI と使い勝手を重視した Minecraft ランチャー（設定検索・チュートリアル・インスタンス版変更対応）",
   "license": "GPL-3.0",
   "author": "folne",
