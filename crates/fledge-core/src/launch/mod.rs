@@ -19,7 +19,7 @@ use crate::launch::options_guard::{
     snapshot_minecraft_debug_overlay, snapshot_minecraft_initial_options,
     verify_minecraft_options_file, MINECRAFT_INITIAL_SETTINGS_APPLY_GENERATION as APPLY_GEN,
 };
-use crate::launch::process::GameProcess;
+use crate::launch::process::{force_kill_pid, GameProcess};
 use crate::minecraft::{load_resolved_version, MinecraftService};
 use crate::progress::{EventBus, ProgressEvent};
 use crate::settings::SettingsStore;
@@ -77,6 +77,10 @@ struct LaunchSession {
     abort: Arc<AtomicBool>,
     state: SessionState,
     child: Option<Arc<AsyncMutex<GameProcess>>>,
+    /// OS PID of the Java process (kept outside the wait mutex so stop can kill).
+    os_pid: Option<u32>,
+    /// Set when the user requests Stop so a non-zero exit code is not an error.
+    killed_by_user: Arc<AtomicBool>,
     initial_settings_pending_commit: bool,
     initial_settings_instance_dir: Option<PathBuf>,
     initial_settings_options: HashMap<String, String>,
@@ -179,6 +183,8 @@ impl LaunchOrchestrator {
                 abort: Arc::clone(&abort),
                 state: SessionState::Preparing,
                 child: None,
+                os_pid: None,
+                killed_by_user: Arc::new(AtomicBool::new(false)),
                 initial_settings_pending_commit: false,
                 initial_settings_instance_dir: None,
                 initial_settings_options: HashMap::new(),
@@ -277,6 +283,8 @@ impl LaunchOrchestrator {
                 abort: Arc::clone(&abort),
                 state: SessionState::Preparing,
                 child: None,
+                os_pid: None,
+                killed_by_user: Arc::new(AtomicBool::new(false)),
                 initial_settings_pending_commit: false,
                 initial_settings_instance_dir: None,
                 initial_settings_options: HashMap::new(),
@@ -476,6 +484,7 @@ impl LaunchOrchestrator {
         });
 
         let mut game = GameProcess::spawn(&cmd, &instance_dir)?;
+        let os_pid = game.id();
         let stdout = game.take_stdout();
         let stderr = game.take_stderr();
         let child = Arc::new(AsyncMutex::new(game));
@@ -486,6 +495,7 @@ impl LaunchOrchestrator {
                 .get_mut(session_id)
                 .ok_or_else(|| CoreError::msg("launch.error.generic"))?;
             s.child = Some(Arc::clone(&child));
+            s.os_pid = os_pid;
             s.running_since = Some(Instant::now());
             s.state = SessionState::Running;
             (
@@ -531,12 +541,14 @@ impl LaunchOrchestrator {
         let events = Arc::clone(&self.events);
         let instances = Arc::clone(&self.instances);
         let sessions = Arc::clone(&self.sessions);
-        let pending_commit = {
-            self.sessions
-                .lock()
-                .get(session_id)
-                .map(|s| s.initial_settings_pending_commit)
-                .unwrap_or(false)
+        let (pending_commit, killed_by_user) = {
+            let guard = self.sessions.lock();
+            let s = guard.get(session_id);
+            (
+                s.map(|s| s.initial_settings_pending_commit).unwrap_or(false),
+                s.map(|s| Arc::clone(&s.killed_by_user))
+                    .unwrap_or_else(|| Arc::new(AtomicBool::new(false))),
+            )
         };
         let running_since = Instant::now();
         let dir_for_exit = instance_dir.clone();
@@ -592,7 +604,10 @@ impl LaunchOrchestrator {
             );
 
             let exit_code = code.unwrap_or(0);
-            let (state, err_key, err_detail) = if exit_code != 0 {
+            let user_stopped = killed_by_user.load(Ordering::SeqCst);
+            let (state, err_key, err_detail) = if user_stopped {
+                ("exited", None, None)
+            } else if exit_code != 0 {
                 (
                     "error",
                     Some("launch.error.gameExited"),
@@ -660,7 +675,7 @@ impl LaunchOrchestrator {
     }
 
     pub fn kill(&self, session_id: Option<&str>) {
-        let child = {
+        let (child, pid) = {
             let mut sessions = self.sessions.lock();
             let session = if let Some(id) = session_id {
                 sessions.get_mut(id)
@@ -671,8 +686,15 @@ impl LaunchOrchestrator {
             };
             let Some(session) = session else { return };
             session.guard_cancel.store(true, Ordering::SeqCst);
-            session.child.clone()
+            session.killed_by_user.store(true, Ordering::SeqCst);
+            (session.child.clone(), session.os_pid)
         };
+        // Prefer OS-level kill by PID: `wait()` holds the GameProcess mutex for the
+        // whole lifetime, so awaiting that same lock here used to deadlock and leave
+        // Minecraft running after Stop.
+        if let Some(pid) = pid {
+            force_kill_pid(pid);
+        }
         if let Some(child) = child {
             spawn_kill(child);
         }
@@ -1066,23 +1088,25 @@ fn spawn_log_watchers(
 }
 
 fn spawn_kill(child: Arc<AsyncMutex<GameProcess>>) {
+    // Best-effort only: do not block forever if `wait()` still holds the lock.
     if let Ok(handle) = tokio::runtime::Handle::try_current() {
         handle.spawn(async move {
-            let mut g = child.lock().await;
-            let _ = g.kill().await;
-        });
-    } else {
-        std::thread::spawn(move || {
-            if let Ok(rt) = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-            {
-                rt.block_on(async move {
-                    let mut g = child.lock().await;
+            match tokio::time::timeout(Duration::from_millis(200), child.lock()).await {
+                Ok(mut g) => {
+                    if let Some(pid) = g.id() {
+                        force_kill_pid(pid);
+                    }
+                    let _ = g.start_kill();
                     let _ = g.kill().await;
-                });
+                }
+                Err(_) => {}
             }
         });
+    } else if let Ok(mut g) = child.try_lock() {
+        if let Some(pid) = g.id() {
+            force_kill_pid(pid);
+        }
+        g.start_kill();
     }
 }
 

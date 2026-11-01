@@ -64,3 +64,28 @@ impl GameProcess {
         let _ = self.child.start_kill();
     }
 }
+
+/// Kill a process (and on Windows its tree) by OS PID.
+///
+/// Used so stop can succeed even while `wait()` holds the `GameProcess` lock —
+/// TerminateProcess / taskkill unblocks that wait without needing `&mut Child`.
+pub fn force_kill_pid(pid: u32) {
+    if pid == 0 {
+        return;
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let _ = std::process::Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = std::process::Command::new("kill")
+            .args(["-9", &pid.to_string()])
+            .output();
+    }
+}
