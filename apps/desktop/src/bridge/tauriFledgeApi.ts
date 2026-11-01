@@ -69,7 +69,8 @@ export function createTauriFledgeApi(): FledgeApi {
     content: {
       providers: () => call(IPC.contentProviders),
       search: (query) => call(IPC.contentSearch, query),
-      getProject: (projectId) => call(IPC.contentGetProject, projectId),
+      getProject: (projectId, provider) =>
+        call(IPC.contentGetProject, packArgs(projectId, provider ?? 'modrinth')),
       listVersions: (input) => call(IPC.contentListVersions, input),
       install: (req) => call(IPC.contentInstall, req),
       installLocal: (req) => call(IPC.contentInstallLocal, req),

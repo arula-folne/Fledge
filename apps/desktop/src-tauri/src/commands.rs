@@ -422,8 +422,40 @@ async fn dispatch(
         "content:providers" => Ok(state.content.list_providers()),
         "content:search" => state.content.search(&args).await.map_err(map_err),
         "content:get-project" => {
-            let id = first_string(&args).ok_or_else(|| "projectId required".to_string())?;
-            state.content.get_project(&id).await.map_err(map_err)
+            let (id, provider) = match args.as_array() {
+                Some(arr) if !arr.is_empty() => (
+                    arr[0]
+                        .as_str()
+                        .map(|s| s.to_string())
+                        .ok_or_else(|| "projectId required".to_string())?,
+                    arr.get(1)
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("modrinth")
+                        .to_string(),
+                ),
+                _ => {
+                    if let Some(id) = args
+                        .get("projectId")
+                        .and_then(|v| v.as_str())
+                        .or_else(|| args.as_str())
+                    {
+                        (
+                            id.to_string(),
+                            args.get("provider")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("modrinth")
+                                .to_string(),
+                        )
+                    } else {
+                        return Err("projectId required".into());
+                    }
+                }
+            };
+            state
+                .content
+                .get_project_from(&id, &provider)
+                .await
+                .map_err(map_err)
         }
         "content:list-versions" => state.content.list_versions(&args).await.map_err(map_err),
         "content:install" => {

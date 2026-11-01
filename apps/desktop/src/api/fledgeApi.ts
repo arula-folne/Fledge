@@ -81,9 +81,10 @@ export type FledgeApi = {
       }>
     >
     search: (query: ContentSearchQuery) => Promise<ContentSearchResult>
-    getProject: (projectId: string) => Promise<ContentProjectPage>
+    getProject: (projectId: string, provider?: 'modrinth' | 'folne') => Promise<ContentProjectPage>
     listVersions: (input: {
       projectId: string
+      provider?: 'modrinth' | 'folne'
       gameVersion?: string
       loaders?: ContentLoaderFilter[]
     }) => Promise<ContentVersion[]>

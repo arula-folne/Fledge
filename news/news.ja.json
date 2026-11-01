@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.6.7",
+    "title": "【バージョンアップ】Fledge Ver.0.6.7",
+    "body": "**Fledge Ver.0.6.7** を公開しました。\n\n## 主な変更\n\n- folne web の拡張コンテンツを検索・導入できるように対応\n- コンテンツ検索の folne 配布元で Coming soon を解除\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-11-01T13:00:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.6.7"
+  },
+  {
     "id": "v0.6.6",
     "title": "【バージョンアップ】Fledge Ver.0.6.6",
     "body": "**Fledge Ver.0.6.6** を公開しました。\n\n## 主な変更\n\n- アプリからの停止で Minecraft が終了しない問題を修正\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",

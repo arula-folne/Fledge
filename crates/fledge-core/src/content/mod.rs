@@ -1,5 +1,6 @@
-//! Content install / media / mrpack — Modrinth-only, matching 0.4 ContentService.
+//! Content install / media / mrpack — Modrinth + folne site catalog.
 
+mod folne;
 mod modrinth;
 mod mrpack;
 
@@ -9,6 +10,7 @@ use crate::progress::{EventBus, ProgressEvent};
 use crate::settings::SettingsStore;
 use crate::versions::VersionService;
 use futures_util::StreamExt;
+use folne::FolneProvider;
 use modrinth::{ModrinthProvider, ResolvedContentFile};
 use mrpack::{
     client_files, loader_from_mrpack, loader_version_from_mrpack, minecraft_from_mrpack,
@@ -61,6 +63,7 @@ pub struct ContentService {
     versions: Arc<VersionService>,
     events: Arc<EventBus>,
     modrinth: ModrinthProvider,
+    folne: FolneProvider,
     index_locks: Mutex<HashMap<String, ()>>,
 }
 
@@ -77,12 +80,23 @@ impl ContentService {
             versions,
             events,
             modrinth: ModrinthProvider::new(),
+            folne: FolneProvider::new(),
             index_locks: Mutex::new(HashMap::new()),
         }
     }
 
     pub fn list_providers(&self) -> Value {
-        json!([{ "id": "modrinth", "name": "Modrinth", "available": true }])
+        json!([
+          { "id": "modrinth", "name": "Modrinth", "available": true },
+          { "id": "folne", "name": "folne", "available": true }
+        ])
+    }
+
+    fn provider_id(value: &Value) -> &str {
+        value
+            .get("provider")
+            .and_then(|v| v.as_str())
+            .unwrap_or("modrinth")
     }
 
     pub async fn list_category_tags(&self) -> CoreResult<Value> {
@@ -90,15 +104,25 @@ impl ContentService {
     }
 
     pub async fn search(&self, query: &Value) -> CoreResult<Value> {
-        self.modrinth.search(query).await
+        match Self::provider_id(query) {
+            "folne" => self.folne.search(query).await,
+            _ => self.modrinth.search(query).await,
+        }
     }
 
     pub async fn get_project(&self, project_id: &str) -> CoreResult<Value> {
+        self.get_project_from(project_id, "modrinth").await
+    }
+
+    pub async fn get_project_from(&self, project_id: &str, provider: &str) -> CoreResult<Value> {
         let id = project_id.trim();
         if id.is_empty() {
             return Err(CoreError::msg("Project id required"));
         }
-        self.modrinth.get_project(id).await
+        match provider {
+            "folne" => self.folne.get_project(id).await,
+            _ => self.modrinth.get_project(id).await,
+        }
     }
 
     pub async fn list_versions(&self, input: &Value) -> CoreResult<Value> {
@@ -112,10 +136,14 @@ impl ContentService {
         }
         let game_version = input.get("gameVersion").and_then(|v| v.as_str());
         let loaders = string_array(input.get("loaders"));
-        let versions = self
-            .modrinth
-            .list_versions(id, game_version, &loaders)
-            .await?;
+        let versions = match Self::provider_id(input) {
+            "folne" => self.folne.list_versions(id, game_version, &loaders).await?,
+            _ => {
+                self.modrinth
+                    .list_versions(id, game_version, &loaders)
+                    .await?
+            }
+        };
         Ok(Value::Array(versions))
     }
 
@@ -251,20 +279,41 @@ impl ContentService {
             })
             .collect();
 
-        let files = self
-            .modrinth
-            .resolve_install_set(
-                project_id,
-                category,
-                version_id,
-                game_version,
-                &loaders,
-                Some(loader),
-                &installed,
-            )
-            .await?;
+        let provider = Self::provider_id(req);
+        let files = match provider {
+            "folne" => {
+                vec![
+                    self.folne
+                        .resolve_install(
+                            project_id,
+                            category,
+                            version_id,
+                            game_version,
+                            &loaders,
+                        )
+                        .await?,
+                ]
+            }
+            _ => {
+                self.modrinth
+                    .resolve_install_set(
+                        project_id,
+                        category,
+                        version_id,
+                        game_version,
+                        &loaders,
+                        Some(loader),
+                        &installed,
+                    )
+                    .await?
+            }
+        };
         if files.is_empty() {
-            return Err(CoreError::msg("Compatible version not found on Modrinth"));
+            return Err(CoreError::msg(if provider == "folne" {
+                "Compatible version not found on folne"
+            } else {
+                "Compatible version not found on Modrinth"
+            }));
         }
         let primary = files.last().unwrap().clone();
         let instance_dir = self.instances.instance_dir(instance_id);
@@ -444,13 +493,27 @@ impl ContentService {
             .get("projectId")
             .and_then(|v| v.as_str())
             .ok_or_else(|| CoreError::msg("projectId required"))?;
+        let provider = Self::provider_id(req);
+        if provider == "folne" && category == "modpack" {
+            return Err(CoreError::msg(
+                "folne では Modpack からのインスタンス作成に未対応です",
+            ));
+        }
         let game_version = req.get("gameVersion").and_then(|v| v.as_str());
         let loaders = string_array(req.get("loaders"));
-        let page = self.modrinth.get_project(project_id).await?;
-        let mut versions = self
-            .modrinth
-            .list_versions(project_id, game_version, &loaders)
-            .await?;
+        let page = self.get_project_from(project_id, provider).await?;
+        let mut versions = match provider {
+            "folne" => {
+                self.folne
+                    .list_versions(project_id, game_version, &loaders)
+                    .await?
+            }
+            _ => {
+                self.modrinth
+                    .list_versions(project_id, game_version, &loaders)
+                    .await?
+            }
+        };
         let version_id = req.get("versionId").and_then(|v| v.as_str());
         let mut version = if let Some(vid) = version_id {
             versions.iter().find(|v| v.get("id").and_then(|x| x.as_str()) == Some(vid)).cloned()
@@ -458,14 +521,22 @@ impl ContentService {
             versions.first().cloned()
         };
         if version.is_none() && version_id.is_some() {
-            versions = self.modrinth.list_versions(project_id, None, &[]).await?;
+            versions = match provider {
+                "folne" => self.folne.list_versions(project_id, None, &[]).await?,
+                _ => self.modrinth.list_versions(project_id, None, &[]).await?,
+            };
             version = versions
                 .iter()
                 .find(|v| v.get("id").and_then(|x| x.as_str()) == version_id)
                 .cloned();
         }
-        let version =
-            version.ok_or_else(|| CoreError::msg("Compatible version not found on Modrinth"))?;
+        let version = version.ok_or_else(|| {
+            CoreError::msg(if provider == "folne" {
+                "Compatible version not found on folne"
+            } else {
+                "Compatible version not found on Modrinth"
+            })
+        })?;
         let project = page
             .get("project")
             .cloned()

@@ -40,6 +40,7 @@ import {
 import type { SettingsStore } from '../settings/SettingsStore.js'
 import type { VersionService } from '../versions/VersionService.js'
 import type { ContentProvider, ContentProviderInfo } from './ContentProvider.js'
+import { FolneProvider } from './FolneProvider.js'
 import { ModrinthProvider } from './ModrinthProvider.js'
 import {
   clientFiles,
@@ -249,6 +250,7 @@ async function resolveContentExportEntry(
 
 export class ContentService {
   private readonly modrinth: ModrinthProvider
+  private readonly folne: FolneProvider
   private readonly providers: Map<string, ContentProvider>
   private readonly indexTail = new Map<string, Promise<unknown>>()
   private readonly contentGeneration = new Map<string, number>()
@@ -273,7 +275,11 @@ export class ContentService {
     private readonly emitProgress?: (e: ProgressEvent) => void,
   ) {
     this.modrinth = new ModrinthProvider(() => this.settings.get().then((s) => s.locale))
-    this.providers = new Map([['modrinth', this.modrinth]])
+    this.folne = new FolneProvider()
+    this.providers = new Map<string, ContentProvider>([
+      ['modrinth', this.modrinth],
+      ['folne', this.folne],
+    ])
   }
 
   /** 作成直後に一覧へ載せて UI を先に更新する（ダウンロード継続中でも詳細を開ける） */
@@ -326,8 +332,7 @@ export class ContentService {
       {
         id: 'folne',
         name: 'folne',
-        available: false,
-        unavailableReasonKey: 'content.provider.comingSoon',
+        available: true,
       },
     ]
   }
@@ -338,32 +343,36 @@ export class ContentService {
 
   async search(raw: unknown): Promise<ContentSearchResult> {
     const query = ContentSearchQuerySchema.parse(raw)
-    if (query.provider === 'folne') {
-      return {
-        hits: [],
-        offset: query.offset,
-        limit: query.limit,
-        total: 0,
-      }
-    }
-    return this.modrinth.search({ ...query, provider: 'modrinth' })
+    const provider = this.providers.get(query.provider)
+    if (!provider) throw new Error(`Content provider unavailable: ${query.provider}`)
+    return provider.search(query)
   }
 
-  async getProject(projectId: string): Promise<ContentProjectPage> {
+  async getProject(
+    projectId: string,
+    providerId: string = 'modrinth',
+  ): Promise<ContentProjectPage> {
     const id = String(projectId ?? '').trim()
     if (!id) throw new Error('Project id required')
-    return this.modrinth.getProject(id)
+    const provider = this.providers.get(providerId) ?? this.modrinth
+    return provider.getProject(id)
   }
 
   async listVersions(raw: unknown): Promise<ContentVersion[]> {
     const input = raw as {
       projectId?: string
+      provider?: string
       gameVersion?: string
       loaders?: ContentLoaderFilter[]
     }
     const id = String(input?.projectId ?? '').trim()
     if (!id) throw new Error('Project id required')
-    return this.modrinth.listVersions(id, {
+    const providerId = input.provider === 'folne' ? 'folne' : 'modrinth'
+    const provider = this.providers.get(providerId) ?? this.modrinth
+    if (!provider.listVersions) {
+      throw new Error(`Content provider does not support listVersions: ${providerId}`)
+    }
+    return provider.listVersions(id, {
       gameVersion: input.gameVersion?.trim() || undefined,
       loaders: Array.isArray(input.loaders) ? input.loaders : [],
     })
@@ -530,9 +539,17 @@ export class ContentService {
       })
     }
 
-    const pagePromise = this.getProject(req.projectId)
+    if (req.provider === 'folne' && req.category === 'modpack') {
+      throw Object.assign(new Error('folne では Modpack からのインスタンス作成に未対応です'), {
+        messageKey: 'content.error.compatibleVersionNotFound',
+        detail: { projectId: req.projectId },
+      })
+    }
+
+    const pagePromise = this.getProject(req.projectId, req.provider)
     const versionsPromise = this.listVersions({
       projectId: req.projectId,
+      provider: req.provider,
       gameVersion: req.gameVersion,
       loaders: req.loaders,
     })
@@ -541,14 +558,21 @@ export class ContentService {
       ? versions.find((v) => v.id === req.versionId)
       : versions[0]
     if (!version && req.versionId) {
-      const all = await this.listVersions({ projectId: req.projectId })
+      const all = await this.listVersions({ projectId: req.projectId, provider: req.provider })
       version = all.find((v) => v.id === req.versionId)
     }
     if (!version) {
-      throw Object.assign(new Error('Compatible version not found on Modrinth'), {
-        messageKey: 'content.error.compatibleVersionNotFound',
-        detail: { projectId: req.projectId },
-      })
+      throw Object.assign(
+        new Error(
+          req.provider === 'folne'
+            ? 'Compatible version not found on folne'
+            : 'Compatible version not found on Modrinth',
+        ),
+        {
+          messageKey: 'content.error.compatibleVersionNotFound',
+          detail: { projectId: req.projectId },
+        },
+      )
     }
 
     if (req.category === 'modpack') {

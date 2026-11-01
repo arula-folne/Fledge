@@ -70,16 +70,28 @@ export function ContentProjectView({
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null)
 
   const pageQuery = useQuery({
-    queryKey: ['content-project', hit.id],
-    queryFn: () => fledgeApi.content.getProject(hit.id),
+    queryKey: ['content-project', hit.provider, hit.id],
+    queryFn: () =>
+      fledgeApi.content.getProject(
+        hit.id,
+        hit.provider === 'folne' ? 'folne' : 'modrinth',
+      ),
     staleTime: 60_000,
   })
 
   const versionsQuery = useQuery({
-    queryKey: ['content-project-versions', hit.id, compatOnly, gameVersion, loaders],
+    queryKey: [
+      'content-project-versions',
+      hit.provider,
+      hit.id,
+      compatOnly,
+      gameVersion,
+      loaders,
+    ],
     queryFn: () =>
       fledgeApi.content.listVersions({
         projectId: hit.id,
+        provider: hit.provider === 'folne' ? 'folne' : 'modrinth',
         gameVersion: compatOnly ? gameVersion.trim() || undefined : undefined,
         loaders:
           compatOnly &&

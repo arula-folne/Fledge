@@ -248,8 +248,10 @@ export function registerIpc(
 
   ipcMain.handle(IPC.contentProviders, async () => appCtx.content.listProviders())
   ipcMain.handle(IPC.contentSearch, async (_e, query: unknown) => appCtx.content.search(query))
-  ipcMain.handle(IPC.contentGetProject, async (_e, projectId: string) =>
-    appCtx.content.getProject(projectId),
+  ipcMain.handle(
+    IPC.contentGetProject,
+    async (_e, projectId: string, provider?: 'modrinth' | 'folne') =>
+      appCtx.content.getProject(projectId, provider ?? 'modrinth'),
   )
   ipcMain.handle(IPC.contentListVersions, async (_e, input: unknown) =>
     appCtx.content.listVersions(input),

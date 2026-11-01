@@ -1,4 +1,4 @@
-import type { ContentCategory, Loader } from '@fledge/shared'
+import type { ContentCatalogProviderId, ContentCategory, Loader } from '@fledge/shared'
 import { contentCategoriesForLoader } from '@fledge/shared'
 
 /** 検索画面のカテゴリタブ（お気に入りは UI 専用） */
@@ -17,16 +17,30 @@ const BROWSE_CATEGORY_ORDER: ContentCategory[] = [
   'shader',
 ]
 
+/** folne 公式カタログで扱う種別（現状は Mod） */
+const FOLNE_CATEGORY_ORDER: ContentCategory[] = ['mod']
+
 /**
  * コンテンツ検索のタブ。
  * UI では (配布元) (お気に入り) (カテゴリ…) の 3 楕円に分ける。
  */
-export function browsePageSearchTabs(): ContentSearchTab[] {
+export function browsePageSearchTabs(
+  provider: ContentCatalogProviderId = 'modrinth',
+): ContentSearchTab[] {
+  if (provider === 'folne') return ['favorites', ...FOLNE_CATEGORY_ORDER]
   return ['favorites', ...BROWSE_CATEGORY_ORDER]
 }
 
 /** インスタンスへのコンテンツ追加（ローダーで種別を制限。Modpack は閲覧・お気に入り用） */
-export function instanceBrowseSearchTabs(loader: Loader): ContentSearchTab[] {
+export function instanceBrowseSearchTabs(
+  loader: Loader,
+  provider: ContentCatalogProviderId = 'modrinth',
+): ContentSearchTab[] {
+  if (provider === 'folne') {
+    const allowed = new Set(contentCategoriesForLoader(loader))
+    if (!allowed.has('mod')) return ['favorites']
+    return ['favorites', 'mod']
+  }
   const allowed = new Set(contentCategoriesForLoader(loader))
   const cats = BROWSE_CATEGORY_ORDER.filter(
     (c) => c === 'modpack' || allowed.has(c),

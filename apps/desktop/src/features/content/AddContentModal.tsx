@@ -17,8 +17,6 @@ import { PageNav } from '../../components/ui/PageNav'
 import { Select } from '../../components/ui/Select'
 import { useTransferStore } from '../../stores/appStores'
 import { ContentBrowseFilters } from './ContentBrowseFilters'
-import { isFolneProvider } from './contentCatalogProviders'
-import { ContentProviderComingSoon } from './ContentProviderComingSoon'
 import { ContentProviderSourceTabs } from './ContentProviderSourceTabs'
 import { ContentSearchBar } from './ContentSearchBar'
 import {
@@ -214,11 +212,13 @@ export function AddContentModal({
   }, [open, browseMode, instance.id, instance.minecraftVersion, instance.loader, reset])
 
   useEffect(() => {
-    const tabs = instanceBrowseSearchTabs(instance.loader)
+    const tabs = instanceBrowseSearchTabs(instance.loader, catalogProvider)
     if (!tabs.includes(searchTab)) {
-      setSearchTab(defaultInstanceBrowseTab(instance.loader))
+      const next =
+        tabs.find((tab) => !isFavoritesTab(tab)) ?? defaultInstanceBrowseTab(instance.loader)
+      setSearchTab(next)
     }
-  }, [instance.loader, searchTab])
+  }, [instance.loader, catalogProvider, searchTab])
 
   useEffect(() => {
     if (!open) return
@@ -248,12 +248,13 @@ export function AddContentModal({
     }
   }, [searchTab, sort])
 
-  const folneCatalog = isFolneProvider(catalogProvider)
-  const showComingSoon = folneCatalog && !isFavoritesTab(searchTab)
+  const searchTabs = useMemo(
+    () => instanceBrowseSearchTabs(instance.loader, catalogProvider),
+    [instance.loader, catalogProvider],
+  )
 
   const prefetchCategorySearch = useCallback(
     (cat: ContentCategory, searchTags: string[] = []) => {
-      if (isFolneProvider(catalogProvider)) return Promise.resolve()
       const input = buildContentSearchInput({
         category: cat,
         provider: catalogProvider,
@@ -320,7 +321,7 @@ export function AddContentModal({
   const searchQuery = useQuery({
     queryKey: ['content-search', searchInput],
     queryFn: () => fledgeApi.content.search(searchInput),
-    enabled: open && browseMode && !projectId && !isFavoritesTab(searchTab) && !showComingSoon,
+    enabled: open && browseMode && !projectId && !isFavoritesTab(searchTab),
     placeholderData: (previousData, previousQuery) =>
       keepSearchDataForSameCategory(previousData, previousQuery, searchTab),
     staleTime: 30_000,
@@ -567,8 +568,8 @@ export function AddContentModal({
   }, [projectId, hits])
 
   const projectQuery = useQuery({
-    queryKey: ['content-project-browse', projectId],
-    queryFn: () => fledgeApi.content.getProject(projectId!),
+    queryKey: ['content-project-browse', catalogProvider, projectId],
+    queryFn: () => fledgeApi.content.getProject(projectId!, catalogProvider),
     enabled: open && Boolean(projectId) && !selectedFromHits,
     staleTime: 60_000,
   })
@@ -649,24 +650,22 @@ export function AddContentModal({
               <h1 className="truncate text-lg font-semibold text-[var(--color-text)]">{dialogTitle}</h1>
               <p className="mt-0.5 truncate text-sm text-[var(--color-text-muted)]">{subtitle}</p>
             </header>
-            {!showComingSoon ? (
-              <ContentBrowseFilters
-                instance={instance}
-                category={filterCategory}
-                gameVersion={gameVersion}
-                loaders={loaders}
-                tags={tags}
-                versionOptions={versionOptions}
-                onGameVersion={setGameVersion}
-                onLoaders={setLoaders}
-                onTags={setTags}
-                onReset={() => {
-                  setGameVersion(instance.minecraftVersion)
-                  setLoaders(loaderToContentFilters(instance.loader))
-                  setTags([])
-                }}
-              />
-            ) : null}
+            <ContentBrowseFilters
+              instance={instance}
+              category={filterCategory}
+              gameVersion={gameVersion}
+              loaders={loaders}
+              tags={tags}
+              versionOptions={versionOptions}
+              onGameVersion={setGameVersion}
+              onLoaders={setLoaders}
+              onTags={setTags}
+              onReset={() => {
+                setGameVersion(instance.minecraftVersion)
+                setLoaders(loaderToContentFilters(instance.loader))
+                setTags([])
+              }}
+            />
           </div>
           <div
             ref={listScrollRef}
@@ -684,21 +683,21 @@ export function AddContentModal({
                   size="md"
                 />
                 <ContentSearchCategoryTabs
-                  tabs={instanceBrowseSearchTabs(instance.loader)}
+                  tabs={searchTabs}
                   active={searchTab}
                   onChange={(next) => {
                     setTags([])
                     setSearchTab(next)
                   }}
                   onPrefetch={(tab) => {
-                    if (isFavoritesTab(tab) || showComingSoon) return
+                    if (isFavoritesTab(tab)) return
                     void prefetchCategorySearch(tab, tab === searchTab ? tags : [])
                   }}
                 />
               </div>
               {closeButton}
             </div>
-            {!showComingSoon && isFavoritesTab(searchTab) ? (
+            {isFavoritesTab(searchTab) ? (
               <FavoriteCategoryFilters
                 categories={favoriteCategoryTabs}
                 counts={favoriteCategoryCounts}
@@ -726,45 +725,40 @@ export function AddContentModal({
                     : t('content.searchPlaceholder', { type: typeLabel })
                 }
               />
-              {!showComingSoon ? (
-                <div className="flex flex-nowrap items-center gap-2">
-                  <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-                    {t('content.sort.label')}
-                    <Select
-                      value={sort}
-                      onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
-                      className="min-w-[8rem]"
-                      options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
-                        value: s,
-                        label: t(`content.sort.${s}`),
-                      }))}
-                    />
-                  </label>
-                  <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-                    {t('content.showCount')}
-                    <Select
-                      value={String(pageSize)}
-                      onChange={(e) =>
-                        setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
-                      }
-                      className="min-w-[4.5rem]"
-                      options={PAGE_SIZES.map((n) => ({
-                        value: String(n),
-                        label: String(n),
-                      }))}
-                    />
-                  </label>
-                  <div className="ml-auto mr-8 shrink-0">
-                    <PageNav page={page} pageCount={pageCount} onChange={setPage} />
-                  </div>
+              <div className="flex flex-nowrap items-center gap-2">
+                <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+                  {t('content.sort.label')}
+                  <Select
+                    value={sort}
+                    onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
+                    className="min-w-[8rem]"
+                    options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
+                      value: s,
+                      label: t(`content.sort.${s}`),
+                    }))}
+                  />
+                </label>
+                <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+                  {t('content.showCount')}
+                  <Select
+                    value={String(pageSize)}
+                    onChange={(e) =>
+                      setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
+                    }
+                    className="min-w-[4.5rem]"
+                    options={PAGE_SIZES.map((n) => ({
+                      value: String(n),
+                      label: String(n),
+                    }))}
+                  />
+                </label>
+                <div className="ml-auto mr-8 shrink-0">
+                  <PageNav page={page} pageCount={pageCount} onChange={setPage} />
                 </div>
-              ) : null}
+              </div>
             </div>
 
-            {showComingSoon ? (
-              <ContentProviderComingSoon provider={catalogProvider} />
-            ) : (
-              <>
+            <>
             {error ? (
               <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2.5 py-1.5 text-sm text-[var(--color-danger)]">
                 {error}
@@ -847,8 +841,7 @@ export function AddContentModal({
                 <PageNav page={page} pageCount={pageCount} onChange={setPage} />
               </div>
             ) : null}
-              </>
-            )}
+            </>
             </div>
           </div>
         </div>

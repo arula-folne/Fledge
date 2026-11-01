@@ -80,7 +80,10 @@ export type FledgeApi = {
       }>
     >
     search: (query: ContentSearchQuery) => Promise<ContentSearchResult>
-    getProject: (projectId: string) => Promise<ContentProjectPage>
+    getProject: (
+      projectId: string,
+      provider?: 'modrinth' | 'folne',
+    ) => Promise<ContentProjectPage>
     listVersions: (input: {
       projectId: string
       gameVersion?: string
@@ -237,7 +240,8 @@ const api: FledgeApi = {
   content: {
     providers: () => ipcRenderer.invoke(IPC.contentProviders),
     search: (query) => ipcRenderer.invoke(IPC.contentSearch, query),
-    getProject: (projectId) => ipcRenderer.invoke(IPC.contentGetProject, projectId),
+    getProject: (projectId, provider) =>
+      ipcRenderer.invoke(IPC.contentGetProject, projectId, provider ?? 'modrinth'),
     listVersions: (input) => ipcRenderer.invoke(IPC.contentListVersions, input),
     install: (req) => ipcRenderer.invoke(IPC.contentInstall, req),
     listInstalled: (instanceId, category) =>

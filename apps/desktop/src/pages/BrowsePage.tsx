@@ -14,8 +14,6 @@ import { PageNav } from '../components/ui/PageNav'
 import { ListPickDialog } from '../components/ui/ListPickDialog'
 import { Select } from '../components/ui/Select'
 import { ContentBrowseFilters } from '../features/content/ContentBrowseFilters'
-import { isFolneProvider } from '../features/content/contentCatalogProviders'
-import { ContentProviderComingSoon } from '../features/content/ContentProviderComingSoon'
 import { ContentProviderSourceTabs } from '../features/content/ContentProviderSourceTabs'
 import { ContentSearchBar } from '../features/content/ContentSearchBar'
 import {
@@ -162,8 +160,14 @@ export default function BrowsePage() {
     [versionsQuery.data?.versions],
   )
 
-  const folneCatalog = isFolneProvider(catalogProvider)
-  const showComingSoon = folneCatalog && !isFavoritesTab(searchTab)
+  const searchTabs = useMemo(() => browsePageSearchTabs(catalogProvider), [catalogProvider])
+
+  useEffect(() => {
+    if (!searchTabs.includes(searchTab)) {
+      const next = searchTabs.find((tab) => !isFavoritesTab(tab)) ?? 'mod'
+      setSearchTab(next)
+    }
+  }, [searchTabs, searchTab])
 
   const searchInput = useMemo(
     () =>
@@ -194,7 +198,7 @@ export default function BrowsePage() {
   const searchQuery = useQuery({
     queryKey: ['content-search', searchInput],
     queryFn: () => fledgeApi.content.search(searchInput),
-    enabled: !selectedProject && !isFavoritesTab(searchTab) && !showComingSoon,
+    enabled: !selectedProject && !isFavoritesTab(searchTab),
     placeholderData: (previousData, previousQuery) =>
       keepSearchDataForSameCategory(previousData, previousQuery, filterCategory),
     staleTime: 30_000,
@@ -204,10 +208,17 @@ export default function BrowsePage() {
   })
 
   const packVersionsQuery = useQuery({
-    queryKey: ['content-create-versions', versionTarget?.id, gameVersion, loaders],
+    queryKey: [
+      'content-create-versions',
+      versionTarget?.provider,
+      versionTarget?.id,
+      gameVersion,
+      loaders,
+    ],
     queryFn: () =>
       fledgeApi.content.listVersions({
         projectId: versionTarget!.id,
+        provider: versionTarget!.provider === 'folne' ? 'folne' : 'modrinth',
         gameVersion: gameVersion.trim() || undefined,
         loaders,
       }),
@@ -435,23 +446,21 @@ export default function BrowsePage() {
             {t('content.browsePageSubtitle')}
           </p>
         </header>
-        {!showComingSoon ? (
-          <ContentBrowseFilters
-            category={filterCategory}
-            gameVersion={gameVersion}
-            loaders={loaders}
-            tags={tags}
-            versionOptions={versionOptions}
-            onGameVersion={setGameVersion}
-            onLoaders={setLoaders}
-            onTags={setTags}
-            onReset={() => {
-              setGameVersion('')
-              setLoaders(['fabric', 'neoforge', 'forge', 'quilt'])
-              setTags([])
-            }}
-          />
-        ) : null}
+        <ContentBrowseFilters
+          category={filterCategory}
+          gameVersion={gameVersion}
+          loaders={loaders}
+          tags={tags}
+          versionOptions={versionOptions}
+          onGameVersion={setGameVersion}
+          onLoaders={setLoaders}
+          onTags={setTags}
+          onReset={() => {
+            setGameVersion('')
+            setLoaders(['fabric', 'neoforge', 'forge', 'quilt'])
+            setTags([])
+          }}
+        />
       </div>
       <div
         ref={listScrollRef}
@@ -471,7 +480,7 @@ export default function BrowsePage() {
               size="md"
             />
             <ContentSearchCategoryTabs
-              tabs={browsePageSearchTabs()}
+              tabs={searchTabs}
               active={searchTab}
               onChange={(next) => {
                 setTags([])
@@ -479,7 +488,7 @@ export default function BrowsePage() {
               }}
             />
           </div>
-          {!showComingSoon && isFavoritesTab(searchTab) ? (
+          {isFavoritesTab(searchTab) ? (
             <FavoriteCategoryFilters
               categories={favoriteCategoryTabs}
               counts={favoriteCategoryCounts}
@@ -501,45 +510,40 @@ export default function BrowsePage() {
                   : t('content.searchPlaceholder', { type: typeLabel })
               }
             />
-            {!showComingSoon ? (
-              <div className="flex flex-nowrap items-center gap-2">
-                <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-                  {t('content.sort.label')}
-                  <Select
-                    value={sort}
-                    onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
-                    className="min-w-[8rem]"
-                    options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
-                      value: s,
-                      label: t(`content.sort.${s}`),
-                    }))}
-                  />
-                </label>
-                <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
-                  {t('content.showCount')}
-                  <Select
-                    value={String(pageSize)}
-                    onChange={(e) =>
-                      setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
-                    }
-                    className="min-w-[4.5rem]"
-                    options={PAGE_SIZES.map((n) => ({
-                      value: String(n),
-                      label: String(n),
-                    }))}
-                  />
-                </label>
-                <div className="ml-auto mr-8 shrink-0">
-                  <PageNav page={page} pageCount={pageCount} onChange={setPage} />
-                </div>
+            <div className="flex flex-nowrap items-center gap-2">
+              <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+                {t('content.sort.label')}
+                <Select
+                  value={sort}
+                  onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
+                  className="min-w-[8rem]"
+                  options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
+                    value: s,
+                    label: t(`content.sort.${s}`),
+                  }))}
+                />
+              </label>
+              <label className="flex shrink-0 items-center gap-1.5 text-sm text-[var(--color-text-muted)]">
+                {t('content.showCount')}
+                <Select
+                  value={String(pageSize)}
+                  onChange={(e) =>
+                    setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
+                  }
+                  className="min-w-[4.5rem]"
+                  options={PAGE_SIZES.map((n) => ({
+                    value: String(n),
+                    label: String(n),
+                  }))}
+                />
+              </label>
+              <div className="ml-auto mr-8 shrink-0">
+                <PageNav page={page} pageCount={pageCount} onChange={setPage} />
               </div>
-            ) : null}
+            </div>
           </div>
 
-          {showComingSoon ? (
-            <ContentProviderComingSoon provider={catalogProvider} />
-          ) : (
-            <>
+          <>
           {error ? (
             <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2.5 py-1.5 text-sm text-[var(--color-danger)]">
               {error}
@@ -629,8 +633,7 @@ export default function BrowsePage() {
               <PageNav page={page} pageCount={pageCount} onChange={setPage} />
             </div>
           ) : null}
-            </>
-          )}
+          </>
         </div>
       </div>
       {versionDialog}

@@ -241,6 +241,7 @@ export function ContentTab({ instance }: Props) {
   const versionsQuery = useQuery({
     queryKey: [
       'content-installed-versions',
+      versionPickItem?.provider,
       versionPickItem?.projectId,
       instance.minecraftVersion,
       instance.loader,
@@ -251,6 +252,7 @@ export function ContentTab({ instance }: Props) {
       const useLoaders = item.category === 'mod' || item.category === 'modpack'
       return fledgeApi.content.listVersions({
         projectId: item.projectId,
+        provider: item.provider === 'folne' ? 'folne' : 'modrinth',
         gameVersion: instance.minecraftVersion,
         loaders: useLoaders ? instanceLoaders : [],
       })
@@ -340,6 +342,7 @@ export function ContentTab({ instance }: Props) {
         const useLoaders = item.category === 'mod' || item.category === 'modpack'
         const versions = await fledgeApi.content.listVersions({
           projectId: item.projectId,
+          provider: item.provider === 'folne' ? 'folne' : 'modrinth',
           gameVersion: instance.minecraftVersion,
           loaders: useLoaders ? instanceLoaders : [],
         })
