@@ -3,6 +3,9 @@ import type { DownloadKind, ProgressEvent, TransferJobStatus } from '@fledge/sha
 
 export type DownloadJobStatus = TransferJobStatus
 
+/** interactive: ユーザー操作の単体導入。bulk: インスタンス準備・mrpack 一括など */
+export type DownloadLane = 'interactive' | 'bulk'
+
 export type DownloadProgress = {
   current: number
   total: number
@@ -16,6 +19,7 @@ export type DownloadJob = {
   labelKey: string
   status: DownloadJobStatus
   priority: number
+  lane: DownloadLane
   sessionId?: string
   createdAt: number
   startedAt?: number
@@ -40,6 +44,8 @@ export type EnqueueInput = {
   kind: DownloadKind
   labelKey: string
   priority?: number
+  /** 既定 bulk。interactive は枠を予約して作成中でも Mod 導入できるようにする */
+  lane?: DownloadLane
   sessionId?: string
   meta?: Record<string, string | number | boolean>
   execute: (ctx: DownloadContext) => Promise<void>
@@ -56,6 +62,8 @@ type InternalJob = DownloadJob & {
 }
 
 const DEFAULT_CONCURRENCY = 8
+/** 同時実行枠のうち interactive 用に確保する数（残りは bulk。interactive 待ちが空なら bulk が余剰を使用可） */
+const INTERACTIVE_RESERVED = 2
 
 export class DownloadQueue {
   private _concurrency: number
@@ -87,6 +95,7 @@ export class DownloadQueue {
       labelKey: job.labelKey,
       status: job.status,
       priority: job.priority,
+      lane: job.lane,
       sessionId: job.sessionId,
       createdAt: job.createdAt,
       startedAt: job.startedAt,
@@ -113,6 +122,7 @@ export class DownloadQueue {
       labelKey: input.labelKey,
       status: 'queued',
       priority: input.priority ?? 0,
+      lane: input.lane ?? 'bulk',
       sessionId: input.sessionId,
       createdAt: Date.now(),
       progress: { current: 0, total: 0, unit: 'count' },
@@ -187,9 +197,53 @@ export class DownloadQueue {
     })
   }
 
+  private interactiveReserved(): number {
+    return Math.min(INTERACTIVE_RESERVED, this._concurrency)
+  }
+
+  private countActive(lane: DownloadLane): number {
+    let n = 0
+    for (const job of this.active.values()) {
+      if (job.lane === lane) n += 1
+    }
+    return n
+  }
+
+  /** 空き枠のルール: interactive は常に予約枠＋余剰を使える。bulk は予約以外＋interactive 待ちが無い余剰 */
+  private canStart(lane: DownloadLane): boolean {
+    if (this.active.size >= this._concurrency) return false
+    const reserved = this.interactiveReserved()
+    const bulkCap = this._concurrency - reserved
+    const activeInteractive = this.countActive('interactive')
+    const activeBulk = this.countActive('bulk')
+    const hasQueuedInteractive = this.queued.some((j) => j.lane === 'interactive')
+
+    if (lane === 'interactive') {
+      return this.active.size < this._concurrency
+    }
+    // bulk: 通常は bulkCap まで。interactive 待ちが無ければ予約枠も埋めてよい
+    if (activeBulk < bulkCap) return true
+    if (!hasQueuedInteractive && activeInteractive < reserved) {
+      return this.active.size < this._concurrency
+    }
+    return false
+  }
+
+  private takeNextRunnable(): InternalJob | undefined {
+    // interactive を優先して拾い、だめなら bulk
+    for (const lane of ['interactive', 'bulk'] as const) {
+      if (!this.canStart(lane)) continue
+      const idx = this.queued.findIndex((j) => j.lane === lane)
+      if (idx < 0) continue
+      const [job] = this.queued.splice(idx, 1)
+      return job
+    }
+    return undefined
+  }
+
   private pump(): void {
     while (this.active.size < this._concurrency && this.queued.length > 0) {
-      const job = this.queued.shift()
+      const job = this.takeNextRunnable()
       if (!job) return
       this.active.set(job.id, job)
       void this.run(job)

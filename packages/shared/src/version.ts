@@ -27,7 +27,7 @@
  *    （見出しは `**Fledge Ver.X.Y.Z**` のみ。「第3世代・Tauri シェル / Latest」等の括弧書きは付けない）
  * 5. `v{APP_VERSION}` タグを push（例: v0.6.0）
  */
-export const APP_VERSION = '0.6.7' as const
+export const APP_VERSION = '0.6.8' as const
 
 /** UI 表示用（`Ver.X.X.X`） */
 export const APP_VERSION_LABEL = `Ver.${APP_VERSION}` as const

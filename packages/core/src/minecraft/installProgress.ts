@@ -42,14 +42,15 @@ export function createXmclInstallTracker(ctx: DownloadContext, fallbackKey: stri
     })
   }
 
+  // イベントごとではなく interval のみ（終了時に最終 flush）。IPC／UI 負荷を抑える
   const timer = setInterval(flush, 250)
   return {
     tracker: (event: TrackerEvent) => {
       latest = event
-      flush()
     },
     stop: () => {
       clearInterval(timer)
+      flush()
     },
   }
 }

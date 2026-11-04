@@ -646,6 +646,7 @@ export class ContentService {
       kind: 'content',
       labelKey: 'content.downloading',
       priority: 6,
+      lane: 'bulk',
       sessionId: `content-mrpack-${req.projectId}`,
       meta: {
         projectId: req.projectId,
@@ -749,28 +750,49 @@ export class ContentService {
       const projectMetadata = this.modrinth
         .getProjectMetadata(projectIds)
         .catch(() => new Map<string, { slug: string; name: string; iconUrl: string | null }>())
-      const downloadResults = await Promise.allSettled(
-        packFiles.map((file) =>
-          this.enqueueMrpackFile(profile!.id, instanceDir, file, {
-            packName: index.name?.trim() || pack.name,
-            versionId: pack.versionId,
-            versionNumber: pack.versionNumber,
-            projectMetadata,
-          }),
-        ),
+      const packName = index.name?.trim() || pack.name
+      const downloadJobs = packFiles.map((file) =>
+        this.enqueueMrpackFile(profile!.id, instanceDir, file, {
+          packName,
+          versionId: pack.versionId,
+          versionNumber: pack.versionNumber,
+          projectMetadata,
+        }),
       )
-      const failedDownload = downloadResults.find(
-        (result): result is PromiseRejectedResult => result.status === 'rejected',
-      )
-      if (failedDownload) throw failedDownload.reason
+
+      // enqueue 後すぐに返す（本体 prepare と並行）。完了・失敗は転送 UI／ログへ。
+      const created = profile
+      void Promise.allSettled(downloadJobs).then((results) => {
+        const failed = results.filter((r) => r.status === 'rejected')
+        for (const result of failed) {
+          if (result.status === 'rejected') {
+            this.logger.error(
+              'downloader',
+              `mrpack file install failed for ${created.id}: ${String(result.reason)}`,
+            )
+          }
+        }
+        this.finishInstanceCreateProgress(created.id, failed.length === 0)
+        if (failed.length === 0) {
+          this.logger.info(
+            'downloader',
+            `Created instance ${created.id} from mrpack ${packName}@${pack.versionNumber}`,
+          )
+        } else {
+          this.logger.error(
+            'downloader',
+            `Instance ${created.id} from mrpack ${packName}: ${failed.length}/${results.length} file(s) failed`,
+          )
+        }
+      })
 
       this.logger.info(
         'downloader',
-        `Created instance ${profile.id} from mrpack ${pack.name}@${pack.versionNumber}`,
+        `Started instance ${profile.id} from mrpack ${packName}@${pack.versionNumber} (${packFiles.length} files)`,
       )
-      this.finishInstanceCreateProgress(profile.id, true)
       return profile
     } catch (err) {
+      // 一覧公開前／overrides 前の失敗のみロールバック。返却後の DL 失敗では消さない。
       if (profile) {
         this.finishInstanceCreateProgress(profile.id, false)
         this.disposeInstance(profile.id)
@@ -1063,7 +1085,8 @@ export class ContentService {
     const { done } = this.queue.enqueue({
       kind: 'content',
       labelKey: 'content.downloading',
-      priority: 5,
+      priority: 3,
+      lane: 'bulk',
       sessionId: `content-${instanceId}-${projectId}`,
       meta: {
         instanceId,
@@ -1263,7 +1286,8 @@ export class ContentService {
     const { done } = this.queue.enqueue({
       kind: 'content',
       labelKey: 'content.downloading',
-      priority: 5,
+      priority: 10,
+      lane: 'interactive',
       sessionId: `content-${instanceId}-${resolved.projectId}`,
       meta: {
         instanceId,

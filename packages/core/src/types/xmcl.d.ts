@@ -12,6 +12,30 @@ declare module '@xmcl/installer' {
     options?: unknown,
   ): Promise<unknown>
   export function completeInstallation(version: unknown, options?: unknown): Promise<void>
+  export function installMinecraftJar(version: unknown, options?: unknown): Promise<void>
+  export function installResolvedLibraries(
+    libraries: unknown[],
+    minecraft: string | unknown,
+    options?: unknown,
+  ): Promise<void>
+  export function installResolvedAssets(
+    assets: Array<{ name: string; hash: string; size: number }>,
+    folder: unknown,
+    version: string,
+    options?: unknown,
+  ): Promise<void>
+  export function diagnoseProfile(
+    installProfile: unknown,
+    minecraftLocation: unknown,
+    side?: 'client' | 'server',
+  ): Promise<boolean>
+  export function installByProfile(
+    installProfile: unknown,
+    minecraft: unknown,
+    options?: unknown,
+  ): Promise<void>
+  export const DEFAULT_RESOURCE_ROOT_URL: string
+  export type InstallProfile = Record<string, unknown>
 
   export function getFabricGames(options?: unknown): Promise<string[]>
   export function getFabricLoaders(options?: unknown): Promise<
@@ -73,8 +97,17 @@ declare module '@xmcl/installer' {
 
 declare module '@xmcl/core' {
   export class MinecraftFolder {
+    readonly root: string
+    static from(location: MinecraftFolder | string): MinecraftFolder
     constructor(root: string)
+    getLibraryByPath(libraryPath: string): string
+    getVersionRoot(version: string): string
+    getLogConfig(file: string): string
+    getPath(...path: string[]): string
+    getAsset(hash: string): string
   }
+
+  export function checksum(target: string, algorithm: string): Promise<string>
 
   export const Version: {
     parse(minecraft: string, version: string): Promise<unknown>
@@ -97,4 +130,14 @@ declare module '@xmcl/core' {
   export function launch(options: Record<string, unknown>): Promise<
     import('node:child_process').ChildProcess
   >
+}
+
+declare module '@xmcl/file-transfer' {
+  export function download(options: {
+    url: string | string[]
+    destination: string
+    expectedTotal?: number
+    signal?: AbortSignal
+    headers?: Record<string, unknown>
+  }): Promise<void>
 }

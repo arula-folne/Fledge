@@ -9,7 +9,7 @@ use crate::instances::{CreateDefaults, InstanceStore};
 use crate::progress::{EventBus, ProgressEvent};
 use crate::settings::SettingsStore;
 use crate::versions::VersionService;
-use futures_util::StreamExt;
+use futures_util::{stream, StreamExt};
 use folne::FolneProvider;
 use modrinth::{ModrinthProvider, ResolvedContentFile};
 use mrpack::{
@@ -64,8 +64,11 @@ pub struct ContentService {
     events: Arc<EventBus>,
     modrinth: ModrinthProvider,
     folne: FolneProvider,
-    index_locks: Mutex<HashMap<String, ()>>,
+    index_locks: Arc<Mutex<HashMap<String, ()>>>,
 }
+
+/// mrpack 内ファイルのバックグラウンド並列ダウンロード上限
+const MRPACK_FILE_DOWNLOAD_CONCURRENCY: usize = 8;
 
 impl ContentService {
     pub fn new(
@@ -81,7 +84,7 @@ impl ContentService {
             events,
             modrinth: ModrinthProvider::new(),
             folne: FolneProvider::new(),
-            index_locks: Mutex::new(HashMap::new()),
+            index_locks: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -772,50 +775,101 @@ impl ContentService {
         let profile_id = profile["id"].as_str().unwrap().to_string();
         self.publish_instance_listed(&profile);
 
-        let result = async {
-            let instance_dir = self.instances.instance_dir(&profile_id);
-            write_mrpack_overrides(&instance_dir, &entries)?;
-            let pack_files = client_files(&index);
-            let project_ids: Vec<String> = pack_files
-                .iter()
-                .map(|f| {
-                    project_id_from_download_url(f.downloads.first().map(|s| s.as_str()).unwrap_or(""), &f.path)
-                })
-                .filter(|id| !id.starts_with("pack:"))
-                .collect();
-            let metadata = self
-                .modrinth
-                .get_project_metadata(&project_ids)
-                .await
-                .unwrap_or_default();
-            for file in pack_files {
-                self.install_mrpack_file(
-                    &profile_id,
-                    &instance_dir,
-                    file,
-                    pack_name,
-                    version_id,
-                    version_number,
-                    icon_url.as_deref(),
-                    &metadata,
-                )
-                .await?;
-            }
-            Ok::<(), CoreError>(())
+        let instance_dir = self.instances.instance_dir(&profile_id);
+        if let Err(err) = write_mrpack_overrides(&instance_dir, &entries) {
+            self.finish_instance_create_progress(&profile_id, false);
+            let _ = self.instances.remove(&profile_id);
+            return Err(err);
         }
-        .await;
 
-        match result {
-            Ok(()) => {
-                self.finish_instance_create_progress(&profile_id, true);
-                Ok(profile)
+        let pack_files: Vec<MrpackIndexFile> =
+            client_files(&index).into_iter().cloned().collect();
+        let project_ids: Vec<String> = pack_files
+            .iter()
+            .map(|f| {
+                project_id_from_download_url(
+                    f.downloads.first().map(|s| s.as_str()).unwrap_or(""),
+                    &f.path,
+                )
+            })
+            .filter(|id| !id.starts_with("pack:"))
+            .collect();
+        let metadata = self
+            .modrinth
+            .get_project_metadata(&project_ids)
+            .await
+            .unwrap_or_default();
+
+        // バックグラウンドで並列 DL。IPC はすぐ返し、本体 prepare と並行する。
+        // 返却後の失敗ではインスタンスを消さない。
+        let bg = Arc::new(ContentService {
+            instances: Arc::clone(&self.instances),
+            settings: Arc::clone(&self.settings),
+            versions: Arc::clone(&self.versions),
+            events: Arc::clone(&self.events),
+            modrinth: ModrinthProvider::new(),
+            folne: FolneProvider::new(),
+            index_locks: Arc::clone(&self.index_locks),
+        });
+        let pack_name_owned = pack_name.to_string();
+        let version_id_owned = version_id.to_string();
+        let version_number_owned = version_number.to_string();
+        let icon_url_owned = icon_url.clone();
+        let profile_id_bg = profile_id.clone();
+        let instance_dir_bg = instance_dir.clone();
+        let file_count = pack_files.len();
+        let metadata = Arc::new(metadata);
+
+        tokio::spawn(async move {
+            let results = stream::iter(pack_files.into_iter().map(|file| {
+                let bg = Arc::clone(&bg);
+                let profile_id_bg = profile_id_bg.clone();
+                let instance_dir_bg = instance_dir_bg.clone();
+                let pack_name_owned = pack_name_owned.clone();
+                let version_id_owned = version_id_owned.clone();
+                let version_number_owned = version_number_owned.clone();
+                let icon_url_owned = icon_url_owned.clone();
+                let metadata = Arc::clone(&metadata);
+                async move {
+                    bg.install_mrpack_file(
+                        &profile_id_bg,
+                        &instance_dir_bg,
+                        &file,
+                        &pack_name_owned,
+                        &version_id_owned,
+                        &version_number_owned,
+                        icon_url_owned.as_deref(),
+                        &metadata,
+                    )
+                    .await
+                }
+            }))
+            .buffer_unordered(MRPACK_FILE_DOWNLOAD_CONCURRENCY)
+            .collect::<Vec<_>>()
+            .await;
+
+            let failed = results.iter().filter(|r| r.is_err()).count();
+            for result in &results {
+                if let Err(err) = result {
+                    tracing::error!("mrpack file install failed for {profile_id_bg}: {err}");
+                }
             }
-            Err(err) => {
-                self.finish_instance_create_progress(&profile_id, false);
-                let _ = self.instances.remove(&profile_id);
-                Err(err)
+            bg.finish_instance_create_progress(&profile_id_bg, failed == 0);
+            if failed == 0 {
+                tracing::info!(
+                    "Created instance {profile_id_bg} from mrpack {pack_name_owned}@{version_number_owned}"
+                );
+            } else {
+                tracing::error!(
+                    "Instance {profile_id_bg} from mrpack {pack_name_owned}: {failed}/{file_count} file(s) failed"
+                );
             }
-        }
+        });
+
+        tracing::info!(
+            "Started instance {profile_id} from mrpack {pack_name}@{version_number} ({file_count} files)"
+        );
+        Ok(profile)
     }
 
     #[allow(clippy::too_many_arguments)]

@@ -30,8 +30,8 @@ const NEOFORGE_INSTALLER: &str =
     "https://maven.neoforged.net/releases/net/neoforged/neoforge/{ver}/neoforge-{ver}-installer.jar";
 
 /// 1 インスタンス内のファイル並列数（設定の同時ダウンロード数＝インスタンス枠とは別）。
-const LIBRARY_DOWNLOAD_CONCURRENCY: usize = 32;
-const ASSET_DOWNLOAD_CONCURRENCY: usize = 64;
+const LIBRARY_DOWNLOAD_CONCURRENCY: usize = 24;
+const ASSET_DOWNLOAD_CONCURRENCY: usize = 24;
 
 pub struct InstallContext {
     pub minecraft_root: PathBuf,

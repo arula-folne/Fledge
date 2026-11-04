@@ -1,6 +1,5 @@
 import {
   installMinecraft,
-  completeInstallation,
   getFabricLoaders,
   installFabric,
   installForge,
@@ -15,6 +14,10 @@ import type { DownloadContext, DownloadQueue } from '../download/DownloadQueue.j
 import type { Logger } from '../logging/Logger.js'
 import type { LaunchCredentials } from '../auth/authTypes.js'
 import { sessionHostJvmArgs } from '../auth/SessionJoinProxy.js'
+import {
+  boundedCompleteInstallation,
+  type BoundedCompleteScope,
+} from './boundedCompleteInstallation.js'
 import { withInstallTracker } from './installProgress.js'
 import {
   findInstalledVersionId,
@@ -103,7 +106,10 @@ export class MinecraftService {
 
   private async repairInstallation(versionId: string, javaPath?: string): Promise<void> {
     const resolved = await this.parseVersion(versionId)
-    await completeInstallation(resolved, javaPath ? { java: javaPath } : {})
+    await boundedCompleteInstallation(resolved, {
+      scope: 'full',
+      ...(javaPath ? { java: javaPath } : {}),
+    })
   }
 
   private parseVersion(versionId: string): Promise<ParsedVersion> {
@@ -139,13 +145,14 @@ export class MinecraftService {
     ctx: DownloadContext,
     resolved: unknown,
     fallbackKey: string,
-    javaPath?: string,
+    opts?: { javaPath?: string; scope?: BoundedCompleteScope },
   ) {
     await withInstallTracker(ctx, fallbackKey, (tracker, signal) =>
-      completeInstallation(resolved, {
+      boundedCompleteInstallation(resolved, {
         tracker,
         signal,
-        ...(javaPath ? { java: javaPath } : {}),
+        scope: opts?.scope ?? 'full',
+        ...(opts?.javaPath ? { java: opts.javaPath } : {}),
       }),
     )
   }
@@ -158,6 +165,7 @@ export class MinecraftService {
     const { done: vanillaDone } = this.queue.enqueue({
       kind: 'minecraft-client',
       labelKey: 'launch.install.client',
+      lane: 'bulk',
       sessionId,
       meta: { instanceId: profile.id, version: profile.minecraftVersion },
       execute: async (ctx) => {
@@ -206,6 +214,7 @@ export class MinecraftService {
       const { done } = this.queue.enqueue({
         kind: 'fabric-loader',
         labelKey: 'launch.install.fabric',
+        lane: 'bulk',
         sessionId,
         meta: { version: profile.loaderVersion ?? '' },
         execute: async (ctx) => {
@@ -245,7 +254,11 @@ export class MinecraftService {
           })
           ctx.report({ current: 1, total: 2, unit: 'count', messageKey: 'launch.install.libraries' })
           const resolved = await this.parseVersion(installedId)
-          await this.completeTracked(ctx, resolved, 'launch.install.libraries', javaPath)
+          // vanilla 側で assets 済みのためライブラリ差分のみ
+          await this.completeTracked(ctx, resolved, 'launch.install.libraries', {
+            javaPath,
+            scope: 'libraries',
+          })
         },
       })
       await done
@@ -265,6 +278,7 @@ export class MinecraftService {
       const { done } = this.queue.enqueue({
         kind: 'forge-loader',
         labelKey: 'launch.install.forge',
+        lane: 'bulk',
         sessionId,
         meta: { version: forgeVersion },
         execute: async (ctx) => {
@@ -289,7 +303,10 @@ export class MinecraftService {
           )
           ctx.report({ current: 1, total: 2, unit: 'count', messageKey: 'launch.install.libraries' })
           const resolved = await this.parseVersion(installedId)
-          await this.completeTracked(ctx, resolved, 'launch.install.libraries', javaPath)
+          await this.completeTracked(ctx, resolved, 'launch.install.libraries', {
+            javaPath,
+            scope: 'libraries',
+          })
         },
       })
       await done
@@ -309,6 +326,7 @@ export class MinecraftService {
       const { done } = this.queue.enqueue({
         kind: 'neoforge-loader',
         labelKey: 'launch.install.neoforge',
+        lane: 'bulk',
         sessionId,
         meta: { version: neoVersion },
         execute: async (ctx) => {
@@ -333,7 +351,10 @@ export class MinecraftService {
           )
           ctx.report({ current: 1, total: 2, unit: 'count', messageKey: 'launch.install.libraries' })
           const resolved = await this.parseVersion(installedId)
-          await this.completeTracked(ctx, resolved, 'launch.install.libraries', javaPath)
+          await this.completeTracked(ctx, resolved, 'launch.install.libraries', {
+            javaPath,
+            scope: 'libraries',
+          })
         },
       })
       await done
@@ -353,6 +374,7 @@ export class MinecraftService {
       const { done } = this.queue.enqueue({
         kind: 'quilt-loader',
         labelKey: 'launch.install.quilt',
+        lane: 'bulk',
         sessionId,
         meta: { version: quiltVersion },
         execute: async (ctx) => {
@@ -375,7 +397,10 @@ export class MinecraftService {
           })
           ctx.report({ current: 1, total: 2, unit: 'count', messageKey: 'launch.install.libraries' })
           const resolved = await this.parseVersion(installedId)
-          await this.completeTracked(ctx, resolved, 'launch.install.libraries', javaPath)
+          await this.completeTracked(ctx, resolved, 'launch.install.libraries', {
+            javaPath,
+            scope: 'libraries',
+          })
         },
       })
       await done

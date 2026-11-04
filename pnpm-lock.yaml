@@ -121,6 +121,9 @@ importers:
       '@xmcl/core':
         specifier: 2.16.0
         version: 2.16.0(@xmcl/yauzl@2.10.0)
+      '@xmcl/file-transfer':
+        specifier: 2.1.2
+        version: 2.1.2
       '@xmcl/installer':
         specifier: 6.3.1
         version: 6.3.1

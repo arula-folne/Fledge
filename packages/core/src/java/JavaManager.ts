@@ -236,6 +236,7 @@ export class JavaManager {
     const { done } = this.queue.enqueue({
       kind: 'java',
       labelKey: force ? 'transfer.javaReinstall' : 'transfer.java',
+      lane: 'bulk',
       sessionId,
       meta: { major, action: force ? 'reinstall' : 'install' },
       execute: async (ctx) => {

@@ -127,7 +127,8 @@ export function SlidingPillTabs({
       aria-label={ariaLabel}
       onKeyDown={onKeyDown}
       className={[
-        'relative inline-flex max-w-full flex-nowrap items-center gap-0.5 overflow-x-auto',
+        // overflow は狭い幅でタブがはみ出すとき用。スクロールバー自体は出さない（folne の単一カテゴリ枠で特に目立つ）
+        'relative inline-flex max-w-full flex-nowrap items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
         framed ? PILL_GROUP_FRAME_CLASS : '',
         className,
       ].join(' ')}
