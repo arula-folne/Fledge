@@ -2,16 +2,16 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { IconArrowLeft, IconExternalLink } from '@tabler/icons-react'
-import type {
-  ContentCategory,
-  ContentLoaderFilter,
-  ContentProject,
-  ContentProjectDetail,
-  ContentVersion,
-  InstanceProfile,
+import {
+  pickPreferredContentVersion,
+  type ContentCategory,
+  type ContentLoaderFilter,
+  type ContentProject,
+  type ContentProjectDetail,
+  type ContentVersion,
+  type InstanceProfile,
 } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
-import { Button } from '../../components/ui/Button'
 import { formatJaCount } from '../../utils/formatJaCount'
 import { ContentInstallButton, ContentVersionInstallButton } from './ContentInstallButton'
 import { ContentFallbackIcon } from './contentCategoryIcons'
@@ -112,7 +112,10 @@ export function ContentProjectView({
     ...(pageQuery.data?.project ?? {}),
   }
   const versions = versionsQuery.data ?? []
-  const selectedId = versionId && versions.some((v) => v.id === versionId) ? versionId : versions[0]?.id
+  const selectedId =
+    versionId && versions.some((v) => v.id === versionId)
+      ? versionId
+      : pickPreferredContentVersion(versions)?.id
 
   const sourceUrl = `https://modrinth.com/${PROJECT_PATH[hit.projectType]}/${project.slug || hit.slug}`
   const cats = project.displayCategories?.length ? project.displayCategories : project.categories

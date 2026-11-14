@@ -21,8 +21,14 @@ export function TitleBar() {
     const onVis = () => {
       if (document.visibilityState === 'visible') refresh()
     }
+    // 最大化／復元後のサイズ変化でアイコンを同期（IPC 待ちに依存しない）
+    const onResize = () => refresh()
     document.addEventListener('visibilitychange', onVis)
-    return () => document.removeEventListener('visibilitychange', onVis)
+    window.addEventListener('resize', onResize)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('resize', onResize)
+    }
   }, [refresh])
 
   return (
@@ -47,7 +53,9 @@ export function TitleBar() {
         <TitleBtn
           label={maximized ? t('window.restore') : t('window.maximize')}
           onClick={() => {
-            void fledgeApi.window.maximizeToggle().then(refresh)
+            // アイコンは即トグル。実ウィンドウ操作は待たず優先して走らせる
+            setMaximized((v) => !v)
+            void fledgeApi.window.maximizeToggle().catch(refresh)
           }}
         >
           {maximized ? (

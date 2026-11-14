@@ -80,10 +80,55 @@ pub fn run() {
                 let _ = app_handle.emit("event:launch-phase", payload);
             });
             let app_handle = app.handle().clone();
-            let state_for_discord = Arc::clone(&state);
+            let state_for_launch_ui = Arc::clone(&state);
             state.events.on_launch_state(move |payload| {
-                state_for_discord.sync_discord_from_launch_state(&payload);
-                let _ = app_handle.emit("event:launch-state", payload);
+                state_for_launch_ui.sync_discord_from_launch_state(&payload);
+                let _ = app_handle.emit("event:launch-state", payload.clone());
+
+                let launch_state = payload.get("state").and_then(|v| v.as_str()).unwrap_or("");
+                let Ok(settings) = state_for_launch_ui.settings.get() else {
+                    return;
+                };
+                let Some(window) = app_handle.get_webview_window("main") else {
+                    return;
+                };
+
+                if launch_state == "running"
+                    && settings
+                        .get("minimizeOnLaunch")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false)
+                {
+                    let _ = window.minimize();
+                    return;
+                }
+
+                if !matches!(launch_state, "exited" | "error") {
+                    return;
+                }
+                if !settings
+                    .get("focusOnGameExit")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false)
+                {
+                    return;
+                }
+
+                // emit 時点では当該セッションがまだ map に残ることがあるので、自分以外の busy を見る
+                let session_id = payload.get("sessionId").and_then(|v| v.as_str());
+                let other_busy = state_for_launch_ui.launch.list_sessions().iter().any(|s| {
+                    let id = s.get("sessionId").and_then(|v| v.as_str());
+                    let state = s.get("state").and_then(|v| v.as_str());
+                    id != session_id
+                        && matches!(state, Some("preparing" | "launching" | "running"))
+                });
+                if other_busy {
+                    return;
+                }
+
+                let _ = window.show();
+                let _ = window.unminimize();
+                let _ = window.set_focus();
             });
 
             let app_handle = app.handle().clone();

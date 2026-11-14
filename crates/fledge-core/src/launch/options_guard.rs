@@ -662,6 +662,7 @@ pub async fn apply_minecraft_initial_patch_to_instance(
     Ok(())
 }
 
+#[allow(dead_code)] // 起動適用ヘルパー（現状は TS 側フローが主）
 pub fn is_minecraft_initial_patch_empty(
     options: &HashMap<String, String>,
     overlay: &HashMap<String, String>,
@@ -669,6 +670,7 @@ pub fn is_minecraft_initial_patch_empty(
     options.is_empty() && overlay.is_empty()
 }
 
+#[allow(dead_code)] // 起動適用ヘルパー（現状は TS 側フローが主）
 pub async fn ensure_minecraft_initial_settings_applied(
     instance_dir: &Path,
     pending_options: &HashMap<String, String>,
@@ -698,6 +700,7 @@ pub fn hashmap_to_json(map: &HashMap<String, String>) -> Value {
     Value::Object(obj)
 }
 
+#[allow(dead_code)] // options.json 相互変換用
 pub fn json_to_hashmap(value: Option<&Value>) -> HashMap<String, String> {
     value
         .and_then(|v| v.as_object())
@@ -709,6 +712,7 @@ pub fn json_to_hashmap(value: Option<&Value>) -> HashMap<String, String> {
         .unwrap_or_default()
 }
 
+#[allow(dead_code)] // インスタンス options.txt パス
 pub fn options_txt_path(instance_dir: &Path) -> PathBuf {
     instance_dir.join("options.txt")
 }

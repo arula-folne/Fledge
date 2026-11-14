@@ -17,7 +17,7 @@ export type ScreenshotGalleryEntry = {
   instanceId: string
   instanceName?: string
   fileName: string
-  /** 絶対パス（Tauri の asset URL 用）。無い場合は Electron プロトコルへフォールバック */
+  /** 絶対パス（Tauri asset URL 用） */
   filePath?: string
   mtime?: string
 }
@@ -91,10 +91,12 @@ export function ScreenshotGallery({
     const sections: { id: string; title: string; startIndex: number; count: number }[] = []
     let i = 0
     while (i < items.length) {
-      const id = items[i].instanceId
-      const title = items[i].instanceName?.trim() || id
+      const head = items[i]
+      if (!head) break
+      const id = head.instanceId
+      const title = head.instanceName?.trim() || id
       const startIndex = i
-      while (i < items.length && items[i].instanceId === id) i += 1
+      while (i < items.length && items[i]?.instanceId === id) i += 1
       sections.push({ id, title, startIndex, count: i - startIndex })
     }
     return sections

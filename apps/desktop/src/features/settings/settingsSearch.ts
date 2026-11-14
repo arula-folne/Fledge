@@ -16,6 +16,7 @@ export type SettingsSearchItemId =
   | 'launcherWindowSize'
   | 'uiScale'
   | 'minimizeOnLaunch'
+  | 'focusOnGameExit'
   | 'homeNewsVisible'
   | 'discordRichPresence'
   | 'hardwareAcceleration'
@@ -102,14 +103,19 @@ export const SETTINGS_SEARCH_CATALOG: SettingsSearchItem[] = [
   {
     id: 'nav.minecraftLaunch',
     section: 'minecraftLaunch',
-    labelKeys: ['settings.section.minecraftLaunch', 'settings.block.gameWindow', 'settings.block.gamePerformance'],
+    labelKeys: ['settings.section.minecraftLaunch', 'settings.block.behavior'],
     readings: ['kidou', 'きどう', 'launch'],
   },
   {
     id: 'nav.minecraftInitial',
     section: 'minecraftInitial',
-    labelKeys: ['settings.section.minecraftInitial', 'settings.block.minecraftInitial'],
-    readings: ['shoki', 'しょき', 'initial', 'options'],
+    labelKeys: [
+      'settings.section.minecraftInitial',
+      'settings.block.minecraftInitial',
+      'settings.minecraftInitial.hint',
+    ],
+    readings: ['shoki', 'しょき', 'initial', 'options', 'options.txt'],
+    aliases: ['初期設定', 'マイクラ設定', 'ゲーム設定'],
   },
   {
     id: 'nav.java',
@@ -157,9 +163,15 @@ export const SETTINGS_SEARCH_CATALOG: SettingsSearchItem[] = [
   },
   {
     id: 'minimizeOnLaunch',
-    section: 'appGeneral',
-    labelKeys: ['settings.minimizeOnLaunch', 'settings.minimizeOnLaunchHint'],
-    readings: ['saishouka', 'さいしょうか', 'minimize'],
+    section: 'minecraftLaunch',
+    labelKeys: ['settings.minimizeOnLaunch', 'settings.block.behavior', 'settings.section.minecraftLaunch'],
+    readings: ['saishouka', 'さいしょうか', 'minimize', 'kidou', 'きどう', 'fledge'],
+  },
+  {
+    id: 'focusOnGameExit',
+    section: 'minecraftLaunch',
+    labelKeys: ['settings.focusOnGameExit', 'settings.block.behavior', 'settings.section.minecraftLaunch'],
+    readings: ['saizenmen', 'さいぜんめん', 'focus', 'front', 'exit', '終了', 'fledge'],
   },
   {
     id: 'homeNewsVisible',
@@ -258,7 +270,8 @@ export const SETTINGS_SEARCH_CATALOG: SettingsSearchItem[] = [
     id: 'mc.bobView',
     section: 'minecraftInitial',
     labelKeys: ['settings.minecraftInitial.bobView'],
-    readings: ['yure', 'ゆれ', 'bob', 'view bobbing'],
+    readings: ['yure', 'ゆれ', 'bob', 'view bobbing', 'viewbobbing'],
+    aliases: ['揺れ', '画面揺れ', '画面の揺れ', 'ぼびんぐ', 'ビューボビング', 'view bob'],
   },
   {
     id: 'mc.fov',
@@ -529,16 +542,168 @@ function normalizeText(value: string): string {
   return toHiragana(value.normalize('NFKC')).toLowerCase().trim()
 }
 
+/** 空白・記号・「の」を除いた比較用（「画面揺れ」↔「画面の揺れ」） */
+function compactText(value: string): string {
+  return normalizeText(value)
+    .replace(/[\s\u3000_\-・。、．，'"`「」『』（）()[\]{}【】<>＜＞/\\|:;!?？！+*=~〜]/g, '')
+    .replace(/の/g, '')
+}
+
 function queryVariants(query: string): string[] {
   const q = normalizeText(query)
   if (!q) return []
   const variants = new Set<string>([q])
   const fromRomaji = normalizeText(romajiToHiragana(q))
   if (fromRomaji) variants.add(fromRomaji)
-  // スペース除去でも部分一致しやすくする
+  const compact = compactText(q)
+  if (compact) variants.add(compact)
+  const compactRomaji = compactText(fromRomaji)
+  if (compactRomaji) variants.add(compactRomaji)
   if (q.includes(' ')) variants.add(q.replace(/\s+/g, ''))
   if (fromRomaji.includes(' ')) variants.add(fromRomaji.replace(/\s+/g, ''))
-  return [...variants]
+  return [...variants].filter(Boolean)
+}
+
+function haystackForms(value: string): string[] {
+  const n = normalizeText(value)
+  if (!n) return []
+  const forms = new Set<string>([n])
+  const c = compactText(value)
+  if (c) forms.add(c)
+  return [...forms]
+}
+
+const CATALOG_BY_ID = new Map(
+  SETTINGS_SEARCH_CATALOG.map((item) => [item.id, item] as const),
+)
+
+const LABEL_KEY_TO_ITEM = new Map<string, SettingsSearchItemId>()
+for (const item of SETTINGS_SEARCH_CATALOG) {
+  for (const key of item.labelKeys) {
+    if (!LABEL_KEY_TO_ITEM.has(key)) LABEL_KEY_TO_ITEM.set(key, item.id)
+  }
+}
+
+/** i18n キー → 検索項目。画面文言を網羅して部分一致できるようにする */
+function resolveSettingsKeyToItemId(key: string): SettingsSearchItemId | null {
+  const direct = LABEL_KEY_TO_ITEM.get(key)
+  if (direct) return direct
+
+  if (key.startsWith('settings.minecraftInitial.keybinds')) return 'mc.keybinds'
+  if (key.startsWith('settings.minecraftInitial.group.')) return 'nav.minecraftInitial'
+  if (key === 'settings.minecraftInitial.hint') return 'nav.minecraftInitial'
+  if (key === 'settings.minecraftInitial.reset' || key === 'settings.minecraftInitial.resetAll') {
+    return 'nav.minecraftInitial'
+  }
+
+  const mc = /^settings\.minecraftInitial\.([A-Za-z0-9]+)/.exec(key)
+  if (mc) {
+    const id = `mc.${mc[1]}` as SettingsSearchItemId
+    if (CATALOG_BY_ID.has(id)) return id
+    // fpsContrastBackground など派生キー
+    if (key.startsWith('settings.minecraftInitial.fpsContrast')) return 'mc.fpsContrast'
+    if (key.startsWith('settings.minecraftInitial.fpsCondition')) return 'mc.fpsCondition'
+    if (key.startsWith('settings.minecraftInitial.guiScale')) return 'mc.guiScale'
+    if (key.startsWith('settings.minecraftInitial.lang')) return 'mc.lang'
+    return 'nav.minecraftInitial'
+  }
+
+  if (key.startsWith('settings.java') || key.startsWith('settings.section.java')) return 'java'
+  if (key.startsWith('settings.account') || key.startsWith('auth.')) return 'account'
+  if (key.startsWith('settings.debug.')) {
+    if (key.includes('libraryGrid')) return 'debug.libraryGrid'
+    if (key.includes('libraryPlaceholder')) return 'debug.libraryPlaceholders'
+    if (key.includes('createSpin')) return 'debug.createSpin'
+    if (key.includes('launchProgress')) return 'debug.launchProgress'
+    if (key.includes('launchError')) return 'debug.launchError'
+    return 'nav.debug'
+  }
+  if (key.startsWith('settings.options') || key.includes('option.flg')) return 'options'
+  if (key.includes('factoryReset')) return 'factoryReset'
+  if (key.includes('clearCache')) return 'clearCache'
+  if (key.includes('resetAll')) return 'resetAll'
+  if (key.includes('installTutorial') || key.includes('block.tutorial')) return 'tutorial'
+  if (key.includes('concurrentDownloads') || key.includes('maxWriteConcurrency')) return 'downloads'
+  if (key.includes('appDirectory')) return 'appDirectory'
+  if (key.includes('discordRichPresence')) return 'discordRichPresence'
+  if (key.includes('hardwareAcceleration')) return 'hardwareAcceleration'
+  if (key.includes('homeNewsVisible')) return 'homeNewsVisible'
+  if (key.includes('minimizeOnLaunch')) return 'minimizeOnLaunch'
+  if (key.includes('focusOnGameExit')) return 'focusOnGameExit'
+  if (key.includes('uiScale')) return 'uiScale'
+  if (key.includes('launcherWindowSize')) return 'launcherWindowSize'
+  if (key.includes('fullscreen')) return 'fullscreen'
+  if (key.includes('windowSize')) return 'gameWindowSize'
+  if (key.includes('memory')) return 'memory'
+  if (key.includes('defaultJvmArgs') || key.includes('jvm')) return 'defaultJvmArgs'
+  if (key.includes('seasonTheme') || key.includes('season.')) return 'themeSeason'
+  if (key.includes('standardTheme') || key.includes('themeFamily') || key.includes('theme.')) {
+    return 'themeStandard'
+  }
+  if (key.includes('language') || key.includes('locale')) return 'language'
+  if (key.includes('privacy')) return 'privacy'
+  if (key.includes('credits')) return 'credits'
+  if (key.includes('about')) return 'about'
+
+  if (key.startsWith('settings.section.') || key.startsWith('settings.block.') || key.startsWith('settings.group.')) {
+    for (const item of SETTINGS_SEARCH_CATALOG) {
+      if (!item.id.startsWith('nav.')) continue
+      if (item.labelKeys.includes(key)) return item.id
+    }
+  }
+
+  return null
+}
+
+function flattenResourceDict(
+  node: unknown,
+  prefix: string,
+  out: Array<{ key: string; value: string }>,
+): void {
+  if (typeof node === 'string') {
+    if (prefix) out.push({ key: prefix, value: node })
+    return
+  }
+  if (!node || typeof node !== 'object' || Array.isArray(node)) return
+  for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+    const next = prefix ? `${prefix}.${k}` : k
+    flattenResourceDict(v, next, out)
+  }
+}
+
+/** 設定画面で使う翻訳キーを項目へ紐づけた追加文言 */
+function collectBundleExtras(locale: string): Map<SettingsSearchItemId, string[]> {
+  const extras = new Map<SettingsSearchItemId, string[]>()
+  const locales = new Set<string>([locale, 'en', 'ja'])
+  for (const lng of locales) {
+    const bundle = i18n.getResourceBundle(lng, 'translation') as unknown
+    if (!bundle || typeof bundle !== 'object') continue
+    const flat: Array<{ key: string; value: string }> = []
+    // settings / auth 配下だけ対象
+    const root = bundle as Record<string, unknown>
+    if (root.settings) flattenResourceDict(root.settings, 'settings', flat)
+    if (root.auth) flattenResourceDict(root.auth, 'auth', flat)
+
+    for (const { key, value } of flat) {
+      if (!value.trim()) continue
+      const itemId = resolveSettingsKeyToItemId(key)
+      if (!itemId) continue
+      const list = extras.get(itemId) ?? []
+      list.push(value)
+      extras.set(itemId, list)
+    }
+  }
+  return extras
+}
+
+let cachedExtrasLocale: string | null = null
+let cachedExtras: Map<SettingsSearchItemId, string[]> | null = null
+
+function bundleExtrasFor(locale: string): Map<SettingsSearchItemId, string[]> {
+  if (cachedExtras && cachedExtrasLocale === locale) return cachedExtras
+  cachedExtrasLocale = locale
+  cachedExtras = collectBundleExtras(locale)
+  return cachedExtras
 }
 
 function collectHaystacks(item: SettingsSearchItem, locale: string): string[] {
@@ -553,8 +718,15 @@ function collectHaystacks(item: SettingsSearchItem, locale: string): string[] {
   }
   if (item.readings) out.push(...item.readings)
   if (item.aliases) out.push(...item.aliases)
-  out.push(item.id)
+  out.push(item.id, item.section)
+  const extras = bundleExtrasFor(locale).get(item.id)
+  if (extras) out.push(...extras)
   return out
+}
+
+function haystackMatchesQuery(haystacks: string[], variants: string[]): boolean {
+  const forms = haystacks.flatMap(haystackForms)
+  return variants.some((v) => forms.some((h) => h.includes(v)))
 }
 
 export function itemMatchesSearch(
@@ -564,8 +736,7 @@ export function itemMatchesSearch(
 ): boolean {
   const variants = queryVariants(query)
   if (variants.length === 0) return true
-  const haystacks = collectHaystacks(item, locale).map(normalizeText).filter(Boolean)
-  return variants.some((v) => haystacks.some((h) => h.includes(v)))
+  return haystackMatchesQuery(collectHaystacks(item, locale), variants)
 }
 
 export function matchSettingsSearch(

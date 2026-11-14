@@ -1,4 +1,5 @@
 use crate::auth::{AuthProvider, AuthStatus, SessionJoinProxy, TokenVault};
+use crate::concurrency::ConcurrencyGate;
 use crate::content::ContentService;
 use crate::custom_root::CustomRootState;
 use crate::discord::{DiscordPresence, PresencePhase};
@@ -33,6 +34,7 @@ pub struct AppState {
     pub auth: Arc<AuthProvider>,
     pub session_proxy: Arc<SessionJoinProxy>,
     pub events: Arc<EventBus>,
+    pub concurrency: Arc<ConcurrencyGate>,
     pub java: Arc<JavaManager>,
     pub versions: Arc<VersionService>,
     pub minecraft: Arc<MinecraftService>,
@@ -58,6 +60,7 @@ impl AppState {
         let settings = Arc::new(SettingsStore::new(layout.clone()));
         let instances = Arc::new(InstanceStore::new(layout.clone()));
         let settings_value = settings.get()?;
+        let concurrency = ConcurrencyGate::from_settings(&settings_value);
         let msa = settings_value
             .get("msaClientId")
             .and_then(|v| v.as_str())
@@ -69,12 +72,17 @@ impl AppState {
         let _ = auth.hydrate_from_vault();
         let session_proxy = Arc::new(SessionJoinProxy::new(Arc::clone(&auth)));
         let events = Arc::new(EventBus::new());
-        let java = Arc::new(JavaManager::new(layout.clone(), Arc::clone(&events)));
+        let java = Arc::new(JavaManager::new(
+            layout.clone(),
+            Arc::clone(&events),
+            Arc::clone(&concurrency),
+        ));
         let versions = Arc::new(VersionService::new(&layout));
         let minecraft = Arc::new(MinecraftService::new(
             layout.clone(),
             Arc::clone(&events),
             Arc::clone(&settings),
+            Arc::clone(&concurrency),
         ));
         let launch = Arc::new(LaunchOrchestrator::new(
             Arc::clone(&auth),
@@ -94,6 +102,7 @@ impl AppState {
             Arc::clone(&settings),
             Arc::clone(&versions),
             Arc::clone(&events),
+            Arc::clone(&concurrency),
         ));
         let news = Arc::new(NewsService::new(layout.clone(), Arc::clone(&events)));
         let updater = Arc::new(UpdaterService::new(
@@ -122,6 +131,7 @@ impl AppState {
             auth,
             session_proxy,
             events,
+            concurrency,
             java,
             versions,
             minecraft,

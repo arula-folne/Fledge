@@ -1,9 +1,12 @@
 //! Content install / media / mrpack — Modrinth + folne site catalog.
 
+pub(crate) mod api_http;
 mod folne;
 mod modrinth;
 mod mrpack;
 
+use crate::concurrency::{ConcurrencyGate, GateClass};
+use crate::download::{content_http_client, stream_download_to_file};
 use crate::error::{CoreError, CoreResult};
 use crate::instances::{CreateDefaults, InstanceStore};
 use crate::progress::{EventBus, ProgressEvent};
@@ -11,7 +14,7 @@ use crate::settings::SettingsStore;
 use crate::versions::VersionService;
 use futures_util::{stream, StreamExt};
 use folne::FolneProvider;
-use modrinth::{ModrinthProvider, ResolvedContentFile};
+use modrinth::{pick_modrinth_version, ModrinthProvider, ResolvedContentFile};
 use mrpack::{
     client_files, loader_from_mrpack, loader_version_from_mrpack, minecraft_from_mrpack,
     pack_file_category, parse_mrpack_index, project_id_from_download_url, safe_instance_path,
@@ -25,18 +28,20 @@ use sha1::{Digest, Sha1};
 use sha2::Sha512;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use uuid::Uuid;
 use zip::ZipArchive;
 
 const INDEX_DIR: &str = ".fledge";
 const INDEX_FILE: &str = "content-index.json";
-const UA_DOWNLOAD: &str = "Fledge/0.5.0 (content-download)";
 /// ダウンロード中の進捗通知間隔（UI / IPC 負荷を抑える）
-const PROGRESS_EMIT_INTERVAL: Duration = Duration::from_millis(150);
+const PROGRESS_EMIT_INTERVAL: Duration = Duration::from_millis(400);
+/// 同時に進めるコンテンツ install パイプライン数（resolve + DL + 配置）
+const CONTENT_INSTALL_SLOTS: usize = 2;
 
 const EXPORT_EXCLUDED: &[&str] = &[".fledge"];
 
@@ -62,13 +67,14 @@ pub struct ContentService {
     settings: Arc<SettingsStore>,
     versions: Arc<VersionService>,
     events: Arc<EventBus>,
+    concurrency: Arc<ConcurrencyGate>,
+    /// ブラウズ優先: 同時 install（resolve〜配置）を制限する
+    install_slots: Arc<Semaphore>,
     modrinth: ModrinthProvider,
     folne: FolneProvider,
-    index_locks: Arc<Mutex<HashMap<String, ()>>>,
+    /// Per-instance index locks (coarse outer map, fine inner lock).
+    index_locks: Arc<Mutex<HashMap<String, Arc<Mutex<()>>>>>,
 }
-
-/// mrpack 内ファイルのバックグラウンド並列ダウンロード上限
-const MRPACK_FILE_DOWNLOAD_CONCURRENCY: usize = 8;
 
 impl ContentService {
     pub fn new(
@@ -76,16 +82,50 @@ impl ContentService {
         settings: Arc<SettingsStore>,
         versions: Arc<VersionService>,
         events: Arc<EventBus>,
+        concurrency: Arc<ConcurrencyGate>,
     ) -> Self {
         Self {
             instances,
             settings,
             versions,
             events,
+            concurrency,
+            install_slots: Arc::new(Semaphore::new(CONTENT_INSTALL_SLOTS)),
             modrinth: ModrinthProvider::new(),
             folne: FolneProvider::new(),
             index_locks: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    fn clone_service(&self) -> Self {
+        Self {
+            instances: Arc::clone(&self.instances),
+            settings: Arc::clone(&self.settings),
+            versions: Arc::clone(&self.versions),
+            events: Arc::clone(&self.events),
+            concurrency: Arc::clone(&self.concurrency),
+            install_slots: Arc::clone(&self.install_slots),
+            modrinth: ModrinthProvider::new(),
+            folne: FolneProvider::new(),
+            index_locks: Arc::clone(&self.index_locks),
+        }
+    }
+
+    fn content_file_concurrency(&self) -> usize {
+        // 配置・展開と合わせて抑え、検索 UI の応答を優先する
+        self.concurrency
+            .max_interactive_io()
+            .max(1)
+            .min(self.concurrency.max_interactive_fetch())
+            .clamp(1, 2)
+    }
+
+    async fn acquire_install_slot(&self) -> OwnedSemaphorePermit {
+        self.install_slots
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("content install semaphore is never closed")
     }
 
     pub fn list_providers(&self) -> Value {
@@ -177,7 +217,8 @@ impl ContentService {
             .collect();
         if !unresolved.is_empty() {
             if let Ok(metadata) = self.modrinth.get_project_metadata(&unresolved).await {
-                let _lock = self.lock_index(instance_id);
+                let index_lock = self.lock_index(instance_id);
+                let _guard = index_lock.lock();
                 let mut current = self.read_index(instance_id)?;
                 let mut changed = false;
                 for item in &mut current.items {
@@ -282,20 +323,103 @@ impl ContentService {
             })
             .collect();
 
-        let provider = Self::provider_id(req);
+        let provider = Self::provider_id(req).to_string();
+        let instance_dir = self.instances.instance_dir(instance_id);
+        let session_id = format!("content-{instance_id}-{project_id}");
+        let display_name = project_id.to_string();
+        self.emit_content_job_progress(
+            &session_id,
+            &display_name,
+            "",
+            instance_id,
+            project_id,
+            0.0,
+            1.0,
+            Some(0.0),
+            "queued",
+        );
+
+        let queued_entry = json!({
+          "id": Uuid::new_v4().to_string(),
+          "provider": provider.clone(),
+          "projectId": project_id,
+          "versionId": version_id.unwrap_or(""),
+          "name": display_name,
+          "category": category,
+          "fileName": "",
+          "enabled": true,
+          "projectMetadataResolved": false,
+          "installedAt": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
+          "updateAvailable": false
+        });
+
+        // IPC は即返し。resolve〜DL〜配置は枠を制限してバックグラウンドで進める
+        let bg = self.clone_service();
+        let instance_id_owned = instance_id.to_string();
+        let project_id_owned = project_id.to_string();
+        let category_owned = category.to_string();
+        let loader_owned = loader.to_string();
+        let loaders_owned = loaders;
+        let game_version_owned = game_version.map(|s| s.to_string());
+        let version_id_owned = version_id.map(|s| s.to_string());
+        let installed_owned = installed;
+        let instance_dir_owned = instance_dir;
+        let installed_items = index.items.clone();
+        tokio::spawn(async move {
+            let _slot = bg.acquire_install_slot().await;
+            if let Err(err) = bg
+                .run_install_job(
+                    &instance_id_owned,
+                    &instance_dir_owned,
+                    &provider,
+                    &project_id_owned,
+                    &category_owned,
+                    &loader_owned,
+                    &loaders_owned,
+                    game_version_owned.as_deref(),
+                    version_id_owned.as_deref(),
+                    &installed_owned,
+                    &installed_items,
+                )
+                .await
+            {
+                tracing::error!(
+                    "background content install failed for {}: {err}",
+                    project_id_owned
+                );
+            }
+        });
+
+        Ok(queued_entry)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn run_install_job(
+        &self,
+        instance_id: &str,
+        instance_dir: &Path,
+        provider: &str,
+        project_id: &str,
+        category: &str,
+        loader: &str,
+        loaders: &[String],
+        game_version: Option<&str>,
+        version_id: Option<&str>,
+        installed: &HashMap<String, String>,
+        installed_items: &[Value],
+    ) -> CoreResult<()> {
         let files = match provider {
             "folne" => {
-                vec![
-                    self.folne
-                        .resolve_install(
-                            project_id,
-                            category,
-                            version_id,
-                            game_version,
-                            &loaders,
-                        )
-                        .await?,
-                ]
+                self.folne
+                    .resolve_install(
+                        project_id,
+                        category,
+                        version_id,
+                        game_version,
+                        loaders,
+                    )
+                    .await
+                    .map(|file| vec![file])
             }
             _ => {
                 self.modrinth
@@ -304,24 +428,44 @@ impl ContentService {
                         category,
                         version_id,
                         game_version,
-                        &loaders,
+                        loaders,
                         Some(loader),
-                        &installed,
+                        installed,
                     )
-                    .await?
+                    .await
             }
         };
-        if files.is_empty() {
-            return Err(CoreError::msg(if provider == "folne" {
-                "Compatible version not found on folne"
-            } else {
-                "Compatible version not found on Modrinth"
-            }));
-        }
-        let primary = files.last().unwrap().clone();
-        let instance_dir = self.instances.instance_dir(instance_id);
-        let installed_by: HashMap<String, Value> = index
-            .items
+        let files = match files {
+            Ok(files) if !files.is_empty() => files,
+            Ok(_) => {
+                self.emit_content_job_finished(
+                    &format!("content-{instance_id}-{project_id}"),
+                    project_id,
+                    "",
+                    instance_id,
+                    project_id,
+                    false,
+                );
+                return Err(CoreError::msg(if provider == "folne" {
+                    "Compatible version not found on folne"
+                } else {
+                    "Compatible version not found on Modrinth"
+                }));
+            }
+            Err(err) => {
+                self.emit_content_job_finished(
+                    &format!("content-{instance_id}-{project_id}"),
+                    project_id,
+                    "",
+                    instance_id,
+                    project_id,
+                    false,
+                );
+                return Err(err);
+            }
+        };
+        let primary = files.last().unwrap();
+        let installed_by: HashMap<String, Value> = installed_items
             .iter()
             .filter_map(|i| {
                 Some((
@@ -331,32 +475,90 @@ impl ContentService {
             })
             .collect();
 
-        let mut primary_entry: Option<Value> = None;
+        let mut pending: Vec<ResolvedContentFile> = Vec::new();
         for resolved in &files {
             if let Some(current) = installed_by.get(&resolved.project_id) {
                 if current.get("versionId").and_then(|v| v.as_str())
                     == Some(resolved.version_id.as_str())
                 {
-                    if resolved.project_id == primary.project_id {
-                        primary_entry = Some(current.clone());
-                    }
                     continue;
                 }
             }
-            let dir = instance_dir.join(category_dir(&resolved.category));
-            fs::create_dir_all(&dir)?;
-            let entry = self
-                .download_and_finalize(instance_id, &instance_dir, resolved)
-                .await?;
-            if resolved.project_id == primary.project_id {
-                primary_entry = Some(entry);
+            pending.push(resolved.clone());
+        }
+
+        if pending.is_empty() {
+            self.emit_content_job_finished(
+                &format!("content-{instance_id}-{}", primary.project_id),
+                &primary.name,
+                &primary.file_name,
+                instance_id,
+                &primary.project_id,
+                true,
+            );
+            return Ok(());
+        }
+
+        for resolved in &pending {
+            let session_id = format!("content-{instance_id}-{}", resolved.project_id);
+            self.emit_content_job_progress(
+                &session_id,
+                &resolved.name,
+                &resolved.file_name,
+                instance_id,
+                &resolved.project_id,
+                0.0,
+                1.0,
+                Some(0.0),
+                "queued",
+            );
+        }
+
+        let concurrency = self.content_file_concurrency();
+        let results = stream::iter(pending.into_iter().map(|resolved| {
+            let bg = self.clone_service();
+            let instance_id = instance_id.to_string();
+            let instance_dir = instance_dir.to_path_buf();
+            async move {
+                let dir = instance_dir.join(category_dir(&resolved.category));
+                let _ = tokio::task::spawn_blocking({
+                    let dir = dir.clone();
+                    move || fs::create_dir_all(dir)
+                })
+                .await;
+                bg.download_and_finalize(&instance_id, &instance_dir, &resolved)
+                    .await
+            }
+        }))
+        .buffer_unordered(concurrency)
+        .collect::<Vec<_>>()
+        .await;
+
+        let mut first_err: Option<CoreError> = None;
+        for result in results {
+            if let Err(err) = result {
+                tracing::error!("background content file install failed: {err}");
+                if first_err.is_none() {
+                    first_err = Some(err);
+                }
             }
         }
-        Ok(primary_entry.unwrap_or_else(|| to_installed_entry(&primary, true)))
+        if let Some(err) = first_err {
+            return Err(err);
+        }
+        Ok(())
     }
 
     /// ローカルファイル（.jar / .zip 等）をインスタンスへコピーして index に登録する。
-    pub fn install_local(&self, req: &Value) -> CoreResult<Value> {
+    pub async fn install_local(&self, req: &Value) -> CoreResult<Value> {
+        let req = req.clone();
+        let service = self.clone_service();
+        tokio::task::spawn_blocking(move || service.install_local_blocking(&req))
+            .await
+            .map_err(|e| CoreError::msg(e.to_string()))?
+    }
+
+    fn install_local_blocking(&self, req: &Value) -> CoreResult<Value> {
         let instance_id = req
             .get("instanceId")
             .and_then(|v| v.as_str())
@@ -521,7 +723,7 @@ impl ContentService {
         let mut version = if let Some(vid) = version_id {
             versions.iter().find(|v| v.get("id").and_then(|x| x.as_str()) == Some(vid)).cloned()
         } else {
-            versions.first().cloned()
+            pick_modrinth_version(versions.clone())
         };
         if version.is_none() && version_id.is_some() {
             versions = match provider {
@@ -643,14 +845,15 @@ impl ContentService {
             .await?;
         let session_id = format!("content-mrpack-{project_id}");
         let pack_name = project.get("name").and_then(|v| v.as_str()).unwrap_or("");
-        let bytes = match download_bytes_with_progress(
-            &resolved.download_url,
-            &self.events,
-            &session_id,
-            pack_name,
-            &resolved.file_name,
-        )
-        .await
+        let bytes = match self
+            .download_bytes_with_progress(
+                &resolved.download_url,
+                &session_id,
+                pack_name,
+                &resolved.file_name,
+                project_id,
+            )
+            .await
         {
             Ok(b) => b,
             Err(err) => {
@@ -659,6 +862,7 @@ impl ContentService {
                     pack_name,
                     &resolved.file_name,
                     "",
+                    project_id,
                     false,
                 );
                 return Err(err);
@@ -669,6 +873,7 @@ impl ContentService {
             pack_name,
             &resolved.file_name,
             "",
+            project_id,
             true,
         );
         let name = req
@@ -748,7 +953,13 @@ impl ContentService {
         fallback_loaders: &[String],
         requested_game_version: Option<&str>,
     ) -> CoreResult<Value> {
-        let entries = unzip_to_entries(bytes)?;
+        // zip 展開は blocking + IO 枠（ランタイム／閲覧を塞がない）
+        let _io = self.concurrency.acquire_io(GateClass::Interactive).await;
+        let bytes_owned = bytes.to_vec();
+        let entries = tokio::task::spawn_blocking(move || unzip_to_entries(&bytes_owned))
+            .await
+            .map_err(|e| CoreError::msg(e.to_string()))??;
+        drop(_io);
         let index = parse_mrpack_index(&entries)?;
         let minecraft_version = requested_game_version
             .map(|s| s.trim().to_string())
@@ -784,16 +995,24 @@ impl ContentService {
 
         let pack_files: Vec<MrpackIndexFile> =
             client_files(&index).into_iter().cloned().collect();
-        let project_ids: Vec<String> = pack_files
-            .iter()
-            .map(|f| {
-                project_id_from_download_url(
-                    f.downloads.first().map(|s| s.as_str()).unwrap_or(""),
-                    &f.path,
-                )
-            })
-            .filter(|id| !id.starts_with("pack:"))
-            .collect();
+        let mut pack_project_versions: HashMap<String, String> = HashMap::new();
+        let mut seed_version_ids: Vec<String> = Vec::new();
+        for f in &pack_files {
+            let url = f.downloads.first().map(|s| s.as_str()).unwrap_or("");
+            let pid = project_id_from_download_url(url, &f.path);
+            if pid.starts_with("pack:") {
+                continue;
+            }
+            if let Some(vid) = version_id_from_download_url(url) {
+                pack_project_versions.insert(pid, vid.clone());
+                if !seed_version_ids.iter().any(|x| x == &vid) {
+                    seed_version_ids.push(vid);
+                }
+            } else {
+                pack_project_versions.entry(pid).or_default();
+            }
+        }
+        let project_ids: Vec<String> = pack_project_versions.keys().cloned().collect();
         let metadata = self
             .modrinth
             .get_project_metadata(&project_ids)
@@ -802,15 +1021,7 @@ impl ContentService {
 
         // バックグラウンドで並列 DL。IPC はすぐ返し、本体 prepare と並行する。
         // 返却後の失敗ではインスタンスを消さない。
-        let bg = Arc::new(ContentService {
-            instances: Arc::clone(&self.instances),
-            settings: Arc::clone(&self.settings),
-            versions: Arc::clone(&self.versions),
-            events: Arc::clone(&self.events),
-            modrinth: ModrinthProvider::new(),
-            folne: FolneProvider::new(),
-            index_locks: Arc::clone(&self.index_locks),
-        });
+        let bg = self.clone_service();
         let pack_name_owned = pack_name.to_string();
         let version_id_owned = version_id.to_string();
         let version_number_owned = version_number.to_string();
@@ -819,10 +1030,14 @@ impl ContentService {
         let instance_dir_bg = instance_dir.clone();
         let file_count = pack_files.len();
         let metadata = Arc::new(metadata);
+        let concurrency = self.content_file_concurrency();
+        let minecraft_version_bg = minecraft_version.clone();
+        let loader_bg = loader.clone();
+        let loaders_bg = loader_to_filters(&loader);
 
         tokio::spawn(async move {
             let results = stream::iter(pack_files.into_iter().map(|file| {
-                let bg = Arc::clone(&bg);
+                let bg = bg.clone_service();
                 let profile_id_bg = profile_id_bg.clone();
                 let instance_dir_bg = instance_dir_bg.clone();
                 let pack_name_owned = pack_name_owned.clone();
@@ -844,16 +1059,67 @@ impl ContentService {
                     .await
                 }
             }))
-            .buffer_unordered(MRPACK_FILE_DOWNLOAD_CONCURRENCY)
+            .buffer_unordered(concurrency)
             .collect::<Vec<_>>()
             .await;
 
-            let failed = results.iter().filter(|r| r.is_err()).count();
+            let mut failed = results.iter().filter(|r| r.is_err()).count();
             for result in &results {
                 if let Err(err) = result {
                     tracing::error!("mrpack file install failed for {profile_id_bg}: {err}");
                 }
             }
+
+            // パック index に無い required 依存（Sodium / Fabric API 等）を補完
+            match bg
+                .modrinth
+                .resolve_missing_required_deps(
+                    &seed_version_ids,
+                    &pack_project_versions,
+                    Some(&minecraft_version_bg),
+                    &loaders_bg,
+                    Some(&loader_bg),
+                )
+                .await
+            {
+                Ok(extras) if !extras.is_empty() => {
+                    tracing::info!(
+                        "mrpack {pack_name_owned}: installing {} missing required dep(s)",
+                        extras.len()
+                    );
+                    let dep_results = stream::iter(extras.into_iter().map(|resolved| {
+                        let bg = bg.clone_service();
+                        let profile_id_bg = profile_id_bg.clone();
+                        let instance_dir_bg = instance_dir_bg.clone();
+                        async move {
+                            let dir = instance_dir_bg.join(category_dir(&resolved.category));
+                            let _ = tokio::task::spawn_blocking({
+                                let dir = dir.clone();
+                                move || fs::create_dir_all(dir)
+                            })
+                            .await;
+                            bg.download_and_finalize(&profile_id_bg, &instance_dir_bg, &resolved)
+                                .await
+                        }
+                    }))
+                    .buffer_unordered(concurrency)
+                    .collect::<Vec<_>>()
+                    .await;
+                    for result in &dep_results {
+                        if let Err(err) = result {
+                            tracing::error!(
+                                "mrpack dependency install failed for {profile_id_bg}: {err}"
+                            );
+                            failed += 1;
+                        }
+                    }
+                }
+                Ok(_) => {}
+                Err(err) => {
+                    tracing::warn!("mrpack dependency resolve failed for {profile_id_bg}: {err}");
+                }
+            }
+
             bg.finish_instance_create_progress(&profile_id_bg, failed == 0);
             if failed == 0 {
                 tracing::info!(
@@ -932,21 +1198,37 @@ impl ContentService {
         }
         let staging = dest.with_extension(format!("download-{}", Uuid::new_v4()));
         let session_id = format!("content-{instance_id}-{project_id}");
-        if let Err(err) = download_to_file_ua(
-            download_url,
-            &staging,
-            file.hashes_sha1.as_deref(),
-            &self.events,
+        if let Err(err) = self
+            .download_to_file_ua(
+                download_url,
+                &staging,
+                file.hashes_sha1.as_deref(),
+                &session_id,
+                pack_name,
+                &file_name,
+                instance_id,
+                &project_id,
+            )
+            .await
+        {
+            self.emit_content_job_finished(
+                &session_id,
+                pack_name,
+                &file_name,
+                instance_id,
+                &project_id,
+                false,
+            );
+            return Err(err);
+        }
+        self.emit_content_job_finished(
             &session_id,
             pack_name,
             &file_name,
-        )
-        .await
-        {
-            self.emit_content_job_finished(&session_id, pack_name, &file_name, instance_id, false);
-            return Err(err);
-        }
-        self.emit_content_job_finished(&session_id, pack_name, &file_name, instance_id, true);
+            instance_id,
+            &project_id,
+            true,
+        );
 
         let parent_rel = Path::new(&rel)
             .parent()
@@ -1263,7 +1545,8 @@ impl ContentService {
         entry_id: &str,
         enabled: bool,
     ) -> CoreResult<Value> {
-        let _lock = self.lock_index(instance_id);
+        let index_lock = self.lock_index(instance_id);
+        let _guard = index_lock.lock();
         let mut index = self.read_index(instance_id)?;
         let entry = index
             .items
@@ -1306,7 +1589,8 @@ impl ContentService {
     }
 
     pub fn remove(&self, instance_id: &str, entry_id: &str) -> CoreResult<()> {
-        let _lock = self.lock_index(instance_id);
+        let index_lock = self.lock_index(instance_id);
+        let _guard = index_lock.lock();
         let mut index = self.read_index(instance_id)?;
         let Some(pos) = index
             .items
@@ -1395,7 +1679,8 @@ impl ContentService {
                 }
             }
         }
-        let _lock = self.lock_index(instance_id);
+        let index_lock = self.lock_index(instance_id);
+        let _guard = index_lock.lock();
         self.write_index(instance_id, &index)?;
         Ok(Value::Array(index.items))
     }
@@ -1563,7 +1848,7 @@ impl ContentService {
           "name": name,
           "minecraftVersion": minecraft_version,
           "loader": loader,
-          "memoryMaxMb": memory_max.unwrap_or(2048),
+          "memoryMaxMb": memory_max.unwrap_or(4096),
           "jvmArgs": jvm_args
         });
         if let Some(lv) = loader_version {
@@ -1676,50 +1961,122 @@ impl ContentService {
         resolved: &ResolvedContentFile,
     ) -> CoreResult<Value> {
         let dest_dir = instance_dir.join(category_dir(&resolved.category));
-        fs::create_dir_all(&dest_dir)?;
+        {
+            let dir = dest_dir.clone();
+            tokio::task::spawn_blocking(move || fs::create_dir_all(dir))
+                .await
+                .map_err(|e| CoreError::msg(e.to_string()))??;
+        }
         let dest_path = dest_dir.join(&resolved.file_name);
         let staging = dest_path.with_extension(format!("download-{}", Uuid::new_v4()));
         let entry = to_installed_entry(resolved, true);
         let session_id = format!("content-{instance_id}-{}", resolved.project_id);
-        let result = download_to_file_ua(
-            &resolved.download_url,
-            &staging,
-            resolved.sha1.as_deref(),
-            &self.events,
-            &session_id,
-            &resolved.name,
-            &resolved.file_name,
-        )
-        .await;
+        let result = self
+            .download_to_file_ua(
+                &resolved.download_url,
+                &staging,
+                resolved.sha1.as_deref(),
+                &session_id,
+                &resolved.name,
+                &resolved.file_name,
+                instance_id,
+                &resolved.project_id,
+            )
+            .await;
         if let Err(err) = result {
             self.emit_content_job_finished(
                 &session_id,
                 &resolved.name,
                 &resolved.file_name,
                 instance_id,
+                &resolved.project_id,
                 false,
             );
             return Err(err);
         }
-        self.finalize_installed(
-            instance_id,
-            instance_dir,
-            &resolved.provider,
-            &resolved.project_id,
-            &resolved.category,
-            &resolved.file_name,
-            entry.clone(),
-            &staging,
-            &dest_path,
-        )?;
+        // 配置（rename / index）は IO 枠で直列化し、閲覧 UI へのディスク負荷を抑える
+        let _io = self.concurrency.acquire_io(GateClass::Interactive).await;
+        let finalize = {
+            let service = self.clone_service();
+            let instance_id = instance_id.to_string();
+            let instance_dir = instance_dir.to_path_buf();
+            let provider = resolved.provider.clone();
+            let project_id = resolved.project_id.clone();
+            let category = resolved.category.clone();
+            let file_name = resolved.file_name.clone();
+            let entry_clone = entry.clone();
+            let staging = staging.clone();
+            let dest_path = dest_path.clone();
+            tokio::task::spawn_blocking(move || {
+                service.finalize_installed(
+                    &instance_id,
+                    &instance_dir,
+                    &provider,
+                    &project_id,
+                    &category,
+                    &file_name,
+                    entry_clone,
+                    &staging,
+                    &dest_path,
+                )
+            })
+            .await
+            .map_err(|e| CoreError::msg(e.to_string()))?
+        };
+        drop(_io);
+        if let Err(err) = finalize {
+            self.emit_content_job_finished(
+                &session_id,
+                &resolved.name,
+                &resolved.file_name,
+                instance_id,
+                &resolved.project_id,
+                false,
+            );
+            return Err(err);
+        }
         self.emit_content_job_finished(
             &session_id,
             &resolved.name,
             &resolved.file_name,
             instance_id,
+            &resolved.project_id,
             true,
         );
         Ok(entry)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn emit_content_job_progress(
+        &self,
+        session_id: &str,
+        name: &str,
+        file: &str,
+        instance_id: &str,
+        project_id: &str,
+        current: f64,
+        total: f64,
+        percent: Option<f64>,
+        status: &str,
+    ) {
+        self.events.emit_progress(ProgressEvent {
+            scope: "download".into(),
+            kind: Some("content".into()),
+            session_id: Some(session_id.into()),
+            job_id: Some(session_id.into()),
+            current,
+            total,
+            percent,
+            bytes_per_second: None,
+            message_key: Some("content.downloading".into()),
+            status: Some(status.into()),
+            meta: Some(json!({
+              "name": name,
+              "file": file,
+              "instanceId": instance_id,
+              "projectId": project_id,
+            })),
+        });
     }
 
     fn emit_content_job_finished(
@@ -1728,6 +2085,7 @@ impl ContentService {
         name: &str,
         file: &str,
         instance_id: &str,
+        project_id: &str,
         ok: bool,
     ) {
         self.events.emit_progress(ProgressEvent {
@@ -1752,8 +2110,121 @@ impl ContentService {
               "name": name,
               "file": file,
               "instanceId": instance_id,
+              "projectId": project_id,
             })),
         });
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    async fn download_to_file_ua(
+        &self,
+        url: &str,
+        dest: &Path,
+        expected_sha1: Option<&str>,
+        session_id: &str,
+        name: &str,
+        file: &str,
+        instance_id: &str,
+        project_id: &str,
+    ) -> CoreResult<()> {
+        let events = Arc::clone(&self.events);
+        let session_id_owned = session_id.to_string();
+        let name_owned = name.to_string();
+        let file_owned = file.to_string();
+        let instance_id_owned = instance_id.to_string();
+        let project_id_owned = project_id.to_string();
+        let mut last_emit = std::time::Instant::now()
+            .checked_sub(PROGRESS_EMIT_INTERVAL)
+            .unwrap_or_else(std::time::Instant::now);
+
+        stream_download_to_file(
+            content_http_client(),
+            url,
+            dest,
+            expected_sha1,
+            Some(&self.concurrency),
+            GateClass::Interactive,
+            |current, total| {
+                if last_emit.elapsed() < PROGRESS_EMIT_INTERVAL && current + 1 < total {
+                    return;
+                }
+                last_emit = std::time::Instant::now();
+                let percent = if total > 0 {
+                    Some((current as f64 / total as f64) * 100.0)
+                } else {
+                    None
+                };
+                events.emit_progress(ProgressEvent {
+                    scope: "download".into(),
+                    kind: Some("content".into()),
+                    session_id: Some(session_id_owned.clone()),
+                    job_id: Some(session_id_owned.clone()),
+                    current: current as f64,
+                    total: total as f64,
+                    percent,
+                    bytes_per_second: None,
+                    message_key: Some("content.downloading".into()),
+                    status: Some("active".into()),
+                    meta: Some(json!({
+                      "name": name_owned,
+                      "file": file_owned,
+                      "instanceId": instance_id_owned,
+                      "projectId": project_id_owned,
+                    })),
+                });
+            },
+        )
+        .await
+    }
+
+    async fn download_bytes_with_progress(
+        &self,
+        url: &str,
+        session_id: &str,
+        name: &str,
+        file: &str,
+        project_id: &str,
+    ) -> CoreResult<Vec<u8>> {
+        let _fetch = self.concurrency.acquire_fetch(GateClass::Interactive).await;
+        let response = content_http_client()
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| CoreError::msg(e.to_string()))?
+            .error_for_status()
+            .map_err(|e| CoreError::msg(e.to_string()))?;
+        let total = response.content_length().unwrap_or(0) as f64;
+        let mut stream = response.bytes_stream();
+        let mut buf = Vec::new();
+        let mut current = 0f64;
+        let mut last_emit = std::time::Instant::now()
+            .checked_sub(PROGRESS_EMIT_INTERVAL)
+            .unwrap_or_else(std::time::Instant::now);
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| CoreError::msg(e.to_string()))?;
+            current += chunk.len() as f64;
+            buf.extend_from_slice(&chunk);
+            let at_end = total > 0.0 && current >= total;
+            if at_end || last_emit.elapsed() >= PROGRESS_EMIT_INTERVAL {
+                last_emit = std::time::Instant::now();
+                self.emit_content_job_progress(
+                    session_id,
+                    name,
+                    file,
+                    "",
+                    project_id,
+                    current,
+                    if total > 0.0 { total } else { current },
+                    if total > 0.0 {
+                        Some((current / total) * 100.0)
+                    } else {
+                        None
+                    },
+                    "active",
+                );
+            }
+        }
+        Ok(buf)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1769,7 +2240,8 @@ impl ContentService {
         staging: &Path,
         dest: &Path,
     ) -> CoreResult<()> {
-        let _lock = self.lock_index(instance_id);
+        let index_lock = self.lock_index(instance_id);
+        let _guard = index_lock.lock();
         if self.instances.get(instance_id)?.is_none() {
             let _ = fs::remove_file(staging);
             return Ok(());
@@ -1808,11 +2280,11 @@ impl ContentService {
         Ok(())
     }
 
-    fn lock_index(&self, instance_id: &str) -> parking_lot::MutexGuard<'_, HashMap<String, ()>> {
+    fn lock_index(&self, instance_id: &str) -> Arc<Mutex<()>> {
         let mut map = self.index_locks.lock();
-        map.entry(instance_id.to_string()).or_insert(());
-        // Hold the outer mutex as coarse lock (simpler than per-key)
-        map
+        map.entry(instance_id.to_string())
+            .or_insert_with(|| Arc::new(Mutex::new(())))
+            .clone()
     }
 
     fn index_path(&self, instance_id: &str) -> PathBuf {
@@ -2076,135 +2548,3 @@ fn list_files_recursive(root: &Path, rel: &str) -> CoreResult<Vec<String>> {
     Ok(files)
 }
 
-async fn download_bytes_with_progress(
-    url: &str,
-    events: &EventBus,
-    session_id: &str,
-    name: &str,
-    file: &str,
-) -> CoreResult<Vec<u8>> {
-    let client = reqwest::Client::new();
-    let response = client
-        .get(url)
-        .header("User-Agent", UA_DOWNLOAD)
-        .send()
-        .await
-        .map_err(|e| CoreError::msg(e.to_string()))?
-        .error_for_status()
-        .map_err(|e| CoreError::msg(e.to_string()))?;
-    let total = response.content_length().unwrap_or(0) as f64;
-    let mut stream = response.bytes_stream();
-    let mut buf = Vec::new();
-    let mut current = 0f64;
-    let mut last_emit = Instant::now() - PROGRESS_EMIT_INTERVAL;
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| CoreError::msg(e.to_string()))?;
-        current += chunk.len() as f64;
-        buf.extend_from_slice(&chunk);
-        let at_end = total > 0.0 && current >= total;
-        if at_end || last_emit.elapsed() >= PROGRESS_EMIT_INTERVAL {
-            last_emit = Instant::now();
-            events.emit_progress(ProgressEvent {
-                scope: "download".into(),
-                kind: Some("content".into()),
-                session_id: Some(session_id.into()),
-                job_id: Some(session_id.into()),
-                current,
-                total: if total > 0.0 { total } else { current },
-                percent: if total > 0.0 {
-                    Some((current / total) * 100.0)
-                } else {
-                    None
-                },
-                bytes_per_second: None,
-                message_key: Some("content.downloading".into()),
-                status: Some("active".into()),
-                meta: Some(json!({ "name": name, "file": file })),
-            });
-        }
-    }
-    Ok(buf)
-}
-
-async fn download_to_file_ua(
-    url: &str,
-    dest: &Path,
-    expected_sha1: Option<&str>,
-    events: &EventBus,
-    session_id: &str,
-    name: &str,
-    file: &str,
-) -> CoreResult<()> {
-    if dest.is_file() {
-        if let Some(expected) = expected_sha1 {
-            if crate::download::file_sha1(dest)? == expected.to_ascii_lowercase() {
-                return Ok(());
-            }
-        }
-    }
-    if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let client = reqwest::Client::new();
-    let response = client
-        .get(url)
-        .header("User-Agent", UA_DOWNLOAD)
-        .send()
-        .await
-        .map_err(|e| CoreError::msg(e.to_string()))?
-        .error_for_status()
-        .map_err(|e| CoreError::msg(e.to_string()))?;
-    let total = response.content_length().unwrap_or(0) as f64;
-    let tmp = dest.with_extension("download-part");
-    let mut stream = response.bytes_stream();
-    let mut out = fs::File::create(&tmp)?;
-    let mut hasher = Sha1::new();
-    let mut current = 0f64;
-    let mut last_emit = Instant::now() - PROGRESS_EMIT_INTERVAL;
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| CoreError::msg(e.to_string()))?;
-        out.write_all(&chunk)?;
-        hasher.update(&chunk);
-        current += chunk.len() as f64;
-        let at_end = total > 0.0 && current >= total;
-        if at_end || last_emit.elapsed() >= PROGRESS_EMIT_INTERVAL {
-            last_emit = Instant::now();
-            events.emit_progress(ProgressEvent {
-                scope: "download".into(),
-                kind: Some("content".into()),
-                session_id: Some(session_id.into()),
-                job_id: Some(session_id.into()),
-                current,
-                total: if total > 0.0 { total } else { current },
-                percent: if total > 0.0 {
-                    Some((current / total) * 100.0)
-                } else {
-                    None
-                },
-                bytes_per_second: None,
-                message_key: Some("content.downloading".into()),
-                status: Some("active".into()),
-                meta: Some(json!({ "name": name, "file": file })),
-            });
-        }
-    }
-    out.flush()?;
-    drop(out);
-    let digest = hex::encode(hasher.finalize());
-    if let Some(expected) = expected_sha1 {
-        if digest != expected.to_ascii_lowercase() {
-            let _ = fs::remove_file(&tmp);
-            return Err(CoreError::msg(format!(
-                "SHA-1 mismatch for {}: expected {expected}, got {digest}",
-                dest.display()
-            )));
-        }
-    }
-    let _ = fs::remove_file(dest);
-    fs::rename(&tmp, dest).or_else(|_| {
-        fs::copy(&tmp, dest)?;
-        fs::remove_file(&tmp)?;
-        Ok::<(), std::io::Error>(())
-    })?;
-    Ok(())
-}

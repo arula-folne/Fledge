@@ -12,7 +12,7 @@ GitHub リポジトリ向けの実装仕様です。アプリ紹介・機能の�
 ## 1. 位置づけ
 
 Fledge は Minecraft Java Edition 用の非公式デスクトップランチャーです。  
-バージョン **Ver.0.6.8**。製品 ID は `net.folne.fledge`。  
+バージョン **Ver.0.7.0**。製品 ID は `net.folne.fledge`。  
 **対応環境は Windows 11 のみ**です。
 
 製品方針:
@@ -37,27 +37,25 @@ pnpm ワークスペース（`apps/*` と `packages/*`）。
 
 | パス | パッケージ | 役割 |
 |------|------------|------|
-| `apps/desktop/` | `@fledge/desktop` | Tauri シェル（Rust）+ React UI。`electron/` は 0.4 参照用・非推奨 |
+| `apps/desktop/` | `@fledge/desktop` | Tauri シェル（Rust）+ React UI |
 | `crates/fledge-core/` | `fledge-core` | Rust ランチャー中核（0.5+） |
-| `packages/core/` | `@fledge/core` | 旧 Electron 向け TypeScript 中核（0.4 互換・段階的移行） |
 | `packages/shared/` | `@fledge/shared` | Zod モデル、IPC チャネル名、ブランド定数 |
 | `packages/i18n/` | `@fledge/i18n` | 文言リソース（既定 `ja`、複数言語） |
-| `scripts/patch-xmcl.js` | — | `@xmcl/*` の npm `main` を dist に向ける postinstall |
 | `docs/` | — | 本仕様および開発ガイド |
 
-`@fledge/core`（TS）は Electron を import しません。0.5 の実体は `crates/fledge-core` です。ウィンドウ・IPC は Tauri（`fledge_invoke`）経由です。
+ウィンドウ・IPC は Tauri（`fledge_invoke`）経由です。
 
 ## 3. 技術スタック
 
 | 層 | 技術 |
 |----|------|
-| デスクトップ | **Tauri 2** + Rust（Windows NSIS）。Electron 35 は 0.4.x / 非推奨 |
+| デスクトップ | **Tauri 2** + Rust（Windows NSIS） |
 | UI | React 19、React Router 7、Tailwind CSS 4、Zustand、TanStack Query、i18next |
 | アイコン | `@tabler/icons-react` |
 | スキンプレビュー | `skinview3d` |
 | 契約・検証 | TypeScript 5.8、Zod |
-| Minecraft | Rust `fledge-core`（Mojang / Fabric / Forge / NeoForge / Quilt メタ取得・導入）。`@xmcl/*` は 0.4 / `packages/core` 参照用 |
-| 認証 | Rust `AuthProvider` + DPAPI TokenVault（0.4 の `msmc` 経路は Electron 参照用） |
+| Minecraft | Rust `fledge-core`（Mojang / Fabric / Forge / NeoForge / Quilt メタ取得・導入） |
+| 認証 | Rust `AuthProvider` + DPAPI TokenVault |
 | Discord | 任意（設定の既定はオフ）。Rust `DiscordPresence` |
 
 ## 4. プロセス構成
@@ -108,7 +106,7 @@ fledge-core  AppState
   updater/               アプリ内更新用インストーラー退避（%TEMP% に散らさない）
 ```
 
-0.4 Electron の `installDir/data/meta/runtime/` 配置は廃止。パス解決は `crates/fledge-core` の `PathLayout`（および旧 `packages/core`）が組み立てます。  
+0.4 Electron の `installDir/data/meta/runtime/` 配置は廃止。パス解決は `crates/fledge-core` の `PathLayout` が組み立てます。  
 Minecraft 本体・ライブラリ・アセット・Java は `meta/` で共有します。  
 ワールド、Mod、ゲーム内設定は `instances/<id>/` です。
 
@@ -251,8 +249,6 @@ Modpack 同梱の `options.txt` より、初回起動時の Fledge パッチを�
 
 アプリ内更新ではインストーラを同一 `installDir` へ `/S --updated /D=...` で適用し、Data / Instances / AppData の Settings・Accounts は消さない（`.cursor/rules/updater-data-persistence.mdc`）。  
 アンインストールは `uninstall.exe`（または Apps & Features）経由。更新経路と混同しないこと。
-
-0.4 の `electron-builder` / `build/installer.nsh` は参照用。
 
 ## 16. 既知のギャップ（Beta）
 

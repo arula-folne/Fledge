@@ -4,11 +4,9 @@ use crate::error::{CoreError, CoreResult};
 use parking_lot::Mutex;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
-use std::time::Duration;
 
 const API: &str = "https://api.modrinth.com/v2";
 const UA: &str = "Fledge/0.5.0 (https://github.com/arula-folne/Fledge; content-manager)";
-const FETCH_TIMEOUT_MS: u64 = 20_000;
 
 const LOADER_CATS: &[&str] = &[
     "fabric", "forge", "neoforge", "quilt", "bukkit", "paper", "spigot", "purpur",
@@ -313,6 +311,110 @@ impl ModrinthProvider {
             .ok_or_else(|| CoreError::msg("Compatible version not found on Modrinth"))
     }
 
+    /// mrpack 等で既に入っているプロジェクト以外の required 依存を解決する。
+    /// `seed_version_ids` はパック内ファイルの Modrinth version id。
+    pub async fn resolve_missing_required_deps(
+        &self,
+        seed_version_ids: &[String],
+        already_have: &HashMap<String, String>,
+        game_version: Option<&str>,
+        loaders: &[String],
+        loader: Option<&str>,
+    ) -> CoreResult<Vec<ResolvedContentFile>> {
+        let mut chosen: HashMap<String, ResolvedContentFile> = HashMap::new();
+        let mut pinned: HashSet<String> = HashSet::new();
+        let mut project_cache: HashMap<String, Value> = HashMap::new();
+        let mut root_project_id: Option<String> = None;
+
+        for (lib_id, _) in implicit_libraries(loader, "mod") {
+            if already_have.contains_key(&lib_id) || chosen.contains_key(&lib_id) {
+                continue;
+            }
+            if let Err(err) = self
+                .walk_deps(
+                    &lib_id,
+                    "mod",
+                    None,
+                    game_version,
+                    loaders,
+                    1,
+                    &mut chosen,
+                    &mut pinned,
+                    &mut project_cache,
+                    &mut root_project_id,
+                    already_have,
+                )
+                .await
+            {
+                tracing::warn!("implicit library resolve skipped ({lib_id}): {err}");
+            }
+        }
+
+        for vid in seed_version_ids {
+            let vid = vid.trim();
+            if vid.is_empty() {
+                continue;
+            }
+            let version = match self.fetch_version(vid, Some(vid), None, &[]).await {
+                Ok(v) => v,
+                Err(err) => {
+                    tracing::warn!("mrpack seed version fetch failed ({vid}): {err}");
+                    continue;
+                }
+            };
+            let Some(deps) = version.get("dependencies").and_then(|v| v.as_array()) else {
+                continue;
+            };
+            for dep in deps {
+                let dep_type = dep.get("dependency_type").and_then(|v| v.as_str()).unwrap_or("");
+                if dep_type != "required" {
+                    continue;
+                }
+                let Some(dep_project) = dep
+                    .get("project_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                else {
+                    continue;
+                };
+                if already_have.contains_key(&dep_project) || chosen.contains_key(&dep_project) {
+                    continue;
+                }
+                let dep_ver = dep
+                    .get("version_id")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty());
+                if let Err(err) = self
+                    .walk_deps(
+                        &dep_project,
+                        "mod",
+                        dep_ver.as_deref(),
+                        game_version,
+                        loaders,
+                        1,
+                        &mut chosen,
+                        &mut pinned,
+                        &mut project_cache,
+                        &mut root_project_id,
+                        already_have,
+                    )
+                    .await
+                {
+                    tracing::warn!(
+                        "required dependency resolve skipped ({dep_project}): {err}"
+                    );
+                }
+            }
+        }
+
+        Ok(chosen
+            .into_values()
+            .filter(|f| !already_have.contains_key(&f.project_id))
+            .collect())
+    }
+
     pub async fn find_update(
         &self,
         project_id: &str,
@@ -445,8 +547,15 @@ impl ModrinthProvider {
         .unwrap_or_else(|| category.to_string());
 
         for (dep_id, dep_ver) in required_deps {
-            if installed.contains_key(&dep_id) && dep_ver.is_none() {
-                continue;
+            if let Some(installed_vid) = installed.get(&dep_id) {
+                // ピン指定が無い／同じ版なら既存を維持。別版が要求されたら取り直す。
+                if dep_ver
+                    .as_deref()
+                    .map(|vid| vid == installed_vid)
+                    .unwrap_or(true)
+                {
+                    continue;
+                }
             }
             Box::pin(self.walk_deps(
                 &dep_id,
@@ -502,7 +611,7 @@ impl ModrinthProvider {
             ))
             .await?;
         let arr = raw.as_array().cloned().unwrap_or_default();
-        arr.into_iter().next().ok_or_else(|| {
+        pick_modrinth_version(arr).ok_or_else(|| {
             CoreError::msg(format!("対応するバージョンが見つかりません: {project_id}"))
         })
     }
@@ -547,54 +656,8 @@ impl ModrinthProvider {
             loc.clone().unwrap()
         };
         let accept_lang = accept_language_from_locale(&locale);
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_millis(FETCH_TIMEOUT_MS))
-            .build()
-            .map_err(|e| CoreError::msg(e.to_string()))?;
-        let mut attempt = 0u32;
-        loop {
-            let res = client
-                .get(format!("{API}{path}"))
-                .header("Accept", "application/json")
-                .header("Accept-Language", &accept_lang)
-                .header("User-Agent", UA)
-                .send()
-                .await;
-            match res {
-                Ok(res) => {
-                    let status = res.status();
-                    if status.as_u16() == 429 && attempt < 2 {
-                        let delay = res
-                            .headers()
-                            .get("Retry-After")
-                            .and_then(|v| v.to_str().ok())
-                            .and_then(|s| s.parse::<u64>().ok())
-                            .unwrap_or(2);
-                        tokio::time::sleep(Duration::from_secs(delay.min(10))).await;
-                        attempt += 1;
-                        continue;
-                    }
-                    if !status.is_success() {
-                        let body = res.text().await.unwrap_or_default();
-                        return Err(CoreError::msg(format!(
-                            "Modrinth API {status}: {}",
-                            body.chars().take(200).collect::<String>()
-                        )));
-                    }
-                    return res
-                        .json()
-                        .await
-                        .map_err(|e| CoreError::msg(e.to_string()));
-                }
-                Err(err) if attempt < 1 => {
-                    tokio::time::sleep(Duration::from_millis(800 * (attempt as u64 + 1))).await;
-                    attempt += 1;
-                    let _ = err;
-                    continue;
-                }
-                Err(err) => return Err(CoreError::msg(err.to_string())),
-            }
-        }
+        let url = format!("{API}{path}");
+        crate::content::api_http::cached_json_get(&url, UA, Some(&accept_lang)).await
     }
 }
 
@@ -803,6 +866,60 @@ fn project_to_detail(p: &Value, members: &[Value]) -> CoreResult<Value> {
       "members": members,
       "gallery": []
     }))
+}
+
+/// Modrinth 風: release → beta → alpha（同チャンネル内は API 順＝新しい順）
+fn version_channel_rank(v: &Value) -> u8 {
+    let raw = v
+        .get("version_type")
+        .or_else(|| v.get("versionType"))
+        .and_then(|t| t.as_str())
+        .unwrap_or("release")
+        .to_ascii_lowercase();
+    match raw.as_str() {
+        "release" => 0,
+        "beta" => 1,
+        "alpha" => 2,
+        _ => 3,
+    }
+}
+
+pub(crate) fn pick_modrinth_version(versions: Vec<Value>) -> Option<Value> {
+    if versions.is_empty() {
+        return None;
+    }
+    for rank in 0u8..=3 {
+        if let Some(v) = versions.iter().find(|v| version_channel_rank(v) == rank) {
+            return Some(v.clone());
+        }
+    }
+    versions.into_iter().next()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pick_prefers_release_over_newer_beta() {
+        let versions = vec![
+            json!({"id": "beta-new", "version_type": "beta"}),
+            json!({"id": "rel-old", "version_type": "release"}),
+            json!({"id": "alpha", "version_type": "alpha"}),
+        ];
+        let picked = pick_modrinth_version(versions).unwrap();
+        assert_eq!(picked.get("id").and_then(|v| v.as_str()), Some("rel-old"));
+    }
+
+    #[test]
+    fn pick_falls_back_to_beta_when_no_release() {
+        let versions = vec![
+            json!({"id": "alpha-new", "version_type": "alpha"}),
+            json!({"id": "beta-old", "version_type": "beta"}),
+        ];
+        let picked = pick_modrinth_version(versions).unwrap();
+        assert_eq!(picked.get("id").and_then(|v| v.as_str()), Some("beta-old"));
+    }
 }
 
 fn map_version(v: Value) -> Value {

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
-import { useState, type ReactNode } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import {
   IconDownload,
   IconFolderOpen,
@@ -15,6 +15,7 @@ import { Button } from '../ui/Button'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { useTransferStore } from '../../stores/appStores'
 import { jobPercent } from '../../features/transfers/transferJobs'
+import { javaActiveJob, javaJobsDisplayKey } from '../../features/transfers/transferSelectors'
 
 const iconProps = { size: 20, stroke: 1.75 } as const
 
@@ -59,7 +60,8 @@ export function JavaRuntimePanel({ onMessage }: { onMessage: (msg: string | null
   const [verifyBusy, setVerifyBusy] = useState<Partial<Record<JavaManagedMajor, boolean>>>({})
   const [uninstallBusy, setUninstallBusy] = useState<Partial<Record<JavaManagedMajor, boolean>>>({})
   const [uninstallMajor, setUninstallMajor] = useState<JavaManagedMajor | null>(null)
-  const transferJobs = useTransferStore((s) => s.jobs)
+  const javaDisplayKey = useTransferStore((s) => javaJobsDisplayKey(s.jobs))
+  const javaJobs = useMemo(() => useTransferStore.getState().jobs, [javaDisplayKey])
 
   const runtimesQuery = useQuery({
     queryKey: ['java-runtimes'],
@@ -150,12 +152,7 @@ export function JavaRuntimePanel({ onMessage }: { onMessage: (msg: string | null
         const runtime = byMajor.get(major)
         const installed = runtime?.installed ?? false
         const removable = installed || Boolean(runtime?.removable)
-        const job = Object.values(transferJobs).find(
-          (j) =>
-            j.kind === 'java' &&
-            Number(j.meta.major) === major &&
-            (j.status === 'queued' || j.status === 'active'),
-        )
+        const job = javaActiveJob(javaJobs, major)
         const verifying = Boolean(verifyBusy[major])
         const uninstalling = Boolean(uninstallBusy[major])
         const installing = Boolean(job)

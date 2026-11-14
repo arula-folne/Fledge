@@ -1,5 +1,6 @@
 import {
   useCallback,
+  useEffect,
   useLayoutEffect,
   useRef,
   useState,
@@ -57,6 +58,13 @@ export function SlidingPillTabs({
 }: Props) {
   const listRef = useRef<HTMLDivElement>(null)
   const btnRefs = useRef(new Map<string, HTMLButtonElement>())
+  const wheelAccRef = useRef(0)
+  const activeIdRef = useRef(activeId)
+  const itemsRef = useRef(items)
+  const onChangeRef = useRef(onChange)
+  activeIdRef.current = activeId
+  itemsRef.current = items
+  onChangeRef.current = onChange
   const [pill, setPill] = useState<PillRect | null>(null)
   const [ready, setReady] = useState(false)
 
@@ -115,6 +123,49 @@ export function SlidingPillTabs({
     btnRefs.current.get(next)?.focus()
   }
 
+  // React の onWheel は passive になり縦スクロールを止められないことがあるため、native + passive:false
+  useEffect(() => {
+    const el = listRef.current
+    if (!el) return
+
+    const onWheel = (e: WheelEvent) => {
+      const tabs = itemsRef.current
+      if (tabs.length < 2) return
+
+      const delta =
+        Math.abs(e.deltaY) >= Math.abs(e.deltaX) ? e.deltaY : e.deltaX
+      if (delta === 0) return
+
+      // タブ上では縦スクロールを完全に止めて横操作だけにする
+      e.preventDefault()
+      e.stopPropagation()
+
+      const canScroll = el.scrollWidth > el.clientWidth + 1
+      if (canScroll) {
+        el.scrollLeft += delta
+        return
+      }
+
+      wheelAccRef.current += delta
+      const threshold = 36
+      if (Math.abs(wheelAccRef.current) < threshold) return
+      const dir = wheelAccRef.current > 0 ? 1 : -1
+      wheelAccRef.current = 0
+
+      const ids = tabs.map((item) => item.id)
+      const active = activeIdRef.current
+      const index = ids.indexOf(active)
+      const current = index < 0 ? 0 : index
+      const nextIndex = Math.max(0, Math.min(ids.length - 1, current + dir))
+      const next = ids[nextIndex]
+      if (!next || next === active) return
+      onChangeRef.current(next)
+    }
+
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
+
   // 固定高さ + leading-none で行ボックス下寄りを防ぐ（少し余白を持たせる）
   const sizeClass =
     size === 'md' ? 'h-9 px-3.5 text-sm' : 'h-8 px-3 text-xs'
@@ -128,7 +179,7 @@ export function SlidingPillTabs({
       onKeyDown={onKeyDown}
       className={[
         // overflow は狭い幅でタブがはみ出すとき用。スクロールバー自体は出さない（folne の単一カテゴリ枠で特に目立つ）
-        'relative inline-flex max-w-full flex-nowrap items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
+        'relative inline-flex max-w-full flex-nowrap items-center gap-0.5 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
         framed ? PILL_GROUP_FRAME_CLASS : '',
         className,
       ].join(' ')}

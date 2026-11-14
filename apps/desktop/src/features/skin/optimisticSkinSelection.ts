@@ -2,7 +2,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import type { Settings, SkinEntry, SkinModel } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
 import { cropSkinFaceDataUrl } from '../auth/skinFace'
-import { localFileAssetUrl, preferElectronDefaultProtocol } from '../../components/skin/skinUrls'
+import { localFileAssetUrl } from '../../components/skin/skinUrls'
 
 export function patchSelectedSkinSettings(
   queryClient: QueryClient,
@@ -22,7 +22,6 @@ export function patchSelectedSkinSettings(
 export async function prefetchAccountFaceFromLocalSkin(
   queryClient: QueryClient,
   skinId: string,
-  skins: SkinEntry[],
 ): Promise<void> {
   let src =
     queryClient.getQueryData<string | null>(['skin-data', skinId]) ??
@@ -31,21 +30,15 @@ export async function prefetchAccountFaceFromLocalSkin(
 
   if (!src) {
     try {
-      const entry = skins.find((s) => s.id === skinId)
-      const electronDefault = entry ? preferElectronDefaultProtocol(entry) : undefined
-      if (electronDefault) {
-        src = electronDefault
+      const path = await fledgeApi.skins.resolvePath(skinId)
+      const asset = localFileAssetUrl(path)
+      if (asset) {
+        src = asset
+        queryClient.setQueryData(['skin-path', skinId], path)
+        queryClient.setQueryData(['skin-path-url', skinId], asset)
       } else {
-        const path = await fledgeApi.skins.resolvePath(skinId)
-        const asset = localFileAssetUrl(path)
-        if (asset) {
-          src = asset
-          queryClient.setQueryData(['skin-path', skinId], path)
-          queryClient.setQueryData(['skin-path-url', skinId], asset)
-        } else {
-          src = (await fledgeApi.skins.getDataUrl(skinId)) ?? undefined
-          if (src) queryClient.setQueryData(['skin-data', skinId], src)
-        }
+        src = (await fledgeApi.skins.getDataUrl(skinId)) ?? undefined
+        if (src) queryClient.setQueryData(['skin-data', skinId], src)
       }
     } catch {
       return

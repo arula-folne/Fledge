@@ -11,6 +11,7 @@ pub struct AssetIndexInfo {
     pub id: String,
     pub url: String,
     pub sha1: Option<String>,
+    #[allow(dead_code)] // version JSON の totalSize（将来の進捗見積用）
     pub total_size: Option<u64>,
 }
 

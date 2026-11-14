@@ -1,6 +1,7 @@
 //! Vanilla + Fabric install (client jar, libraries, assets, natives).
 
-use crate::download::{download_json, download_to_file, download_to_file_ex};
+use crate::concurrency::ConcurrencyGate;
+use crate::download::{download_json, download_to_file_gated};
 use crate::error::{CoreError, CoreResult};
 use crate::minecraft::install_ready::{
     is_version_complete, natives_root, write_ready_record,
@@ -29,17 +30,19 @@ const FORGE_INSTALLER: &str =
 const NEOFORGE_INSTALLER: &str =
     "https://maven.neoforged.net/releases/net/neoforged/neoforge/{ver}/neoforge-{ver}-installer.jar";
 
-/// 1 インスタンス内のファイル並列数（設定の同時ダウンロード数＝インスタンス枠とは別）。
-const LIBRARY_DOWNLOAD_CONCURRENCY: usize = 24;
-const ASSET_DOWNLOAD_CONCURRENCY: usize = 24;
-
 pub struct InstallContext {
     pub minecraft_root: PathBuf,
     pub events: Arc<EventBus>,
     pub session_id: String,
+    pub concurrency: Arc<ConcurrencyGate>,
 }
 
 impl InstallContext {
+    fn file_concurrency(&self) -> usize {
+        // 背景プール専用。NIC を埋め尽くしすぎないよう上限を抑える
+        self.concurrency.max_fetch().clamp(1, 12)
+    }
+
     fn emit(&self, message_key: &str, current: f64, total: f64, status: Option<&str>) {
         let percent = if total > 0.0 {
             Some((current / total) * 100.0)
@@ -110,7 +113,7 @@ pub async fn install_vanilla(
     download_client_jar(ctx, &resolved).await?;
     download_libraries(ctx, &resolved).await?;
     download_assets(ctx, &resolved).await?;
-    extract_natives(ctx, minecraft_version, &resolved)?;
+    extract_natives(ctx, minecraft_version, &resolved).await?;
 
     Ok(minecraft_version.to_string())
 }
@@ -184,7 +187,7 @@ async fn install_loader_profile(
     download_client_jar(ctx, &resolved).await?;
     download_libraries(ctx, &resolved).await?;
     download_assets(ctx, &resolved).await?;
-    extract_natives(ctx, &id, &resolved)?;
+    extract_natives(ctx, &id, &resolved).await?;
 
     Ok(id)
 }
@@ -207,7 +210,7 @@ pub async fn install_forge(
         .replace("{forge}", forge_version);
     let installer = installer_temp_path(&ctx.minecraft_root, &format!("forge-{full}-installer.jar"))?;
     prepare_installer_download(&installer)?;
-    download_to_file(&url, &installer, None).await?;
+    download_to_file_gated(&url, &installer, None, None, Some(&ctx.concurrency)).await?;
     run_installer(java_path, &installer, &ctx.minecraft_root).await?;
 
     ctx.emit("launch.install.libraries", 1.0, 2.0, Some("running"));
@@ -237,7 +240,7 @@ pub async fn install_neoforge(
     let installer =
         installer_temp_path(&ctx.minecraft_root, &format!("neoforge-{neo_version}-installer.jar"))?;
     prepare_installer_download(&installer)?;
-    download_to_file(&url, &installer, None).await?;
+    download_to_file_gated(&url, &installer, None, None, Some(&ctx.concurrency)).await?;
     run_installer(java_path, &installer, &ctx.minecraft_root).await?;
 
     ctx.emit("launch.install.libraries", 1.0, 2.0, Some("running"));
@@ -478,14 +481,14 @@ pub async fn complete_installation(
     download_client_jar(ctx, &resolved).await?;
     download_libraries(ctx, &resolved).await?;
     download_assets(ctx, &resolved).await?;
-    extract_natives(ctx, version_id, &resolved)?;
+    extract_natives(ctx, version_id, &resolved).await?;
     Ok(())
 }
 
 pub async fn ensure_natives(ctx: &InstallContext, version_id: &str) -> CoreResult<()> {
     let resolved = load_resolved_version(&ctx.minecraft_root, version_id)?;
     ctx.emit("launch.install.natives", 0.0, 1.0, Some("running"));
-    extract_natives(ctx, version_id, &resolved)?;
+    extract_natives(ctx, version_id, &resolved).await?;
     ctx.emit("launch.install.natives", 1.0, 1.0, Some("succeeded"));
     Ok(())
 }
@@ -538,7 +541,7 @@ async fn download_client_jar(ctx: &InstallContext, resolved: &ResolvedVersion) -
         .join(jar_id)
         .join(format!("{jar_id}.jar"));
     ctx.emit("launch.install.client", 0.0, 1.0, Some("running"));
-    download_to_file(url, &dest, sha1).await?;
+    download_to_file_gated(url, &dest, sha1, None, Some(&ctx.concurrency)).await?;
     ctx.emit("launch.install.client", 1.0, 1.0, Some("succeeded"));
     Ok(())
 }
@@ -549,6 +552,8 @@ async fn download_libraries(ctx: &InstallContext, resolved: &ResolvedVersion) ->
     ctx.emit("launch.install.libraries", 0.0, total, Some("running"));
 
     let root = ctx.minecraft_root.clone();
+    let gate = Arc::clone(&ctx.concurrency);
+    let concurrency = ctx.file_concurrency();
     let tasks: Vec<_> = libs
         .iter()
         .flat_map(|lib| library_download_jobs(lib))
@@ -559,12 +564,13 @@ async fn download_libraries(ctx: &InstallContext, resolved: &ResolvedVersion) ->
     // 同時数を抑えつつ進捗を逐次更新（完了待ちの一括 collect は UI/ディスクを圧迫しやすい）
     let mut stream = stream::iter(tasks.into_iter().map(|(url, dest, sha)| {
         let root = root.clone();
+        let gate = Arc::clone(&gate);
         async move {
             let path = root.join("libraries").join(&dest);
-            download_to_file(&url, &path, sha.as_deref()).await
+            download_to_file_gated(&url, &path, sha.as_deref(), None, Some(&gate)).await
         }
     }))
-    .buffer_unordered(LIBRARY_DOWNLOAD_CONCURRENCY);
+    .buffer_unordered(concurrency);
 
     while let Some(r) = stream.next().await {
         r?;
@@ -619,14 +625,22 @@ async fn download_assets(ctx: &InstallContext, resolved: &ResolvedVersion) -> Co
         .join("assets")
         .join("indexes")
         .join(format!("{}.json", index_info.id));
-    download_to_file(
+    download_to_file_gated(
         &index_info.url,
         &index_path,
         index_info.sha1.as_deref(),
+        None,
+        Some(&ctx.concurrency),
     )
     .await?;
 
-    let index: Value = serde_json::from_str(&fs::read_to_string(&index_path)?)?;
+    let index_raw = {
+        let path = index_path.clone();
+        tokio::task::spawn_blocking(move || fs::read_to_string(path))
+            .await
+            .map_err(|e| CoreError::msg(e.to_string()))??
+    };
+    let index: Value = serde_json::from_str(&index_raw)?;
     let objects = index
         .get("objects")
         .and_then(|v| v.as_object())
@@ -634,6 +648,8 @@ async fn download_assets(ctx: &InstallContext, resolved: &ResolvedVersion) -> Co
         .unwrap_or_default();
     let total = objects.len().max(1) as f64;
     let objects_dir = ctx.minecraft_root.join("assets").join("objects");
+    let gate = Arc::clone(&ctx.concurrency);
+    let concurrency = ctx.file_concurrency();
 
     let jobs: Vec<(String, PathBuf, String, u64)> = objects
         .values()
@@ -650,11 +666,14 @@ async fn download_assets(ctx: &InstallContext, resolved: &ResolvedVersion) -> Co
         })
         .collect();
 
-    let results_stream = stream::iter(jobs.into_iter().map(|(url, dest, hash, size)| async move {
-        let expected_size = if size > 0 { Some(size) } else { None };
-        download_to_file_ex(&url, &dest, Some(&hash), expected_size).await
+    let results_stream = stream::iter(jobs.into_iter().map(|(url, dest, hash, size)| {
+        let gate = Arc::clone(&gate);
+        async move {
+            let expected_size = if size > 0 { Some(size) } else { None };
+            download_to_file_gated(&url, &dest, Some(&hash), expected_size, Some(&gate)).await
+        }
     }))
-    .buffer_unordered(ASSET_DOWNLOAD_CONCURRENCY);
+    .buffer_unordered(concurrency);
 
     let mut stream = results_stream;
     let mut done = 0f64;
@@ -669,46 +688,60 @@ async fn download_assets(ctx: &InstallContext, resolved: &ResolvedVersion) -> Co
     Ok(())
 }
 
-fn extract_natives(
+async fn extract_natives(
     ctx: &InstallContext,
     version_id: &str,
     resolved: &ResolvedVersion,
 ) -> CoreResult<()> {
-    let base = natives_root(&ctx.minecraft_root, version_id);
-    let lib_subdir = natives_library_subdir(&resolved.jvm_args);
-    let dest = match &lib_subdir {
-        Some(sub) => base.join(sub),
-        None => base.clone(),
-    };
+    let minecraft_root = ctx.minecraft_root.clone();
+    let version_id = version_id.to_string();
+    let jvm_args = resolved.jvm_args.clone();
+    let jars: Vec<PathBuf> = resolved
+        .libraries
+        .iter()
+        .filter_map(|lib| {
+            let native_rel = if let Some(p) = &lib.native_path {
+                Some(p.clone())
+            } else if lib.is_native_only {
+                lib.artifact_path.clone()
+            } else {
+                None
+            };
+            native_rel.map(|rel| minecraft_root.join("libraries").join(rel))
+        })
+        .collect();
 
-    // 旧ネスト展開や誤アーチ残骸を消してからフラット展開する
-    if base.is_dir() {
-        let _ = fs::remove_dir_all(&base);
-    }
-    fs::create_dir_all(&dest)?;
-    // 26.x の scratch 用兄弟ディレクトリ（実行時に作られてもよいが先に用意）
-    if lib_subdir.is_some() {
-        for scratch in ["jna", "lwjgl", "netty"] {
-            let _ = fs::create_dir_all(base.join(scratch));
-        }
-    }
-
-    for lib in &resolved.libraries {
-        let native_rel = if let Some(p) = &lib.native_path {
-            Some(p.clone())
-        } else if lib.is_native_only {
-            lib.artifact_path.clone()
-        } else {
-            None
+    let _io = ctx.concurrency.acquire_io(crate::concurrency::GateClass::Background).await;
+    tokio::task::spawn_blocking(move || {
+        let base = natives_root(&minecraft_root, &version_id);
+        let lib_subdir = natives_library_subdir(&jvm_args);
+        let dest = match &lib_subdir {
+            Some(sub) => base.join(sub),
+            None => base.clone(),
         };
-        let Some(rel) = native_rel else { continue };
-        let jar = ctx.minecraft_root.join("libraries").join(&rel);
-        if !jar.is_file() {
-            continue;
+
+        // 旧ネスト展開や誤アーチ残骸を消してからフラット展開する
+        if base.is_dir() {
+            let _ = fs::remove_dir_all(&base);
         }
-        extract_native_jar_flat(&jar, &dest)?;
-    }
-    Ok(())
+        fs::create_dir_all(&dest)?;
+        // 26.x の scratch 用兄弟ディレクトリ（実行時に作られてもよいが先に用意）
+        if lib_subdir.is_some() {
+            for scratch in ["jna", "lwjgl", "netty"] {
+                let _ = fs::create_dir_all(base.join(scratch));
+            }
+        }
+
+        for jar in jars {
+            if !jar.is_file() {
+                continue;
+            }
+            extract_native_jar_flat(&jar, &dest)?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|e| CoreError::msg(e.to_string()))?
 }
 
 /// JVM 引数の `-Djava.library.path=${natives_directory}/java` などから展開サブディレクトリを取る。

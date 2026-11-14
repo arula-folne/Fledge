@@ -1,5 +1,8 @@
 //! Fledge-managed Temurin JDKs (ports `packages/core/src/java/JavaManager.ts`).
 
+use crate::concurrency::ConcurrencyGate;
+use crate::concurrency::GateClass;
+use crate::download::{content_http_client, stream_download_to_file};
 use crate::error::{CoreError, CoreResult};
 use crate::paths::PathLayout;
 use crate::progress::{EventBus, ProgressEvent};
@@ -8,7 +11,7 @@ use serde::Serialize;
 use serde_json::json;
 use std::collections::HashMap;
 use std::fs;
-use std::io::{copy, Write};
+use std::io::copy;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
@@ -60,6 +63,7 @@ pub fn required_java_major(minecraft_version: &str) -> u32 {
 }
 
 pub struct JavaManager {
+    concurrency: Arc<ConcurrencyGate>,
     layout: PathLayout,
     events: Arc<EventBus>,
     path_memo: Mutex<HashMap<u32, String>>,
@@ -67,10 +71,15 @@ pub struct JavaManager {
 }
 
 impl JavaManager {
-    pub fn new(layout: PathLayout, events: Arc<EventBus>) -> Self {
+    pub fn new(
+        layout: PathLayout,
+        events: Arc<EventBus>,
+        concurrency: Arc<ConcurrencyGate>,
+    ) -> Self {
         Self {
             layout,
             events,
+            concurrency,
             path_memo: Mutex::new(HashMap::new()),
             inflight: Mutex::new(HashMap::new()),
         }
@@ -377,20 +386,38 @@ impl JavaManager {
         let dest_dir = self.install_dir(major);
         fs::create_dir_all(&self.layout.temp)?;
 
-        download_file_with_progress(
+        let events = Arc::clone(&self.events);
+        let session_id_owned = session_id.to_string();
+        let job_id_owned = job_id.to_string();
+        let mut last_emit = Instant::now();
+        stream_download_to_file(
+            content_http_client(),
             &api,
             &dest_zip,
+            None,
+            Some(&self.concurrency),
+            GateClass::Interactive,
             |current, total| {
-                self.emit_java_progress(
-                    session_id,
-                    job_id,
-                    current as f64,
-                    total.max(1) as f64,
-                    "settings.java.downloading",
-                    Some("running"),
-                    false,
-                    major,
-                );
+                if last_emit.elapsed().as_millis() < 200 && current + 1 < total {
+                    return;
+                }
+                last_emit = Instant::now();
+                events.emit_progress(ProgressEvent {
+                    scope: "transfer".into(),
+                    kind: Some("java".into()),
+                    session_id: Some(session_id_owned.clone()),
+                    job_id: Some(job_id_owned.clone()),
+                    current: current as f64,
+                    total: total.max(1) as f64,
+                    percent: Some((current as f64 / total.max(1) as f64) * 100.0),
+                    bytes_per_second: None,
+                    message_key: Some("settings.java.downloading".into()),
+                    status: Some("running".into()),
+                    meta: Some(json!({
+                      "major": major,
+                      "action": "install"
+                    })),
+                });
             },
         )
         .await?;
@@ -406,9 +433,17 @@ impl JavaManager {
             major,
         );
 
-        let _ = fs::remove_dir_all(&dest_dir);
-        fs::create_dir_all(&dest_dir)?;
-        extract_zip(&dest_zip, &dest_dir)?;
+        let dest_zip_bg = dest_zip.clone();
+        let dest_dir_bg = dest_dir.clone();
+        let _io = self.concurrency.acquire_io(GateClass::Interactive).await;
+        tokio::task::spawn_blocking(move || {
+            let _ = fs::remove_dir_all(&dest_dir_bg);
+            fs::create_dir_all(&dest_dir_bg)?;
+            extract_zip(&dest_zip_bg, &dest_dir_bg)
+        })
+        .await
+        .map_err(|e| CoreError::msg(e.to_string()))??;
+        drop(_io);
 
         let version_label = self.flatten_jdk_layout(&dest_dir)?;
         let java_exe = dest_dir.join("bin").join("java.exe");
@@ -472,10 +507,19 @@ impl JavaManager {
     }
 
     fn run_java_version(&self, java_path: impl AsRef<Path>) -> CoreResult<String> {
-        let output = Command::new(java_path.as_ref())
-            .arg("-version")
-            .output()
-            .map_err(|e| CoreError::msg(e.to_string()))?;
+        let mut cmd = Command::new(java_path.as_ref());
+        cmd.arg("-version")
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        // Windows で java.exe のコンソール黒窓が一瞬出るのを防ぐ
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+        let output = cmd.output().map_err(|e| CoreError::msg(e.to_string()))?;
         let stdout = String::from_utf8_lossy(&output.stdout);
         let stderr = String::from_utf8_lossy(&output.stderr);
         Ok(format!("{stdout}\n{stderr}"))
@@ -660,38 +704,3 @@ fn extract_zip(zip_path: &Path, dest_dir: &Path) -> CoreResult<()> {
     Ok(())
 }
 
-async fn download_file_with_progress<F>(
-    url: &str,
-    dest: &Path,
-    mut on_progress: F,
-) -> CoreResult<()>
-where
-    F: FnMut(u64, u64),
-{
-    use futures_util::StreamExt;
-    let client = reqwest::Client::new();
-    let response = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| CoreError::msg(e.to_string()))?
-        .error_for_status()
-        .map_err(|e| CoreError::msg(e.to_string()))?;
-    let total = response.content_length().unwrap_or(0);
-    let mut stream = response.bytes_stream();
-    let mut file = fs::File::create(dest)?;
-    let mut current = 0u64;
-    let mut last_emit = Instant::now();
-    on_progress(0, total.max(1));
-    while let Some(chunk) = stream.next().await {
-        let chunk = chunk.map_err(|e| CoreError::msg(e.to_string()))?;
-        file.write_all(&chunk)?;
-        current += chunk.len() as u64;
-        if last_emit.elapsed().as_millis() >= 100 || current == total {
-            on_progress(current, total.max(1));
-            last_emit = Instant::now();
-        }
-    }
-    file.flush()?;
-    Ok(())
-}

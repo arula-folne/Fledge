@@ -6,7 +6,8 @@ export function parseNewsTitle(title: string): { category: string | null; label:
   return { category: match[1] ?? null, label: match[2] || title }
 }
 
-export function newsCategoryClass(_category: string): string {
+export function newsCategoryClass(category: string): string {
+  void category
   return 'border-[var(--color-accent)]/25 bg-[var(--color-accent)]/10 text-[var(--color-accent)]'
 }
 

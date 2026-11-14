@@ -23,23 +23,17 @@ import {
   tutorialStepTarget,
 } from './interactiveTutorialSteps'
 
-const SPOTLIGHT_PAD = 10
+const SPOTLIGHT_PAD = 8
 const OVERLAY_Z = 100
-const CARD_MAX_WIDTH = 440
+const CARD_MAX_WIDTH = 360
+const SCENE_FADE_MS = 220
+/** サイドバー左下（Fledge / クレジット付近）に固定 */
+const CARD_LEFT = 12
+const CARD_BOTTOM = 12
 
 type Props = {
   persistOnComplete: boolean
   onDone: () => void
-}
-
-type ArrowGeometry = {
-  path: string
-  tipX: number
-  tipY: number
-}
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value))
 }
 
 function useSpotlightRect(targetId: string, refreshKey: string) {
@@ -98,54 +92,11 @@ function useSpotlightRect(targetId: string, refreshKey: string) {
   return { rect, missing }
 }
 
-/** 中央カード外周からターゲット中心へ向かう曲線矢印 */
-function computeArrow(card: DOMRect, target: DOMRect): ArrowGeometry | null {
-  const tx = target.left + target.width / 2
-  const ty = target.top + target.height / 2
-  const cx = card.left + card.width / 2
-  const cy = card.top + card.height / 2
-
-  const dx = tx - cx
-  const dy = ty - cy
-  const toTarget = Math.hypot(dx, dy)
-  if (toTarget < 48) return null
-
-  const ux = dx / toTarget
-  const uy = dy / toTarget
-
-  // カード矩形の縁上の出発点
-  const hw = card.width / 2
-  const hh = card.height / 2
-  const scale = Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh) || 1
-  const startX = cx + dx / scale
-  const startY = cy + dy / scale
-
-  // スポットライト手前で止める
-  const tipDist = Math.min(toTarget - 28, toTarget * 0.82)
-  const tipX = cx + ux * tipDist
-  const tipY = cy + uy * tipDist
-
-  const mx = (startX + tipX) / 2
-  const my = (startY + tipY) / 2
-  const nx = -uy
-  const ny = ux
-  const bulge = clamp(toTarget * 0.12, 24, 72)
-  const c1x = mx + nx * bulge
-  const c1y = my + ny * bulge
-
-  return {
-    path: `M ${startX} ${startY} Q ${c1x} ${c1y} ${tipX} ${tipY}`,
-    tipX,
-    tipY,
-  }
-}
-
 export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
-  const cardRef = useRef<HTMLDivElement>(null)
   const stepIndex = useInstallOnboardingStore((s) => s.interactiveStepIndex)
   const nextInteractiveStep = useInstallOnboardingStore((s) => s.nextInteractiveStep)
   const prevInteractiveStep = useInstallOnboardingStore((s) => s.prevInteractiveStep)
@@ -153,36 +104,42 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
   const setSettingsSection = useUiStore((s) => s.setSettingsSection)
 
   const [error, setError] = useState<string | null>(null)
-  const [cardRect, setCardRect] = useState<DOMRect | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
+  const [displayStepIndex, setDisplayStepIndex] = useState(stepIndex)
+  const [sceneVisible, setSceneVisible] = useState(true)
+  const fadeTimerRef = useRef<number | null>(null)
 
   const ctx = useMemo(() => ({} as const), [])
-  const step = INTERACTIVE_TUTORIAL_STEPS[stepIndex]
-  const route = step ? tutorialStepRoute(step, ctx) : '/'
+  const liveStep = INTERACTIVE_TUTORIAL_STEPS[stepIndex]
+  const step = INTERACTIVE_TUTORIAL_STEPS[displayStepIndex]
+  const route = liveStep ? tutorialStepRoute(liveStep, ctx) : '/'
   const targetId = step ? tutorialStepTarget(step, ctx) : ''
   const bodyKey = step ? tutorialStepBodyKey(step, ctx) : ''
 
-  const routeKey = `${route}|${step?.settingsSection ?? ''}|${stepIndex}`
+  const routeKey = `${route}|${liveStep?.settingsSection ?? ''}|${displayStepIndex}`
   const { rect, missing } = useSpotlightRect(targetId, routeKey)
 
-  useLayoutEffect(() => {
-    const card = cardRef.current
-    if (!card) return
-
-    const update = () => setCardRect(card.getBoundingClientRect())
-    update()
-    const observer = new ResizeObserver(update)
-    observer.observe(card)
-    window.addEventListener('resize', update)
+  useEffect(() => {
+    if (stepIndex === displayStepIndex) return
+    setSceneVisible(false)
+    if (fadeTimerRef.current != null) window.clearTimeout(fadeTimerRef.current)
+    fadeTimerRef.current = window.setTimeout(() => {
+      setDisplayStepIndex(stepIndex)
+      setError(null)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setSceneVisible(true))
+      })
+      fadeTimerRef.current = null
+    }, SCENE_FADE_MS)
     return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', update)
+      if (fadeTimerRef.current != null) {
+        window.clearTimeout(fadeTimerRef.current)
+        fadeTimerRef.current = null
+      }
     }
-  }, [stepIndex, bodyKey, error, previewUrl, t])
+  }, [stepIndex, displayStepIndex])
 
   useEffect(() => {
-    if (!step) return
+    if (!liveStep) return
     const qIndex = route.indexOf('?')
     const pathname = qIndex >= 0 ? route.slice(0, qIndex) : route
     const search = qIndex >= 0 ? route.slice(qIndex) : ''
@@ -191,101 +148,10 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
     if (current !== next) {
       navigate(next)
     }
-    if (step.settingsSection) {
-      setSettingsSection(step.settingsSection)
+    if (liveStep.settingsSection) {
+      setSettingsSection(liveStep.settingsSection)
     }
-  }, [step, route, location.pathname, location.search, navigate, setSettingsSection])
-
-  // 該当 UI を切り抜いたプレビュー（スクショ相当）をダイアログ内に表示
-  useEffect(() => {
-    let cancelled = false
-    let objectUrl: string | null = null
-
-    setPreviewUrl(null)
-    if (!rect || missing) {
-      setPreviewLoading(false)
-      return
-    }
-
-    setPreviewLoading(true)
-    const timer = window.setTimeout(async () => {
-      const el = document.querySelector(`[data-fledge-tutorial="${targetId}"]`)
-      if (!(el instanceof HTMLElement)) {
-        if (!cancelled) setPreviewLoading(false)
-        return
-      }
-
-      try {
-        const { domToPng } = await import('modern-screenshot')
-        const raw = await domToPng(el, {
-          scale: Math.min(2, window.devicePixelRatio || 1),
-          backgroundColor: getComputedStyle(document.body).backgroundColor || '#1a1a1c',
-          style: {
-            // 切り出し時に影やオーバーレイが乗らないよう
-            transform: 'none',
-          },
-        })
-
-        // スポットライト枠＋矢印ラベル風の注釈を乗せる
-        const img = new Image()
-        await new Promise<void>((resolve, reject) => {
-          img.onload = () => resolve()
-          img.onerror = () => reject(new Error('preview decode failed'))
-          img.src = raw
-        })
-        if (cancelled) return
-
-        const pad = 28
-        const canvas = document.createElement('canvas')
-        canvas.width = img.width + pad * 2
-        canvas.height = img.height + pad * 2
-        const ctx2 = canvas.getContext('2d')
-        if (!ctx2) {
-          if (!cancelled) {
-            setPreviewUrl(raw)
-            setPreviewLoading(false)
-          }
-          return
-        }
-
-        ctx2.fillStyle = 'rgba(8, 10, 14, 0.92)'
-        ctx2.fillRect(0, 0, canvas.width, canvas.height)
-
-        // 外側の薄いリング
-        ctx2.save()
-        ctx2.shadowColor = 'rgba(91, 164, 217, 0.55)'
-        ctx2.shadowBlur = 18
-        ctx2.fillStyle = '#fff'
-        roundRect(ctx2, pad - 4, pad - 4, img.width + 8, img.height + 8, 14)
-        ctx2.fill()
-        ctx2.restore()
-
-        ctx2.drawImage(img, pad, pad)
-
-        // コーナーの注釈ドット
-        ctx2.fillStyle = 'rgb(91, 164, 217)'
-        ctx2.beginPath()
-        ctx2.arc(pad + 10, pad + 10, 5, 0, Math.PI * 2)
-        ctx2.fill()
-
-        objectUrl = canvas.toDataURL('image/png')
-        if (!cancelled) {
-          setPreviewUrl(objectUrl)
-          setPreviewLoading(false)
-        }
-      } catch {
-        if (!cancelled) {
-          setPreviewUrl(null)
-          setPreviewLoading(false)
-        }
-      }
-    }, 180)
-
-    return () => {
-      cancelled = true
-      window.clearTimeout(timer)
-    }
-  }, [rect, missing, targetId, routeKey])
+  }, [liveStep, route, location.pathname, location.search, navigate, setSettingsSection])
 
   const completeMutation = useMutation({
     mutationFn: async () => {
@@ -331,8 +197,8 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
 
   if (!step) return null
 
-  const isFirst = stepIndex === 0
-  const isLast = stepIndex >= INTERACTIVE_TUTORIAL_STEP_COUNT - 1
+  const isFirst = displayStepIndex === 0
+  const isLast = displayStepIndex >= INTERACTIVE_TUTORIAL_STEP_COUNT - 1
 
   const spotlightStyle: CSSProperties | null = rect
     ? {
@@ -342,16 +208,17 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
         width: rect.width + SPOTLIGHT_PAD * 2,
         height: rect.height + SPOTLIGHT_PAD * 2,
         borderRadius: 'var(--radius-md)',
-        boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.62)',
-        outline: '2px solid color-mix(in srgb, var(--color-accent) 75%, white)',
-        outlineOffset: 2,
+        boxShadow:
+          '0 0 0 2px color-mix(in srgb, var(--color-accent) 70%, white), 0 0 24px color-mix(in srgb, var(--color-accent) 35%, transparent)',
         pointerEvents: 'none',
         zIndex: OVERLAY_Z,
       }
     : null
 
-  const arrow =
-    cardRect && rect && !missing ? computeArrow(cardRect, rect) : null
+  const sceneStyle: CSSProperties = {
+    opacity: sceneVisible ? 1 : 0,
+    transition: `opacity ${SCENE_FADE_MS}ms ease`,
+  }
 
   return createPortal(
     <div
@@ -361,97 +228,48 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
       aria-labelledby="fledge-tutorial-title"
       aria-describedby="fledge-tutorial-body"
     >
-      {/* 背面操作を止める透明レイヤ（スポットライトは別描画） */}
       <div className="absolute inset-0" aria-hidden />
-      {spotlightStyle ? <div style={spotlightStyle} aria-hidden /> : null}
-      {!spotlightStyle ? <div className="absolute inset-0 bg-black/62" aria-hidden /> : null}
 
-      {arrow ? (
-        <svg
-          className="pointer-events-none absolute inset-0 h-full w-full"
-          style={{ zIndex: OVERLAY_Z + 1 }}
-          aria-hidden
-        >
-          <defs>
-            <marker
-              id="fledge-tutorial-arrowhead"
-              markerWidth="10"
-              markerHeight="10"
-              refX="8"
-              refY="5"
-              orient="auto"
-            >
-              <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--color-accent)" />
-            </marker>
-          </defs>
-          <path
-            d={arrow.path}
-            fill="none"
-            stroke="var(--color-accent)"
-            strokeWidth="3"
-            strokeLinecap="round"
-            markerEnd="url(#fledge-tutorial-arrowhead)"
-            opacity="0.95"
-          />
-          <circle
-            cx={arrow.tipX}
-            cy={arrow.tipY}
-            r="5"
-            fill="var(--color-accent)"
-            opacity="0.9"
-          />
-        </svg>
-      ) : null}
+      <div style={sceneStyle} className="pointer-events-none absolute inset-0">
+        {spotlightStyle ? <div style={spotlightStyle} aria-hidden /> : null}
+      </div>
 
-      {/* 常に画面中央の説明ダイアログ */}
+      {/* 左下（Fledge / クレジット付近）に固定。矢印なし・強調のみ */}
       <div
-        className="pointer-events-none absolute inset-0 flex items-center justify-center p-4"
-        style={{ zIndex: OVERLAY_Z + 2 }}
+        className="pointer-events-none absolute inset-0"
+        style={{ zIndex: OVERLAY_Z + 2, ...sceneStyle }}
       >
         <div
-          ref={cardRef}
-          className="pointer-events-auto flex w-full max-h-[min(86vh,40rem)] flex-col overflow-hidden rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-surface)] shadow-xl"
+          className={[
+            'pointer-events-auto absolute flex w-full max-h-[min(50vh,22rem)] flex-col overflow-hidden',
+            'rounded-[1.25rem] border border-white/18',
+            'bg-[color-mix(in_srgb,var(--color-surface)_55%,transparent)]',
+            'shadow-[0_12px_40px_rgba(0,0,0,0.28)]',
+            'backdrop-blur-xl backdrop-saturate-150',
+            'supports-[not(backdrop-filter:blur(0))]:bg-[var(--color-surface)]',
+          ].join(' ')}
           style={{
-            maxWidth: `min(${CARD_MAX_WIDTH}px, calc(100vw - 2rem))`,
-            animation: 'fledge-dialog-in 200ms ease-out',
+            left: CARD_LEFT,
+            bottom: CARD_BOTTOM,
+            width: `min(${CARD_MAX_WIDTH}px, calc(100vw - ${CARD_LEFT * 2}px))`,
           }}
         >
-          <div className="shrink-0 border-b border-[var(--color-border)] px-5 py-3.5">
-            <p className="text-xs font-medium text-[var(--color-accent)]">
+          <div className="shrink-0 px-5 pb-2 pt-4">
+            <p className="text-[11px] font-medium tracking-wide text-[var(--color-accent)]">
               {t('onboarding.tutorialProgress', {
-                current: stepIndex + 1,
+                current: displayStepIndex + 1,
                 total: INTERACTIVE_TUTORIAL_STEP_COUNT,
               })}
             </p>
             <h2
               id="fledge-tutorial-title"
-              className="mt-1 text-base font-semibold text-[var(--color-text)]"
+              className="mt-1.5 text-[1.05rem] font-semibold leading-snug text-[var(--color-text)]"
             >
               {t(`onboarding.tutorial.${step.id}.title`)}
             </h2>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-            {(previewUrl || previewLoading) && !missing ? (
-              <div className="mb-4 overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]">
-                {previewLoading && !previewUrl ? (
-                  <div className="flex h-36 items-center justify-center text-xs text-[var(--color-text-muted)]">
-                    {t('onboarding.tutorialPreviewLoading')}
-                  </div>
-                ) : previewUrl ? (
-                  <img
-                    src={previewUrl}
-                    alt=""
-                    className="mx-auto max-h-48 w-full object-contain"
-                    draggable={false}
-                  />
-                ) : null}
-                <p className="border-t border-[var(--color-border)] px-3 py-1.5 text-[11px] text-[var(--color-text-muted)]">
-                  {t('onboarding.tutorialPreviewCaption')}
-                </p>
-              </div>
-            ) : null}
-
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">
             <p
               id="fledge-tutorial-body"
               className="whitespace-pre-line text-sm leading-relaxed text-[var(--color-text-muted)]"
@@ -463,7 +281,7 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
 
           <div
             className={[
-              'flex shrink-0 flex-wrap items-center gap-2 border-t border-[var(--color-border)] px-5 py-3',
+              'flex shrink-0 flex-wrap items-center gap-2 px-5 pb-4 pt-2',
               isFirst ? 'justify-end' : 'justify-between',
             ].join(' ')}
           >
@@ -471,7 +289,7 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
               <Button
                 variant="secondary"
                 type="button"
-                disabled={completeMutation.isPending}
+                disabled={completeMutation.isPending || !sceneVisible}
                 onClick={prevInteractiveStep}
               >
                 {t('onboarding.back')}
@@ -482,7 +300,7 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
                 <Button
                   variant="secondary"
                   type="button"
-                  disabled={completeMutation.isPending}
+                  disabled={completeMutation.isPending || !sceneVisible}
                   onClick={finish}
                 >
                   {t('onboarding.tutorialEnd')}
@@ -492,13 +310,18 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
                 <Button
                   variant="primary"
                   type="button"
-                  disabled={completeMutation.isPending}
+                  disabled={completeMutation.isPending || !sceneVisible}
                   onClick={finish}
                 >
                   {completeMutation.isPending ? t('common.loading') : t('onboarding.finish')}
                 </Button>
               ) : (
-                <Button variant="primary" type="button" onClick={nextInteractiveStep}>
+                <Button
+                  variant="primary"
+                  type="button"
+                  disabled={!sceneVisible}
+                  onClick={nextInteractiveStep}
+                >
                   {t('onboarding.next')}
                 </Button>
               )}
@@ -509,22 +332,4 @@ export function InteractiveTutorialOverlay({ persistOnComplete, onDone }: Props)
     </div>,
     getFledgeUiScaleRoot(),
   )
-}
-
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number,
-) {
-  const radius = Math.min(r, w / 2, h / 2)
-  ctx.beginPath()
-  ctx.moveTo(x + radius, y)
-  ctx.arcTo(x + w, y, x + w, y + h, radius)
-  ctx.arcTo(x + w, y + h, x, y + h, radius)
-  ctx.arcTo(x, y + h, x, y, radius)
-  ctx.arcTo(x, y, x + w, y, radius)
-  ctx.closePath()
 }

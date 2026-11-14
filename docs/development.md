@@ -18,17 +18,14 @@
 
 ```powershell
 pnpm install
-pnpm approve-builds --all
 pnpm --filter @fledge/shared build
 pnpm --filter @fledge/i18n build
-pnpm --filter @fledge/core build
 pnpm dev
 ```
 
-`pnpm install` の `postinstall` で `scripts/patch-xmcl.js` が走ります。  
 ルートの `pnpm dev` は `pnpm --filter @fledge/desktop dev` と同じです。
 
-開発時のデータルートは `apps/desktop/.fledge-root/` です（gitignore 済み）。本番の既定 settingsRoot は `%APPDATA%/fledge` で、インストール先（exe 横）にはアプリ本体だけを置きます。シェルは **Tauri 2**（詳細は [tauri-0.5.md](./tauri-0.5.md)）。Electron は 0.5 で非推奨です。
+開発時のデータルートは `apps/desktop/.fledge-root/` です（gitignore 済み）。本番の既定 settingsRoot は `%APPDATA%/fledge` で、インストール先（exe 横）にはアプリ本体だけを置きます。シェルは **Tauri 2**（詳細は [tauri-0.5.md](./tauri-0.5.md)）。
 
 ## バージョン表記
 
@@ -63,19 +60,9 @@ pnpm dev
 
 配布するのは **Tauri NSIS インストーラー**（`Fledge_*_x64-setup.exe`）だけです。0.4.x の Electron `Fledge-Setup.exe` とは別物です。portable ターゲットは配布しません。
 
-正規の経路は GitHub Actions（将来）または手元の `pnpm tauri:build` です。0.4 系向け世代ロックにより、0.4.6 クライアントは 0.5+ を自動更新しません。
+正規の経路は GitHub Actions（`.github/workflows/release.yml`）または手元の `pnpm tauri:build` です。0.4 系向け世代ロックにより、0.4.6 クライアントは 0.5+ を自動更新しません。
 
 リリースページの本文はリポジトリ直下の `RELEASE_NOTES.md` から取り込みます（自動生成ノートは使いません）。タグを切る前に、そのバージョンの更新内容を `RELEASE_NOTES.md` に書いてください。見出しは `**Fledge Ver.X.Y.Z**` のみとし、「（第3世代・Tauri シェル / Latest）」のような括弧書きは付けません。お知らせ（`news/news.ja.json`）も従来どおり手動追加します。
-
-## `@xmcl` のエントリ修正
-
-npm 上の `@xmcl/core` / `@xmcl/installer` は `main` がソースを指していることがあります。  
-`postinstall` の `scripts/patch-xmcl.js` と `pnpm-workspace.yaml` の `packageExtensions` で dist を指すようにしています。  
-依存を入れ直したあとにモジュール解決がおかしいときは、`node scripts/patch-xmcl.js` を再実行してください。
-
-## Electron（非推奨）
-
-0.5 以降の正経路は Tauri です。`apps/desktop/electron/` は参照用に残していますが、`dev:electron` / `build:electron` / `dist:electron` は無効化しています。Electron バイナリの手動配置手順は不要です。
 
 ## 環境変数
 
@@ -91,12 +78,12 @@ OpenAI / Anthropic / Gemini / GitHub PAT / CurseForge など個人用 API キー
 ## パッケージの依存方向
 
 ```
-@fledge/desktop  →  @fledge/core, @fledge/shared, @fledge/i18n
-@fledge/core     →  @fledge/shared
+@fledge/desktop  →  @fledge/shared, @fledge/i18n
 @fledge/i18n     →  （文言のみ）
+crates/fledge-core  ←  apps/desktop/src-tauri
 ```
 
-IPC の追加は `packages/shared` のチャネル名と Zod スキーマを先に直し、メインの `registerIpc` とプリロード、レンダラーの `fledgeApi` を揃えます。
+IPC の追加は `packages/shared` のチャネル名と Zod スキーマを先に直し、Tauri コマンドとレンダラーの `fledgeApi` を揃えます。
 
 ## UI
 

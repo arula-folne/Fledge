@@ -8,10 +8,10 @@ export function isFavoritesTab(tab: ContentSearchTab): tab is 'favorites' {
   return tab === 'favorites'
 }
 
-/** カテゴリ楕円内の並び: Modpack → Mod → リソースパック → データパック → シェーダー */
+/** カテゴリ楕円内の並び: Mod → Modpack → リソースパック → データパック → シェーダー */
 const BROWSE_CATEGORY_ORDER: ContentCategory[] = [
-  'modpack',
   'mod',
+  'modpack',
   'resourcepack',
   'datapack',
   'shader',
@@ -53,13 +53,25 @@ export function instanceBrowseSearchTabs(
 
 export function defaultInstanceBrowseTab(loader: Loader = 'fabric'): ContentSearchTab {
   const tabs = instanceBrowseSearchTabs(loader)
-  if (tabs.includes('mod')) return 'mod'
-  const first = tabs.find((tab) => !isFavoritesTab(tab))
-  return first ?? 'resourcepack'
+  return defaultBrowseTabForProvider('modrinth', tabs)
 }
 
 export function defaultBrowsePageTab(): ContentSearchTab {
-  return 'modpack'
+  return 'mod'
+}
+
+/**
+ * 配布元切替時の既定カテゴリ。
+ * いずれも mod（一覧にあれば）。なければ最初の実カテゴリ。お気に入りは呼び出し側で維持する。
+ */
+export function defaultBrowseTabForProvider(
+  provider: ContentCatalogProviderId,
+  tabs?: readonly ContentSearchTab[],
+): ContentSearchTab {
+  const list = tabs ?? browsePageSearchTabs(provider)
+  if (list.includes('mod')) return 'mod'
+  const first = list.find((tab) => !isFavoritesTab(tab))
+  return first ?? 'mod'
 }
 
 export function contentTabsAsCategories(tabs: ContentSearchTab[]): ContentCategory[] {

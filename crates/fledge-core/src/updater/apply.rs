@@ -148,12 +148,12 @@ Log "wait pid=" & pid
 Do
   Set col = wmi.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ProcessId=" & pid)
   If col.Count = 0 Then Exit Do
-  WScript.Sleep 800
+  WScript.Sleep 250
 Loop
 Log "pid exited, settling"
-WScript.Sleep 2500
+WScript.Sleep 600
 KillFledgeApps
-WScript.Sleep 1500
+WScript.Sleep 350
 If Not fso.FileExists(installer) Then
   Log "ERROR installer missing"
   WScript.Quit 2
@@ -191,17 +191,17 @@ If fso.GetFile(app).Size < 1000000 Then
   WScript.Quit 4
 End If
 KillFledgeApps
-WScript.Sleep 1200
+WScript.Sleep 300
 Log "starting app " & app
 ' cmd start で完全に独立起動（wscript 終了後も残る）
 sh.Run "cmd.exe /c start """" /B """ & app & """ --updated", 0, True
-WScript.Sleep 3500
+WScript.Sleep 1200
 If CountFledgeApps() = 0 Then
   Log "retry launch (single-instance race?)"
   KillFledgeApps
-  WScript.Sleep 1000
+  WScript.Sleep 400
   sh.Run "cmd.exe /c start """" /B """ & app & """ --updated", 0, True
-  WScript.Sleep 2500
+  WScript.Sleep 1200
   If CountFledgeApps() = 0 Then
     Log "ERROR app did not stay running after launch"
     WScript.Quit 5

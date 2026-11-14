@@ -1,5 +1,5 @@
 /**
- * Tauri bridge: injects `window.fledge` with the same surface as Electron preload.
+ * Tauri bridge: injects `window.fledge` for the renderer API surface.
  * Uses a single `fledge_invoke` command so ACL stays simple during migration.
  */
 import { invoke } from '@tauri-apps/api/core'

@@ -9,9 +9,10 @@ import {
   type UpdateCheckResult,
 } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
+import { createProgressThrottler } from '../../features/launch/progressThrottle'
 import { Dialog } from '../ui/Dialog'
 import { Button } from '../ui/Button'
-import { ProgressBar } from '../ui/ProgressBar'
+import { CircularProgress } from '../ui/CircularProgress'
 import { HoverTip } from '../ui/HoverTip'
 import { MarkdownBody } from '../../features/content/MarkdownBody'
 
@@ -66,17 +67,20 @@ export function UpdateAvailableBanner() {
   })
 
   useEffect(() => {
-    return fledgeApi.on.progress((e: ProgressEvent) => {
+    const deliver = createProgressThrottler((e: ProgressEvent) => {
       if (e.scope !== 'updater' || e.jobId !== 'app-updater') return
       if (e.messageKey === 'updater.downloading') {
         setPhase('downloading')
-        setPercent(
+        const next =
           typeof e.percent === 'number'
             ? e.percent
             : e.total > 0
               ? (e.current / e.total) * 100
-              : 0,
-        )
+              : 0
+        setPercent((prev) => {
+          const rounded = Math.round(next)
+          return Math.round(prev) === rounded ? prev : rounded
+        })
       } else if (e.messageKey === 'updater.preparing') {
         setPhase('preparing')
         setPercent(100)
@@ -84,7 +88,8 @@ export function UpdateAvailableBanner() {
         setPhase('restarting')
         setPercent(100)
       }
-    })
+    }, 280)
+    return fledgeApi.on.progress(deliver)
   }, [])
 
   useEffect(() => {
@@ -297,14 +302,21 @@ export function UpdateAvailableBanner() {
           </p>
 
           {applying ? (
-            <div className="space-y-3 py-2">
-              <p className="font-medium">{phaseLabel}</p>
-              <ProgressBar percent={percent > 0 ? percent : 8} />
-              <p className="text-sm text-[var(--color-text-muted)]">
-                {phase === 'restarting'
-                  ? t('updater.restartingHint')
-                  : t('updater.progressHint')}
-              </p>
+            <div className="flex flex-col items-center gap-4 py-4">
+              <CircularProgress
+                percent={percent > 0 ? percent : 0}
+                size={88}
+                strokeWidth={5}
+                labelClassName="text-sm font-semibold"
+              />
+              <div className="space-y-1.5 text-center">
+                <p className="font-medium">{phaseLabel}</p>
+                <p className="text-sm text-[var(--color-text-muted)]">
+                  {phase === 'restarting'
+                    ? t('updater.restartingHint')
+                    : t('updater.progressHint')}
+                </p>
+              </div>
             </div>
           ) : (
             <>

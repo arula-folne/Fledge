@@ -20,7 +20,7 @@ Fledge は、Minecraft Java Edition を起動するための **非公式デス�
 ゲーム本体やライブラリは共有するので、同じバージョンを複数のインスタンスで使い回せます。  
 ランチャー設定とアカウントは AppData に、インスタンス等はデータディレクトリに置き、アプリ更新でも消えにくい構成です。
 
-オープンソース（[GPL-3.0](./LICENSE)）として公開しています。現在は **Ver.0.6.8** です。
+オープンソース（[GPL-3.0](./LICENSE)）として公開しています。現在は **Ver.0.7.0** です。
 
 ## Fledge らしさ
 
@@ -169,21 +169,19 @@ Issue・要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) 
 
 ```
 Fledge/
-  apps/desktop/          Tauri + React UI（electron/ は 0.4 参照・非推奨）
+  apps/desktop/          Tauri + React UI
   crates/fledge-core/    Rust ランチャー中核
   packages/shared/       型・IPC 契約
   packages/i18n/         文言
   docs/                  仕様・開発資料
 ```
 
-前提は Node.js 20+、pnpm 11+ です。最短の起動は次のとおりです。
+前提は Node.js 20+、pnpm 11+、Rust stable です。最短の起動は次のとおりです。
 
 ```powershell
 pnpm install
-pnpm approve-builds --all
 pnpm --filter @fledge/shared build
 pnpm --filter @fledge/i18n build
-pnpm --filter @fledge/core build
 pnpm dev
 ```
 

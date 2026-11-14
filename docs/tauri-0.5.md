@@ -1,7 +1,7 @@
 # Fledge 0.5 — Tauri 開発メモ（ローカル）
 
 Ver.0.5.0 からシェルは **Tauri 2 + Rust** です。UI（React）は 0.4.x と同じ見た目を維持し、IPC だけ差し替えています。  
-**Electron は非推奨**です（`dev` / `build` / 配布の正経路は Tauri）。`electron/` ソースは参照用に残していますが、`dev:electron` 等は無効化しています。
+`dev` / `build` / 配布の正経路は Tauri です。
 
 ## 前提
 

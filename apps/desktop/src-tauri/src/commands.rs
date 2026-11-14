@@ -30,7 +30,11 @@ async fn dispatch(
         "settings:set" => {
             let touches_window = crate::window_chrome::settings_patch_touches_window(&args);
             let discord_changed = args.get("discordRichPresence").is_some();
-            let next = state.settings.set(args).map_err(map_err)?;
+            let settings = Arc::clone(&state.settings);
+            let next = tokio::task::spawn_blocking(move || settings.set(args))
+                .await
+                .map_err(|e| e.to_string())?
+                .map_err(map_err)?;
             state.auth.set_client_id(
                 next.get("msaClientId").and_then(|v| v.as_str()),
             );
@@ -463,7 +467,7 @@ async fn dispatch(
             Ok(result)
         }
         "content:install-local" => {
-            let result = state.content.install_local(&args).map_err(map_err)?;
+            let result = state.content.install_local(&args).await.map_err(map_err)?;
             Ok(result)
         }
         "content:list-installed" => {
@@ -950,8 +954,8 @@ async fn dispatch(
             state.updater.apply(channel).await.map_err(map_err)?;
             let handle = app.clone();
             tauri::async_runtime::spawn(async move {
-                // 待機スクリプトが Job 外で生きていることを確認してから終了
-                tokio::time::sleep(std::time::Duration::from_millis(1500)).await;
+                // 待機スクリプトが Job 外で生きていることを確認してから終了（短めに）
+                tokio::time::sleep(std::time::Duration::from_millis(350)).await;
                 handle.exit(0);
             });
             Ok(Value::Null)
@@ -996,7 +1000,9 @@ async fn dispatch(
             Ok(Value::Null)
         }
         "window:maximize-toggle" => {
-            if window.is_maximized().map_err(|e| e.to_string())? {
+            // 状態照会と操作をまとめて即返す（フロントは楽観更新済み）
+            let maximized = window.is_maximized().unwrap_or(false);
+            if maximized {
                 window.unmaximize().map_err(|e| e.to_string())?;
             } else {
                 window.maximize().map_err(|e| e.to_string())?;

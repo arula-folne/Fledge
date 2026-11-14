@@ -28,9 +28,20 @@ export function WindowChrome({ children }: { children: ReactNode }) {
   const [viewport, setViewport] = useState(() => readWindowLogicalSize())
 
   useEffect(() => {
-    const onResize = () => setViewport(readWindowLogicalSize())
+    let raf = 0
+    const onResize = () => {
+      // 最大化直後の連続 resize で CSS zoom が暴れて黒くちらつくのを抑える
+      if (raf) cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        setViewport(readWindowLogicalSize())
+      })
+    }
     window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
+    return () => {
+      if (raf) cancelAnimationFrame(raf)
+      window.removeEventListener('resize', onResize)
+    }
   }, [])
 
   const contentZoom = contentUiZoomFactor(uiScale, viewport.w, viewport.h)

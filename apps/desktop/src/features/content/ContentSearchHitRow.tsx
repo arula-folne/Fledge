@@ -56,7 +56,7 @@ export function ContentSearchHitRow({
   const updatedLabel = formatRelativeTime(hit.dateModified, t)
 
   return (
-    <li>
+    <li className="[content-visibility:auto] [contain-intrinsic-size:auto_5.75rem]">
       <div
         className={[
           'flex min-h-[5.75rem] items-center gap-4 overflow-x-clip px-4 py-3',

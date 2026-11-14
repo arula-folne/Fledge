@@ -24,12 +24,15 @@ import {
 import {
   DEFAULT_INSTANCE_ICON_PRESET,
   loaderToContentFilters,
+  pickPreferredContentVersion,
   requiredJavaMajor,
+  type InstalledContent,
   type InstanceIconPreset,
   type InstanceSubfolder,
   type Loader,
 } from '@fledge/shared'
 import { fledgeApi } from '../api/fledgeApi'
+import { mapWithConcurrency } from '../utils/mapWithConcurrency'
 import { RouteErrorBoundary } from '../components/RouteErrorBoundary'
 import { Button } from '../components/ui/Button'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
@@ -315,6 +318,7 @@ export default function LibraryDetailPage() {
       const gameVersion = pendingContentTarget.minecraftVersion
       const loaders = loaderToContentFilters(pendingContentTarget.loader)
       const installed = await fledgeApi.content.listInstalled(instance.id)
+      const toInstall: InstalledContent[] = []
       for (const item of installed) {
         if (item.provider === 'local' || item.projectId.startsWith('pack:')) continue
         const useLoaders = item.category === 'mod' || item.category === 'modpack'
@@ -323,18 +327,25 @@ export default function LibraryDetailPage() {
           gameVersion,
           loaders: useLoaders ? loaders : [],
         })
-        const compatible =
-          versions.find((v) => !v.versionType || v.versionType === 'release') ?? versions[0]
+        const compatible = pickPreferredContentVersion(versions)
         if (!compatible || compatible.id === item.versionId) continue
-        await fledgeApi.content.install({
+        toInstall.push({ ...item, versionId: compatible.id })
+      }
+      // enqueue も制限（実 DL / 配置はバックエンド枠）
+      const results = await mapWithConcurrency(toInstall, 2, (item) => {
+        const useLoaders = item.category === 'mod' || item.category === 'modpack'
+        return fledgeApi.content.install({
           instanceId: instance.id,
           provider: item.provider,
           projectId: item.projectId,
           category: item.category,
-          versionId: compatible.id,
+          versionId: item.versionId,
           gameVersion,
           loaders: useLoaders ? loaders : [],
         })
+      })
+      if (results.some((r) => r.status === 'rejected')) {
+        throw new Error('Some content updates failed to queue')
       }
     },
     onSuccess: async () => {

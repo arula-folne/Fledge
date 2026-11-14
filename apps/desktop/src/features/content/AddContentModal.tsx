@@ -1,4 +1,13 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  startTransition,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { IconX } from '@tabler/icons-react'
@@ -15,7 +24,12 @@ import {
 import { fledgeApi } from '../../api/fledgeApi'
 import { PageNav } from '../../components/ui/PageNav'
 import { Select } from '../../components/ui/Select'
+import { mapWithConcurrency } from '../../utils/mapWithConcurrency'
 import { useTransferStore } from '../../stores/appStores'
+import {
+  contentInstallingProjectIdsKey,
+  parseProjectIdsKey,
+} from '../transfers/transferSelectors'
 import { ContentBrowseFilters } from './ContentBrowseFilters'
 import { ContentProviderSourceTabs } from './ContentProviderSourceTabs'
 import { ContentSearchBar } from './ContentSearchBar'
@@ -38,6 +52,7 @@ import { ContentSearchHitList } from './ContentSearchHitList'
 import { ContentSearchHitRow } from './ContentSearchHitRow'
 import { FavoriteCategoryFilters } from './FavoriteCategoryFilters'
 import {
+  defaultBrowseTabForProvider,
   defaultInstanceBrowseTab,
   instanceBrowseSearchTabs,
   contentTabsAsCategories,
@@ -145,23 +160,12 @@ export function AddContentModal({
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [bulkInstalling, setBulkInstalling] = useState(false)
-  const jobs = useTransferStore((s) => s.jobs)
+  const installingIdsKey = useTransferStore((s) =>
+    contentInstallingProjectIdsKey(s.jobs, instance.id, true),
+  )
   const { mark, unmark, reset, showsInstalled, pendingVersionId, pendingProjectIds } =
     useOptimisticContentInstalls()
-  const installingIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const job of Object.values(jobs)) {
-      if (
-        job.kind === 'content' &&
-        job.meta.instanceId === instance.id &&
-        (job.status === 'queued' || job.status === 'active') &&
-        typeof job.meta.projectId === 'string'
-      ) {
-        ids.add(job.meta.projectId)
-      }
-    }
-    return ids
-  }, [jobs, instance.id])
+  const installingIds = useMemo(() => parseProjectIdsKey(installingIdsKey), [installingIdsKey])
   const { favorites, isFavorite, toggleFavorite } = useContentFavorites()
   const allowedCategories = useMemo(
     () => new Set(contentCategoriesForLoader(instance.loader)),
@@ -213,11 +217,8 @@ export function AddContentModal({
 
   useEffect(() => {
     const tabs = instanceBrowseSearchTabs(instance.loader, catalogProvider)
-    if (!tabs.includes(searchTab)) {
-      const next =
-        tabs.find((tab) => !isFavoritesTab(tab)) ?? defaultInstanceBrowseTab(instance.loader)
-      setSearchTab(next)
-    }
+    if (tabs.includes(searchTab)) return
+    setSearchTab(defaultBrowseTabForProvider(catalogProvider, tabs))
   }, [instance.loader, catalogProvider, searchTab])
 
   useEffect(() => {
@@ -240,6 +241,8 @@ export function AddContentModal({
 
   useEffect(() => {
     setTags([])
+    setQuery('')
+    setDebouncedQuery('')
   }, [searchTab, favoriteCategory])
 
   useEffect(() => {
@@ -269,7 +272,7 @@ export function AddContentModal({
       return queryClient.prefetchQuery({
         queryKey: ['content-search', input],
         queryFn: () => fledgeApi.content.search(input),
-        staleTime: 30_000,
+        staleTime: 90_000,
         gcTime: 90_000,
       })
     },
@@ -324,7 +327,8 @@ export function AddContentModal({
     enabled: open && browseMode && !projectId && !isFavoritesTab(searchTab),
     placeholderData: (previousData, previousQuery) =>
       keepSearchDataForSameCategory(previousData, previousQuery, searchTab),
-    staleTime: 30_000,
+    staleTime: 90_000,
+    gcTime: 5 * 60_000,
     retry: 2,
     retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 5_000),
   })
@@ -349,18 +353,27 @@ export function AddContentModal({
     await queryClient.refetchQueries({ queryKey: ['content-installed', instance.id] })
   }, [instance.id, queryClient])
 
-  useEffect(() => {
-    for (const job of Object.values(jobs)) {
+  const failedInstallIdsKey = useTransferStore((s) => {
+    const ids: string[] = []
+    for (const entry of s.history) {
       if (
-        job.kind === 'content' &&
-        job.status === 'failed' &&
-        job.meta.instanceId === instance.id &&
-        typeof job.meta.projectId === 'string'
+        entry.kind === 'content' &&
+        entry.status === 'failed' &&
+        entry.meta.instanceId === instance.id &&
+        typeof entry.meta.projectId === 'string'
       ) {
-        unmark(job.meta.projectId)
+        ids.push(entry.meta.projectId)
       }
     }
-  }, [jobs, instance.id, unmark])
+    ids.sort()
+    return ids.join('\0')
+  })
+
+  useEffect(() => {
+    for (const projectId of parseProjectIdsKey(failedInstallIdsKey)) {
+      unmark(projectId)
+    }
+  }, [failedInstallIdsKey, unmark])
 
   useEffect(() => {
     for (const item of installedQuery.data ?? []) {
@@ -525,23 +538,25 @@ export function AddContentModal({
     for (const project of targets) {
       mark(project.id)
     }
+    // enqueue も制限し、検索 UI と IPC を塞がない（本体の DL/配置はバックエンド枠）
+    const results = await mapWithConcurrency(targets, 2, (project) =>
+      fledgeApi.content.install({
+        instanceId: instance.id,
+        provider: project.provider,
+        projectId: project.id,
+        category: project.projectType,
+        gameVersion: gameVersion.trim() || undefined,
+        loaders: project.projectType === 'mod' ? loaders : [],
+      }),
+    )
     let failed = 0
-    for (const project of targets) {
-      try {
-        await fledgeApi.content.install({
-          instanceId: instance.id,
-          provider: project.provider,
-          projectId: project.id,
-          category: project.projectType,
-          gameVersion: gameVersion.trim() || undefined,
-          loaders:
-            project.projectType === 'mod' ? loaders : [],
-        })
-      } catch {
-        unmark(project.id)
+    results.forEach((result, i) => {
+      if (result.status === 'rejected') {
+        const target = targets[i]
+        if (target) unmark(target.id)
         failed += 1
       }
-    }
+    })
     await refreshInstalled()
     onInstalled()
     setBulkInstalling(false)
@@ -679,15 +694,25 @@ export function AddContentModal({
               <div className="flex min-w-0 flex-col items-start gap-1.5">
                 <ContentProviderSourceTabs
                   active={catalogProvider}
-                  onChange={setCatalogProvider}
+                  onChange={(next) => {
+                    startTransition(() => {
+                      setCatalogProvider(next)
+                      const tabs = instanceBrowseSearchTabs(instance.loader, next)
+                      setSearchTab((prev) =>
+                        isFavoritesTab(prev) ? prev : defaultBrowseTabForProvider(next, tabs),
+                      )
+                    })
+                  }}
                   size="md"
                 />
                 <ContentSearchCategoryTabs
                   tabs={searchTabs}
                   active={searchTab}
                   onChange={(next) => {
-                    setTags([])
-                    setSearchTab(next)
+                    startTransition(() => {
+                      setTags([])
+                      setSearchTab(next)
+                    })
                   }}
                   onPrefetch={(tab) => {
                     if (isFavoritesTab(tab)) return
@@ -731,7 +756,7 @@ export function AddContentModal({
                   <Select
                     value={sort}
                     onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
-                    className="min-w-[8rem]"
+                    className="w-[9rem]"
                     options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
                       value: s,
                       label: t(`content.sort.${s}`),
@@ -745,7 +770,7 @@ export function AddContentModal({
                     onChange={(e) =>
                       setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
                     }
-                    className="min-w-[4.5rem]"
+                    className="w-[4.5rem]"
                     options={PAGE_SIZES.map((n) => ({
                       value: String(n),
                       label: String(n),
@@ -836,11 +861,9 @@ export function AddContentModal({
                 />
               )}
 
-            {pageCount > 1 ? (
-              <div className="flex justify-end border-t border-[var(--color-border)] pr-8 pt-2">
-                <PageNav page={page} pageCount={pageCount} onChange={setPage} />
-              </div>
-            ) : null}
+            <div className="flex min-h-9 items-center justify-end border-t border-[var(--color-border)] pr-8 pt-2">
+              <PageNav page={page} pageCount={pageCount} onChange={setPage} />
+            </div>
             </>
             </div>
           </div>

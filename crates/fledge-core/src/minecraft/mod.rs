@@ -7,6 +7,7 @@ mod resolve;
 pub use install_ready::{natives_root, ready_key};
 pub use resolve::{library_artifact_rel_path, load_resolved_version, ResolvedVersion};
 
+use crate::concurrency::ConcurrencyGate;
 use crate::error::{CoreError, CoreResult};
 use crate::minecraft::install::{
     complete_installation, ensure_natives, install_profile, repair_and_ready, InstallContext,
@@ -72,16 +73,23 @@ pub struct MinecraftService {
     layout: PathLayout,
     events: Arc<EventBus>,
     settings: Arc<SettingsStore>,
+    concurrency: Arc<ConcurrencyGate>,
     inflight: Mutex<HashMap<String, ()>>,
     instance_gate: InstanceDownloadGate,
 }
 
 impl MinecraftService {
-    pub fn new(layout: PathLayout, events: Arc<EventBus>, settings: Arc<SettingsStore>) -> Self {
+    pub fn new(
+        layout: PathLayout,
+        events: Arc<EventBus>,
+        settings: Arc<SettingsStore>,
+        concurrency: Arc<ConcurrencyGate>,
+    ) -> Self {
         Self {
             layout,
             events,
             settings,
+            concurrency,
             inflight: Mutex::new(HashMap::new()),
             instance_gate: InstanceDownloadGate::new(),
         }
@@ -107,6 +115,7 @@ impl MinecraftService {
             minecraft_root: self.minecraft_root(),
             events: Arc::clone(&self.events),
             session_id: session_id.to_string(),
+            concurrency: Arc::clone(&self.concurrency),
         }
     }
 

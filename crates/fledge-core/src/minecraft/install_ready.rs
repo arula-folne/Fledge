@@ -227,6 +227,7 @@ pub fn profile_fields(profile: &Value) -> Option<(String, String, Option<String>
 }
 
 /// Convenience: jar id used by a resolved version.
+#[allow(dead_code)]
 pub fn jar_id_of(resolved: &ResolvedVersion, fallback: &str) -> String {
     resolved
         .jar

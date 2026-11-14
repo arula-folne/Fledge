@@ -331,7 +331,7 @@ pub fn memory_from_profile(profile: &Value) -> (u64, u64) {
         .pointer("/memory/maxMb")
         .and_then(|v| v.as_u64())
         .or_else(|| profile.get("memoryMaxMb").and_then(|v| v.as_u64()))
-        .unwrap_or(2048);
+        .unwrap_or(4096);
     let min = profile
         .pointer("/memory/minMb")
         .and_then(|v| v.as_u64())

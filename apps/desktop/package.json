@@ -1,6 +1,6 @@
 {
   "name": "@fledge/desktop",
-  "version": "0.6.8",
+  "version": "0.7.0",
   "private": true,
   "description": "Fledge desktop application (Tauri)",
   "type": "module",
@@ -13,10 +13,7 @@
     "tauri": "tauri",
     "tauri:build": "tauri build",
     "typecheck": "tsc -p tsconfig.web.json --noEmit",
-    "lint": "eslint src --max-warnings 0",
-    "dev:electron": "echo Electron is deprecated in 0.5 — use pnpm dev (Tauri) && exit 1",
-    "build:electron": "echo Electron is deprecated in 0.5 — use pnpm build / tauri:build && exit 1",
-    "dist:electron": "echo Electron is deprecated in 0.5 — use pnpm tauri:build && exit 1"
+    "lint": "eslint src --max-warnings 0"
   },
   "dependencies": {
     "@fledge/i18n": "workspace:*",

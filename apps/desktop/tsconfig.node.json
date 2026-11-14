@@ -5,11 +5,7 @@
     "types": ["node"],
     "lib": ["ES2022"],
     "moduleResolution": "Bundler",
-    "outDir": "out",
     "noEmit": true
   },
-  "include": [
-    "electron.vite.config.ts",
-    "electron/**/*"
-  ]
+  "include": ["vite.config.ts"]
 }

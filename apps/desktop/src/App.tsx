@@ -45,17 +45,21 @@ function EventBridge() {
     }
 
     const deliverProgress = createProgressThrottler((e) => {
-      applyProgress(e)
-      applyTransfer(e)
+      const isAppUpdater =
+        e.scope === 'updater' || e.kind === 'app-update' || e.jobId === 'app-updater'
+      // アプリ更新はバナー側だけで扱う（起動進捗・インストールビューへ流さない）
+      if (!isAppUpdater) {
+        applyProgress(e)
+        applyTransfer(e)
+      }
       if (e.kind === 'content' && e.meta?.instanceReady && typeof e.meta.instanceId === 'string') {
         const id = e.meta.instanceId
         if (e.status === 'active') {
           useInstanceCreateStore.getState().markCreating(id)
         } else if (e.status === 'completed' || e.status === 'failed') {
           useInstanceCreateStore.getState().unmarkCreating(id)
+          void queryClient.invalidateQueries({ queryKey: ['instances'] })
         }
-        void queryClient.invalidateQueries({ queryKey: ['instances'] })
-        void queryClient.invalidateQueries({ queryKey: ['settings'] })
       }
       if (e.kind === 'content' && (e.status === 'completed' || e.status === 'failed')) {
         scheduleContentInvalidate()
@@ -63,7 +67,7 @@ function EventBridge() {
       if (e.kind === 'java' && (e.status === 'completed' || e.status === 'failed')) {
         void queryClient.invalidateQueries({ queryKey: ['java-runtimes'] })
       }
-    }, 150)
+    }, 280)
 
     const offs = [
       fledgeApi.on.progress((e) => {
@@ -108,7 +112,8 @@ function EventBridge() {
           }
         }
         applyStateEvent(e)
-        if (e.state === 'running' || e.state === 'exited') {
+        // lastPlayed 等は起動完了時のみ。進捗中の settings 再取得はシェル全体を重くする
+        if (e.state === 'running') {
           void queryClient.invalidateQueries({ queryKey: ['settings'] })
         }
       }),

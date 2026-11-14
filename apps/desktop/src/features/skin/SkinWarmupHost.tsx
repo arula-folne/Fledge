@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { SkinEntry, SkinModel } from '@fledge/shared'
 import { fledgeApi } from '../../api/fledgeApi'
@@ -10,13 +10,41 @@ import {
 import { skinThumbQueryKey } from '../../components/skin/SkinCachedThumb'
 import { defaultSkinTextureUrl } from '../../components/skin/defaultSkinUrls'
 import { isTauriApp, localFileAssetUrl } from '../../components/skin/skinUrls'
+import { useTransferStore } from '../../stores/appStores'
+
+const WARM_RESUME_DELAY_MS = 2000
+
+function waitForIdle(timeoutMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    const ric = window.requestIdleCallback
+    if (typeof ric === 'function') {
+      ric(() => resolve(), { timeout: timeoutMs })
+      return
+    }
+    window.setTimeout(resolve, Math.min(80, timeoutMs))
+  })
+}
 
 /**
  * アプリ起動中はスキン関連を裏で温め続ける。
  * スキン画面に入った瞬間の待ちを減らす。
+ * インストール／転送中は WebView 負荷を避けるため休止する。
  */
 export function SkinWarmupHost() {
   const queryClient = useQueryClient()
+  const transferBusy = useTransferStore((s) =>
+    Object.values(s.jobs).some((j) => j.status === 'queued' || j.status === 'active'),
+  )
+  const [warmAllowed, setWarmAllowed] = useState(!transferBusy)
+
+  useEffect(() => {
+    if (transferBusy) {
+      setWarmAllowed(false)
+      return
+    }
+    const timer = window.setTimeout(() => setWarmAllowed(true), WARM_RESUME_DELAY_MS)
+    return () => window.clearTimeout(timer)
+  }, [transferBusy])
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
@@ -38,7 +66,7 @@ export function SkinWarmupHost() {
   useEffect(() => {
     const settings = settingsQuery.data
     const skins = skinsQuery.data
-    if (!settings || !skins) return
+    if (!settings || !skins || !warmAllowed) return
 
     let cancelled = false
 
@@ -54,6 +82,8 @@ export function SkinWarmupHost() {
       }
 
       for (const skin of targets) {
+        if (cancelled) return
+        await waitForIdle(900)
         if (cancelled) return
         try {
           const bundled =
@@ -106,6 +136,8 @@ export function SkinWarmupHost() {
       for (const skin of skins.filter((s) => s.source === 'default')) {
         if (cancelled) return
         if (targets.some((t) => t.id === skin.id)) continue
+        await waitForIdle(900)
+        if (cancelled) return
         const url = defaultSkinTextureUrl(skin.id)
         if (!url) continue
         try {
@@ -126,11 +158,11 @@ export function SkinWarmupHost() {
     if (typeof ric === 'function') {
       idleId = ric(() => {
         void warm()
-      }, { timeout: 1200 })
+      }, { timeout: 2500 })
     } else {
       timerId = window.setTimeout(() => {
         void warm()
-      }, 150)
+      }, 400)
     }
 
     return () => {
@@ -140,7 +172,7 @@ export function SkinWarmupHost() {
       }
       if (timerId != null) window.clearTimeout(timerId)
     }
-  }, [queryClient, settingsQuery.data, skinsQuery.data])
+  }, [queryClient, settingsQuery.data, skinsQuery.data, warmAllowed])
 
   return null
 }

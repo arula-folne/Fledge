@@ -7,7 +7,8 @@ const MESSAGE =
   'text-[clamp(10px,9px+0.2vw,12px)] leading-snug text-[var(--color-text-muted)]'
 const TRACK =
   'h-[clamp(3px,2px+0.25vw,5px)] overflow-hidden rounded-full bg-[var(--color-accent-soft)]'
-const FILL = 'h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-150'
+const FILL =
+  'h-full rounded-full bg-[var(--color-accent)] transition-[width] duration-300 ease-out motion-reduce:transition-none'
 
 type IndicatorProps = {
   message: string
@@ -16,7 +17,8 @@ type IndicatorProps = {
 }
 
 export function LaunchProgressIndicator({ message, percent, compact = false }: IndicatorProps) {
-  const width = Math.min(100, Math.max(4, percent))
+  const rounded = Number.isFinite(percent) ? Math.round(Math.min(100, Math.max(0, percent))) : 0
+  const width = Math.max(4, rounded)
   return (
     <div className="space-y-1">
       <div className={[MESSAGE, compact ? 'break-words' : ''].filter(Boolean).join(' ')}>{message}</div>

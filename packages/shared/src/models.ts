@@ -203,7 +203,7 @@ export const CreateInstanceInputSchema = z.object({
   minecraftVersion: z.string().min(1),
   loader: LoaderSchema,
   loaderVersion: z.string().optional(),
-  memoryMaxMb: z.number().int().positive().default(2048),
+  memoryMaxMb: z.number().int().positive().default(4096),
   jvmArgs: z.array(z.string()).default([]),
   icon: CreateInstanceIconSchema.optional(),
   iconPreset: InstanceIconPresetSchema.optional(),
@@ -220,7 +220,6 @@ export type UpdateInstanceInput = z.infer<typeof UpdateInstanceInputSchema>
 
 export const MEMORY_PRESETS_NORMAL_MB = [
   512, // 512 MB
-  1024, // 1.0 GB
   2048, // 2.0 GB
   4096, // 4.0 GB
   8192, // 8.0 GB
@@ -289,21 +288,6 @@ export function resolveWindowZoomFactor(
   height: number,
 ): number {
   return Math.round(Math.min(resolveUiScaleZoom(scale), zoomCapForWindowSize(width, height)) * 1000) / 1000
-}
-
-/**
- * タイトルバーをノーマル UI サイズの見た目に保つ逆スケール。
- * @deprecated WebView zoom 打ち消し用途。本文 CSS zoom 方式では contentUiZoomFactor を使う。
- */
-export function titleBarCounterScale(
-  scale: UiScale,
-  width: number,
-  height: number,
-): number {
-  const actual = resolveWindowZoomFactor(scale, width, height)
-  const normal = resolveWindowZoomFactor('normal', width, height)
-  if (actual <= 0) return 1
-  return Math.round((normal / actual) * 1000) / 1000
 }
 
 /**
@@ -432,7 +416,7 @@ export const SettingsSchemaBase = z.object({
   selectedInstanceId: z.string().nullable(),
   lastPlayedInstanceId: z.string().nullable().default(null),
   locale: z.string().default('ja'),
-  defaultMemoryMaxMb: z.number().int().positive().default(2048),
+  defaultMemoryMaxMb: z.number().int().positive().default(4096),
   defaultJvmArgs: z.array(z.string()).default([]),
   minecraftInitialSettings: MinecraftInitialSettingsSchema.default({}),
   /**
@@ -482,6 +466,8 @@ export const SettingsSchemaBase = z.object({
     .default({ r: 91, g: 164, b: 217 }),
   hardwareAcceleration: z.boolean().default(true),
   minimizeOnLaunch: z.boolean().default(false),
+  /** Minecraft 終了時に Fledge を最前面へ（他に起動中がなければ） */
+  focusOnGameExit: z.boolean().default(false),
   discordRichPresence: z.boolean().default(false),
   /** ホーム右側のお知らせパネルを表示する */
   homeNewsVisible: z.boolean().default(true),
@@ -615,7 +601,14 @@ export const DownloadKindSchema = z.enum([
 ])
 export type DownloadKind = z.infer<typeof DownloadKindSchema>
 
-export const ProgressScopeSchema = z.enum(['launch', 'download', 'java', 'auth', 'updater'])
+export const ProgressScopeSchema = z.enum([
+  'launch',
+  'download',
+  'java',
+  'auth',
+  'updater',
+  'transfer',
+])
 export type ProgressScope = z.infer<typeof ProgressScopeSchema>
 
 export const TransferJobStatusSchema = z.enum([
@@ -627,6 +620,18 @@ export const TransferJobStatusSchema = z.enum([
 ])
 export type TransferJobStatus = z.infer<typeof TransferJobStatusSchema>
 
+/** ProgressEvent 用（ジョブ履歴用ステータスに、実行中・レガシー完了を足す） */
+export const ProgressStatusSchema = z.enum([
+  'queued',
+  'active',
+  'running',
+  'completed',
+  'failed',
+  'cancelled',
+  'succeeded',
+])
+export type ProgressStatus = z.infer<typeof ProgressStatusSchema>
+
 export const ProgressEventSchema = z.object({
   scope: ProgressScopeSchema,
   kind: z.string().optional(),
@@ -637,7 +642,7 @@ export const ProgressEventSchema = z.object({
   percent: z.number().optional(),
   bytesPerSecond: z.number().optional(),
   messageKey: z.string().optional(),
-  status: TransferJobStatusSchema.optional(),
+  status: ProgressStatusSchema.optional(),
   meta: z.record(z.union([z.string(), z.number(), z.boolean()])).optional(),
 })
 export type ProgressEvent = z.infer<typeof ProgressEventSchema>

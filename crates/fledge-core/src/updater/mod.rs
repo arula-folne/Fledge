@@ -153,7 +153,7 @@ impl UpdaterService {
         let channel = normalize_channel(channel);
         self.emit_updater_progress(0.0, 0.0, Some(0.0), "updater.downloading", Some("active"));
 
-        let check = self.check(channel, false).await?;
+        // download_installer 内で check するため、ここでは二重 fetch しない
         let installer_path = self
             .download_installer(channel, |current, total, percent| {
                 self.emit_updater_progress(
@@ -170,24 +170,28 @@ impl UpdaterService {
                 e
             })?;
 
-        if check.get("status").and_then(|v| v.as_str()) == Some("available") {
-            if let Some(next) = check.get("nextVersion").and_then(|v| v.as_str()) {
-                let notes = check.get("releaseNotes").cloned().unwrap_or(Value::Null);
-                let _ = self.settings.set(json!({
-                  "lastAppVersion": effective_app_version(),
-                  "updateAckPending": {
-                    "fromVersion": effective_app_version(),
-                    "toVersion": next,
-                    "releaseNotes": notes,
-                  }
-                }));
+        // 完了ダイアログ用メタはキャッシュ済み check から取る（ネット再取得なし）
+        if let Ok(check) = self.check(channel, false).await {
+            if check.get("status").and_then(|v| v.as_str()) == Some("available") {
+                if let Some(next) = check.get("nextVersion").and_then(|v| v.as_str()) {
+                    let notes = check.get("releaseNotes").cloned().unwrap_or(Value::Null);
+                    let _ = self.settings.set(json!({
+                      "lastAppVersion": effective_app_version(),
+                      "updateAckPending": {
+                        "fromVersion": effective_app_version(),
+                        "toVersion": next,
+                        "releaseNotes": notes,
+                      }
+                    }));
+                }
             }
         }
 
         self.emit_updater_progress(1.0, 1.0, Some(100.0), "updater.preparing", Some("active"));
 
         let staged = stage_update_installer(&installer_path)?;
-        self.clear_cache()?;
+        // キャッシュ掃除は再起動後でもよいが、容量のため軽いファイル削除のみ先に行う
+        let _ = self.clear_cache();
 
         self.emit_updater_progress(1.0, 1.0, Some(100.0), "updater.restarting", Some("active"));
 

@@ -623,8 +623,27 @@ export default function SettingsPage() {
 
       {section === 'minecraftLaunch' && sectionHasHits ? (
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden pr-1 overscroll-contain">
-          {showItem('fullscreen') || showItem('gameWindowSize') ? (
-          <Section title={t('settings.block.gameWindow')}>
+          {showItem('fullscreen') ||
+          showItem('gameWindowSize') ||
+          showItem('minimizeOnLaunch') ||
+          showItem('focusOnGameExit') ||
+          showItem('memory') ||
+          showItem('defaultJvmArgs') ? (
+          <Section title={t('settings.block.behavior')}>
+            {showItem('minimizeOnLaunch') ? (
+            <Toggle
+              label={t('settings.minimizeOnLaunch')}
+              checked={settings.minimizeOnLaunch}
+              onChange={(minimizeOnLaunch) => saveMutation.mutate({ minimizeOnLaunch })}
+            />
+            ) : null}
+            {showItem('focusOnGameExit') ? (
+            <Toggle
+              label={t('settings.focusOnGameExit')}
+              checked={settings.focusOnGameExit}
+              onChange={(focusOnGameExit) => saveMutation.mutate({ focusOnGameExit })}
+            />
+            ) : null}
             {showItem('fullscreen') ? (
             <Toggle
               label={t('settings.fullscreen')}
@@ -652,10 +671,6 @@ export default function SettingsPage() {
               }
             />
             ) : null}
-          </Section>
-          ) : null}
-          {showItem('memory') || showItem('defaultJvmArgs') ? (
-          <Section title={t('settings.block.gamePerformance')}>
             {showItem('memory') ? (
             <MemorySnapSlider
               label={t('settings.memory')}
@@ -907,14 +922,6 @@ export default function SettingsPage() {
             <UiScalePicker
               value={settings.uiScale}
               onChange={(uiScale) => saveMutation.mutate({ uiScale })}
-            />
-            ) : null}
-            {showItem('minimizeOnLaunch') ? (
-            <Toggle
-              label={t('settings.minimizeOnLaunch')}
-              hint={t('settings.minimizeOnLaunchHint')}
-              checked={settings.minimizeOnLaunch}
-              onChange={(minimizeOnLaunch) => saveMutation.mutate({ minimizeOnLaunch })}
             />
             ) : null}
             {showItem('homeNewsVisible') ? (

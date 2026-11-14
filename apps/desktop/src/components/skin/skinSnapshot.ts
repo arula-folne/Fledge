@@ -51,7 +51,8 @@ export function previewPixelRatio(): number {
   return Math.min(Math.max(dpr, 2), 3)
 }
 
-export function applyPreviewPose(viewer: SkinViewer, _opts?: { showCape?: boolean }): void {
+export function applyPreviewPose(viewer: SkinViewer, opts?: { showCape?: boolean }): void {
+  void opts
   // 正面寄りの定位置（マント有無で横向きにしない。ドラッグで背面を見られる）
   const yaw = -Math.PI / 5.5
   viewer.playerObject.rotation.set(0, yaw, 0)

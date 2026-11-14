@@ -47,7 +47,6 @@ const label = `Ver.${version}`
 const packageJsonPaths = [
   'package.json',
   'apps/desktop/package.json',
-  'packages/core/package.json',
   'packages/i18n/package.json',
   'packages/shared/package.json',
 ]

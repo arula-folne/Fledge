@@ -7,13 +7,21 @@ type Props = {
   onChange: (page: number) => void
 }
 
+/** 数字スロット数（… 含む）。総ページ数に関係なく常にこの個数分の幅を確保する */
+const PAGE_SLOT_COUNT = 7
+/** 各円ボタンの固定サイズ（桁が増えてもレイアウトが伸びない） */
+const PAGE_SLOT_PX = 32
+const PAGE_SLOT_GAP_PX = 2
+
 /**
  * 総ページが多いときは常に 7 スロット（数字 or …）を返し、
- * ページ移動でボタン個数が変わってレイアウトがずれないようにする。
+ * 少ないときも空スロットで埋めてボタン個数が変わってレイアウトがずれないようにする。
  */
-function pageItems(current: number, total: number): Array<number | 'gap'> {
-  if (total <= 7) {
-    return Array.from({ length: Math.max(1, total) }, (_, i) => i + 1)
+function pageItems(current: number, total: number): Array<number | 'gap' | 'empty'> {
+  if (total <= PAGE_SLOT_COUNT) {
+    return Array.from({ length: PAGE_SLOT_COUNT }, (_, i) =>
+      i < total ? i + 1 : 'empty',
+    )
   }
   if (current <= 4) {
     return [1, 2, 3, 4, 5, 'gap', total]
@@ -31,22 +39,16 @@ export function PageNav({ page, pageCount, onChange }: Props) {
   const { t } = useTranslation()
   const total = Math.max(1, pageCount)
   const current = Math.min(total, Math.max(1, page))
-  // 最大桁（最終ページ）に合わせて各スロット幅を固定（円からはみ出さない最小）
-  const slotCh = Math.max(2, String(total).length)
-  const slotPx = Math.max(28, slotCh * 8 + 12)
-  const slotStyle = { width: slotPx, height: slotPx, minWidth: slotPx }
-  const chevronSize = Math.max(16, Math.round(slotPx * 0.6))
+  const slotStyle = { width: PAGE_SLOT_PX, height: PAGE_SLOT_PX, minWidth: PAGE_SLOT_PX }
+  const chevronSize = 18
   const items = pageItems(current, total)
-  // 7 スロット分の幅を常に確保（総ページが少ないときも右端がずれない）
-  const slotCount = Math.max(items.length, total > 7 ? 7 : total)
+  const navWidth = (PAGE_SLOT_COUNT + 2) * (PAGE_SLOT_PX + PAGE_SLOT_GAP_PX) - PAGE_SLOT_GAP_PX
 
   return (
     <nav
-      className="flex shrink-0 items-center gap-0.5"
+      className="flex shrink-0 items-center justify-between"
       aria-label={t('content.pager')}
-      style={{
-        minWidth: `calc(${slotCount + 2} * (${slotPx}px + 0.125rem))`,
-      }}
+      style={{ width: navWidth, gap: PAGE_SLOT_GAP_PX }}
     >
       <button
         type="button"
@@ -58,9 +60,11 @@ export function PageNav({ page, pageCount, onChange }: Props) {
       >
         <IconChevronLeft size={chevronSize} stroke={1.75} aria-hidden />
       </button>
-      <div className="flex flex-1 items-center justify-center gap-0.5">
+      <div className="flex items-center" style={{ gap: PAGE_SLOT_GAP_PX }}>
         {items.map((item, index) =>
-          item === 'gap' ? (
+          item === 'empty' ? (
+            <span key={`empty-${index}`} style={slotStyle} aria-hidden className="invisible" />
+          ) : item === 'gap' ? (
             <span
               key={`gap-${index}`}
               className="inline-flex items-center justify-center text-xs text-[var(--color-text-muted)]"
@@ -102,4 +106,3 @@ export function PageNav({ page, pageCount, onChange }: Props) {
     </nav>
   )
 }
-

@@ -1,0 +1,13 @@
+---
+description: 非推奨API・コンパイラ警告を出さないコード方針
+alwaysApply: true
+---
+
+# 非推奨・警告を出さない
+
+- 新規・変更コードは **非推奨（deprecated）API / 設定を使わない**。代替があるならそちらを使う。
+- `tsc` / `cargo` / ESLint などの **warning を残したまま完了しない**。導入した警告は同じ変更で解消する。
+- 警告を黙らせるだけ（`#[allow]` / `@ts-ignore` / `ignoreDeprecations` など）は、正当な理由があるときだけ最小範囲で使う。まず実装・型・設定を直す。
+- TypeScript: 廃止予定の `compilerOptions`（例: `baseUrl`）は使わず、現行の書き方に合わせる。
+- Rust: 未使用コードは削除するか、公開APIとして必要なものだけ意図をコメントして許容する。新規の dead_code 警告は出さない。
+- 既存の警告に触れたら、ついでに直せる範囲は直す。

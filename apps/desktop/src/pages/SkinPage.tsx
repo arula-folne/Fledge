@@ -14,7 +14,7 @@ import { CapeThumb } from '../components/skin/CapeThumb'
 import { SkinCachedThumb, skinThumbQueryKey } from '../components/skin/SkinCachedThumb'
 import { defaultSkinTextureUrl } from '../components/skin/defaultSkinUrls'
 import { renderSkinThumbDataUrl, SKIN_THUMB_VERSION } from '../components/skin/skinSnapshot'
-import { isTauriApp, localFileAssetUrl, preferElectronDefaultProtocol } from '../components/skin/skinUrls'
+import { isTauriApp, localFileAssetUrl } from '../components/skin/skinUrls'
 import {
   patchSelectedSkinSettings,
   prefetchAccountFaceFromLocalSkin,
@@ -59,7 +59,7 @@ export default function SkinPage() {
       const skins = skinsQuery.data ?? []
       const model = resolveSkinModel(skins, input.skinId, input.model)
       patchSelectedSkinSettings(queryClient, input.skinId, model)
-      void prefetchAccountFaceFromLocalSkin(queryClient, input.skinId, skins)
+      void prefetchAccountFaceFromLocalSkin(queryClient, input.skinId)
       return { previous }
     },
     onError: (_err, _input, ctx) => {
@@ -142,9 +142,8 @@ export default function SkinPage() {
       thumbDataUrl?: string
     }) => fledgeApi.skins.upload(input),
     onSuccess: async (skin) => {
-      const skins = [...(skinsQuery.data ?? []), skin]
       patchSelectedSkinSettings(queryClient, skin.id, skin.model)
-      void prefetchAccountFaceFromLocalSkin(queryClient, skin.id, skins)
+      void prefetchAccountFaceFromLocalSkin(queryClient, skin.id)
       void fledgeApi.skins.select({ skinId: skin.id, model: skin.model })
       await queryClient.invalidateQueries({ queryKey: ['skins'] })
       await queryClient.invalidateQueries({ queryKey: ['settings'] })
@@ -367,7 +366,7 @@ export default function SkinPage() {
           capes={capes}
           capeId={
             Object.prototype.hasOwnProperty.call(skinCapeIds, editingCapeOnly.id)
-              ? skinCapeIds[editingCapeOnly.id]
+              ? (skinCapeIds[editingCapeOnly.id] ?? null)
               : null
           }
           loggedIn={loggedIn}
@@ -393,7 +392,7 @@ export default function SkinPage() {
           capes={capes}
           capeId={
             Object.prototype.hasOwnProperty.call(skinCapeIds, editing.id)
-              ? skinCapeIds[editing.id]
+              ? (skinCapeIds[editing.id] ?? null)
               : null
           }
           loggedIn={loggedIn}
@@ -434,13 +433,7 @@ export default function SkinPage() {
               if (selectedId === editing.id) {
                 applySkinSelection(editing.id, model)
                 if (file) {
-                  void prefetchAccountFaceFromLocalSkin(
-                    queryClient,
-                    editing.id,
-                    (skinsQuery.data ?? []).map((s) =>
-                      s.id === editing.id ? { ...s, model } : s,
-                    ),
-                  )
+                  void prefetchAccountFaceFromLocalSkin(queryClient, editing.id)
                 }
               }
               setEditing(null)
@@ -543,7 +536,6 @@ function escapeRegExp(value: string): string {
 
 function useSkinImageUrl(skin: SkinEntry, enabled = true): string | undefined {
   const tauri = isTauriApp()
-  const electronDefault = preferElectronDefaultProtocol(skin)
   const bundledTexture =
     skin.source === 'default' ? defaultSkinTextureUrl(skin.id) : undefined
 
@@ -552,7 +544,7 @@ function useSkinImageUrl(skin: SkinEntry, enabled = true): string | undefined {
   const dataQuery = useQuery({
     queryKey: ['skin-data', skin.id],
     queryFn: () => fledgeApi.skins.getDataUrl(skin.id),
-    enabled: enabled && !electronDefault && !bundledTexture,
+    enabled: enabled && !bundledTexture,
     staleTime: 30 * 60_000,
     gcTime: 15 * 60_000,
   })
@@ -560,13 +552,13 @@ function useSkinImageUrl(skin: SkinEntry, enabled = true): string | undefined {
   const pathQuery = useQuery({
     queryKey: ['skin-path', skin.id],
     queryFn: () => fledgeApi.skins.resolvePath(skin.id),
-    enabled: enabled && tauri && !dataQuery.data && !electronDefault && !bundledTexture,
+    enabled: enabled && tauri && !dataQuery.data && !bundledTexture,
     staleTime: 30 * 60_000,
     gcTime: 15 * 60_000,
   })
   const assetUrl = localFileAssetUrl(pathQuery.data)
 
-  return bundledTexture ?? dataQuery.data ?? assetUrl ?? electronDefault ?? undefined
+  return bundledTexture ?? dataQuery.data ?? assetUrl ?? undefined
 }
 
 /** デフォルトスキン用：同梱テクスチャからプレビューと同じ太陽光・高画質で描画 */

@@ -1,7 +1,8 @@
 {
   "name": "fledge",
   "private": true,
-  "version": "0.6.8",
+  "type": "module",
+  "version": "0.7.0",
   "description": "軽快・モダンな UI と使い勝手を重視した Minecraft ランチャー（設定検索・チュートリアル・インスタンス版変更対応）",
   "license": "GPL-3.0",
   "author": "folne",
@@ -10,7 +11,6 @@
     "url": "https://github.com/arula-folne/Fledge.git"
   },
   "scripts": {
-    "postinstall": "node scripts/patch-xmcl.js",
     "version:sync": "node scripts/sync-version.mjs",
     "dev": "pnpm --filter @fledge/desktop dev",
     "build": "pnpm --filter @fledge/shared build && pnpm --filter @fledge/i18n build && pnpm --filter @fledge/desktop build",

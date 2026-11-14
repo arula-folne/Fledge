@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { getFledgeUiScaleRoot } from '../../components/layout/fledgeUiScaleRoot'
 import { useTranslation } from 'react-i18next'
@@ -7,6 +7,8 @@ import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
 import { useInstallOnboardingStore } from '../../stores/appStores'
 import { type InstallOnboardingFlowStep } from './installOnboardingSteps'
+
+const SCENE_FADE_MS = 220
 
 type Props = {
   open: boolean
@@ -29,15 +31,37 @@ export function InstallOnboardingFlowDialog({
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const startInteractive = useInstallOnboardingStore((s) => s.startInteractive)
-  const [step, setStep] = useState<InstallOnboardingFlowStep>({ kind: 'welcome' })
+  const [displayStep, setDisplayStep] = useState<InstallOnboardingFlowStep>({ kind: 'welcome' })
+  const [sceneVisible, setSceneVisible] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const titleId = useId()
+  const fadeTimerRef = useRef<number | null>(null)
+
+  const goStep = (next: InstallOnboardingFlowStep) => {
+    setSceneVisible(false)
+    if (fadeTimerRef.current != null) window.clearTimeout(fadeTimerRef.current)
+    fadeTimerRef.current = window.setTimeout(() => {
+      setDisplayStep(next)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setSceneVisible(true))
+      })
+      fadeTimerRef.current = null
+    }, SCENE_FADE_MS)
+  }
 
   useEffect(() => {
     if (!open) return
-    setStep({ kind: 'welcome' })
+    setDisplayStep({ kind: 'welcome' })
+    setSceneVisible(true)
     setError(null)
   }, [open])
+
+  useEffect(
+    () => () => {
+      if (fadeTimerRef.current != null) window.clearTimeout(fadeTimerRef.current)
+    },
+    [],
+  )
 
   useEffect(() => {
     if (!open) return
@@ -100,29 +124,44 @@ export function InstallOnboardingFlowDialog({
   }
 
   const actions = (() => {
-    switch (step.kind) {
+    switch (displayStep.kind) {
       case 'welcome':
         return (
-          <Button variant="primary" type="button" onClick={() => setStep({ kind: 'terms' })}>
+          <Button
+            variant="primary"
+            type="button"
+            disabled={!sceneVisible}
+            onClick={() => goStep({ kind: 'terms' })}
+          >
             {t('onboarding.next')}
           </Button>
         )
       case 'terms':
         return (
-          <Button variant="primary" type="button" onClick={() => setStep({ kind: 'tutorial-offer' })}>
+          <Button
+            variant="primary"
+            type="button"
+            disabled={!sceneVisible}
+            onClick={() => goStep({ kind: 'tutorial-offer' })}
+          >
             {t('onboarding.termsAgree')}
           </Button>
         )
       case 'tutorial-offer':
         return (
           <div className="flex flex-wrap justify-center gap-3">
-            <Button variant="secondary" type="button" disabled={completeMutation.isPending} onClick={finish}>
+            <Button
+              variant="secondary"
+              type="button"
+              disabled={completeMutation.isPending || !sceneVisible}
+              onClick={finish}
+            >
               {t('onboarding.tutorialNo')}
             </Button>
             <Button
               variant="primary"
               type="button"
-              disabled={completeMutation.isPending}
+              disabled={completeMutation.isPending || !sceneVisible}
               onClick={beginInteractive}
             >
               {t('onboarding.tutorialYes')}
@@ -135,7 +174,7 @@ export function InstallOnboardingFlowDialog({
   })()
 
   const body = (() => {
-    switch (step.kind) {
+    switch (displayStep.kind) {
       case 'welcome':
         // 言語設定に関わらず英語固定（ブランドメッセージ）
         return (
@@ -202,10 +241,16 @@ export function InstallOnboardingFlowDialog({
         type="button"
         aria-label={dismissible ? t('common.close') : undefined}
         tabIndex={dismissible ? 0 : -1}
-        className="absolute inset-0 backdrop-blur-md"
+        className="absolute inset-0 backdrop-blur-md backdrop-saturate-150"
         onClick={dismissible ? onClose : undefined}
       />
-      <div className="relative z-[1] flex w-full max-w-3xl flex-col items-center gap-8">
+      <div
+        className="relative z-[1] flex w-full max-w-3xl flex-col items-center gap-8 transition-opacity ease"
+        style={{
+          opacity: sceneVisible ? 1 : 0,
+          transitionDuration: `${SCENE_FADE_MS}ms`,
+        }}
+      >
         {body}
         <div className="flex w-full flex-col items-center gap-2">
           {error ? <p className="text-sm text-[var(--color-danger)]">{error}</p> : null}

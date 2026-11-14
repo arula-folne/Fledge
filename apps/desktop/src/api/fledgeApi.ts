@@ -143,7 +143,7 @@ export type FledgeApi = {
     getDataUrl: (id: string) => Promise<string | null>
     getThumb: (id: string, model: SkinModel) => Promise<string | null>
     saveThumb: (id: string, model: SkinModel, dataUrl: string) => Promise<void>
-    /** 絶対パス。Tauri は convertFileSrc、Electron はフォールバック用 */
+    /** 絶対パス（UI 側で convertFileSrc） */
     resolvePath: (id: string) => Promise<string | null>
     resolveThumbPath: (id: string, model: SkinModel) => Promise<string | null>
   }

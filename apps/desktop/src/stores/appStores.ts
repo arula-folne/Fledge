@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { INSTALL_TUTORIAL_STEPS } from '../features/onboarding/installOnboardingSteps'
+import { progressUiEqual } from '../features/launch/progressDisplay'
 import type {
   AuthStatus,
   LaunchPhase,
@@ -182,6 +183,14 @@ export const useLaunchStore = create<LaunchStore>((set, get) => ({
         progress.scope === 'launch' ||
         (sid != null && Object.values(s.byProfileId).some((x) => x.sessionId === sid))
       if (!isLaunch || !sid) return s
+
+      const prev = s.progressBySessionId[sid]
+      if (prev && progressUiEqual(prev, progress)) {
+        // messageKey 以外の見た目が同じならストアを触らない
+        if (!progress.messageKey || progress.messageKey === s.phaseMessageBySessionId[sid]) {
+          return s
+        }
+      }
 
       const nextProgress = { ...s.progressBySessionId, [sid]: progress }
       const nextPhaseMsg = progress.messageKey
@@ -462,6 +471,10 @@ export const useTransferStore = create<TransferStore>((set) => ({
     })
   },
   applyProgress: (e) => {
+    // アプリ更新はバナー専用。通常のインストールビューには載せない
+    if (e.scope === 'updater' || e.kind === 'app-update' || e.jobId === 'app-updater') {
+      return
+    }
     const jobId = resolveTransferJobId(e)
     if (!jobId) return
 
@@ -518,6 +531,7 @@ export const useTransferStore = create<TransferStore>((set) => ({
       }
 
       const prev = s.jobs[jobId]
+      const status: TransferJob['status'] = rawStatus === 'queued' ? 'queued' : 'active'
       const job: TransferJob = {
         jobId,
         kind: e.kind ?? prev?.kind ?? 'download',
@@ -527,8 +541,11 @@ export const useTransferStore = create<TransferStore>((set) => ({
         total: e.total ?? prev?.total ?? 0,
         percent: e.percent ?? prev?.percent,
         bytesPerSecond: e.bytesPerSecond ?? prev?.bytesPerSecond,
-        status: rawStatus === 'queued' ? 'queued' : 'active',
+        status,
         meta: { ...(prev?.meta ?? {}), ...(e.meta ?? {}) },
+      }
+      if (prev && progressUiEqual(prev, job)) {
+        return s
       }
       const wasNew = !prev
       const pinnedJobId =

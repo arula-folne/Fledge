@@ -1,4 +1,13 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  lazy,
+  startTransition,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
@@ -38,6 +47,7 @@ import {
   browsePageSearchTabs,
   contentTabsAsCategories,
   defaultBrowsePageTab,
+  defaultBrowseTabForProvider,
   isFavoritesTab,
   type ContentSearchTab,
 } from '../features/content/contentSearchTabs'
@@ -147,6 +157,8 @@ export default function BrowsePage() {
 
   useEffect(() => {
     setTags([])
+    setQuery('')
+    setDebouncedQuery('')
   }, [searchTab, favoriteCategory])
 
   useEffect(() => {
@@ -163,11 +175,10 @@ export default function BrowsePage() {
   const searchTabs = useMemo(() => browsePageSearchTabs(catalogProvider), [catalogProvider])
 
   useEffect(() => {
-    if (!searchTabs.includes(searchTab)) {
-      const next = searchTabs.find((tab) => !isFavoritesTab(tab)) ?? 'mod'
-      setSearchTab(next)
-    }
-  }, [searchTabs, searchTab])
+    if (searchTabs.includes(searchTab)) return
+    // 配布元切替後も常に mod を既定に（未対応カテゴリの残留を防ぐ）
+    setSearchTab(defaultBrowseTabForProvider(catalogProvider, searchTabs))
+  }, [searchTabs, searchTab, catalogProvider])
 
   const searchInput = useMemo(
     () =>
@@ -201,8 +212,8 @@ export default function BrowsePage() {
     enabled: !selectedProject && !isFavoritesTab(searchTab),
     placeholderData: (previousData, previousQuery) =>
       keepSearchDataForSameCategory(previousData, previousQuery, filterCategory),
-    staleTime: 30_000,
-    gcTime: 90_000,
+    staleTime: 90_000,
+    gcTime: 5 * 60_000,
     retry: 2,
     retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 5_000),
   })
@@ -476,15 +487,27 @@ export default function BrowsePage() {
           >
             <ContentProviderSourceTabs
               active={catalogProvider}
-              onChange={setCatalogProvider}
+              onChange={(next) => {
+                startTransition(() => {
+                  setCatalogProvider(next)
+                  // お気に入り中は維持。それ以外は配布元の既定カテゴリへ（常に mod）
+                  setSearchTab((prev) =>
+                    isFavoritesTab(prev)
+                      ? prev
+                      : defaultBrowseTabForProvider(next, browsePageSearchTabs(next)),
+                  )
+                })
+              }}
               size="md"
             />
             <ContentSearchCategoryTabs
               tabs={searchTabs}
               active={searchTab}
               onChange={(next) => {
-                setTags([])
-                setSearchTab(next)
+                startTransition(() => {
+                  setTags([])
+                  setSearchTab(next)
+                })
               }}
             />
           </div>
@@ -515,8 +538,11 @@ export default function BrowsePage() {
                 {t('content.sort.label')}
                 <Select
                   value={sort}
-                  onChange={(e) => setSort(e.currentTarget.value as FavoriteSort)}
-                  className="min-w-[8rem]"
+                  onChange={(e) => {
+                    const value = e.currentTarget.value as FavoriteSort
+                    startTransition(() => setSort(value))
+                  }}
+                  className="w-[9rem]"
                   options={(isFavoritesTab(searchTab) ? FAVORITE_SORTS : SORTS).map((s) => ({
                     value: s,
                     label: t(`content.sort.${s}`),
@@ -527,10 +553,11 @@ export default function BrowsePage() {
                 {t('content.showCount')}
                 <Select
                   value={String(pageSize)}
-                  onChange={(e) =>
-                    setPageSize(Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number])
-                  }
-                  className="min-w-[4.5rem]"
+                  onChange={(e) => {
+                    const value = Number(e.currentTarget.value) as (typeof PAGE_SIZES)[number]
+                    startTransition(() => setPageSize(value))
+                  }}
+                  className="w-[4.5rem]"
                   options={PAGE_SIZES.map((n) => ({
                     value: String(n),
                     label: String(n),
@@ -628,11 +655,9 @@ export default function BrowsePage() {
               />
             )}
 
-          {pageCount > 1 ? (
-            <div className="flex min-h-9 items-center justify-end border-t border-[var(--color-border)] pr-8 pt-2">
-              <PageNav page={page} pageCount={pageCount} onChange={setPage} />
-            </div>
-          ) : null}
+          <div className="flex min-h-9 items-center justify-end border-t border-[var(--color-border)] pr-8 pt-2">
+            <PageNav page={page} pageCount={pageCount} onChange={setPage} />
+          </div>
           </>
         </div>
       </div>

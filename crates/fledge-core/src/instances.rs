@@ -108,7 +108,7 @@ impl InstanceStore {
         let memory_max = input
             .get("memoryMaxMb")
             .and_then(|v| v.as_u64())
-            .unwrap_or(defaults.memory_max_mb.unwrap_or(2048));
+            .unwrap_or(defaults.memory_max_mb.unwrap_or(4096));
         if memory_max == 0 {
             return Err(CoreError::msg("memoryMaxMb must be positive"));
         }
@@ -516,7 +516,7 @@ fn migrate_profile(parsed: &mut Value) -> bool {
         == 0
     {
         let mut memory = Map::new();
-        memory.insert("maxMb".into(), json!(2048));
+        memory.insert("maxMb".into(), json!(4096));
         obj.insert("memory".into(), Value::Object(memory));
         migrated = true;
     }

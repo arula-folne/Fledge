@@ -2,6 +2,7 @@
 
 mod app;
 mod auth;
+mod concurrency;
 mod content;
 mod custom_root;
 mod download;
@@ -20,6 +21,8 @@ mod settings_options_flg;
 mod skins;
 mod updater;
 mod versions;
+
+pub use concurrency::{ConcurrencyGate, GateClass};
 
 pub use app::AppState;
 pub use auth::{

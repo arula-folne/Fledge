@@ -1,4 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  launchProgressDisplayKey,
+  transferJobsDisplayKey,
+} from '../../features/transfers/transferSelectors'
 import { createPortal } from 'react-dom'
 import { getFledgeUiScaleRoot } from './fledgeUiScaleRoot'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -23,6 +27,9 @@ import {
   buildHeaderProgressItems,
   type HeaderProgressItem,
 } from './headerProgressItems'
+import type { TransferHistoryEntry } from '../../stores/appStores'
+
+const EMPTY_HISTORY: TransferHistoryEntry[] = []
 
 function ProgressItemIcon({
   item,
@@ -160,7 +167,7 @@ function ProgressRow({
         <p className="mb-0.5 truncate text-[10px] leading-3 text-[var(--color-text-muted)]">
           {item.detail}
         </p>
-        {history ? null : <ProgressBar percent={item.percent} />}
+        {history ? null : <ProgressBar percent={Math.round(item.percent)} />}
       </div>
     </button>
   )
@@ -171,15 +178,25 @@ export function TransferProgress() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const location = useLocation()
-  const jobsMap = useTransferStore((s) => s.jobs)
-  const history = useTransferStore((s) => s.history)
+  const [panelOpen, setPanelOpen] = useState(false)
+  const jobsDisplayKey = useTransferStore((s) => transferJobsDisplayKey(s.jobs))
+  const jobsMap = useMemo(() => useTransferStore.getState().jobs, [jobsDisplayKey])
+  // パネル閉時は履歴を購読しない（完了イベントでの不要なヘッダー再描画を避ける）
+  const history = useTransferStore((s) => (panelOpen ? s.history : EMPTY_HISTORY))
   const clearHistory = useTransferStore((s) => s.clearHistory)
   const pinnedJobId = useTransferStore((s) => s.pinnedJobId)
-  const byProfileId = useLaunchStore((s) => s.byProfileId)
-  const progressBySessionId = useLaunchStore((s) => s.progressBySessionId)
-  const phaseMessageBySessionId = useLaunchStore((s) => s.phaseMessageBySessionId)
+  const launchDisplayKey = useLaunchStore((s) =>
+    launchProgressDisplayKey(s.byProfileId, s.progressBySessionId, s.phaseMessageBySessionId),
+  )
+  const { byProfileId, progressBySessionId, phaseMessageBySessionId } = useMemo(() => {
+    const s = useLaunchStore.getState()
+    return {
+      byProfileId: s.byProfileId,
+      progressBySessionId: s.progressBySessionId,
+      phaseMessageBySessionId: s.phaseMessageBySessionId,
+    }
+  }, [launchDisplayKey])
   const setSettingsSection = useUiStore((s) => s.setSettingsSection)
-  const [panelOpen, setPanelOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null)
 
@@ -355,11 +372,14 @@ export function TransferProgress() {
       : null
 
   return (
-    <div ref={rootRef} className="relative flex min-w-0 items-center gap-3">
+    <div
+      ref={rootRef}
+      className="relative flex min-w-0 items-center gap-3 [contain:layout_style]"
+    >
       <div className="relative size-10 shrink-0">
         {installing ? (
           <svg
-            className="pointer-events-none absolute inset-0 size-full animate-spin motion-reduce:animate-none"
+            className="pointer-events-none absolute inset-0 size-full animate-spin motion-reduce:animate-none [animation-duration:1.8s]"
             viewBox="0 0 36 36"
             aria-hidden
           >
@@ -407,9 +427,27 @@ export function TransferProgress() {
       </div>
 
       {primary ? (
-        <div className="w-[min(33vw,20rem)] min-w-[11rem] max-w-md shrink">
-          <ProgressRow item={primary} instances={instances} onOpen={() => openItem(primary)} />
-        </div>
+        <button
+          type="button"
+          className="flex min-w-0 max-w-[18rem] shrink items-center gap-2 rounded-[var(--radius-sm)] px-1 py-0.5 text-left hover:bg-[var(--color-hover)]"
+          onClick={() => openItem(primary)}
+        >
+          <ProgressItemIcon item={primary} instances={instances} />
+          <div className="min-w-0 flex-1">
+            <div className="mb-0.5 flex items-baseline gap-2">
+              <p className="min-w-0 truncate text-xs font-medium leading-4 text-[var(--color-text)]">
+                {primary.title}
+              </p>
+              <span className="shrink-0 text-[10px] leading-4 tabular-nums text-[var(--color-text-muted)]">
+                {Math.round(primary.percent)}%
+              </span>
+            </div>
+            <p className="mb-0.5 truncate text-[10px] leading-3 text-[var(--color-text-muted)]">
+              {primary.detail}
+            </p>
+            <ProgressBar percent={Math.round(primary.percent)} />
+          </div>
+        </button>
       ) : null}
 
       {panel}

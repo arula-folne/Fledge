@@ -265,7 +265,7 @@ export function InstanceWizard({ open, onClose, onBack, title }: Props) {
             minecraftVersion,
             loader,
             loaderVersion: needsLoaderVersion ? resolvedLoaderVersion : undefined,
-            memoryMaxMb: settingsQuery.data?.defaultMemoryMaxMb ?? 2048,
+            memoryMaxMb: settingsQuery.data?.defaultMemoryMaxMb ?? 4096,
             jvmArgs: settingsQuery.data?.defaultJvmArgs ?? [],
             icon: icon
               ? { bytes: icon.bytes, originalName: icon.originalName }

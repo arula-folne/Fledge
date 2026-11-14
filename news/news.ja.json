@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.7.0",
+    "title": "【バージョンアップ】Fledge Ver.0.7.0",
+    "body": "**Fledge Ver.0.7.0** を公開しました。\n\n## 主な変更\n\n- コンテンツ導入を Modrinth に近い版選定・依存解決へ改善（beta/alpha フォールバック、mrpack の不足依存補完）\n- 動作設定の整理（起動時最小化・終了時の前面表示、メモリ既定 4GB）\n- インストール負荷制御とリリース前の残骸整理\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-11-14T07:35:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.7.0"
+  },
+  {
     "id": "v0.6.8",
     "title": "【バージョンアップ】Fledge Ver.0.6.8",
     "body": "**Fledge Ver.0.6.8** を公開しました。\n\n## 主な変更\n\n- インスタンス作成中もアプリ操作や Mod 導入をしやすく改善\n- インストールの負荷軽減と高速化\n- コンテンツ検索の folne 枠でスクロールバーが出ないよう修正\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
@@ -608,4 +615,4 @@
     "publishedAt": "2026-08-05T00:00:00.000Z",
     "url": "https://github.com/arula-folne/Fledge/blob/main/PRIVACY.md"
   }
-]\n
+]

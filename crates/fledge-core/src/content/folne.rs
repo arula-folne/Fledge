@@ -6,10 +6,8 @@ use crate::error::{CoreError, CoreResult};
 use crate::updater::APP_VERSION;
 use serde_json::{json, Value};
 use std::env;
-use std::time::Duration;
 
 const DEFAULT_API: &str = "https://www.folne.net/api/content";
-const FETCH_TIMEOUT_MS: u64 = 20_000;
 
 fn user_agent() -> String {
     format!("Fledge/{APP_VERSION} (https://github.com/arula-folne/Fledge; folne-content)")
@@ -32,28 +30,8 @@ impl FolneProvider {
 
     async fn api_get(&self, path: &str) -> CoreResult<Value> {
         let url = format!("{}{path}", Self::api_base());
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_millis(FETCH_TIMEOUT_MS))
-            .user_agent(user_agent())
-            .build()
-            .map_err(|e| CoreError::msg(e.to_string()))?;
-        let res = client
-            .get(&url)
-            .header("Accept", "application/json")
-            .send()
-            .await
-            .map_err(|e| CoreError::msg(e.to_string()))?;
-        if !res.status().is_success() {
-            let status = res.status().as_u16();
-            let body = res.text().await.unwrap_or_default();
-            return Err(CoreError::msg(format!(
-                "folne content API {status}: {}",
-                body.chars().take(200).collect::<String>()
-            )));
-        }
-        res.json()
-            .await
-            .map_err(|e| CoreError::msg(e.to_string()))
+        let ua = user_agent();
+        crate::content::api_http::cached_json_get(&url, &ua, None).await
     }
 
     pub async fn search(&self, query: &Value) -> CoreResult<Value> {

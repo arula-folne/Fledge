@@ -8,15 +8,16 @@ function isTauriRuntime(): boolean {
 
 /**
  * スクリーンショット表示用 URL。
- * - Tauri: 絶対パスを asset プロトコルへ（Electron の fledge-screenshot:// は使わない）
- * - Electron: 互換のためカスタムプロトコルを維持
+ * Tauri では絶対パスを asset プロトコルへ変換する。
+ * プロモ／ブラウザデモでは data URL・http(s)・相対パスをそのまま返す。
  */
 export function instanceScreenshotUrl(
   instanceId: string,
   fileName: string,
   absolutePath?: string | null,
 ): string {
-  // プロモ／ブラウザデモ用: data URL・http(s)・同一オリジン相対パスはそのまま表示
+  void instanceId
+  void fileName
   if (
     absolutePath &&
     (absolutePath.startsWith('data:') ||
@@ -31,12 +32,10 @@ export function instanceScreenshotUrl(
     try {
       return convertFileSrc(absolutePath)
     } catch {
-      /* fall through to protocol URL */
+      /* fall through */
     }
   }
-  const id = encodeURIComponent(instanceId)
-  const name = encodeURIComponent(fileName)
-  return `fledge-screenshot://local/${id}/${name}`
+  return absolutePath ?? ''
 }
 
 export function isScreenshotFileName(name: string): boolean {

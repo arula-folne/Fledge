@@ -58,7 +58,7 @@ export const UPDATER = {
    */
   upToDateCacheTtlMs: 60 * 1000,
   fetchTimeoutMs: 15_000,
-  /** electron-builder (0.4) と Tauri NSIS (0.5) の artifact 名 */
+  /** Tauri NSIS の artifact 名（旧 Electron `Fledge-Setup.exe` も世代ロック用に許容） */
   installerNamePattern: /^(?:Fledge-Setup\.exe|Fledge_.+_x64-setup\.exe)$/i,
   installerFallbackPattern: /\.exe$/i,
   /**

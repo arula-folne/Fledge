@@ -31,7 +31,12 @@ import { ContentCategoryIcon, ContentCategoryLabel, ContentFallbackIcon, Content
 import { ContentShareDialog } from './ContentShareDialog'
 import { SlidingPillTabs } from '../../components/ui/SlidingPillTabs'
 import { useTransferStore } from '../../stores/appStores'
+import {
+  contentInstallingProjectIdsKey,
+  parseProjectIdsKey,
+} from '../transfers/transferSelectors'
 import { ContentDropOverlay, useContentFileDrop } from './ContentDropZone'
+import { mapWithConcurrency } from '../../utils/mapWithConcurrency'
 
 type Props = {
   instance: InstanceProfile
@@ -224,15 +229,19 @@ export function ContentTab({ instance }: Props) {
 
   const bulkUpdateMutation = useMutation({
     mutationFn: async (targets: BulkStableTarget[]) => {
-      for (const target of targets) {
-        await fledgeApi.content.install({
+      const results = await mapWithConcurrency(targets, 2, (target) =>
+        fledgeApi.content.install({
           instanceId: instance.id,
           provider: target.item.provider,
           projectId: target.item.projectId,
           category: target.item.category,
           versionId: target.versionId,
           gameVersion: instance.minecraftVersion,
-        })
+        }),
+      )
+      const failed = results.filter((r) => r.status === 'rejected').length
+      if (failed > 0) {
+        throw new Error(`${failed} update(s) failed to queue`)
       }
     },
     onSuccess: () => void invalidate(),
@@ -365,20 +374,13 @@ export function ContentTab({ instance }: Props) {
     }
   }, [instance.minecraftVersion, instanceLoaders, items])
 
-  const jobs = useTransferStore((s) => s.jobs)
-  const installingProjectIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const job of Object.values(jobs)) {
-      if (
-        job.kind === 'content' &&
-        job.meta.instanceId === instance.id &&
-        typeof job.meta.projectId === 'string'
-      ) {
-        ids.add(job.meta.projectId)
-      }
-    }
-    return ids
-  }, [jobs, instance.id])
+  const installingProjectIdsKey = useTransferStore((s) =>
+    contentInstallingProjectIdsKey(s.jobs, instance.id, false),
+  )
+  const installingProjectIds = useMemo(
+    () => parseProjectIdsKey(installingProjectIdsKey),
+    [installingProjectIdsKey],
+  )
 
   const closeMenu = useCallback(() => setMenu(null), [])
 
@@ -688,7 +690,7 @@ export function ContentTab({ instance }: Props) {
                 <li
                   key={item.id}
                   className={[
-                    'flex cursor-pointer items-stretch border-b border-[var(--color-border)] transition-colors hover:bg-[var(--color-hover)]/60',
+                    'flex cursor-pointer items-stretch border-b border-[var(--color-border)] transition-colors hover:bg-[var(--color-hover)]/60 [content-visibility:auto] [contain-intrinsic-size:auto_3.5rem]',
                     index % 2 === 1 ? 'bg-[var(--color-zebra)]' : 'bg-[var(--color-surface)]',
                     checked ? 'bg-[var(--color-accent-soft)]/35' : '',
                   ].join(' ')}
@@ -942,6 +944,8 @@ export function ContentTab({ instance }: Props) {
                   alt=""
                   width={36}
                   height={36}
+                  loading="lazy"
+                  decoding="async"
                   className="size-9 shrink-0 rounded-[var(--radius-sm)] object-cover"
                 />
               ) : (

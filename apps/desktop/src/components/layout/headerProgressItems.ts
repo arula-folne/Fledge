@@ -210,6 +210,8 @@ export function buildHeaderProgressItems(input: {
 
   for (const job of Object.values(transferJobs)) {
     if (job.status !== 'queued' && job.status !== 'active') continue
+    // アプリ更新はバナー専用（インストールビュー除外）
+    if (job.kind === 'app-update' || job.jobId === 'app-updater') continue
     if (job.sessionId && activeSessionIds.has(job.sessionId)) continue
     const instanceId = jobInstanceId(job)
     if (instanceId && activeProfileIds.has(instanceId)) continue
@@ -262,6 +264,7 @@ export function buildHeaderHistoryItems(input: {
   const seenContentInstances = new Set<string>()
 
   for (const job of history) {
+    if (job.kind === 'app-update' || job.jobId === 'app-updater') continue
     const instanceId = jobInstanceId(job)
 
     if (isContentTransferJob(job)) {
