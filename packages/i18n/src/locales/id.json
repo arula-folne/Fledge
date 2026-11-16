@@ -634,6 +634,11 @@
   "settings.block.theme": "Tema",
   "settings.block.standardTheme": "Standar",
   "settings.block.seasonTheme": "Musim & acara",
+  "settings.block.customTheme": "Kustom",
+  "settings.customThemeHint": "Daftarkan gambar latar Anda sendiri. Maksimal 5; warna seperti Warna standar. Untuk menambah lagi, hapus salah satu dulu.",
+  "settings.customThemeEmpty": "Belum ada latar kustom. Pilih gambar dengan Tambah.",
+  "settings.customTheme.add": "Tambah",
+  "settings.customTheme.remove": "Hapus latar ini",
   "settings.seasonThemeHint": "Tema bergambar untuk musim dan pembaruan. Tema baru dikumpulkan di sini dan dapat dipilih terpisah dari Standar.",
   "settings.seasonThemeEmpty": "Belum ada tema musim. Tema akan ditambahkan di sini.",
   "settings.seasonTheme.tidalSummer2026": "Tidal Summer 2026",
@@ -1037,5 +1042,12 @@
   "instances.exportMrpack.folderEmpty": "Folder ini kosong",
   "instances.exportMrpack.folderSelected": "(seluruh folder)",
   "instances.exportMrpack.selectedPaths": "{{count}} dipilih",
-  "instances.exportMrpack.selectItem": "Pilih {{name}}"
+  "instances.exportMrpack.selectItem": "Pilih {{name}}",
+  "settings.customTheme.full": "Batas 5 tercapai. Hapus satu latar untuk menambah yang lain.",
+  "settings.customTheme.item": "Latar kustom {{n}}",
+  "settings.theme.inUse": "Dipakai",
+  "content.opsLockedPreparing": "Content cannot be changed until setup finishes",
+  "content.error.instancePreparing": "Content cannot be changed while the instance is being set up",
+  "settings.minecraftInitial.tutorialHints": "Tutorial hints",
+  "settings.minecraftInitial.tutorialHintsHint": "Hints such as movement and punching trees. Off hides them (vanilla default is on)."
 }

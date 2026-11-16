@@ -243,12 +243,19 @@ export const MEMORY_GC_WARN_ABOVE_MB = 24576
 export const ThemeModeSchema = z.enum(['light', 'dark', 'color', 'oled', 'system'])
 export type ThemeMode = z.infer<typeof ThemeModeSchema>
 
-/** スタンダード / シーズン（別系統） */
+/** スタンダード / シーズン / カスタム（背景画像＋色） */
 export const ThemeFamilySchema = z.preprocess(
   (value) => (value === 'variety' || value === 'image' ? 'standard' : value),
-  z.enum(['standard', 'season']),
+  z.enum(['standard', 'season', 'custom']),
 )
-export type ThemeFamily = 'standard' | 'season'
+export type ThemeFamily = 'standard' | 'season' | 'custom'
+
+/** カスタムテーマの背景（新しい順・最大5件。超過分は手動削除が必要） */
+export const CUSTOM_THEME_HISTORY_MAX = 5
+export const CustomThemeHistoryEntrySchema = z.object({
+  id: z.string().min(1),
+})
+export type CustomThemeHistoryEntry = z.infer<typeof CustomThemeHistoryEntrySchema>
 
 /** ランチャー UI の大きさ（zoom 係数はデスクトップ側） */
 export const UiScaleSchema = z.enum(['compact', 'normal', 'large', 'wide'])
@@ -384,6 +391,8 @@ export const MinecraftInitialSettingsSchema = z.object({
   showSubtitles: z.boolean().nullable().default(null),
   autoJump: z.boolean().nullable().default(null),
   bobView: z.boolean().nullable().default(null),
+  /** null=既定（表示）、true=表示、false=非表示（tutorialStep:none） */
+  tutorialHints: z.boolean().nullable().default(null),
   operatorItemsTab: z.boolean().nullable().default(null),
   fovDegrees: z.number().min(30).max(110).nullable().default(null),
   masterVolume: z.number().min(0).max(1).nullable().default(null),
@@ -443,12 +452,19 @@ export const SettingsSchemaBase = z.object({
   windowHeight: z.number().int().optional(),
 
   // 表示設定
-  /** standard / season */
+  /** standard / season / custom */
   themeFamily: ThemeFamilySchema.default('standard'),
   themeMode: ThemeModeSchema.default('light'),
   /** 選択中のシーズンテーマ ID（themeFamily が season のとき）。カタログに残る過去分も指定可 */
   seasonThemeId: z.string().min(1).nullable().default(null),
-  /** カラーテーマのベース（背景・面の色み） */
+  /** カスタム背景の選択中 ID（history 内）。themeFamily が custom のとき */
+  customThemeImageId: z.string().min(1).nullable().default(null),
+  /** カスタム背景一覧（新しい順・最大 CUSTOM_THEME_HISTORY_MAX。自動削除なし） */
+  customThemeHistory: z
+    .array(CustomThemeHistoryEntrySchema)
+    .max(CUSTOM_THEME_HISTORY_MAX)
+    .default([]),
+  /** カラー／カスタムのベース（背景・面の色み） */
   themeColor: z
     .object({
       r: z.number().int().min(0).max(255).default(255),
@@ -456,7 +472,7 @@ export const SettingsSchemaBase = z.object({
       b: z.number().int().min(0).max(255).default(255),
     })
     .default({ r: 255, g: 255, b: 255 }),
-  /** カラーテーマのアクセント（ボタン・強調） */
+  /** カラー／カスタムのアクセント（ボタン・強調） */
   themeAccentColor: z
     .object({
       r: z.number().int().min(0).max(255).default(91),

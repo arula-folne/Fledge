@@ -180,6 +180,7 @@ pub fn has_custom_minecraft_initial_settings(settings: &Value) -> bool {
         "showSubtitles",
         "autoJump",
         "bobView",
+        "tutorialHints",
         "operatorItemsTab",
         "fovDegrees",
         "masterVolume",
@@ -322,6 +323,10 @@ pub fn snapshot_minecraft_initial_options(
     }
     if let Some(v) = settings.get("bobView").and_then(|v| v.as_bool()) {
         put("bobView", v.to_string());
+    }
+    // false のみ非表示。true / 未設定はキーを書かずバニラ既定（表示）に任せる
+    if settings.get("tutorialHints").and_then(|v| v.as_bool()) == Some(false) {
+        put("tutorialStep", "none".into());
     }
     if let Some(v) = settings.get("operatorItemsTab").and_then(|v| v.as_bool()) {
         put("operatorItemsTab", v.to_string());

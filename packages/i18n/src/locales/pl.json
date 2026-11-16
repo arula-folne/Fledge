@@ -634,6 +634,11 @@
   "settings.block.theme": "Temat",
   "settings.block.standardTheme": "Standardowy",
   "settings.block.seasonTheme": "Pory roku i wydarzenia",
+  "settings.block.customTheme": "Własny",
+  "settings.customThemeHint": "Zarejestruj własne obrazy tła. Maksimum 5; kolory działają jak Kolor standardowy. Aby dodać kolejne, najpierw usuń jedno.",
+  "settings.customThemeEmpty": "Brak własnych teł. Wybierz obraz przez Dodaj.",
+  "settings.customTheme.add": "Dodaj",
+  "settings.customTheme.remove": "Usuń to tło",
   "settings.seasonThemeHint": "Ilustrowane motywy pór roku i aktualizacji. Nowe są gromadzone tutaj i można je wybierać niezależnie od wersji Standard.",
   "settings.seasonThemeEmpty": "Nie ma jeszcze tematów sezonowych. Zostaną one tutaj dodane.",
   "settings.seasonTheme.tidalSummer2026": "Tidal Summer 2026",
@@ -1037,5 +1042,12 @@
   "instances.exportMrpack.folderEmpty": "Ten folder jest pusty",
   "instances.exportMrpack.folderSelected": "(cały folder)",
   "instances.exportMrpack.selectedPaths": "Zaznaczono {{count}}",
-  "instances.exportMrpack.selectItem": "Zaznacz {{name}}"
+  "instances.exportMrpack.selectItem": "Zaznacz {{name}}",
+  "settings.customTheme.full": "Osiągnięto limit 5. Usuń tło, aby dodać kolejne.",
+  "settings.customTheme.item": "Własne tło {{n}}",
+  "settings.theme.inUse": "W użyciu",
+  "content.opsLockedPreparing": "Content cannot be changed until setup finishes",
+  "content.error.instancePreparing": "Content cannot be changed while the instance is being set up",
+  "settings.minecraftInitial.tutorialHints": "Tutorial hints",
+  "settings.minecraftInitial.tutorialHintsHint": "Hints such as movement and punching trees. Off hides them (vanilla default is on)."
 }

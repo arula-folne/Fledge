@@ -102,6 +102,11 @@ export function createTauriFledgeApi(): FledgeApi {
       exportMrpack: (instanceId, options) =>
         call(IPC.contentExportMrpack, packArgs(instanceId, options)),
     },
+    theme: {
+      importCustomImage: () => call(IPC.themeImportCustomImage),
+      removeCustomImage: (id) => call(IPC.themeRemoveCustomImage, id),
+      resolveCustomImage: (id) => call(IPC.themeResolveCustomImage, id),
+    },
     skins: {
       list: () => call(IPC.skinsList),
       upload: (input) => call(IPC.skinsUpload, input),

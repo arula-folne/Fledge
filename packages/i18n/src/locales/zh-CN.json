@@ -634,6 +634,11 @@
   "settings.block.theme": "主题",
   "settings.block.standardTheme": "标准",
   "settings.block.seasonTheme": "季节与活动",
+  "settings.block.customTheme": "自定义",
+  "settings.customThemeHint": "可注册自己的背景图片。最多保存 5 张，颜色选择方式与标准「颜色」相同。若要再添加，请先删除一张。",
+  "settings.customThemeEmpty": "还没有自定义背景。请点击“添加”选择图片。",
+  "settings.customTheme.add": "添加",
+  "settings.customTheme.remove": "删除此背景",
   "settings.seasonThemeHint": "季节与更新主题插画。新增主题会集中在此，可与标准主题分开选择。",
   "settings.seasonThemeEmpty": "尚无季节主题。之后会添加于此。",
   "settings.seasonTheme.tidalSummer2026": "Tidal Summer 2026",
@@ -1037,5 +1042,12 @@
   "instances.exportMrpack.folderEmpty": "此文件夹为空",
   "instances.exportMrpack.folderSelected": "（整个文件夹）",
   "instances.exportMrpack.selectedPaths": "已选 {{count}} 项",
-  "instances.exportMrpack.selectItem": "选择 {{name}}"
+  "instances.exportMrpack.selectItem": "选择 {{name}}",
+  "settings.customTheme.full": "已达上限 5 张。请删除一张背景后再添加。",
+  "settings.customTheme.item": "自定义背景 {{n}}",
+  "settings.theme.inUse": "使用中",
+  "content.opsLockedPreparing": "Content cannot be changed until setup finishes",
+  "content.error.instancePreparing": "Content cannot be changed while the instance is being set up",
+  "settings.minecraftInitial.tutorialHints": "Tutorial hints",
+  "settings.minecraftInitial.tutorialHintsHint": "Hints such as movement and punching trees. Off hides them (vanilla default is on)."
 }

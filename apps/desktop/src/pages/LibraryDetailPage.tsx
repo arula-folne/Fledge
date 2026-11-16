@@ -54,7 +54,8 @@ import { ExportMrpackDialog } from '../features/content/ExportMrpackDialog'
 import { formatLastPlayed, formatLoaderLabel } from '../features/instances/instanceMeta'
 import { HoverTip } from '../components/ui/HoverTip'
 import { parseLibraryTab, writeLibraryTab } from '../navigation/libraryDetailSearch'
-import { useUiStore, type LibraryDetailTab } from '../stores/appStores'
+import { useLaunchStore, useUiStore, type LibraryDetailTab } from '../stores/appStores'
+import { isInstanceContentOpsLocked } from '../features/content/instanceContentLock'
 
 /** コンテンツ（Modrinth）周りは詳細ページ本体と分離し、読み込み失敗で全体を落とさない */
 const ContentTab = lazy(() =>
@@ -173,6 +174,9 @@ export default function LibraryDetailPage() {
     loader: Loader
   } | null>(null)
   const settingsOpen = editingInstanceId === instanceId
+  const contentOpsLocked = useLaunchStore((s) =>
+    isInstanceContentOpsLocked(s.stateFor(instanceId)),
+  )
 
   const instanceQuery = useQuery({
     queryKey: ['instances', instanceId],
@@ -315,6 +319,9 @@ export default function LibraryDetailPage() {
   const contentCompatMutation = useMutation({
     mutationFn: async () => {
       if (!instance || !pendingContentTarget) throw new Error('no target')
+      if (isInstanceContentOpsLocked(useLaunchStore.getState().stateFor(instance.id))) {
+        throw new Error('content.error.instancePreparing')
+      }
       const gameVersion = pendingContentTarget.minecraftVersion
       const loaders = loaderToContentFilters(pendingContentTarget.loader)
       const installed = await fledgeApi.content.listInstalled(instance.id)
@@ -355,7 +362,8 @@ export default function LibraryDetailPage() {
       await queryClient.invalidateQueries({ queryKey: ['content-installed', instanceId] })
     },
     onError: (err) => {
-      setMessage(err instanceof Error ? err.message : String(err))
+      const key = err instanceof Error ? err.message : String(err)
+      setMessage(key.startsWith('content.error.') ? t(key) : key)
     },
   })
 
@@ -938,10 +946,14 @@ export default function LibraryDetailPage() {
       <ConfirmDialog
         open={contentCompatOpen}
         title={t('instances.versionChange.contentTitle')}
-        body={t('instances.versionChange.contentBody', {
-          game: pendingContentTarget?.minecraftVersion ?? instance.minecraftVersion,
-          loader: formatLoaderLabel(pendingContentTarget?.loader ?? instance.loader, t),
-        })}
+        body={
+          contentOpsLocked
+            ? t('content.opsLockedPreparing')
+            : t('instances.versionChange.contentBody', {
+                game: pendingContentTarget?.minecraftVersion ?? instance.minecraftVersion,
+                loader: formatLoaderLabel(pendingContentTarget?.loader ?? instance.loader, t),
+              })
+        }
         confirmLabel={t('instances.versionChange.updateContent')}
         cancelLabel={t('instances.versionChange.keepContent')}
         confirmVariant="primary"
@@ -952,7 +964,10 @@ export default function LibraryDetailPage() {
           setPendingContentTarget(null)
           setEditingInstanceId(null)
         }}
-        onConfirm={() => contentCompatMutation.mutate()}
+        onConfirm={() => {
+          if (contentOpsLocked) return
+          contentCompatMutation.mutate()
+        }}
       />
     </div>
   )

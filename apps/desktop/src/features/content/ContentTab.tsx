@@ -30,12 +30,13 @@ import {
 import { ContentCategoryIcon, ContentCategoryLabel, ContentFallbackIcon, ContentFilterAllLabel } from './contentCategoryIcons'
 import { ContentShareDialog } from './ContentShareDialog'
 import { SlidingPillTabs } from '../../components/ui/SlidingPillTabs'
-import { useTransferStore } from '../../stores/appStores'
+import { useLaunchStore, useTransferStore } from '../../stores/appStores'
 import {
   contentInstallingProjectIdsKey,
   parseProjectIdsKey,
 } from '../transfers/transferSelectors'
 import { ContentDropOverlay, useContentFileDrop } from './ContentDropZone'
+import { isInstanceContentOpsLocked } from './instanceContentLock'
 import { mapWithConcurrency } from '../../utils/mapWithConcurrency'
 
 type Props = {
@@ -68,6 +69,8 @@ export function ContentTab({ instance }: Props) {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const queryClient = useQueryClient()
+  const launchState = useLaunchStore((s) => s.stateFor(instance.id))
+  const contentOpsLocked = isInstanceContentOpsLocked(launchState)
   const [removeTargets, setRemoveTargets] = useState<InstalledContent[] | null>(null)
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false)
   const [bulkTargets, setBulkTargets] = useState<BulkStableTarget[]>([])
@@ -198,14 +201,14 @@ export function ContentTab({ instance }: Props) {
 
   const onDropPaths = useCallback(
     (paths: string[]) => {
-      if (paths.length === 0 || installLocalMutation.isPending) return
+      if (contentOpsLocked || paths.length === 0 || installLocalMutation.isPending) return
       installLocalMutation.mutate(paths)
     },
-    [installLocalMutation],
+    [contentOpsLocked, installLocalMutation],
   )
 
   const { active: dropActive, previews: dropPreviews } = useContentFileDrop({
-    enabled: true,
+    enabled: !contentOpsLocked,
     onDropPaths,
   })
 
@@ -337,6 +340,7 @@ export function ContentTab({ instance }: Props) {
   const hasUpdates = updatableItems.length > 0
 
   const openBulkUpdate = useCallback(async () => {
+    if (contentOpsLocked) return
     const candidates = items.filter(
       (item) =>
         item.updateAvailable &&
@@ -372,7 +376,7 @@ export function ContentTab({ instance }: Props) {
     } finally {
       setBulkResolving(false)
     }
-  }, [instance.minecraftVersion, instanceLoaders, items])
+  }, [contentOpsLocked, instance.minecraftVersion, instanceLoaders, items])
 
   const installingProjectIdsKey = useTransferStore((s) =>
     contentInstallingProjectIdsKey(s.jobs, instance.id, false),
@@ -501,9 +505,10 @@ export function ContentTab({ instance }: Props) {
           >
             <button
               type="button"
-              className="block w-full px-3 py-2 text-left text-sm transition hover:bg-[var(--color-hover)]"
-              disabled={toggleMutation.isPending}
+              className="block w-full px-3 py-2 text-left text-sm transition hover:bg-[var(--color-hover)] disabled:opacity-50"
+              disabled={contentOpsLocked || toggleMutation.isPending}
               onClick={() => {
+                if (contentOpsLocked) return
                 toggleMutation.mutate({ id: menu.item.id, enabled: !menu.item.enabled })
                 closeMenu()
               }}
@@ -513,8 +518,10 @@ export function ContentTab({ instance }: Props) {
             {menu.item.provider !== 'local' ? (
               <button
                 type="button"
-                className="block w-full px-3 py-2 text-left text-sm transition hover:bg-[var(--color-hover)]"
+                className="block w-full px-3 py-2 text-left text-sm transition hover:bg-[var(--color-hover)] disabled:opacity-50"
+                disabled={contentOpsLocked}
                 onClick={() => {
+                  if (contentOpsLocked) return
                   setVersionPickItem(menu.item)
                   closeMenu()
                 }}
@@ -535,8 +542,10 @@ export function ContentTab({ instance }: Props) {
             <div className="my-1 border-t border-[var(--color-border)]" />
             <button
               type="button"
-              className="block w-full px-3 py-2 text-left text-sm text-[var(--color-danger)] transition hover:bg-[var(--color-danger)]/10"
+              className="block w-full px-3 py-2 text-left text-sm text-[var(--color-danger)] transition hover:bg-[var(--color-danger)]/10 disabled:opacity-50"
+              disabled={contentOpsLocked}
               onClick={() => {
+                if (contentOpsLocked) return
                 setRemoveTargets([menu.item])
                 closeMenu()
               }}
@@ -551,6 +560,11 @@ export function ContentTab({ instance }: Props) {
   return (
     <div className="relative flex h-full min-h-0 flex-col gap-1.5">
       <ContentDropOverlay active={dropActive} previews={dropPreviews} />
+      {contentOpsLocked ? (
+        <p className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-accent-soft)] px-2.5 py-1.5 text-xs text-[var(--color-text)]">
+          {t('content.opsLockedPreparing')}
+        </p>
+      ) : null}
       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
         <SlidingPillTabs
           className="min-w-0"
@@ -571,7 +585,9 @@ export function ContentTab({ instance }: Props) {
           <Button
             variant={hasUpdates ? 'primary' : 'secondary'}
             className="px-2 py-1 text-xs"
-            disabled={!hasUpdates || bulkUpdateMutation.isPending || bulkResolving}
+            disabled={
+              contentOpsLocked || !hasUpdates || bulkUpdateMutation.isPending || bulkResolving
+            }
             onClick={() => void openBulkUpdate()}
           >
             <IconArrowUp size={14} stroke={1.75} />
@@ -586,7 +602,12 @@ export function ContentTab({ instance }: Props) {
             <IconRefresh size={14} stroke={1.75} />
             {t('content.refreshData')}
           </Button>
-          <Button variant="primary" className="px-2.5 py-1 text-xs" onClick={openBrowsePage}>
+          <Button
+            variant="primary"
+            className="px-2.5 py-1 text-xs"
+            disabled={contentOpsLocked}
+            onClick={openBrowsePage}
+          >
             <IconPlus size={14} stroke={1.75} />
             {t('content.add')}
           </Button>
@@ -605,8 +626,15 @@ export function ContentTab({ instance }: Props) {
           <p className="mt-1.5 text-xs text-[var(--color-text-muted)]">
             {listFilter === 'all' ? t('content.empty') : t('content.emptyFiltered')}
           </p>
-          <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">{t('content.dropHint')}</p>
-          <Button className="mt-2 px-2.5 py-1 text-xs" variant="primary" onClick={openBrowsePage}>
+          <p className="mt-1 text-[11px] text-[var(--color-text-muted)]">
+            {contentOpsLocked ? t('content.opsLockedPreparing') : t('content.dropHint')}
+          </p>
+          <Button
+            className="mt-2 px-2.5 py-1 text-xs"
+            variant="primary"
+            disabled={contentOpsLocked}
+            onClick={openBrowsePage}
+          >
             <IconPlus size={14} stroke={1.75} />
             {t('content.add')}
           </Button>
@@ -621,7 +649,7 @@ export function ContentTab({ instance }: Props) {
               <Button
                 variant="secondary"
                 className="px-2 py-1 text-xs"
-                disabled={bulkToggleMutation.isPending}
+                disabled={contentOpsLocked || bulkToggleMutation.isPending}
                 onClick={() =>
                   bulkToggleMutation.mutate(
                     { ids: selectedItems.map((item) => item.id), enabled: false },
@@ -634,7 +662,7 @@ export function ContentTab({ instance }: Props) {
               <Button
                 variant="secondary"
                 className="px-2 py-1 text-xs"
-                disabled={bulkToggleMutation.isPending}
+                disabled={contentOpsLocked || bulkToggleMutation.isPending}
                 onClick={() =>
                   bulkToggleMutation.mutate(
                     { ids: selectedItems.map((item) => item.id), enabled: true },
@@ -655,6 +683,7 @@ export function ContentTab({ instance }: Props) {
               <Button
                 variant="danger"
                 className="px-2 py-1 text-xs"
+                disabled={contentOpsLocked}
                 onClick={() => setRemoveTargets(selectedItems)}
               >
                 <IconTrash size={14} stroke={1.75} />
@@ -757,9 +786,11 @@ export function ContentTab({ instance }: Props) {
                     <div className="mr-3">
                       <HoverTip
                         label={
-                          hasStableUpdate(item)
-                            ? t('content.changeVersionUpdateAvailable')
-                            : t('content.changeVersion')
+                          contentOpsLocked
+                            ? t('content.opsLockedPreparing')
+                            : hasStableUpdate(item)
+                              ? t('content.changeVersionUpdateAvailable')
+                              : t('content.changeVersion')
                         }
                         disabled={installing}
                       >
@@ -770,15 +801,19 @@ export function ContentTab({ instance }: Props) {
                             hasStableUpdate(item)
                               ? 'bg-[var(--color-accent-soft)] text-[var(--color-accent)] ring-1 ring-[var(--color-accent)]/35 hover:bg-[color-mix(in_srgb,var(--color-accent-soft)_80%,var(--color-accent))]'
                               : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
+                            contentOpsLocked ? 'opacity-50' : '',
                           ].join(' ')}
                           aria-label={
-                            hasStableUpdate(item)
-                              ? t('content.changeVersionUpdateAvailable')
-                              : t('content.changeVersion')
+                            contentOpsLocked
+                              ? t('content.opsLockedPreparing')
+                              : hasStableUpdate(item)
+                                ? t('content.changeVersionUpdateAvailable')
+                                : t('content.changeVersion')
                           }
-                          disabled={installing}
+                          disabled={contentOpsLocked || installing}
                           onClick={(e) => {
                             e.stopPropagation()
+                            if (contentOpsLocked) return
                             setVersionPickItem(item)
                           }}
                         >
@@ -801,17 +836,25 @@ export function ContentTab({ instance }: Props) {
                     >
                       <Switch
                         checked={item.enabled}
-                        disabled={toggleMutation.isPending && toggleMutation.variables?.id === item.id}
+                        disabled={
+                          contentOpsLocked ||
+                          (toggleMutation.isPending && toggleMutation.variables?.id === item.id)
+                        }
                         aria-label={item.enabled ? t('content.disable') : t('content.enable')}
-                        onChange={(enabled) => toggleMutation.mutate({ id: item.id, enabled })}
+                        onChange={(enabled) => {
+                          if (contentOpsLocked) return
+                          toggleMutation.mutate({ id: item.id, enabled })
+                        }}
                       />
                     </div>
                     <button
                       type="button"
-                      className="inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/10"
+                      className="inline-flex size-10 shrink-0 items-center justify-center rounded-[var(--radius-sm)] text-[var(--color-danger)] transition-colors hover:bg-[var(--color-danger)]/10 disabled:opacity-50"
                       aria-label={t('content.remove')}
+                      disabled={contentOpsLocked}
                       onClick={(e) => {
                         e.stopPropagation()
+                        if (contentOpsLocked) return
                         setRemoveTargets([item])
                       }}
                     >
@@ -994,7 +1037,7 @@ export function ContentTab({ instance }: Props) {
         pending={installVersionMutation.isPending}
         onCancel={() => setVersionChange(null)}
         onConfirm={() => {
-          if (!versionChange) return
+          if (contentOpsLocked || !versionChange) return
           const target = versionChange
           setVersionChange(null)
           installVersionMutation.mutate({

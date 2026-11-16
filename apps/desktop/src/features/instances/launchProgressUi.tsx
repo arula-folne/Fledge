@@ -1,5 +1,5 @@
 /** 起動プログレス — ウィンドウ幅に応じて clamp で統一スケール */
-export const LAUNCH_PROGRESS_WIDTH = 'w-[clamp(11rem,16vw,15rem)]'
+export const LAUNCH_PROGRESS_WIDTH = 'w-[clamp(22rem,32vw,30rem)]'
 export const LAUNCH_PROGRESS_SLOT =
   'flex min-h-[1.375rem] flex-col justify-center ' + LAUNCH_PROGRESS_WIDTH
 

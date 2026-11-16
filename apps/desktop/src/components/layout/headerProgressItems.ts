@@ -161,9 +161,18 @@ export function buildHeaderProgressItems(input: {
   phaseMessageBySessionId: Record<string, string>
   transferJobs: Record<string, TransferJob>
   t: Translate
+  /** 開発デバッグ: 起動プログレス行を常時表示 */
+  debugLaunchPreview?: boolean
 }): HeaderProgressItem[] {
-  const { instances, byProfileId, progressBySessionId, phaseMessageBySessionId, transferJobs, t } =
-    input
+  const {
+    instances,
+    byProfileId,
+    progressBySessionId,
+    phaseMessageBySessionId,
+    transferJobs,
+    t,
+    debugLaunchPreview = false,
+  } = input
 
   const activeLaunchProfiles = Object.entries(byProfileId).filter(
     ([, s]) => s.state === 'preparing' || s.state === 'launching',
@@ -172,6 +181,22 @@ export function buildHeaderProgressItems(input: {
   const activeProfileIds = new Set(activeLaunchProfiles.map(([id]) => id))
 
   const items: HeaderProgressItem[] = []
+
+  if (debugLaunchPreview && activeLaunchProfiles.length === 0) {
+    const previewId = instances[0]?.id
+    items.push({
+      id: 'launch:debug-preview',
+      title: previewId
+        ? (instanceName(instances, previewId) ?? t('header.progress.genericTitle'))
+        : t('header.progress.genericTitle'),
+      detail: formatProgressMessage(t, 'launch.install.libraries', undefined, 'library.preparing'),
+      percent: 42,
+      sortKey: 'launch:debug-preview',
+      kind: 'launch',
+      icon: { type: 'instance', instanceId: previewId },
+      instanceId: previewId,
+    })
+  }
 
   for (const [profileId, session] of activeLaunchProfiles) {
     const progress = progressBySessionId[session.sessionId]

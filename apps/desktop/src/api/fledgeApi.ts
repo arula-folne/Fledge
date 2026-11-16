@@ -122,6 +122,13 @@ export type FledgeApi = {
     ) => Promise<MrpackExportDirListing>
     exportMrpack: (instanceId: string, options?: MrpackExportOptions) => Promise<string | null>
   }
+  theme: {
+    /** 画像選択ダイアログ→取り込み。キャンセル時 null */
+    importCustomImage: () => Promise<Settings | null>
+    removeCustomImage: (id: string) => Promise<Settings>
+    /** 絶対パス（UI 側で convertFileSrc） */
+    resolveCustomImage: (id: string) => Promise<string>
+  }
   skins: {
     list: () => Promise<SkinEntry[]>
     upload: (input: {

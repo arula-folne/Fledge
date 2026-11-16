@@ -18,8 +18,9 @@ pub fn run() {
 
     let mut builder = tauri::Builder::default();
 
-    // 二重起動を防ぎ、既存ウィンドウを前面に出す
-    #[cfg(desktop)]
+    // 製品版のみ二重起動防止。開発ビルドは製品版の mutex / 識別子と被らないよう外す
+    // （`pnpm dev` は tauri.dev.conf.json で identifier も分離する）。
+    #[cfg(all(desktop, not(debug_assertions)))]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             // 更新後の再起動（--updated）が古いプロセスに吸われると新版が起動しない。
@@ -141,6 +142,9 @@ pub fn run() {
             app.manage(state);
 
             if let Some(main) = app.get_webview_window("main") {
+                if cfg!(debug_assertions) {
+                    let _ = main.set_title("Fledge (開発)");
+                }
                 // Defer size/zoom until the webview has spun up. Calling set_zoom /
                 // with_webview synchronously in setup has frozen a blank window on
                 // first launch right after WebView2 install.

@@ -19,6 +19,7 @@ mod progress;
 mod settings;
 mod settings_options_flg;
 mod skins;
+mod theme_custom;
 mod updater;
 mod versions;
 
@@ -30,6 +31,9 @@ pub use auth::{
     SessionJoinProxy, TokenVault, DEFAULT_MSA_CLIENT_ID, MSA_REDIRECT_URI,
 };
 pub use content::ContentService;
+pub use theme_custom::{
+    import_custom_image, remove_custom_image, resolve_custom_image_path, CUSTOM_THEME_HISTORY_MAX,
+};
 pub use custom_root::CustomRootState;
 pub use discord::{DiscordPresence, PresencePhase};
 pub use error::{CoreError, CoreResult};

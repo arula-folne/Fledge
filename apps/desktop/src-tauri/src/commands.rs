@@ -1,5 +1,6 @@
 use fledge_core::{AppState, CreateDefaults};
 use serde_json::{json, Value};
+use std::path::Path;
 use std::sync::Arc;
 use tauri::{AppHandle, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
@@ -130,6 +131,36 @@ async fn dispatch(
                 .blocking_pick_folder()
                 .map(|p| p.to_string());
             Ok(json!(folder))
+        }
+        "theme:import-custom-image" => {
+            let file = app
+                .dialog()
+                .file()
+                .add_filter("Images", &["png", "jpg", "jpeg", "webp", "gif"])
+                .blocking_pick_file()
+                .map(|p| p.to_string());
+            let Some(path) = file else {
+                return Ok(Value::Null);
+            };
+            let current = state.settings.get().map_err(map_err)?;
+            let patch =
+                fledge_core::import_custom_image(&state.layout, Path::new(&path), &current)
+                    .map_err(map_err)?;
+            let next = state.settings.set(patch).map_err(map_err)?;
+            Ok(next)
+        }
+        "theme:remove-custom-image" => {
+            let id = first_string(&args).ok_or_else(|| "id required".to_string())?;
+            let current = state.settings.get().map_err(map_err)?;
+            let patch =
+                fledge_core::remove_custom_image(&state.layout, &id, &current).map_err(map_err)?;
+            let next = state.settings.set(patch).map_err(map_err)?;
+            Ok(next)
+        }
+        "theme:resolve-custom-image" => {
+            let id = first_string(&args).ok_or_else(|| "id required".to_string())?;
+            let path = fledge_core::resolve_custom_image_path(&state.layout, &id).map_err(map_err)?;
+            Ok(json!(path.to_string_lossy().to_string()))
         }
 
         // instances
@@ -463,10 +494,22 @@ async fn dispatch(
         }
         "content:list-versions" => state.content.list_versions(&args).await.map_err(map_err),
         "content:install" => {
+            if let Some(id) = args.get("instanceId").and_then(|v| v.as_str()) {
+                state
+                    .launch
+                    .ensure_profile_content_ops_allowed(id)
+                    .map_err(map_err)?;
+            }
             let result = state.content.install(&args).await.map_err(map_err)?;
             Ok(result)
         }
         "content:install-local" => {
+            if let Some(id) = args.get("instanceId").and_then(|v| v.as_str()) {
+                state
+                    .launch
+                    .ensure_profile_content_ops_allowed(id)
+                    .map_err(map_err)?;
+            }
             let result = state.content.install_local(&args).await.map_err(map_err)?;
             Ok(result)
         }
@@ -488,6 +531,10 @@ async fn dispatch(
             let id = id.as_str().ok_or_else(|| "instanceId required".to_string())?;
             let entry = entry.as_str().ok_or_else(|| "entryId required".to_string())?;
             let enabled = enabled.as_bool().ok_or_else(|| "enabled required".to_string())?;
+            state
+                .launch
+                .ensure_profile_content_ops_allowed(id)
+                .map_err(map_err)?;
             let result = state
                 .content
                 .set_enabled(id, entry, enabled)
@@ -498,6 +545,10 @@ async fn dispatch(
             let (id, entry) = two_args(&args)?;
             let id = id.as_str().ok_or_else(|| "instanceId required".to_string())?;
             let entry = entry.as_str().ok_or_else(|| "entryId required".to_string())?;
+            state
+                .launch
+                .ensure_profile_content_ops_allowed(id)
+                .map_err(map_err)?;
             state.content.remove(id, entry).map_err(map_err)?;
             Ok(Value::Null)
         }

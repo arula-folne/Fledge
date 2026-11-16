@@ -29,6 +29,7 @@ import {
   IconMusic,
   IconNumbers,
   IconRefresh,
+  IconSchool,
   IconSun,
   IconTextCaption,
   IconViewfinder,
@@ -1040,6 +1041,7 @@ export function MinecraftInitialSettingsPanel({
     show('mc.subtitles') ||
     show('mc.autoJump') ||
     show('mc.bobView') ||
+    show('mc.tutorialHints') ||
     show('mc.fov')
   const videoVisible =
     show('mc.maxFps') ||
@@ -1162,6 +1164,15 @@ export function MinecraftInitialSettingsPanel({
           label={t('settings.minecraftInitial.bobView')}
           value={current.bobView}
           onChange={(bobView) => patch({ bobView })}
+          labels={labels}
+        />
+        ) : null}
+        {show('mc.tutorialHints') ? (
+        <NullableBoolRow
+          icon={IconSchool}
+          label={t('settings.minecraftInitial.tutorialHints')}
+          value={current.tutorialHints}
+          onChange={(tutorialHints) => patch({ tutorialHints })}
           labels={labels}
         />
         ) : null}

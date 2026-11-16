@@ -25,6 +25,9 @@ export const OPTIONS_FLG_EXCLUDED_KEYS = [
   'windowWidth',
   'windowHeight',
   'minecraftInitialSettingsLocked',
+  /** 端末ローカルの画像ファイルに依存 */
+  'customThemeImageId',
+  'customThemeHistory',
 ] as const
 
 export type OptionsFlgExcludedKey = (typeof OPTIONS_FLG_EXCLUDED_KEYS)[number]
@@ -46,6 +49,11 @@ export function pickPortableSettings(settings: Settings): Record<string, unknown
     if (excludedSet.has(key)) continue
     if (value === undefined) continue
     out[key] = value
+  }
+  // カスタム背景は端末ローカルのため、持ち出し時はスタンダード（色は残す）
+  if (out.themeFamily === 'custom') {
+    out.themeFamily = 'standard'
+    out.themeMode = 'color'
   }
   return out
 }
@@ -105,6 +113,10 @@ export function parseOptionsFlgText(raw: string): Partial<Settings> {
     if (excludedSet.has(key)) continue
     if (value === undefined) continue
     cleaned[key] = value
+  }
+  // カスタム背景は端末ローカルのため、持ち込み時はスタンダードへ
+  if (cleaned.themeFamily === 'custom') {
+    cleaned.themeFamily = 'standard'
   }
 
   return SettingsSchema.partial().parse(cleaned)

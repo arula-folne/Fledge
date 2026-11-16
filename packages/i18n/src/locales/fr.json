@@ -634,6 +634,11 @@
   "settings.block.theme": "Thème",
   "settings.block.standardTheme": "Standard",
   "settings.block.seasonTheme": "Saisons & événements",
+  "settings.block.customTheme": "Personnalisé",
+  "settings.customThemeHint": "Enregistrez vos propres images d'arrière-plan. Jusqu'à 5 au maximum ; les couleurs fonctionnent comme Couleur standard. Pour en ajouter une, supprimez-en une d'abord.",
+  "settings.customThemeEmpty": "Pas encore d’arrière-plans personnalisés. Choisissez une image avec Ajouter.",
+  "settings.customTheme.add": "Ajouter",
+  "settings.customTheme.remove": "Supprimer cet arrière-plan",
   "settings.seasonThemeHint": "Thèmes illustrés pour les saisons et les mises à jour. Les nouveaux sont collectés ici et peuvent être choisis séparément du Standard.",
   "settings.seasonThemeEmpty": "Aucun thème de saison pour l'instant. Ils seront ajoutés ici.",
   "settings.seasonTheme.tidalSummer2026": "Tidal Summer 2026",
@@ -1037,5 +1042,12 @@
   "instances.exportMrpack.folderEmpty": "Ce dossier est vide",
   "instances.exportMrpack.folderSelected": "(dossier entier)",
   "instances.exportMrpack.selectedPaths": "{{count}} sélectionné",
-  "instances.exportMrpack.selectItem": "Sélectionnez {{name}}"
+  "instances.exportMrpack.selectItem": "Sélectionnez {{name}}",
+  "settings.customTheme.full": "Limite de 5 atteinte. Supprimez un arrière-plan pour en ajouter un autre.",
+  "settings.customTheme.item": "Arrière-plan personnalisé {{n}}",
+  "settings.theme.inUse": "Utilisé",
+  "content.opsLockedPreparing": "Content cannot be changed until setup finishes",
+  "content.error.instancePreparing": "Content cannot be changed while the instance is being set up",
+  "settings.minecraftInitial.tutorialHints": "Tutorial hints",
+  "settings.minecraftInitial.tutorialHintsHint": "Hints such as movement and punching trees. Off hides them (vanilla default is on)."
 }

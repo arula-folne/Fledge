@@ -1,11 +1,11 @@
 {
   "name": "@fledge/desktop",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "private": true,
   "description": "Fledge desktop application (Tauri)",
   "type": "module",
   "scripts": {
-    "dev": "tauri dev",
+    "dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
     "dev:vite": "vite --port 1420 --strictPort",
     "dev:promo": "vite --port 1420 --strictPort",
     "record:promo": "node scripts/record-promo.mjs",

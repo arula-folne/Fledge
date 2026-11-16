@@ -25,11 +25,12 @@ import { fledgeApi } from '../../api/fledgeApi'
 import { PageNav } from '../../components/ui/PageNav'
 import { Select } from '../../components/ui/Select'
 import { mapWithConcurrency } from '../../utils/mapWithConcurrency'
-import { useTransferStore } from '../../stores/appStores'
+import { useLaunchStore, useTransferStore } from '../../stores/appStores'
 import {
   contentInstallingProjectIdsKey,
   parseProjectIdsKey,
 } from '../transfers/transferSelectors'
+import { isInstanceContentOpsLocked } from './instanceContentLock'
 import { ContentBrowseFilters } from './ContentBrowseFilters'
 import { ContentProviderSourceTabs } from './ContentProviderSourceTabs'
 import { ContentSearchBar } from './ContentSearchBar'
@@ -140,6 +141,8 @@ export function AddContentModal({
 }: Props) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
+  const launchState = useLaunchStore((s) => s.stateFor(instance.id))
+  const contentOpsLocked = isInstanceContentOpsLocked(launchState)
   const wasBrowseOpenRef = useRef(false)
   const prevInstanceIdRef = useRef(instance.id)
   const [catalogProvider, setCatalogProvider] = useState<ContentCatalogProviderId>('modrinth')
@@ -444,11 +447,15 @@ export function AddContentModal({
       versionId?: string
       category: ContentCategory
     }) => {
+      if (contentOpsLocked) {
+        setError(t('content.opsLockedPreparing'))
+        return
+      }
       setError(null)
       mark(input.id, input.versionId)
       installMutation.mutate(input)
     },
-    [mark, installMutation],
+    [contentOpsLocked, mark, installMutation, t],
   )
 
   const resolveInstalled = useCallback(
@@ -531,6 +538,10 @@ export function AddContentModal({
   }, [favoriteResults.all, instanceGameVersion])
 
   const requestInstallFavorites = useCallback(async () => {
+    if (contentOpsLocked) {
+      setError(t('content.opsLockedPreparing'))
+      return
+    }
     if (pendingFavoriteInstalls.length === 0 || bulkInstalling) return
     setError(null)
     setBulkInstalling(true)
@@ -564,6 +575,7 @@ export function AddContentModal({
       setError(t('content.favoritesInstallAllError', { n: failed }))
     }
   }, [
+    contentOpsLocked,
     pendingFavoriteInstalls,
     bulkInstalling,
     mark,
@@ -636,6 +648,7 @@ export function AddContentModal({
                   loaders={loaders}
                   installed={resolveInstalled(selected.id)}
                   installedVersionId={resolveInstalledVersionId(selected.id)}
+                  installDisabled={contentOpsLocked}
                   onBack={onBackFromProject}
                   onInstall={(versionId) =>
                     requestInstall({
@@ -731,7 +744,7 @@ export function AddContentModal({
                 bulkInstall={{
                   pendingCount: pendingFavoriteInstalls.length,
                   installing: bulkInstalling,
-                  disabled: installMutation.isPending,
+                  disabled: contentOpsLocked || installMutation.isPending,
                   onInstall: () => void requestInstallFavorites(),
                 }}
               />
@@ -784,6 +797,11 @@ export function AddContentModal({
             </div>
 
             <>
+            {contentOpsLocked ? (
+              <p className="rounded-[var(--radius-sm)] border border-[var(--color-border)] bg-[var(--color-accent-soft)] px-2.5 py-1.5 text-sm text-[var(--color-text)]">
+                {t('content.opsLockedPreparing')}
+              </p>
+            ) : null}
             {error ? (
               <p className="rounded-[var(--radius-sm)] bg-[var(--color-danger)]/15 px-2.5 py-1.5 text-sm text-[var(--color-danger)]">
                 {error}
@@ -837,6 +855,7 @@ export function AddContentModal({
                       installed={resolveInstalled(hit.id)}
                       favorited={isFavorite(hit.id)}
                       incompatible={!compatible}
+                      installDisabled={contentOpsLocked}
                       compatDebug={t('content.favorite.compatDebug', {
                         status: compatible
                           ? hit.gameVersions.length === 0

@@ -406,67 +406,79 @@ textarea {
   z-index: 10001;
 }
 
-/* イラスト付きシーズンテーマ */
-html[data-theme-season] body {
+/* イラスト付きシーズン／カスタムテーマ */
+html[data-theme-season] body,
+html[data-theme-custom] body {
   background: transparent !important;
 }
 
-html[data-theme-season] .season-shell-panel {
+html[data-theme-season] .season-shell-panel,
+html[data-theme-custom] .season-shell-panel {
   backdrop-filter: blur(14px) saturate(1.15);
   -webkit-backdrop-filter: blur(14px) saturate(1.15);
-  background: color-mix(in srgb, var(--color-surface) 78%, transparent);
+  background: color-mix(in srgb, var(--color-surface) 80%, transparent);
 }
 
-html[data-theme-season] .season-shell-main {
+html[data-theme-season] .season-shell-main,
+html[data-theme-custom] .season-shell-main {
   background: color-mix(in srgb, var(--color-bg) 18%, transparent);
 }
 
 /* イラスト背景上のメニュー用（読みやすさ用ガラス） */
-html[data-theme-season] .season-readable-panel {
-  backdrop-filter: blur(8px) saturate(1.05);
-  -webkit-backdrop-filter: blur(8px) saturate(1.05);
-  background: color-mix(in srgb, var(--color-surface) 38%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-border) 35%, transparent);
+html[data-theme-season] .season-readable-panel,
+html[data-theme-custom] .season-readable-panel {
+  backdrop-filter: blur(10px) saturate(1.05);
+  -webkit-backdrop-filter: blur(10px) saturate(1.05);
+  background: color-mix(in srgb, var(--color-surface) 50%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-border) 45%, transparent);
   border-radius: var(--radius-md);
 }
 
-.season-illustration {
-  animation: season-drift 28s ease-in-out infinite alternate;
-  transform-origin: center bottom;
+/* お知らせカードのみ（不透明度高め・アクセントは弱め） */
+html[data-theme-season] .news-readable-card,
+html[data-theme-custom] .news-readable-card {
+  background: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--color-accent) 12%, var(--color-surface)) 86%,
+    transparent
+  ) !important;
+  border-color: color-mix(in srgb, var(--color-accent) 28%, var(--color-border)) !important;
+  backdrop-filter: blur(8px) saturate(1.05);
+  -webkit-backdrop-filter: blur(8px) saturate(1.05);
 }
 
-.season-wave-a {
-  animation: season-wave-shift 9s ease-in-out infinite alternate;
-}
-.season-wave-b {
-  animation: season-wave-shift 12s ease-in-out infinite alternate-reverse;
-}
-
-@keyframes season-drift {
-  from {
-    transform: scale(1.02) translate3d(0, 0, 0);
-  }
-  to {
-    transform: scale(1.06) translate3d(-1.2%, 0.6%, 0);
-  }
+html[data-theme-season] .news-readable-card:hover,
+html[data-theme-custom] .news-readable-card:hover {
+  background: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--color-accent) 18%, var(--color-surface)) 92%,
+    transparent
+  ) !important;
+  border-color: color-mix(in srgb, var(--color-accent) 40%, var(--color-border)) !important;
 }
 
-@keyframes season-wave-shift {
-  from {
-    transform: translate3d(-1.5%, 0, 0);
-  }
-  to {
-    transform: translate3d(1.5%, -1.5%, 0);
-  }
+/* 背景イラスト上でもお知らせテキストが読めるように */
+html[data-theme-season] .news-home-panel .news-section-title,
+html[data-theme-custom] .news-home-panel .news-section-title {
+  color: var(--color-text);
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .season-illustration,
-  .season-wave-a,
-  .season-wave-b {
-    animation: none;
-  }
+html[data-theme-season] .news-readable-card .news-card-title,
+html[data-theme-custom] .news-readable-card .news-card-title {
+  color: var(--color-text);
 }
+
+html[data-theme-season] .news-readable-card .news-card-body,
+html[data-theme-custom] .news-readable-card .news-card-body {
+  color: color-mix(in srgb, var(--color-text) 92%, var(--color-text-muted));
+}
+
+html[data-theme-season] .news-readable-card .news-card-date,
+html[data-theme-custom] .news-readable-card .news-card-date {
+  color: color-mix(in srgb, var(--color-text) 70%, var(--color-text-muted));
+}
+
+/* 背景ゆらぎは無効（切替クロスフェードのみ） */
 
 /* テーマ切替のフェード（CSS 変数・色・背景） */
 @media (prefers-reduced-motion: no-preference) {
@@ -534,6 +546,88 @@ html[data-theme-season] .season-readable-panel {
 
 @media (prefers-reduced-motion: reduce) {
   .busy-capsule-arc {
+    animation: none;
+  }
+}
+
+/* サイドバーメニュー選択時のアイコンワンショット */
+@keyframes nav-icon-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes nav-icon-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes nav-icon-bounce {
+  0% {
+    transform: translateY(0);
+  }
+  35% {
+    transform: translateY(-3px);
+  }
+  70% {
+    transform: translateY(1px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@keyframes nav-icon-wiggle {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-12deg);
+  }
+  55% {
+    transform: rotate(10deg);
+  }
+  75% {
+    transform: rotate(-4deg);
+  }
+}
+
+.nav-icon-anim-spin {
+  transform-origin: center;
+  animation: nav-icon-spin 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.nav-icon-anim-pop {
+  transform-origin: center;
+  animation: nav-icon-pop 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.nav-icon-anim-bounce {
+  transform-origin: center;
+  animation: nav-icon-bounce 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.nav-icon-anim-wiggle {
+  transform-origin: center;
+  animation: nav-icon-wiggle 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-icon-anim-spin,
+  .nav-icon-anim-pop,
+  .nav-icon-anim-bounce,
+  .nav-icon-anim-wiggle {
     animation: none;
   }
 }

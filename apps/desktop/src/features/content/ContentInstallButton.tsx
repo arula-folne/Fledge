@@ -164,11 +164,13 @@ export function ContentVersionInstallButton({
   onInstall,
   mode = 'install',
   installing = false,
+  disabled = false,
 }: {
   installed?: boolean
   onInstall: () => void
   mode?: 'install' | 'create'
   installing?: boolean
+  disabled?: boolean
 }) {
   const { t } = useTranslation()
   const aria =
@@ -185,7 +187,7 @@ export function ContentVersionInstallButton({
   return (
     <button
       type="button"
-      disabled={installed || installing}
+      disabled={disabled || installed || installing}
       aria-label={aria}
       aria-live="polite"
       className={[
@@ -198,7 +200,7 @@ export function ContentVersionInstallButton({
           : 'border-transparent bg-[rgb(176,214,232)] text-[rgb(36,78,102)] hover:brightness-110 disabled:opacity-50',
         versionSizeClass,
       ].join(' ')}
-      onClick={installed || installing ? undefined : onInstall}
+      onClick={disabled || installed || installing ? undefined : onInstall}
     >
       <InstallIcon installed={installed} installing={installing} />
       <InstallLabel installed={installed} installing={installing} compact mode={mode} />

@@ -634,6 +634,11 @@
   "settings.block.theme": "chủ đề",
   "settings.block.standardTheme": "Tiêu chuẩn",
   "settings.block.seasonTheme": "Các mùa & sự kiện",
+  "settings.block.customTheme": "Tùy chỉnh",
+  "settings.customThemeHint": "Đăng ký ảnh nền của bạn. Tối đa 5; màu giống Màu tiêu chuẩn. Để thêm nữa, hãy xóa một ảnh trước.",
+  "settings.customThemeEmpty": "Chưa có nền tùy chỉnh. Chọn ảnh bằng Thêm.",
+  "settings.customTheme.add": "Thêm",
+  "settings.customTheme.remove": "Xóa nền này",
   "settings.seasonThemeHint": "Các chủ đề minh họa cho các mùa và các bản cập nhật. Những cái mới được thu thập ở đây và có thể được chọn riêng biệt với Tiêu chuẩn.",
   "settings.seasonThemeEmpty": "Chưa có chủ đề mùa nào. Chúng sẽ được thêm vào đây.",
   "settings.seasonTheme.tidalSummer2026": "Tidal Summer 2026",
@@ -1037,5 +1042,12 @@
   "instances.exportMrpack.folderEmpty": "Thư mục này trống",
   "instances.exportMrpack.folderSelected": "(toàn bộ thư mục)",
   "instances.exportMrpack.selectedPaths": "{{count}} đã chọn",
-  "instances.exportMrpack.selectItem": "Chọn {{name}}"
+  "instances.exportMrpack.selectItem": "Chọn {{name}}",
+  "settings.customTheme.full": "Đã đủ 5 ảnh. Xóa một nền để thêm ảnh khác.",
+  "settings.customTheme.item": "Nền tùy chỉnh {{n}}",
+  "settings.theme.inUse": "Đang dùng",
+  "content.opsLockedPreparing": "Content cannot be changed until setup finishes",
+  "content.error.instancePreparing": "Content cannot be changed while the instance is being set up",
+  "settings.minecraftInitial.tutorialHints": "Tutorial hints",
+  "settings.minecraftInitial.tutorialHintsHint": "Hints such as movement and punching trees. Off hides them (vanilla default is on)."
 }

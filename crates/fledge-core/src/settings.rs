@@ -25,6 +25,8 @@ fn default_settings() -> Value {
       "themeFamily": "standard",
       "themeMode": "light",
       "seasonThemeId": null,
+      "customThemeImageId": null,
+      "customThemeHistory": [],
       "themeColor": { "r": 255, "g": 255, "b": 255 },
       "themeAccentColor": { "r": 91, "g": 164, "b": 217 },
       "hardwareAcceleration": true,
@@ -213,6 +215,17 @@ impl SettingsStore {
         ) {
             obj.insert("themeFamily".into(), Value::from("standard"));
             dirty = true;
+        }
+
+        // カスタム背景は名前なし（旧 fileName を落とす）
+        if let Some(Value::Array(history)) = obj.get_mut("customThemeHistory") {
+            for entry in history.iter_mut() {
+                if let Some(map) = entry.as_object_mut() {
+                    if map.remove("fileName").is_some() {
+                        dirty = true;
+                    }
+                }
+            }
         }
 
         // 旧既定（同時DL 8 / 書き込み 4）は両方 10 へ

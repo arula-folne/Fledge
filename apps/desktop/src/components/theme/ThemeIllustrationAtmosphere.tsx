@@ -14,7 +14,7 @@ type Layer = {
   shown: boolean
 }
 
-/** イラスト背景＋ゆらぎモーション（切替時はクロスフェード） */
+/** イラスト背景（切替時はクロスフェード。ゆらぎアニメーションなし） */
 export function ThemeIllustrationAtmosphere({ layerKey, src, overlayClass }: Props) {
   const nextKey = layerKey && src && overlayClass ? layerKey : null
 
@@ -77,7 +77,7 @@ export function ThemeIllustrationAtmosphere({ layerKey, src, overlayClass }: Pro
       <img
         src={layer.src}
         alt=""
-        className="season-illustration h-full w-full object-cover object-center"
+        className="h-full w-full object-cover object-center"
         draggable={false}
       />
       <div className={['absolute inset-0', layer.overlayClass].join(' ')} />

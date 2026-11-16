@@ -17,6 +17,8 @@ const EXCLUDED_KEYS: &[&str] = &[
     "windowWidth",
     "windowHeight",
     "minecraftInitialSettingsLocked",
+    "customThemeImageId",
+    "customThemeHistory",
 ];
 
 fn is_excluded(key: &str) -> bool {
@@ -33,6 +35,11 @@ fn pick_portable(settings: &Value) -> Value {
             continue;
         }
         out.insert(key.clone(), value.clone());
+    }
+    // カスタム背景は端末ローカルのため、持ち出し時はスタンダード（色は残す）
+    if out.get("themeFamily").and_then(|v| v.as_str()) == Some("custom") {
+        out.insert("themeFamily".into(), Value::from("standard"));
+        out.insert("themeMode".into(), Value::from("color"));
     }
     Value::Object(out)
 }
@@ -92,6 +99,10 @@ pub fn parse_options_flg_text(raw: &str) -> CoreResult<Value> {
             continue;
         }
         cleaned.insert(key.clone(), value.clone());
+    }
+    // カスタム背景は端末ローカルのため、持ち込み時はスタンダードへ
+    if cleaned.get("themeFamily").and_then(|v| v.as_str()) == Some("custom") {
+        cleaned.insert("themeFamily".into(), Value::from("standard"));
     }
     Ok(Value::Object(cleaned))
 }

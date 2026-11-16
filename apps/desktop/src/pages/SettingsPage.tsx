@@ -51,6 +51,7 @@ import { TextField } from '../components/ui/TextField'
 import { MemorySnapSlider } from '../components/ui/MemorySnapSlider'
 import { Switch } from '../components/ui/Switch'
 import { ThemeColorPicker } from '../components/ui/ThemeColorPicker'
+import { ThemeCustomPicker } from '../components/ui/ThemeCustomPicker'
 import { ThemeModePicker } from '../components/ui/ThemeModePicker'
 import { ThemeSeasonPicker } from '../components/ui/ThemeSeasonPicker'
 import { SeasonTonePicker, coerceSeasonTone } from '../components/ui/SeasonTonePicker'
@@ -66,6 +67,7 @@ import { mcFaceUrl } from '../features/auth/mcFace'
 import { cropSkinFaceDataUrl } from '../features/auth/skinFace'
 import { applyTheme, defaultThemeColorsForMode, type ThemeColorPair } from '../styles/theme'
 import { ProgressBar } from '../components/ui/ProgressBar'
+import { SlidingPillTabs } from '../components/ui/SlidingPillTabs'
 import {
   SlidingSelectionPill,
   useSlidingSelectionPill,
@@ -129,6 +131,7 @@ export default function SettingsPage() {
   const setDebugLaunchProgress = useDebugStore((s) => s.setLaunchProgressPreview)
   const setDebugLaunchError = useDebugStore((s) => s.setLaunchErrorPreview)
 
+  const [themeFamilyTab, setThemeFamilyTab] = useState<'standard' | 'season' | 'custom'>('standard')
   const [message, setMessage] = useState<string | null>(null)
   const [restartNoticeOpen, setRestartNoticeOpen] = useState(false)
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false)
@@ -306,6 +309,13 @@ export default function SettingsPage() {
 
   const settings = settingsQuery.data
   const appDirectory = appDirectoryQuery.data
+
+  useEffect(() => {
+    const family = settings?.themeFamily
+    if (family === 'standard' || family === 'season' || family === 'custom') {
+      setThemeFamilyTab(family)
+    }
+  }, [settings?.themeFamily])
 
   const setAppDirectoryMutation = useMutation({
     mutationFn: (next: string | null) => fledgeApi.paths.setAppDirectory(next),
@@ -1000,85 +1010,151 @@ export default function SettingsPage() {
       ) : null}
 
       {section === 'appTheme' ? (
-        <>
-          {showItem('themeStandard') ? (
-          <Section title={t('settings.block.standardTheme')}>
-            <div
-              data-fledge-tutorial="tutorial-settings-theme"
-              className="flex flex-col gap-3"
-            >
-            <ThemeModePicker
-              value={settings.themeFamily === 'standard' ? settings.themeMode : null}
-              labels={{
-                light: t('settings.theme.light'),
-                dark: t('settings.theme.dark'),
-                color: t('settings.theme.color'),
-                oled: t('settings.theme.oled'),
-                system: t('settings.theme.system'),
-              }}
-              onChange={(mode) => {
-                if (mode === 'color' && settings.themeMode !== 'color') {
-                  const colors = defaultThemeColorsForMode(settings.themeMode)
-                  saveMutation.mutate({
-                    themeFamily: 'standard',
-                    themeMode: mode,
-                    seasonThemeId: null,
-                    themeColor: colors.base,
-                    themeAccentColor: colors.accent,
-                  })
-                  return
+        (() => {
+          const themeTabs = (
+            [
+              {
+                id: 'standard' as const,
+                label: t('settings.block.standardTheme'),
+                visible: showItem('themeStandard'),
+              },
+              {
+                id: 'season' as const,
+                label: t('settings.block.seasonTheme'),
+                visible: showItem('themeSeason'),
+              },
+              {
+                id: 'custom' as const,
+                label: t('settings.block.customTheme'),
+                visible: showItem('themeCustom'),
+              },
+            ] as const
+          ).filter((tab) => tab.visible)
+          const activeThemeTab =
+            themeTabs.find((tab) => tab.id === themeFamilyTab)?.id ?? themeTabs[0]?.id ?? 'standard'
+
+          if (themeTabs.length === 0) return null
+
+          return (
+            <div className="flex flex-col gap-3" data-fledge-tutorial="tutorial-settings-theme">
+              <SlidingPillTabs
+                aria-label={t('settings.section.appTheme')}
+                activeId={activeThemeTab}
+                onChange={(id) =>
+                  setThemeFamilyTab(id as 'standard' | 'season' | 'custom')
                 }
-                saveMutation.mutate({
-                  themeFamily: 'standard',
-                  themeMode: mode,
-                  seasonThemeId: null,
-                })
-              }}
-            />
-            {settings.themeFamily === 'standard' && settings.themeMode === 'color' ? (
-              <ThemeColorPicker
-                value={{
-                  base: settings.themeColor ?? { r: 255, g: 255, b: 255 },
-                  accent: settings.themeAccentColor ?? { r: 91, g: 164, b: 217 },
-                }}
-                onChange={handleThemeColorChange}
+                className="w-fit max-w-full"
+                items={themeTabs.map((tab) => ({
+                  id: tab.id,
+                  label: tab.label,
+                }))}
               />
-            ) : null}
+              <section className="space-y-3 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] p-3.5">
+                {activeThemeTab === 'standard' ? (
+                  <div className="flex flex-col gap-3">
+                    <ThemeModePicker
+                      value={settings.themeFamily === 'standard' ? settings.themeMode : null}
+                      labels={{
+                        light: t('settings.theme.light'),
+                        dark: t('settings.theme.dark'),
+                        color: t('settings.theme.color'),
+                        oled: t('settings.theme.oled'),
+                        system: t('settings.theme.system'),
+                      }}
+                      onChange={(mode) => {
+                        if (mode === 'color' && settings.themeMode !== 'color') {
+                          const colors = defaultThemeColorsForMode(settings.themeMode)
+                          saveMutation.mutate({
+                            themeFamily: 'standard',
+                            themeMode: mode,
+                            seasonThemeId: null,
+                            themeColor: colors.base,
+                            themeAccentColor: colors.accent,
+                          })
+                          return
+                        }
+                        saveMutation.mutate({
+                          themeFamily: 'standard',
+                          themeMode: mode,
+                          seasonThemeId: null,
+                        })
+                      }}
+                    />
+                    {settings.themeFamily === 'standard' && settings.themeMode === 'color' ? (
+                      <ThemeColorPicker
+                        value={{
+                          base: settings.themeColor ?? { r: 255, g: 255, b: 255 },
+                          accent: settings.themeAccentColor ?? { r: 91, g: 164, b: 217 },
+                        }}
+                        onChange={handleThemeColorChange}
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
+
+                {activeThemeTab === 'season' ? (
+                  <div className="flex flex-col gap-3">
+                    <SeasonTonePicker
+                      value={coerceSeasonTone(settings.themeMode)}
+                      disabled={
+                        settings.themeFamily !== 'season' ||
+                        !settings.seasonThemeId ||
+                        !seasonSupportsToneSwitch(settings.seasonThemeId)
+                      }
+                      onChange={(tone) => {
+                        if (settings.themeFamily !== 'season' || !settings.seasonThemeId) return
+                        if (!seasonSupportsToneSwitch(settings.seasonThemeId)) return
+                        saveMutation.mutate({
+                          themeFamily: 'season',
+                          seasonThemeId: settings.seasonThemeId,
+                          themeMode: tone,
+                        })
+                      }}
+                    />
+                    <ThemeSeasonPicker
+                      value={settings.themeFamily === 'season' ? settings.seasonThemeId : null}
+                      onChange={(id) => {
+                        saveMutation.mutate({
+                          themeFamily: 'season',
+                          seasonThemeId: id,
+                          themeMode: coerceSeasonTone(settings.themeMode),
+                        })
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                {activeThemeTab === 'custom' ? (
+                  <div className="flex flex-col gap-3">
+                    <ThemeCustomPicker
+                      value={settings.themeFamily === 'custom' ? settings.customThemeImageId : null}
+                      history={settings.customThemeHistory ?? []}
+                      onSelect={(id) => {
+                        saveMutation.mutate({
+                          themeFamily: 'custom',
+                          customThemeImageId: id,
+                          seasonThemeId: null,
+                        })
+                      }}
+                      onSettings={(next) => {
+                        queryClient.setQueryData(['settings'], next)
+                      }}
+                    />
+                    {settings.themeFamily === 'custom' ? (
+                      <ThemeColorPicker
+                        value={{
+                          base: settings.themeColor ?? { r: 255, g: 255, b: 255 },
+                          accent: settings.themeAccentColor ?? { r: 91, g: 164, b: 217 },
+                        }}
+                        onChange={handleThemeColorChange}
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
+              </section>
             </div>
-          </Section>
-          ) : null}
-          {showItem('themeSeason') ? (
-          <Section title={t('settings.block.seasonTheme')}>
-            <SeasonTonePicker
-              value={coerceSeasonTone(settings.themeMode)}
-              disabled={
-                settings.themeFamily !== 'season' ||
-                !settings.seasonThemeId ||
-                !seasonSupportsToneSwitch(settings.seasonThemeId)
-              }
-              onChange={(tone) => {
-                if (settings.themeFamily !== 'season' || !settings.seasonThemeId) return
-                if (!seasonSupportsToneSwitch(settings.seasonThemeId)) return
-                saveMutation.mutate({
-                  themeFamily: 'season',
-                  seasonThemeId: settings.seasonThemeId,
-                  themeMode: tone,
-                })
-              }}
-            />
-            <ThemeSeasonPicker
-              value={settings.themeFamily === 'season' ? settings.seasonThemeId : null}
-              onChange={(id) => {
-                saveMutation.mutate({
-                  themeFamily: 'season',
-                  seasonThemeId: id,
-                  themeMode: coerceSeasonTone(settings.themeMode),
-                })
-              }}
-            />
-          </Section>
-          ) : null}
-        </>
+          )
+        })()
       ) : null}
 
       {section === 'privacyCredits' ? (

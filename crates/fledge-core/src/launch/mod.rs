@@ -164,6 +164,18 @@ impl LaunchOrchestrator {
         Ok(())
     }
 
+    /// 本体準備 / 起動処理中はユーザ起点のコンテンツ変更を拒否する（実行中は対象外）。
+    pub fn ensure_profile_content_ops_allowed(&self, profile_id: &str) -> CoreResult<()> {
+        for s in self.sessions.lock().values() {
+            if s.profile_id == profile_id
+                && matches!(s.state, SessionState::Preparing | SessionState::Launching)
+            {
+                return Err(CoreError::msg("content.error.instancePreparing"));
+            }
+        }
+        Ok(())
+    }
+
     /// Java + install only. Never writes options.txt.
     pub async fn prepare(&self, profile_id: &str) -> CoreResult<Value> {
         self.ensure_profile_not_busy(profile_id)?;

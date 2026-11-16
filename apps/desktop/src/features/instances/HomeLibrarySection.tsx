@@ -52,7 +52,7 @@ const DEV_LIBRARY_PLACEHOLDERS: InstanceProfile[] = Array.from({ length: 9 }, (_
   }
 })
 
-function useLibraryGridDebug(enabled: boolean) {
+function useLibraryGridDebug(enabled: boolean, wideGrid: boolean) {
   const [node, setNode] = useState<HTMLDivElement | null>(null)
   const [info, setInfo] = useState({ cols: 1, width: 0, bp: 'base' })
 
@@ -67,7 +67,8 @@ function useLibraryGridDebug(enabled: boolean) {
       const template = styles.gridTemplateColumns
       const cols = template && template !== 'none' ? template.split(' ').filter(Boolean).length : 1
       const width = Math.round(window.innerWidth)
-      const bp = width >= 1024 ? 'lg' : width >= 640 ? 'sm' : 'base'
+      const bp =
+        width >= 1024 ? (wideGrid ? 'lg-wide' : 'lg') : width >= 640 ? 'sm' : 'base'
       setInfo({ cols, width, bp })
     }
     read()
@@ -78,16 +79,18 @@ function useLibraryGridDebug(enabled: boolean) {
       ro.disconnect()
       window.removeEventListener('resize', read)
     }
-  }, [enabled, node])
+  }, [enabled, node, wideGrid])
 
   return { gridRef: setGridRef, info }
 }
 
 type Props = {
   instances: InstanceProfile[]
+  /** お知らせ非表示時は 1 行 4 列（広いライブラリ） */
+  wideGrid?: boolean
 }
 
-export function HomeLibrarySection({ instances }: Props) {
+export function HomeLibrarySection({ instances, wideGrid = false }: Props) {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -104,7 +107,7 @@ export function HomeLibrarySection({ instances }: Props) {
   const createSpinPreview = useDebugStore((s) => s.createSpinPreview)
   const showGridDebug = IS_DEV && libraryGridDebug
   const usePlaceholders = IS_DEV && libraryPlaceholders
-  const { gridRef, info: gridDebug } = useLibraryGridDebug(showGridDebug)
+  const { gridRef, info: gridDebug } = useLibraryGridDebug(showGridDebug, wideGrid)
 
   const settingsQuery = useQuery({
     queryKey: ['settings'],
@@ -161,21 +164,24 @@ export function HomeLibrarySection({ instances }: Props) {
   useEffect(() => {
     if (!IS_DEV) return
     const store = useInstanceCreateStore.getState()
-    if (createSpinPreview && usePlaceholders) {
-      const id = DEV_LIBRARY_PLACEHOLDERS[0]?.id
+    if (createSpinPreview) {
+      const id = (usePlaceholders ? DEV_LIBRARY_PLACEHOLDERS[0]?.id : items[0]?.id) ?? null
       if (!id) return
+      if (spinPreviewIdRef.current && spinPreviewIdRef.current !== id) {
+        store.unmarkCreating(spinPreviewIdRef.current)
+      }
       spinPreviewIdRef.current = id
       store.markCreating(id)
       return () => {
         store.unmarkCreating(id)
-        spinPreviewIdRef.current = null
+        if (spinPreviewIdRef.current === id) spinPreviewIdRef.current = null
       }
     }
     if (spinPreviewIdRef.current) {
       store.unmarkCreating(spinPreviewIdRef.current)
       spinPreviewIdRef.current = null
     }
-  }, [createSpinPreview, usePlaceholders])
+  }, [createSpinPreview, usePlaceholders, items])
 
   const closeMenu = useCallback(() => setMenu(null), [])
 
@@ -270,7 +276,10 @@ export function HomeLibrarySection({ instances }: Props) {
         <div className="min-h-0 flex-1 overflow-y-auto pr-0.5">
           <div
             ref={showGridDebug ? gridRef : undefined}
-            className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3"
+            className={[
+              'grid grid-cols-1 gap-2 sm:grid-cols-2',
+              wideGrid ? 'lg:grid-cols-4' : 'lg:grid-cols-3',
+            ].join(' ')}
           >
             {items.map((item, index) => (
               <div key={item.id} className="flex h-full min-w-0 items-stretch gap-1">

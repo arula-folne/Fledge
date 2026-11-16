@@ -48,6 +48,8 @@ type Props = {
   creating?: boolean
   /** true のとき「インスタンスを作成」 */
   createMode?: boolean
+  /** 本体準備中などで導入不可（createMode では使わない） */
+  installDisabled?: boolean
   onBack: () => void
   onInstall: (versionId?: string) => void
 }
@@ -60,6 +62,7 @@ export function ContentProjectView({
   installedVersionId,
   creating = false,
   createMode = false,
+  installDisabled = false,
   onBack,
   onInstall,
 }: Props) {
@@ -177,7 +180,11 @@ export function ContentProjectView({
         <ContentInstallButton
           installing={creating}
           installed={createMode ? false : installed}
-          disabled={versionsQuery.isPending || versions.length === 0}
+          disabled={
+            versionsQuery.isPending ||
+            versions.length === 0 ||
+            (!createMode && installDisabled)
+          }
           mode={createMode ? 'create' : 'install'}
           onInstall={() => onInstall(selectedId)}
         />
@@ -185,6 +192,10 @@ export function ContentProjectView({
       {createMode ? (
         <p className="shrink-0 text-xs text-[var(--color-text-muted)]">
           {t('content.createInstanceHint')}
+        </p>
+      ) : installDisabled ? (
+        <p className="shrink-0 text-xs text-[var(--color-text-muted)]">
+          {t('content.opsLockedPreparing')}
         </p>
       ) : null}
 
@@ -250,6 +261,7 @@ export function ContentProjectView({
             installedVersionId={createMode ? undefined : installedVersionId}
             creating={creating}
             createMode={createMode}
+            installDisabled={!createMode && installDisabled}
             loading={versionsQuery.isPending}
             error={
               versionsQuery.isError
@@ -363,6 +375,7 @@ function VersionsPanel({
   installedVersionId,
   creating,
   createMode,
+  installDisabled = false,
   loading,
   error,
   onCompatOnly,
@@ -375,6 +388,7 @@ function VersionsPanel({
   installedVersionId?: string
   creating?: boolean
   createMode?: boolean
+  installDisabled?: boolean
   loading: boolean
   error: string | null
   onCompatOnly: (v: boolean) => void
@@ -428,6 +442,7 @@ function VersionsPanel({
                 <ContentVersionInstallButton
                   installed={!createMode && installedVersionId === v.id}
                   installing={creating}
+                  disabled={installDisabled}
                   mode={createMode ? 'create' : 'install'}
                   onInstall={() => onInstall(v.id)}
                 />

@@ -634,6 +634,11 @@
   "settings.block.theme": "ธีม",
   "settings.block.standardTheme": "มาตรฐาน",
   "settings.block.seasonTheme": "ฤดูกาลและกิจกรรม",
+  "settings.block.customTheme": "กำหนดเอง",
+  "settings.customThemeHint": "ลงทะเบียนภาพพื้นหลังของคุณได้ สูงสุด 5 รายการ และเลือกสีได้เหมือนสีมาตรฐาน หากจะเพิ่มอีก ให้ลบรายการใดรายการหนึ่งก่อน",
+  "settings.customThemeEmpty": "ยังไม่มีพื้นหลังกำหนดเอง เลือกภาพด้วย เพิ่ม",
+  "settings.customTheme.add": "เพิ่ม",
+  "settings.customTheme.remove": "ลบพื้นหลังนี้",
   "settings.seasonThemeHint": "ธีมภาพประกอบตามฤดูกาลและอัปเดต เพิ่มแล้วจะรวมที่นี่ เลือกแยกจาก Standard ได้",
   "settings.seasonThemeEmpty": "ยังไม่มีธีมฤดูกาล จะเพิ่มที่นี่ในอนาคต",
   "settings.seasonTheme.tidalSummer2026": "Tidal Summer 2026",
@@ -1037,5 +1042,12 @@
   "instances.exportMrpack.folderEmpty": "โฟลเดอร์นี้ว่าง",
   "instances.exportMrpack.folderSelected": "(ทั้งโฟลเดอร์)",
   "instances.exportMrpack.selectedPaths": "เลือก {{count}} รายการ",
-  "instances.exportMrpack.selectItem": "เลือก {{name}}"
+  "instances.exportMrpack.selectItem": "เลือก {{name}}",
+  "settings.customTheme.full": "ครบ 5 รายการแล้ว ลบพื้นหลังเพื่อเพิ่มรายการใหม่",
+  "settings.customTheme.item": "พื้นหลังกำหนดเอง {{n}}",
+  "settings.theme.inUse": "กำลังใช้",
+  "content.opsLockedPreparing": "Content cannot be changed until setup finishes",
+  "content.error.instancePreparing": "Content cannot be changed while the instance is being set up",
+  "settings.minecraftInitial.tutorialHints": "Tutorial hints",
+  "settings.minecraftInitial.tutorialHintsHint": "Hints such as movement and punching trees. Off hides them (vanilla default is on)."
 }

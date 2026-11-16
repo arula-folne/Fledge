@@ -634,6 +634,11 @@
   "settings.block.theme": "Tema",
   "settings.block.standardTheme": "Estándar",
   "settings.block.seasonTheme": "Temporadas y eventos",
+  "settings.block.customTheme": "Özel",
+  "settings.customThemeHint": "Kendi arka plan görsellerinizi kaydedin. En fazla 5; renkler Standart Renk gibi çalışır. Yenisini eklemek için önce birini silin.",
+  "settings.customThemeEmpty": "Henüz özel arka plan yok. Ekle ile bir görsel seçin.",
+  "settings.customTheme.add": "Ekle",
+  "settings.customTheme.remove": "Bu arka planı kaldır",
   "settings.seasonThemeHint": "Temas ilustrados para temporadas y actualizaciones. Los nuevos se recopilan aquí y se pueden elegir por separado del Estándar.",
   "settings.seasonThemeEmpty": "Aún no hay temas de temporada. Se agregarán aquí.",
   "settings.seasonTheme.tidalSummer2026": "Tidal Summer 2026",
@@ -1037,5 +1042,12 @@
   "instances.exportMrpack.folderEmpty": "Esta carpeta está vacía",
   "instances.exportMrpack.folderSelected": "(carpeta completa)",
   "instances.exportMrpack.selectedPaths": "{{count}} seleccionado",
-  "instances.exportMrpack.selectItem": "Seleccione {{name}}"
+  "instances.exportMrpack.selectItem": "Seleccione {{name}}",
+  "settings.customTheme.full": "5'lik sınıra ulaşıldı. Başka eklemek için bir arka planı silin.",
+  "settings.customTheme.item": "Özel arka plan {{n}}",
+  "settings.theme.inUse": "Kullanımda",
+  "content.opsLockedPreparing": "Content cannot be changed until setup finishes",
+  "content.error.instancePreparing": "Content cannot be changed while the instance is being set up",
+  "settings.minecraftInitial.tutorialHints": "Tutorial hints",
+  "settings.minecraftInitial.tutorialHintsHint": "Hints such as movement and punching trees. Off hides them (vanilla default is on)."
 }

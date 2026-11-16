@@ -634,6 +634,11 @@
   "settings.block.theme": "Thema",
   "settings.block.standardTheme": "Standaard",
   "settings.block.seasonTheme": "Seizoenen en evenementen",
+  "settings.block.customTheme": "Aangepast",
+  "settings.customThemeHint": "Registreer eigen achtergrondafbeeldingen. Maximaal 5; kleuren werken zoals Standaard Kleur. Om er een toe te voegen, verwijder eerst een andere.",
+  "settings.customThemeEmpty": "Nog geen aangepaste achtergronden. Kies een afbeelding via Toevoegen.",
+  "settings.customTheme.add": "Toevoegen",
+  "settings.customTheme.remove": "Deze achtergrond verwijderen",
   "settings.seasonThemeHint": "Geïllustreerde thema's voor seizoenen en updates. Nieuwe worden hier verzameld en kunnen los van Standaard worden gekozen.",
   "settings.seasonThemeEmpty": "Nog geen seizoensthema's. Ze worden hier toegevoegd.",
   "settings.seasonTheme.tidalSummer2026": "Tidal Summer 2026",
@@ -1037,5 +1042,12 @@
   "instances.exportMrpack.folderEmpty": "Deze map is leeg",
   "instances.exportMrpack.folderSelected": "(hele map)",
   "instances.exportMrpack.selectedPaths": "{{count}} geselecteerd",
-  "instances.exportMrpack.selectItem": "Selecteer {{name}}"
+  "instances.exportMrpack.selectItem": "Selecteer {{name}}",
+  "settings.customTheme.full": "Limiet van 5 bereikt. Verwijder een achtergrond om er een toe te voegen.",
+  "settings.customTheme.item": "Aangepaste achtergrond {{n}}",
+  "settings.theme.inUse": "In gebruik",
+  "content.opsLockedPreparing": "Content cannot be changed until setup finishes",
+  "content.error.instancePreparing": "Content cannot be changed while the instance is being set up",
+  "settings.minecraftInitial.tutorialHints": "Tutorial hints",
+  "settings.minecraftInitial.tutorialHintsHint": "Hints such as movement and punching trees. Off hides them (vanilla default is on)."
 }

@@ -174,6 +174,11 @@ export function InstanceLaunchProgress({
   )
 }
 
+function useLaunchProgressPreview() {
+  const launchProgressPreview = useDebugStore((s) => s.launchProgressPreview)
+  return IS_DEV && launchProgressPreview
+}
+
 /**
  * インスタンス単位の起動 / キャンセル / 終了。
  * click は stopPropagation（カード遷移と分離）。
@@ -213,6 +218,7 @@ export function InstanceLaunchButton({
     s.errorProfileId === instanceId ? s.errorDetail : null,
   )
   const launchErrorPreview = useDebugStore((s) => s.launchErrorPreview)
+  const progressPreview = useLaunchProgressPreview()
   const previewErrorKey =
     IS_DEV && launchErrorPreview && !errorMessageKey ? 'launch.error.gameExited' : null
   const displayErrorKey = errorMessageKey ?? previewErrorKey
@@ -386,7 +392,11 @@ export function InstanceLaunchButton({
   }
 
   const showProgressBlock =
-    showProgress && (state === 'preparing' || state === 'launching')
+    (showProgress || progressPreview) &&
+    (state === 'preparing' || state === 'launching' || progressPreview) &&
+    size !== 'sm' &&
+    size !== 'icon'
+  const previewProgress = progressPreview && state !== 'preparing' && state !== 'launching'
   const showError = Boolean(errorDisplay)
   const [errorOpen, setErrorOpen] = useState(false)
   const [errorHover, setErrorHover] = useState(false)
@@ -535,20 +545,36 @@ export function InstanceLaunchButton({
       className={
         size === 'icon' || size === 'sm'
           ? 'flex shrink-0 items-center gap-1.5 self-center'
-          : showProgress
+          : showProgress || progressPreview
             ? 'flex max-w-full items-center justify-end gap-2'
             : 'flex shrink-0 items-center gap-2'
       }
       onClick={stop}
     >
       {errorButton}
-      <div className={size === 'sm' || size === 'icon' ? undefined : showProgress ? 'shrink-0 space-y-2' : undefined}>
+      <div
+        className={
+          size === 'sm' || size === 'icon'
+            ? undefined
+            : showProgress || progressPreview
+              ? 'shrink-0 space-y-2'
+              : undefined
+        }
+      >
         {action}
-        {showProgressBlock && size !== 'sm' && size !== 'icon' ? (
+        {showProgressBlock ? (
           <div className={[LAUNCH_PROGRESS_SLOT, 'space-y-0'].join(' ')}>
             <LaunchProgressIndicator
-              message={formatProgressMessage(t, progress?.messageKey ?? phaseMessageKey, progress?.meta)}
-              percent={percent}
+              message={
+                previewProgress
+                  ? t('launch.install.libraries')
+                  : formatProgressMessage(
+                      t,
+                      progress?.messageKey ?? phaseMessageKey,
+                      progress?.meta,
+                    )
+              }
+              percent={previewProgress ? 42 : percent}
             />
           </div>
         ) : null}

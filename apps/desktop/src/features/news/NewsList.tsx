@@ -40,7 +40,7 @@ function NewsItemButton({
   return (
     <button
       type="button"
-      className="flex h-full w-full rounded-[var(--radius-sm)] border border-[var(--color-accent)]/20 bg-[var(--color-accent)]/8 px-[var(--news-card-px)] py-[var(--news-card-py)] text-left transition hover:border-[var(--color-accent)]/35 hover:bg-[var(--color-accent)]/14"
+      className="news-readable-card flex h-full w-full rounded-[var(--radius-sm)] border border-[var(--color-accent)]/20 bg-[var(--color-accent)]/8 px-[var(--news-card-px)] py-[var(--news-card-py)] text-left transition hover:border-[var(--color-accent)]/35 hover:bg-[var(--color-accent)]/14"
       onClick={() => onSelect(item)}
     >
       <NewsArticleLayout
@@ -268,12 +268,12 @@ export function NewsList({
       data-fledge-tutorial="tutorial-home-news"
       className={
         compact
-          ? 'flex h-full min-h-0 min-w-0 flex-col'
+          ? 'news-home-panel flex h-full min-h-0 min-w-0 flex-col'
           : 'min-w-0'
       }
     >
       <div className="mb-2 flex shrink-0 items-center gap-1">
-        <h2 className="min-w-0 flex-1 text-[length:var(--news-section-title)] font-medium text-[var(--color-accent)]">
+        <h2 className="news-section-title min-w-0 flex-1 text-[length:var(--news-section-title)] font-medium text-[var(--color-accent)]">
           {t('news.title')}
         </h2>
         {showMinimize ? (

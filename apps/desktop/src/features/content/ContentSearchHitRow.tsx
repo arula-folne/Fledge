@@ -23,6 +23,8 @@ type Props = {
   onToggleFavorite?: () => void
   /** 対象ゲームバージョンに非対応 */
   incompatible?: boolean
+  /** 本体準備中などで導入不可 */
+  installDisabled?: boolean
   /** 互換判定のデバッグ行（お気に入り確認用） */
   compatDebug?: string | null
 }
@@ -42,12 +44,14 @@ export function ContentSearchHitRow({
   favorited = false,
   onToggleFavorite,
   incompatible = false,
+  installDisabled = false,
   compatDebug = null,
 }: Props) {
   const { t } = useTranslation()
   const zebra = index % 2 === 1
-  const installTip =
-    mode === 'create'
+  const installTip = installDisabled
+    ? t('content.opsLockedPreparing')
+    : mode === 'create'
       ? t('content.createInstance')
       : installed
         ? t('content.installed')
@@ -70,7 +74,7 @@ export function ContentSearchHitRow({
             mode={mode}
             installing={installing}
             installed={installed}
-            disabled={incompatible}
+            disabled={incompatible || installDisabled}
             onInstall={onInstall}
           />
         </HoverTip>

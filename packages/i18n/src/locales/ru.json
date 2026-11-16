@@ -634,6 +634,11 @@
   "settings.block.theme": "Тема",
   "settings.block.standardTheme": "Стандартная",
   "settings.block.seasonTheme": "Сезоны и события",
+  "settings.block.customTheme": "Свой",
+  "settings.customThemeHint": "Зарегистрируйте свои фоновые изображения. Максимум 5; цвета работают как у стандартного «Цвет». Чтобы добавить ещё, сначала удалите одно.",
+  "settings.customThemeEmpty": "Пока нет своих фонов. Выберите изображение через «Добавить».",
+  "settings.customTheme.add": "Добавить",
+  "settings.customTheme.remove": "Удалить этот фон",
   "settings.seasonThemeHint": "Иллюстрированные темы для сезонов и обновлений. Новые собираются здесь и могут быть выбраны отдельно от стандартных.",
   "settings.seasonThemeEmpty": "Темы сезона пока нет. Они будут добавлены здесь.",
   "settings.seasonTheme.tidalSummer2026": "Tidal Summer 2026",
@@ -1037,5 +1042,12 @@
   "instances.exportMrpack.folderEmpty": "Эта папка пуста",
   "instances.exportMrpack.folderSelected": "(вся папка)",
   "instances.exportMrpack.selectedPaths": "Выбрано: {{count}}",
-  "instances.exportMrpack.selectItem": "Выбрать {{name}}"
+  "instances.exportMrpack.selectItem": "Выбрать {{name}}",
+  "settings.customTheme.full": "Достигнут лимит 5. Удалите фон, чтобы добавить другой.",
+  "settings.customTheme.item": "Свой фон {{n}}",
+  "settings.theme.inUse": "Используется",
+  "content.opsLockedPreparing": "Content cannot be changed until setup finishes",
+  "content.error.instancePreparing": "Content cannot be changed while the instance is being set up",
+  "settings.minecraftInitial.tutorialHints": "Tutorial hints",
+  "settings.minecraftInitial.tutorialHintsHint": "Hints such as movement and punching trees. Off hides them (vanilla default is on)."
 }

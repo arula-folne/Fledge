@@ -22,6 +22,7 @@ export type SettingsSearchItemId =
   | 'hardwareAcceleration'
   | 'themeStandard'
   | 'themeSeason'
+  | 'themeCustom'
   | 'language'
   | 'fullscreen'
   | 'gameWindowSize'
@@ -31,6 +32,7 @@ export type SettingsSearchItemId =
   | 'mc.subtitles'
   | 'mc.autoJump'
   | 'mc.bobView'
+  | 'mc.tutorialHints'
   | 'mc.fov'
   | 'mc.maxFps'
   | 'mc.vsync'
@@ -214,6 +216,19 @@ export const SETTINGS_SEARCH_CATALOG: SettingsSearchItem[] = [
     labelKeys: ['settings.block.seasonTheme'],
     readings: ['shizun', 'しーずん', 'ibento', 'いべんと', 'season', 'event'],
   },
+  {
+    id: 'themeCustom',
+    section: 'appTheme',
+    labelKeys: [
+      'settings.block.customTheme',
+      'settings.customThemeHint',
+      'settings.customTheme.add',
+      'settings.customTheme.full',
+      'settings.themeColor',
+    ],
+    readings: ['kasutamu', 'かすたむ', 'haikei', 'はいけい', 'custom', 'background'],
+    aliases: ['オリジナル', 'ユーザー背景', 'wallpaper'],
+  },
 
   {
     id: 'language',
@@ -272,6 +287,16 @@ export const SETTINGS_SEARCH_CATALOG: SettingsSearchItem[] = [
     labelKeys: ['settings.minecraftInitial.bobView'],
     readings: ['yure', 'ゆれ', 'bob', 'view bobbing', 'viewbobbing'],
     aliases: ['揺れ', '画面揺れ', '画面の揺れ', 'ぼびんぐ', 'ビューボビング', 'view bob'],
+  },
+  {
+    id: 'mc.tutorialHints',
+    section: 'minecraftInitial',
+    labelKeys: [
+      'settings.minecraftInitial.tutorialHints',
+      'settings.minecraftInitial.tutorialHintsHint',
+    ],
+    readings: ['chutoriaru', 'ちゅーとりある', 'tutorial', 'hint', 'hints'],
+    aliases: ['チュートリアル', 'ヒント', '案内', 'tutorial hints'],
   },
   {
     id: 'mc.fov',
@@ -605,6 +630,7 @@ function resolveSettingsKeyToItemId(key: string): SettingsSearchItemId | null {
     if (key.startsWith('settings.minecraftInitial.fpsCondition')) return 'mc.fpsCondition'
     if (key.startsWith('settings.minecraftInitial.guiScale')) return 'mc.guiScale'
     if (key.startsWith('settings.minecraftInitial.lang')) return 'mc.lang'
+    if (key.startsWith('settings.minecraftInitial.tutorialHints')) return 'mc.tutorialHints'
     return 'nav.minecraftInitial'
   }
 
@@ -637,6 +663,7 @@ function resolveSettingsKeyToItemId(key: string): SettingsSearchItemId | null {
   if (key.includes('memory')) return 'memory'
   if (key.includes('defaultJvmArgs') || key.includes('jvm')) return 'defaultJvmArgs'
   if (key.includes('seasonTheme') || key.includes('season.')) return 'themeSeason'
+  if (key.includes('customTheme') || key.includes('custom.')) return 'themeCustom'
   if (key.includes('standardTheme') || key.includes('themeFamily') || key.includes('theme.')) {
     return 'themeStandard'
   }

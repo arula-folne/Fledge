@@ -19,6 +19,7 @@ import type { InstanceProfile } from '@fledge/shared'
 import { ProgressBar } from '../ui/ProgressBar'
 import { fledgeApi } from '../../api/fledgeApi'
 import { useLaunchStore, useTransferStore, useUiStore } from '../../stores/appStores'
+import { useDebugStore } from '../../stores/debugStore'
 import { isSettingsJavaJob, jobInstanceId } from '../../features/transfers/transferJobs'
 import { ContentCategoryIcon } from '../../features/content/contentCategoryIcons'
 import { InstanceIcon } from '../../features/instances/InstanceIcon'
@@ -196,6 +197,8 @@ export function TransferProgress() {
       phaseMessageBySessionId: s.phaseMessageBySessionId,
     }
   }, [launchDisplayKey])
+  const launchProgressPreview = useDebugStore((s) => s.launchProgressPreview)
+  const debugLaunchPreview = import.meta.env.DEV && launchProgressPreview
   const setSettingsSection = useUiStore((s) => s.setSettingsSection)
   const rootRef = useRef<HTMLDivElement>(null)
   const [panelPos, setPanelPos] = useState<{ top: number; left: number } | null>(null)
@@ -214,6 +217,7 @@ export function TransferProgress() {
         phaseMessageBySessionId,
         transferJobs: jobsMap,
         t,
+        debugLaunchPreview,
       }),
     [
       instancesQuery.data,
@@ -223,6 +227,7 @@ export function TransferProgress() {
       jobsMap,
       t,
       location.pathname,
+      debugLaunchPreview,
     ],
   )
 
@@ -429,7 +434,7 @@ export function TransferProgress() {
       {primary ? (
         <button
           type="button"
-          className="flex min-w-0 max-w-[18rem] shrink items-center gap-2 rounded-[var(--radius-sm)] px-1 py-0.5 text-left hover:bg-[var(--color-hover)]"
+          className="flex w-[min(17.6rem,34vw)] shrink-0 items-center gap-2 rounded-[var(--radius-sm)] px-1 py-0.5 text-left hover:bg-[var(--color-hover)]"
           onClick={() => openItem(primary)}
         >
           <ProgressItemIcon item={primary} instances={instances} />

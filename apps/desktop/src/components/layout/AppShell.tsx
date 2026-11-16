@@ -24,7 +24,7 @@ import { AppCredits } from '../brand/AppCredits'
 import { AccountChip } from '../../features/auth/AccountChip'
 import { LoginErrorDialog } from '../../features/auth/LoginErrorDialog'
 import { fledgeApi } from '../../api/fledgeApi'
-import { applyTheme, resolveSeasonDark } from '../../styles/theme'
+import { applyTheme, customThemeOverlayClass, resolveSeasonDark } from '../../styles/theme'
 import { getSeasonTheme } from '../../styles/themeSeasons'
 import i18n from '../../i18n'
 import { TransferProgress } from './TransferProgress'
@@ -32,18 +32,66 @@ import { UpdateAvailableBanner } from './UpdateAvailableBanner'
 import { AnimatedOutlet } from './AnimatedOutlet'
 import { ThemeIllustrationAtmosphere } from '../theme/ThemeIllustrationAtmosphere'
 import { HoverTip } from '../ui/HoverTip'
+import { localFileAssetUrl } from '../skin/skinUrls'
 
 const SIDEBAR_COLLAPSED_KEY = 'fledge.sidebarCollapsed'
 
 const navIcon = { size: 23, stroke: 1.75 } as const
 
 const NAV_ITEMS = [
-  { id: 'home', to: '/', end: true, icon: IconHome, labelKey: 'nav.home', iconClass: 'text-[var(--color-nav-home)]' },
-  { id: 'browse', to: '/browse', end: false, icon: IconPackages, labelKey: 'nav.browse', iconClass: 'text-[var(--color-nav-browse)]' },
-  { id: 'gallery', to: '/gallery', end: false, icon: IconPhoto, labelKey: 'nav.gallery', iconClass: 'text-[var(--color-nav-gallery)]' },
-  { id: 'skin', to: '/skin', end: false, icon: IconShirt, labelKey: 'nav.skin', iconClass: 'text-[var(--color-nav-skin)]' },
-  { id: 'settings', to: '/settings', end: false, icon: IconSettings, labelKey: 'nav.settings', iconClass: 'text-[var(--color-nav-settings)]' },
+  {
+    id: 'home',
+    to: '/',
+    end: true,
+    icon: IconHome,
+    labelKey: 'nav.home',
+    iconClass: 'text-[var(--color-nav-home)]',
+    iconAnim: 'pop',
+  },
+  {
+    id: 'browse',
+    to: '/browse',
+    end: false,
+    icon: IconPackages,
+    labelKey: 'nav.browse',
+    iconClass: 'text-[var(--color-nav-browse)]',
+    iconAnim: 'bounce',
+  },
+  {
+    id: 'gallery',
+    to: '/gallery',
+    end: false,
+    icon: IconPhoto,
+    labelKey: 'nav.gallery',
+    iconClass: 'text-[var(--color-nav-gallery)]',
+    iconAnim: 'pop',
+  },
+  {
+    id: 'skin',
+    to: '/skin',
+    end: false,
+    icon: IconShirt,
+    labelKey: 'nav.skin',
+    iconClass: 'text-[var(--color-nav-skin)]',
+    iconAnim: 'wiggle',
+  },
+  {
+    id: 'settings',
+    to: '/settings',
+    end: false,
+    icon: IconSettings,
+    labelKey: 'nav.settings',
+    iconClass: 'text-[var(--color-nav-settings)]',
+    iconAnim: 'spin',
+  },
 ] as const
+
+const NAV_ICON_ANIM_CLASS = {
+  spin: 'nav-icon-anim-spin',
+  pop: 'nav-icon-anim-pop',
+  bounce: 'nav-icon-anim-bounce',
+  wiggle: 'nav-icon-anim-wiggle',
+} as const
 
 function activeNavId(pathname: string): string {
   const segment = pathname.split('/').filter(Boolean)[0]
@@ -61,10 +109,18 @@ export function AppShell() {
   const asideRef = useRef<HTMLElement>(null)
   const itemRefs = useRef<Record<string, HTMLAnchorElement | null>>({})
   const navWheelAccRef = useRef(0)
+  const prevActiveIdRef = useRef(activeId)
+  const [iconAnimId, setIconAnimId] = useState<string | null>(null)
   const [pill, setPill] = useState<{ top: number; left: number; width: number; height: number } | null>(
     null,
   )
   const [pillReady, setPillReady] = useState(false)
+
+  useEffect(() => {
+    if (prevActiveIdRef.current === activeId) return
+    prevActiveIdRef.current = activeId
+    setIconAnimId(activeId)
+  }, [activeId])
 
   const onNavWheel = useCallback(
     (event: ReactWheelEvent<HTMLElement>) => {
@@ -182,7 +238,23 @@ export function AppShell() {
   const settings = settingsQuery.data
   const seasonId =
     settings?.themeFamily === 'season' && settings.seasonThemeId ? settings.seasonThemeId : null
-  const illustrated = Boolean(seasonId)
+  const customId =
+    settings?.themeFamily === 'custom' && settings.customThemeImageId
+      ? settings.customThemeImageId
+      : null
+
+  const customImageQuery = useQuery({
+    queryKey: ['theme', 'custom-image', customId],
+    queryFn: async () => {
+      if (!customId) return null
+      const path = await fledgeApi.theme.resolveCustomImage(customId)
+      return localFileAssetUrl(path) ?? null
+    },
+    enabled: Boolean(customId),
+    staleTime: 60_000,
+  })
+
+  const illustrated = Boolean(seasonId || (customId && customImageQuery.data))
 
   let atmosphereKey: string | null = null
   let atmosphereSrc: string | null = null
@@ -198,6 +270,11 @@ export function AppShell() {
       (dark ? season?.atmosphere.dark.overlayClass : season?.atmosphere.light.overlayClass) ?? null
     atmosphereKey =
       atmosphereSrc && atmosphereOverlay ? `${seasonId}:${dark ? 'dark' : 'light'}` : null
+  } else if (settings && customId && customImageQuery.data) {
+    const base = settings.themeColor ?? { r: 255, g: 255, b: 255 }
+    atmosphereSrc = customImageQuery.data
+    atmosphereOverlay = customThemeOverlayClass(base)
+    atmosphereKey = `custom:${customId}:${base.r},${base.g},${base.b}`
   }
 
   return (
@@ -274,7 +351,20 @@ export function AppShell() {
                       : 'text-[var(--color-text-muted)] hover:bg-[var(--color-hover)] hover:text-[var(--color-text)]',
                   ].join(' ')}
                 >
-                  <Icon {...navIcon} className={['shrink-0', item.iconClass].join(' ')} aria-hidden />
+                  <Icon
+                    {...navIcon}
+                    className={[
+                      'shrink-0',
+                      item.iconClass,
+                      iconAnimId === item.id ? NAV_ICON_ANIM_CLASS[item.iconAnim] : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    aria-hidden
+                    onAnimationEnd={() => {
+                      if (iconAnimId === item.id) setIconAnimId(null)
+                    }}
+                  />
                   {collapsed ? null : <span className="min-w-0 truncate">{label}</span>}
                 </NavLink>
               )

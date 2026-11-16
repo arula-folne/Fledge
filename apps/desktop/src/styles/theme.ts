@@ -254,11 +254,24 @@ function resolveThemeColor(
   }
 }
 
+/** カスタム背景上の読みやすさ用オーバーレイ（ベース輝度で明暗） */
+export function customThemeOverlayClass(base: {
+  r: number
+  g: number
+  b: number
+}): string {
+  const dark = relativeLuminance(base.r, base.g, base.b) < 0.42
+  return dark
+    ? 'bg-gradient-to-b from-black/55 via-black/22 to-black/50'
+    : 'bg-gradient-to-b from-white/40 via-transparent to-white/28'
+}
+
 export function applyTheme(settings: Settings): void {
   const root = document.documentElement
   if (settings.themeFamily === 'season') {
     const season = getSeasonTheme(settings.seasonThemeId)
     if (season) {
+      delete root.dataset.themeCustom
       root.dataset.themeSeason = season.id
       root.dataset.themeSeasonTone = resolveSeasonDark(settings) ? 'dark' : 'light'
       applyTokens(resolveSeasonDark(settings) ? season.dark : season.light)
@@ -267,6 +280,18 @@ export function applyTheme(settings: Settings): void {
   }
   delete root.dataset.themeSeason
   delete root.dataset.themeSeasonTone
+
+  if (settings.themeFamily === 'custom') {
+    root.dataset.themeCustom = '1'
+    applyTokens(
+      tokensForColor(
+        resolveThemeColor(settings.themeColor, DEFAULT_THEME_BASE),
+        resolveThemeColor(settings.themeAccentColor, DEFAULT_THEME_ACCENT),
+      ),
+    )
+    return
+  }
+  delete root.dataset.themeCustom
 
   const mode = resolveMode(settings)
   if (mode === 'oled') applyTokens(tokensForOled())

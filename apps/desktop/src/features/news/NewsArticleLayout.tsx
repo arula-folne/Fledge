@@ -27,9 +27,9 @@ export function NewsArticleLayout({
         className={
           mode === 'full'
             ? compact
-              ? 'text-base font-semibold leading-snug text-[var(--color-text)]'
-              : 'text-lg font-semibold leading-snug text-[var(--color-text)]'
-            : 'text-[length:var(--news-preview-title)] font-semibold leading-snug text-[var(--color-text)]'
+              ? 'news-card-title text-base font-semibold leading-snug text-[var(--color-text)]'
+              : 'news-card-title text-lg font-semibold leading-snug text-[var(--color-text)]'
+            : 'news-card-title text-[length:var(--news-preview-title)] font-semibold leading-snug text-[var(--color-text)]'
         }
       >
         {title}
@@ -37,7 +37,7 @@ export function NewsArticleLayout({
       {mode === 'full' ? (
         <MarkdownBody text={body} className={compact ? 'news-md text-sm' : 'news-md'} />
       ) : (
-        <p className="line-clamp-2 text-[length:var(--news-preview-body)] leading-snug text-[var(--color-text-muted)]">
+        <p className="news-card-body line-clamp-2 text-[length:var(--news-preview-body)] leading-snug text-[color-mix(in_srgb,var(--color-text)_78%,var(--color-text-muted))]">
           {newsPreview(body)}
         </p>
       )}
@@ -45,9 +45,9 @@ export function NewsArticleLayout({
         className={
           mode === 'full'
             ? compact
-              ? 'mt-1 text-xs tabular-nums text-[var(--color-text-muted)]'
-              : 'mt-1 text-sm tabular-nums text-[var(--color-text-muted)]'
-            : 'text-[length:var(--news-preview-date)] tabular-nums text-[var(--color-text-muted)]'
+              ? 'news-card-date mt-1 text-xs tabular-nums text-[var(--color-text-muted)]'
+              : 'news-card-date mt-1 text-sm tabular-nums text-[var(--color-text-muted)]'
+            : 'news-card-date text-[length:var(--news-preview-date)] tabular-nums text-[color-mix(in_srgb,var(--color-text)_55%,var(--color-text-muted))]'
         }
       >
         {date}
