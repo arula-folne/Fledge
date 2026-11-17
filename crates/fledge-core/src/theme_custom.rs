@@ -137,28 +137,12 @@ pub fn remove_custom_image(
         current.map(|s| s.to_string())
     };
 
-    let family = if next_id.is_some() {
-        current_settings
-            .get("themeFamily")
-            .and_then(|v| v.as_str())
-            .unwrap_or("custom")
-    } else {
-        "standard"
-    };
-
-    let mut patch = json!({
-      "themeFamily": if next_id.is_none() { "standard" } else { family },
+    // 画像が0件でもカスタム状態を維持（スタンダードへ自動遷移しない）
+    Ok(json!({
+      "themeFamily": "custom",
       "customThemeImageId": next_id,
       "customThemeHistory": history,
-    });
-    // 最後の1枚を消したときは、選んでいた色がそのまま見えるようカラーへ
-    if next_id.is_none() {
-        patch
-            .as_object_mut()
-            .unwrap()
-            .insert("themeMode".into(), Value::from("color"));
-    }
-    Ok(patch)
+    }))
 }
 
 fn delete_image_files(dir: &Path, id: &str) -> CoreResult<()> {

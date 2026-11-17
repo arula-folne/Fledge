@@ -24,7 +24,12 @@ import { AppCredits } from '../brand/AppCredits'
 import { AccountChip } from '../../features/auth/AccountChip'
 import { LoginErrorDialog } from '../../features/auth/LoginErrorDialog'
 import { fledgeApi } from '../../api/fledgeApi'
-import { applyTheme, customThemeOverlayClass, resolveSeasonDark } from '../../styles/theme'
+import {
+  applyTheme,
+  customThemeOverlayClass,
+  isCustomThemeInUse,
+  resolveSeasonDark,
+} from '../../styles/theme'
 import { getSeasonTheme } from '../../styles/themeSeasons'
 import i18n from '../../i18n'
 import { TransferProgress } from './TransferProgress'
@@ -239,9 +244,7 @@ export function AppShell() {
   const seasonId =
     settings?.themeFamily === 'season' && settings.seasonThemeId ? settings.seasonThemeId : null
   const customId =
-    settings?.themeFamily === 'custom' && settings.customThemeImageId
-      ? settings.customThemeImageId
-      : null
+    settings && isCustomThemeInUse(settings) ? settings.customThemeImageId : null
 
   const customImageQuery = useQuery({
     queryKey: ['theme', 'custom-image', customId],

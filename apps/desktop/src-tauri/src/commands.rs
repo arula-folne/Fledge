@@ -162,7 +162,6 @@ async fn dispatch(
             let path = fledge_core::resolve_custom_image_path(&state.layout, &id).map_err(map_err)?;
             Ok(json!(path.to_string_lossy().to_string()))
         }
-
         // instances
         "instances:list" => state
             .instances

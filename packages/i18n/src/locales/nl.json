@@ -241,6 +241,7 @@
   "content.gallery.next": "Volgende",
   "content.gallery.position": "{{current}} / {{total}}",
   "content.gallery.openImage": "Afbeelding {{n}} openen",
+  "content.gallery.menu": "Menu",
   "content.tab.versions": "Versies",
   "content.versions": "Versies",
   "content.compatOnly": "Alleen voor deze instantie",

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type MouseEvent as ReactMouseEvent } 
 import { createPortal } from 'react-dom'
 import { getFledgeUiScaleRoot } from '../../components/layout/fledgeUiScaleRoot'
 import { useTranslation } from 'react-i18next'
-import { IconArrowLeft, IconChevronLeft, IconChevronRight } from '@tabler/icons-react'
+import { IconArrowLeft, IconChevronLeft, IconChevronRight, IconDotsVertical } from '@tabler/icons-react'
 import { fledgeApi } from '../../api/fledgeApi'
 import { Button } from '../../components/ui/Button'
 
@@ -143,7 +143,33 @@ export function GalleryLightbox({
             <IconChevronRight size={16} stroke={1.75} />
           </Button>
         </div>
-        <div aria-hidden />
+        <div className="justify-self-end">
+          {onItemContextMenu ? (
+            <Button
+              type="button"
+              variant="secondary"
+              className="border-white/15 bg-white/10 text-white hover:bg-white/20"
+              aria-haspopup="menu"
+              aria-label={t('content.gallery.menu')}
+              onClick={(e) => {
+                e.stopPropagation()
+                const rect = e.currentTarget.getBoundingClientRect()
+                onItemContextMenu(
+                  {
+                    preventDefault() {},
+                    stopPropagation() {},
+                    clientX: rect.right,
+                    clientY: Math.max(8, rect.top - 4),
+                  } as ReactMouseEvent,
+                  index,
+                )
+              }}
+            >
+              <IconDotsVertical size={16} stroke={1.75} />
+              {t('content.gallery.menu')}
+            </Button>
+          ) : null}
+        </div>
       </div>
     </div>,
     getFledgeUiScaleRoot(),

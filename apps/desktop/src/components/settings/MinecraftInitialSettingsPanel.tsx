@@ -1004,7 +1004,7 @@ function Group({
     <div
       id={`mc-initial-${sectionId}`}
       ref={sectionRef}
-      className="scroll-mt-2 space-y-4 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/40 p-4"
+      className="scroll-mt-2 space-y-4 rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-bg)]/75 p-4"
     >
       <div className="flex items-center justify-between gap-2">
         <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold tracking-tight text-[var(--color-text)]">

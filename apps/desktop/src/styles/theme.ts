@@ -266,6 +266,25 @@ export function customThemeOverlayClass(base: {
     : 'bg-gradient-to-b from-white/40 via-transparent to-white/28'
 }
 
+/** 画像が選ばれているときだけカスタムテーマを実適用する（空の custom はスタンダード見た目） */
+export function isCustomThemeInUse(settings: Settings): boolean {
+  return settings.themeFamily === 'custom' && Boolean(settings.customThemeImageId)
+}
+
+function applyStandardTheme(settings: Settings): void {
+  const mode = resolveMode(settings)
+  if (mode === 'oled') applyTokens(tokensForOled())
+  else if (mode === 'dark') applyTokens(tokensForDark())
+  else if (mode === 'color') {
+    applyTokens(
+      tokensForColor(
+        resolveThemeColor(settings.themeColor, DEFAULT_THEME_BASE),
+        resolveThemeColor(settings.themeAccentColor, DEFAULT_THEME_ACCENT),
+      ),
+    )
+  } else applyTokens(tokensForLight())
+}
+
 export function applyTheme(settings: Settings): void {
   const root = document.documentElement
   if (settings.themeFamily === 'season') {
@@ -281,7 +300,7 @@ export function applyTheme(settings: Settings): void {
   delete root.dataset.themeSeason
   delete root.dataset.themeSeasonTone
 
-  if (settings.themeFamily === 'custom') {
+  if (isCustomThemeInUse(settings)) {
     root.dataset.themeCustom = '1'
     applyTokens(
       tokensForColor(
@@ -293,17 +312,8 @@ export function applyTheme(settings: Settings): void {
   }
   delete root.dataset.themeCustom
 
-  const mode = resolveMode(settings)
-  if (mode === 'oled') applyTokens(tokensForOled())
-  else if (mode === 'dark') applyTokens(tokensForDark())
-  else if (mode === 'color') {
-    applyTokens(
-      tokensForColor(
-        resolveThemeColor(settings.themeColor, DEFAULT_THEME_BASE),
-        resolveThemeColor(settings.themeAccentColor, DEFAULT_THEME_ACCENT),
-      ),
-    )
-  } else applyTokens(tokensForLight())
+  // custom でも画像なしならスタンダードを出す（themeFamily 自体は custom のまま維持可）
+  applyStandardTheme(settings)
 }
 
 /** シーズンテーマ用。toneSupport が固定ならそちら優先。それ以外は color→light / oled→dark、system は OS に従う */

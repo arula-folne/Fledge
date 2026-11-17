@@ -76,6 +76,9 @@ importers:
       skinview3d:
         specifier: ^3.4.2
         version: 3.4.2
+      three:
+        specifier: 0.156.1
+        version: 0.156.1
       zustand:
         specifier: ^5.0.3
         version: 5.0.14(@types/react@19.2.18)(react@19.2.8)
@@ -95,6 +98,9 @@ importers:
       '@types/react-dom':
         specifier: ^19.0.4
         version: 19.2.4(@types/react@19.2.18)
+      '@types/three':
+        specifier: 0.156.0
+        version: 0.156.0
       '@vitejs/plugin-react':
         specifier: ^4.3.4
         version: 4.7.0(vite@6.4.3(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0))

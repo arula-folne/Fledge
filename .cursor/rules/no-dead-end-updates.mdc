@@ -1,0 +1,32 @@
+---
+description: 今後のアプリ内アップデートができなくなるビルド・リリースを出さない
+alwaysApply: true
+---
+
+# アップデート不能なビルドを出さない
+
+正規版をユーザーに届けるとき、**その版から先のアプリ内アップデートが実質できなくなる状態**を作らない。調査・修正・リリース作業でもこの前提を崩さない。
+
+## 禁止（デッドエンド）
+
+- Latest を **インストーラ未添付**のまま公開する（asset 無し `/releases/latest`）
+- 正規版タグなのに Pre-release のまま放置し、stable チャネルから見えなくする（意図的な一時退避は可。戻すまで「完了」にしない）
+- `updater:check` 失敗時に古い **`up-to-date` / `unavailable` を返す**（取得失敗は `fetchFailed`。`force` 時はキャッシュフォールバック禁止）
+- debug / `tauri.dev.conf` / 別 identifier の成果物を製品リリースに載せる
+- 適用・再起動経路を壊す変更を、確認なしで製品に入れる（NSIS 後の起動、installDir、`--updated` 等）
+- 「次の版へ上がれない」世代ゲートや更新打ち切りを、ユーザー確認なしで新規追加する（既存の gen1/gen2 最終版は例外として維持）
+
+## リリース時に守ること
+
+1. 製品ビルドのみ: `pnpm tauri:build`（release / `net.folne.fledge`）
+2. 正規版は **asset 付き**で作成し `--latest`（または draft → upload → publish）。公開直後に `/releases/latest` の tag と `Fledge_*_x64-setup.exe` を確認
+3. stable 利用者向け版は Pre-release にしない。壊れた更新を隠す退避は一時のみとし、差し替えか次版で Latest を復旧する
+4. アプリ内更新の検出は GitHub Releases（stable = `/releases/latest`、prerelease チャネルは別）。チャネルと公開状態を食い違わせない
+
+## 変更時のセルフチェック
+
+- 0.x.y のユーザーが、次の正規版をバナー／手動確認で見つけられるか
+- ネット一瞬失敗やレート制限だけで「更新なし」に固まり続けないか
+- 入れた版のあとも、さらに次の版へ上げ続けられるか
+
+関連: `crates/fledge-core/src/updater/`、`.github/workflows/release.yml`、`updater-data-persistence.mdc`（データ永続）、`release-news-required.mdc`（お知らせ）

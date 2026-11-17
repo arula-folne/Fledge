@@ -241,6 +241,7 @@
   "content.gallery.next": "다음",
   "content.gallery.position": "{{current}} / {{total}}",
   "content.gallery.openImage": "이미지 {{n}} 열기",
+  "content.gallery.menu": "메뉴",
   "content.tab.versions": "버전",
   "content.versions": "버전",
   "content.compatOnly": "이 인스턴스 전용",

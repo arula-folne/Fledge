@@ -241,6 +241,7 @@
   "content.gallery.next": "ถัดไป",
   "content.gallery.position": "{{current}} / {{total}}",
   "content.gallery.openImage": "เปิดรูป {{n}}",
+  "content.gallery.menu": "เมนู",
   "content.tab.versions": "เวอร์ชัน",
   "content.versions": "เวอร์ชัน",
   "content.compatOnly": "เฉพาะอินสแตนซ์นี้",

@@ -241,6 +241,7 @@
   "content.gallery.next": "Далі",
   "content.gallery.position": "{{current}} / {{total}}",
   "content.gallery.openImage": "Відкрити изображение {{n}}",
+  "content.gallery.menu": "Меню",
   "content.tab.versions": "Версії",
   "content.versions": "Версії",
   "content.compatOnly": "Только для этого інстанса",

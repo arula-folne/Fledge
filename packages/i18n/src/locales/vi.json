@@ -241,6 +241,7 @@
   "content.gallery.next": "Kế tiếp",
   "content.gallery.position": "{{current}} / {{total}}",
   "content.gallery.openImage": "Mở hình ảnh {{n}}",
+  "content.gallery.menu": "Menu",
   "content.tab.versions": "Phiên bản",
   "content.versions": "Phiên bản",
   "content.compatOnly": "Chỉ dành cho trường hợp này",

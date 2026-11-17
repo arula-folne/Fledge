@@ -15,6 +15,8 @@ type Props = {
   value: ThemeColorPair
   /** クリック確定時のみ。IPC・設定保存は親側 */
   onChange: (value: ThemeColorPair) => void
+  /** true のとき入口をグレーアウトし、メニューを開けない */
+  disabled?: boolean
 }
 
 const HUE_STEPS = 12
@@ -229,7 +231,11 @@ function ThemeColorPreview({ pair, role, onSelectRole }: PreviewProps) {
  * 入口からカラーメニュー（ポップアップ）を開き、
  * プレビューでベース／アクセントを選んで色を決める。
  */
-export const ThemeColorPicker = memo(function ThemeColorPicker({ value, onChange }: Props) {
+export const ThemeColorPicker = memo(function ThemeColorPicker({
+  value,
+  onChange,
+  disabled = false,
+}: Props) {
   const { t } = useTranslation()
   const safeValue = useMemo(
     () => normalizePairInput(value),
@@ -387,17 +393,6 @@ export const ThemeColorPicker = memo(function ThemeColorPicker({ value, onChange
     [syncInputs],
   )
 
-  const openMenu = useCallback(() => {
-    draftRef.current = safeValue
-    lastCommittedRef.current = safeValue
-    setRole('base')
-    roleRef.current = 'base'
-    setPreviewPair(safeValue)
-    setCommittedPair(safeValue)
-    syncInputs(safeValue, 'base')
-    setOpen(true)
-  }, [safeValue, syncInputs])
-
   const closeMenu = useCallback(() => {
     if (previewRafRef.current) {
       cancelAnimationFrame(previewRafRef.current)
@@ -410,6 +405,22 @@ export const ThemeColorPicker = memo(function ThemeColorPicker({ value, onChange
     applyThemeColor(restored)
     setOpen(false)
   }, [])
+
+  const openMenu = useCallback(() => {
+    if (disabled) return
+    draftRef.current = safeValue
+    lastCommittedRef.current = safeValue
+    setRole('base')
+    roleRef.current = 'base'
+    setPreviewPair(safeValue)
+    setCommittedPair(safeValue)
+    syncInputs(safeValue, 'base')
+    setOpen(true)
+  }, [disabled, safeValue, syncInputs])
+
+  useEffect(() => {
+    if (disabled && open) closeMenu()
+  }, [disabled, open, closeMenu])
 
   const randomizeAll = useCallback(() => {
     const next = normalizePair({
@@ -457,11 +468,14 @@ export const ThemeColorPicker = memo(function ThemeColorPicker({ value, onChange
         aria-label={t('settings.themeColorChange')}
         aria-haspopup="dialog"
         aria-expanded={open}
+        aria-disabled={disabled}
+        disabled={disabled}
         className={[
           'flex w-full items-center gap-3 rounded-[var(--radius-md)] border border-[var(--color-border)]',
           'bg-[var(--color-surface)] px-4 py-3 text-left transition',
-          'hover:bg-[var(--color-hover)]',
-          'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-selection)]',
+          disabled
+            ? 'cursor-default opacity-45'
+            : 'hover:bg-[var(--color-hover)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-selection)]',
         ].join(' ')}
         onClick={openMenu}
       >

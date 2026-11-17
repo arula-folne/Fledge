@@ -1039,6 +1039,7 @@ export default function SettingsPage() {
             <div className="flex flex-col gap-3" data-fledge-tutorial="tutorial-settings-theme">
               <SlidingPillTabs
                 aria-label={t('settings.section.appTheme')}
+                size="md"
                 activeId={activeThemeTab}
                 onChange={(id) =>
                   setThemeFamilyTab(id as 'standard' | 'season' | 'custom')
@@ -1053,7 +1054,12 @@ export default function SettingsPage() {
                 {activeThemeTab === 'standard' ? (
                   <div className="flex flex-col gap-3">
                     <ThemeModePicker
-                      value={settings.themeFamily === 'standard' ? settings.themeMode : null}
+                      value={
+                        settings.themeFamily === 'standard' ||
+                        (settings.themeFamily === 'custom' && !settings.customThemeImageId)
+                          ? settings.themeMode
+                          : null
+                      }
                       labels={{
                         light: t('settings.theme.light'),
                         dark: t('settings.theme.dark'),
@@ -1080,15 +1086,19 @@ export default function SettingsPage() {
                         })
                       }}
                     />
-                    {settings.themeFamily === 'standard' && settings.themeMode === 'color' ? (
-                      <ThemeColorPicker
-                        value={{
-                          base: settings.themeColor ?? { r: 255, g: 255, b: 255 },
-                          accent: settings.themeAccentColor ?? { r: 91, g: 164, b: 217 },
-                        }}
-                        onChange={handleThemeColorChange}
-                      />
-                    ) : null}
+                    <ThemeColorPicker
+                      value={{
+                        base: settings.themeColor ?? { r: 255, g: 255, b: 255 },
+                        accent: settings.themeAccentColor ?? { r: 91, g: 164, b: 217 },
+                      }}
+                      disabled={
+                        !(
+                          settings.themeFamily === 'standard' ||
+                          (settings.themeFamily === 'custom' && !settings.customThemeImageId)
+                        ) || settings.themeMode !== 'color'
+                      }
+                      onChange={handleThemeColorChange}
+                    />
                   </div>
                 ) : null}
 
@@ -1140,15 +1150,20 @@ export default function SettingsPage() {
                         queryClient.setQueryData(['settings'], next)
                       }}
                     />
-                    {settings.themeFamily === 'custom' ? (
-                      <ThemeColorPicker
-                        value={{
-                          base: settings.themeColor ?? { r: 255, g: 255, b: 255 },
-                          accent: settings.themeAccentColor ?? { r: 91, g: 164, b: 217 },
-                        }}
-                        onChange={handleThemeColorChange}
-                      />
-                    ) : null}
+                    <ThemeColorPicker
+                      value={{
+                        base: settings.themeColor ?? { r: 255, g: 255, b: 255 },
+                        accent: settings.themeAccentColor ?? { r: 91, g: 164, b: 217 },
+                      }}
+                      onChange={(pair) => {
+                        saveMutateRef.current({
+                          themeFamily: 'custom',
+                          seasonThemeId: null,
+                          themeColor: pair.base,
+                          themeAccentColor: pair.accent,
+                        })
+                      }}
+                    />
                   </div>
                 ) : null}
               </section>

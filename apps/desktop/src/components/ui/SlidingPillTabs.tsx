@@ -25,8 +25,8 @@ type Props = {
   activeId: string
   onChange: (id: string) => void
   onPrefetch?: (id: string) => void
-  /** sm: インスタンス詳細 / コンテンツフィルター、md: 検索タブ */
-  size?: 'sm' | 'md'
+  /** sm: インスタンス詳細 / コンテンツフィルター、md: 検索タブ、lg: 設定のテーマ系統 */
+  size?: 'sm' | 'md' | 'lg'
   /**
    * 項目全体を囲む加工フレーム（カプセル）。
    * 既定 true（インスタンス詳細・コンテンツ検索など）。
@@ -168,7 +168,11 @@ export function SlidingPillTabs({
 
   // 固定高さ + leading-none で行ボックス下寄りを防ぐ（少し余白を持たせる）
   const sizeClass =
-    size === 'md' ? 'h-9 px-3.5 text-sm' : 'h-8 px-3 text-xs'
+    size === 'lg'
+      ? 'h-11 px-5 text-[15px]'
+      : size === 'md'
+        ? 'h-9 px-3.5 text-sm'
+        : 'h-8 px-3 text-xs'
   const activeItem = items.find((item) => item.id === activeId)
 
   return (

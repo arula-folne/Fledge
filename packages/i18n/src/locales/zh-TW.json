@@ -241,6 +241,7 @@
   "content.gallery.next": "下一張",
   "content.gallery.position": "{{current}} / {{total}}",
   "content.gallery.openImage": "打開圖像 {{n}}",
+  "content.gallery.menu": "選單",
   "content.tab.versions": "版本",
   "content.versions": "版本",
   "content.compatOnly": "僅適用於本例",

@@ -241,6 +241,7 @@
   "content.gallery.next": "Siguiente",
   "content.gallery.position": "{{current}} / {{total}}",
   "content.gallery.openImage": "Abrir imagen {{n}}",
+  "content.gallery.menu": "Menú",
   "content.tab.versions": "Versiones",
   "content.versions": "Versiones",
   "content.compatOnly": "Sólo para esta instancia",

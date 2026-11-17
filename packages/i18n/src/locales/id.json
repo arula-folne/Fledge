@@ -241,6 +241,7 @@
   "content.gallery.next": "Berikutnya",
   "content.gallery.position": "{{current}} / {{total}}",
   "content.gallery.openImage": "Buka gambar {{n}}",
+  "content.gallery.menu": "Menu",
   "content.tab.versions": "Versi",
   "content.versions": "Versi",
   "content.compatOnly": "Hanya untuk instans ini",

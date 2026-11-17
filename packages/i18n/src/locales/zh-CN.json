@@ -241,6 +241,7 @@
   "content.gallery.next": "下一张",
   "content.gallery.position": "{{current}} / {{total}}",
   "content.gallery.openImage": "打开图片 {{n}}",
+  "content.gallery.menu": "菜单",
   "content.tab.versions": "版本",
   "content.versions": "版本",
   "content.compatOnly": "仅本实例",

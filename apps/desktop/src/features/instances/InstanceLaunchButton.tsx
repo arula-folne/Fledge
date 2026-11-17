@@ -407,7 +407,8 @@ export function InstanceLaunchButton({
   const [errorPos, setErrorPos] = useState<{
     top: number
     left: number
-    placeAbove: boolean
+    width: number
+    maxHeight: number
   } | null>(null)
   const errorVisible = showError && (errorOpen || errorHover)
 
@@ -452,25 +453,62 @@ export function InstanceLaunchButton({
       setErrorPos(null)
       return
     }
+    const pad = 8
+    const gap = 8
     const update = () => {
       const btn = errorBtnRef.current
       if (!btn) return
+      const root = getFledgeUiScaleRoot()
+      const rootRect = root.getBoundingClientRect()
+      const zoomRaw = Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--fledge-content-zoom'),
+      )
+      const zoom =
+        Number.isFinite(zoomRaw) && zoomRaw > 0
+          ? zoomRaw
+          : Number.parseFloat(getComputedStyle(root).zoom) || 1
+      const toLocalX = (viewportX: number) => (viewportX - rootRect.left) / zoom
+      const toLocalY = (viewportY: number) => (viewportY - rootRect.top) / zoom
+      const localW = root.clientWidth || window.innerWidth / zoom
+      const localH = root.clientHeight || window.innerHeight / zoom
+
       const rect = btn.getBoundingClientRect()
-      const width = Math.min(360, window.innerWidth * 0.82)
-      let left = rect.right - width
-      left = Math.max(8, Math.min(left, window.innerWidth - width - 8))
-      const placeAbove = rect.top > 80
-      const top = placeAbove ? rect.top - 8 : rect.bottom + 8
-      setErrorPos({ top, left, placeAbove })
+      const btnRight = toLocalX(rect.right)
+      const btnTop = toLocalY(rect.top)
+      const btnBottom = toLocalY(rect.bottom)
+
+      const width = Math.min(360, Math.max(200, localW - pad * 2))
+      let left = btnRight - width
+      left = Math.max(pad, Math.min(left, localW - width - pad))
+
+      const tip = errorTipRef.current
+      const preferredMax = Math.min(localH * 0.5, 320)
+      const spaceBelow = Math.max(0, localH - btnBottom - gap - pad)
+      const spaceAbove = Math.max(0, btnTop - gap - pad)
+      const estimated = tip?.offsetHeight ?? Math.min(140, preferredMax)
+      const placeAbove =
+        (estimated <= spaceAbove && spaceAbove >= 96) || spaceAbove > spaceBelow
+      const avail = placeAbove ? spaceAbove : spaceBelow
+      const maxHeight = Math.max(96, Math.min(preferredMax, avail || preferredMax))
+      const height = tip ? Math.min(tip.offsetHeight, maxHeight) : Math.min(140, maxHeight)
+
+      let top = placeAbove ? btnTop - gap - height : btnBottom + gap
+      top = Math.max(pad, Math.min(top, localH - pad - height))
+      setErrorPos({ top, left, width, maxHeight })
     }
     update()
+    const raf = requestAnimationFrame(() => {
+      update()
+      requestAnimationFrame(update)
+    })
     window.addEventListener('scroll', update, true)
     window.addEventListener('resize', update)
     return () => {
+      cancelAnimationFrame(raf)
       window.removeEventListener('scroll', update, true)
       window.removeEventListener('resize', update)
     }
-  }, [errorVisible])
+  }, [errorVisible, errorDisplay?.summary, errorDisplay?.detail])
 
   // スタートボタン（icon/sm は size-10）の約 2/3
   const errorBtnClass =
@@ -510,23 +548,26 @@ export function InstanceLaunchButton({
             <div
               ref={errorTipRef}
               role="tooltip"
-              className="pointer-events-auto fixed z-[200] w-[min(22.5rem,82vw)] max-h-[min(40vh,16rem)] overflow-y-auto rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-xs leading-relaxed shadow-md"
+              className="pointer-events-auto fixed z-[200] overflow-y-auto overflow-x-hidden rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2.5 text-xs leading-relaxed shadow-md"
               style={{
                 top: errorPos.top,
                 left: errorPos.left,
-                transform: errorPos.placeAbove ? 'translateY(-100%)' : undefined,
+                width: errorPos.width,
+                maxHeight: errorPos.maxHeight,
               }}
               onClick={stop}
               onMouseEnter={() => setErrorHoverSoon(true)}
               onMouseLeave={() => setErrorHoverSoon(false)}
             >
-              <p className="font-medium text-[var(--color-danger)]">{errorDisplay!.summary}</p>
+              <p className="break-words font-medium text-[var(--color-danger)]">
+                {errorDisplay!.summary}
+              </p>
               {errorDisplay!.detail ? (
                 <div className="mt-2 space-y-1 border-t border-[var(--color-border)] pt-2">
-                  <p className="text-[10px] font-medium uppercase tracking-wide text-[var(--color-text-muted)]">
+                  <p className="text-[10px] font-medium text-[var(--color-text-muted)]">
                     {t('launch.error.causeLabel')}
                   </p>
-                  <pre className="whitespace-pre-wrap break-words font-mono text-[11px] leading-snug text-[var(--color-text)]">
+                  <pre className="max-w-full whitespace-pre-wrap break-words font-mono text-[11px] leading-snug text-[var(--color-text)]">
                     {errorDisplay!.detail}
                   </pre>
                 </div>

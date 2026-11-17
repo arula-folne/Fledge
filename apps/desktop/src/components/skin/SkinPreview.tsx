@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { Object3D } from 'three'
 import type { SkinViewer } from 'skinview3d'
 import type { SkinModel } from '@fledge/shared'
 import {
@@ -11,6 +12,8 @@ import {
   toSkinViewModel,
   yieldToUi,
 } from './skinSnapshot'
+import { LivelyIdleAnimation } from './livelyIdleAnimation'
+import { tryAttachSkinBlink } from './skinBlink'
 import { resolveCapeTextureSource } from './resolveCapeTexture'
 
 export type SkinPreviewPose = 'bust' | 'full'
@@ -191,11 +194,12 @@ function InteractivePreview({
 
     let disposed = false
     let cleanupListeners: (() => void) | null = null
+    const visitorsCleanup = { current: null as null | (() => void) }
 
     void (async () => {
       await yieldToUi()
       if (disposed) return
-      const { SkinViewer, IdleAnimation } = await loadSkinView3d()
+      const { SkinViewer } = await loadSkinView3d()
       if (disposed) return
 
       const viewer = new SkinViewer({
@@ -236,6 +240,7 @@ function InteractivePreview({
       }
       canvas.addEventListener('pointerdown', onPointerDown, true)
       canvas.addEventListener('auxclick', onAuxClick)
+
       cleanupListeners = () => {
         canvas.removeEventListener('pointerdown', onPointerDown, true)
         canvas.removeEventListener('auxclick', onAuxClick)
@@ -245,8 +250,27 @@ function InteractivePreview({
         await viewer.loadSkin(skinUrl, { model: toSkinViewModel(model) })
         if (disposed) return
 
-        const idle = new IdleAnimation()
-        idle.speed = 0.8
+        // 旧訪問 mob / 手持ちアイテムの残りをシーンから掃除
+        const stale: Object3D[] = []
+        viewer.scene.traverse((obj) => {
+          if (
+            obj.name === 'fledgeSkinVisitor' ||
+            obj.name === 'fledgeHandItem' ||
+            obj.userData?.fledgeHandItem
+          ) {
+            stale.push(obj)
+          }
+        })
+        for (const obj of stale) {
+          obj.parent?.remove(obj)
+        }
+
+        const idle = new LivelyIdleAnimation()
+        const blink = tryAttachSkinBlink(viewer)
+        visitorsCleanup.current = () => {
+          blink?.dispose()
+        }
+        idle.blinkTick = blink?.tick ?? null
         viewer.animation = idle
 
         // 初回マント（後続は別 effect）
@@ -282,6 +306,8 @@ function InteractivePreview({
     return () => {
       disposed = true
       cleanupListeners?.()
+      visitorsCleanup.current?.()
+      visitorsCleanup.current = null
       viewerRef.current?.dispose()
       viewerRef.current = null
     }
