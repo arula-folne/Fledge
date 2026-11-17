@@ -2,7 +2,7 @@
   {
     "id": "v0.7.1",
     "title": "【バージョンアップ】Fledge Ver.0.7.1",
-    "body": "**Fledge Ver.0.7.1** を公開しました。\n\n## 主な変更\n\n- カスタムテーマ（背景・配色を最大 5 件）を追加\n- 起動準備中はコンテンツ操作をロック\n- お知らせ非表示時のライブラリ 4 列表示と進捗バー幅の調整\n- Minecraft 初期設定にチュートリアルヒントのオン／オフを追加\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "body": "**Fledge Ver.0.7.1** を公開しました。\n\n## 主な変更\n\n- カスタムテーマ（背景・配色を最大 5 件）を追加\n- 起動準備中はコンテンツ操作をロック\n- お知らせ非表示時のライブラリ 4 列表示と進捗バー幅の調整\n- Minecraft 初期設定にチュートリアルヒントのオン／オフを追加\n- アップデート確認で古い「更新なし」が残る問題を修正\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
     "publishedAt": "2026-11-16T15:00:00.000Z",
     "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.7.1"
   },

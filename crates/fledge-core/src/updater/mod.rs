@@ -132,13 +132,21 @@ impl UpdaterService {
             Ok(result) => Ok(result),
             Err(err) => {
                 tracing::warn!(error = %err, "updater check failed");
-                if let Some(cached) = self.read_cache(channel)? {
-                    if let Some(reconciled) =
-                        reconcile_cached_update_result(&cached.result, &effective_app_version())
-                    {
-                        self.sync_pending(channel, &reconciled);
-                        return Ok(reconciled);
-                    }
+                // 取得失敗時に古い up-to-date / unavailable を返すと、Latest 差し替え後も
+                // 「更新なし」のまま固まる。force 時はフォールバック禁止。
+                // available だけは既知の次版を落とせるよう、非 force 時のみ許可する。
+                if let Some(reconciled) = self
+                    .read_cache(channel)?
+                    .and_then(|cached| {
+                        cached_result_on_fetch_failure(
+                            force,
+                            &cached.result,
+                            &effective_app_version(),
+                        )
+                    })
+                {
+                    self.sync_pending(channel, &reconciled);
+                    return Ok(reconciled);
                 }
                 Ok(json!({
                   "status": "unavailable",
@@ -640,6 +648,22 @@ fn pick_newest_release(
     })
 }
 
+/// ネット取得失敗時にキャッシュを返すか。`force` や stale な up-to-date / unavailable は不可。
+fn cached_result_on_fetch_failure(
+    force: bool,
+    cached: &Value,
+    current_version: &str,
+) -> Option<Value> {
+    if force {
+        return None;
+    }
+    let reconciled = reconcile_cached_update_result(cached, current_version)?;
+    match reconciled.get("status").and_then(|v| v.as_str()) {
+        Some("available") => Some(reconciled),
+        _ => None,
+    }
+}
+
 fn reconcile_cached_update_result(cached: &Value, current_version: &str) -> Option<Value> {
     let next = cached.get("nextVersion").and_then(|v| v.as_str());
     if let Some(next_version) = next {
@@ -720,5 +744,43 @@ mod tests {
         assert!(is_preferred_installer_name("Fledge_0.5.1_x64-setup.exe"));
         assert!(is_preferred_installer_name("Fledge-Setup.exe"));
         assert!(!is_preferred_installer_name("Fledge_0.5.1_x64_en-US.msi"));
+    }
+
+    #[test]
+    fn fetch_failure_does_not_reuse_stale_up_to_date() {
+        let cached = json!({
+          "status": "up-to-date",
+          "currentVersion": "0.7.0",
+          "nextVersion": "0.7.0",
+          "channel": "stable",
+        });
+        assert!(cached_result_on_fetch_failure(false, &cached, "0.7.0").is_none());
+        assert!(cached_result_on_fetch_failure(true, &cached, "0.7.0").is_none());
+    }
+
+    #[test]
+    fn fetch_failure_does_not_reuse_stale_unavailable() {
+        let cached = json!({
+          "status": "unavailable",
+          "messageKey": "updater.noAsset",
+          "currentVersion": "0.7.0",
+          "nextVersion": "0.7.1",
+          "channel": "stable",
+        });
+        assert!(cached_result_on_fetch_failure(false, &cached, "0.7.0").is_none());
+    }
+
+    #[test]
+    fn fetch_failure_keeps_available_unless_forced() {
+        let cached = json!({
+          "status": "available",
+          "currentVersion": "0.7.0",
+          "nextVersion": "0.7.1",
+          "downloadUrl": "https://example.com/Fledge_0.7.1_x64-setup.exe",
+          "channel": "stable",
+        });
+        let reused = cached_result_on_fetch_failure(false, &cached, "0.7.0").expect("available");
+        assert_eq!(reused.get("status").and_then(|v| v.as_str()), Some("available"));
+        assert!(cached_result_on_fetch_failure(true, &cached, "0.7.0").is_none());
     }
 }
