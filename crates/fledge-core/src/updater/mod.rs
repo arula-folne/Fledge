@@ -1,4 +1,5 @@
-//! GitHub Releases (or configured feed) updater  Ematches 0.4 UX without tauri-plugin-updater keys.
+//! GitHub Releases（または設定フィード）によるアプリ更新。
+//! tauri-plugin-updater の鍵は使わず、0.4 世代相当の UX を維持する。
 
 mod apply;
 mod version;
@@ -32,11 +33,19 @@ const OWNER: &str = "arula-folne";
 const REPO: &str = "Fledge";
 const LATEST_RELEASE_URL: &str =
     "https://api.github.com/repos/arula-folne/Fledge/releases/latest";
-const CACHE_TTL_MS: i64 = 60 * 1000;
-/// available / up-to-date とも短い TTL。available を長く抱えると連続リリース時に古い次版のまま固まる。
-const UP_TO_DATE_CACHE_TTL_MS: i64 = 60 * 1000;
-const FETCH_TIMEOUT_MS: u64 = 15_000;
+
+/// available のキャッシュ TTL（長いと連続リリース時に古い次版のまま固まる）
+const CACHE_TTL_MS: i64 = 45 * 1000;
+/// up-to-date は短め（リリース直後の「更新なし」誤キャッシュを早く捨てる）
+const UP_TO_DATE_CACHE_TTL_MS: i64 = 12 * 1000;
+const FETCH_TIMEOUT_MS: u64 = 20_000;
+const DOWNLOAD_TIMEOUT_MS: u64 = 120_000;
+const FETCH_RETRIES: u32 = 3;
+const DOWNLOAD_RETRIES: u32 = 3;
+const ASSET_RETRY_DELAY_MS: u64 = 1_500;
+const MIN_INSTALLER_BYTES: u64 = 5_000_000;
 const GEN_LIST_PER_PAGE: u32 = 40;
+
 fn ua_check() -> String {
     format!("Fledge/{} (updater-check)", APP_VERSION)
 }
@@ -117,7 +126,8 @@ impl UpdaterService {
                         reconcile_cached_update_result(&cached.result, &effective_app_version())
                     {
                         if reconciled.get("status") != cached.result.get("status")
-                            || reconciled.get("currentVersion") != cached.result.get("currentVersion")
+                            || reconciled.get("currentVersion")
+                                != cached.result.get("currentVersion")
                         {
                             self.write_cache(channel, &reconciled)?;
                         }
@@ -132,19 +142,11 @@ impl UpdaterService {
             Ok(result) => Ok(result),
             Err(err) => {
                 tracing::warn!(error = %err, "updater check failed");
-                // 取得失敗時に古い up-to-date / unavailable を返すと、Latest 差し替え後も
-                // 「更新なし」のまま固まる。force 時はフォールバック禁止。
-                // available だけは既知の次版を落とせるよう、非 force 時のみ許可する。
-                if let Some(reconciled) = self
-                    .read_cache(channel)?
-                    .and_then(|cached| {
-                        cached_result_on_fetch_failure(
-                            force,
-                            &cached.result,
-                            &effective_app_version(),
-                        )
-                    })
-                {
+                // 取得失敗時に古い up-to-date / unavailable を返すと Latest 差し替え後も固まる。
+                // force 時はフォールバック禁止。available のみ非 force で許可。
+                if let Some(reconciled) = self.read_cache(channel)?.and_then(|cached| {
+                    cached_result_on_fetch_failure(force, &cached.result, &effective_app_version())
+                }) {
                     self.sync_pending(channel, &reconciled);
                     return Ok(reconciled);
                 }
@@ -161,9 +163,37 @@ impl UpdaterService {
         let channel = normalize_channel(channel);
         self.emit_updater_progress(0.0, 0.0, Some(0.0), "updater.downloading", Some("active"));
 
-        // download_installer 内で check するため、ここでは二重 fetch しない
+        let fail = |this: &Self, err: CoreError| -> CoreError {
+            this.emit_updater_progress(0.0, 1.0, Some(0.0), "updater.applyFailed", Some("failed"));
+            err
+        };
+
+        // 適用直前は force で最新を取り、初回クリック時の stale / pending 欠落を避ける
+        let check = self
+            .check(channel, true)
+            .await
+            .map_err(|e| fail(self, e))?;
+        if !is_available_with_url(&check) {
+            return Err(fail(
+                self,
+                CoreError::msg(message_key_or(&check, "updater.noAsset")),
+            ));
+        }
+
+        if let Some(next) = check.get("nextVersion").and_then(|v| v.as_str()) {
+            let notes = check.get("releaseNotes").cloned().unwrap_or(Value::Null);
+            let _ = self.settings.set(json!({
+              "lastAppVersion": effective_app_version(),
+              "updateAckPending": {
+                "fromVersion": effective_app_version(),
+                "toVersion": next,
+                "releaseNotes": notes,
+              }
+            }));
+        }
+
         let installer_path = self
-            .download_installer(channel, |current, total, percent| {
+            .download_installer(channel, &check, |current, total, percent| {
                 self.emit_updater_progress(
                     current,
                     total,
@@ -173,32 +203,11 @@ impl UpdaterService {
                 );
             })
             .await
-            .map_err(|e| {
-                self.emit_updater_progress(0.0, 1.0, Some(0.0), "updater.applyFailed", Some("failed"));
-                e
-            })?;
-
-        // 完了ダイアログ用メタはキャッシュ済み check から取る（ネット再取得なし）
-        if let Ok(check) = self.check(channel, false).await {
-            if check.get("status").and_then(|v| v.as_str()) == Some("available") {
-                if let Some(next) = check.get("nextVersion").and_then(|v| v.as_str()) {
-                    let notes = check.get("releaseNotes").cloned().unwrap_or(Value::Null);
-                    let _ = self.settings.set(json!({
-                      "lastAppVersion": effective_app_version(),
-                      "updateAckPending": {
-                        "fromVersion": effective_app_version(),
-                        "toVersion": next,
-                        "releaseNotes": notes,
-                      }
-                    }));
-                }
-            }
-        }
+            .map_err(|e| fail(self, e))?;
 
         self.emit_updater_progress(1.0, 1.0, Some(100.0), "updater.preparing", Some("active"));
 
         let staged = stage_update_installer(&installer_path)?;
-        // キャッシュ掃除は再起動後でもよいが、容量のため軽いファイル削除のみ先に行う
         let _ = self.clear_cache();
 
         self.emit_updater_progress(1.0, 1.0, Some(100.0), "updater.restarting", Some("active"));
@@ -214,8 +223,7 @@ impl UpdaterService {
     pub fn clear_cache(&self) -> CoreResult<()> {
         self.pending.lock().clear();
         for channel in ["stable", "prerelease"] {
-            let path = self.cache_path(channel);
-            let _ = fs::remove_file(path);
+            let _ = fs::remove_file(self.cache_path(channel));
         }
         Ok(())
     }
@@ -223,154 +231,129 @@ impl UpdaterService {
     async fn download_installer<F>(
         &self,
         channel: &str,
+        check_result: &Value,
         mut on_progress: F,
     ) -> CoreResult<PathBuf>
     where
         F: FnMut(f64, f64, Option<f64>),
     {
-        let mut result = self.check(channel, false).await?;
-        if result.get("status").and_then(|v| v.as_str()) != Some("available")
-            || result.get("downloadUrl").is_none()
-        {
-            result = self.fetch_and_resolve(channel).await?;
+        let result = if is_available_with_url(check_result) {
+            check_result.clone()
+        } else {
+            self.fetch_and_resolve(channel).await?
+        };
+        self.sync_pending(channel, &result);
+
+        if !is_available_with_url(&result) {
+            return Err(CoreError::msg(message_key_or(&result, "updater.noAsset")));
         }
+
         let pending = self
             .pending
             .lock()
             .get(channel)
             .cloned()
-            .ok_or_else(|| {
-                CoreError::msg(
-                    result
-                        .get("messageKey")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("updater.noAsset"),
-                )
-            })?;
-
-        if result.get("status").and_then(|v| v.as_str()) != Some("available") {
-            return Err(CoreError::msg(
-                result
-                    .get("messageKey")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("updater.noAsset"),
-            ));
-        }
+            .or_else(|| pending_from_result(&result))
+            .ok_or_else(|| CoreError::msg(message_key_or(&result, "updater.noAsset")))?;
 
         let dir = PathBuf::from(&self.layout.temp).join("updates");
         fs::create_dir_all(&dir)?;
         let target = dir.join(&pending.file_name);
 
         let client = reqwest::Client::builder()
-            .timeout(Duration::from_millis(FETCH_TIMEOUT_MS * 4))
+            .connect_timeout(Duration::from_secs(20))
+            .timeout(Duration::from_millis(DOWNLOAD_TIMEOUT_MS))
             .user_agent(ua_download())
+            .redirect(reqwest::redirect::Policy::limited(10))
             .build()
             .map_err(|e| CoreError::msg(e.to_string()))?;
 
-        let response = client
-            .get(&pending.download_url)
-            .send()
-            .await
-            .map_err(|_| CoreError::msg("updater.downloadFailed"))?
-            .error_for_status()
-            .map_err(|_| CoreError::msg("updater.downloadFailed"))?;
-
-        let total_header = response.content_length().unwrap_or(0);
-        let total = if total_header > 0 {
-            total_header as f64
-        } else if let Some(size) = pending.expected_size {
-            size as f64
-        } else {
-            0.0
-        };
-
-        on_progress(0.0, total, if total > 0.0 { Some(0.0) } else { None });
-
-        let mut stream = response.bytes_stream();
-        let mut file = fs::File::create(&target).map_err(|_| CoreError::msg("updater.downloadFailed"))?;
-        let mut received: u64 = 0;
-        while let Some(chunk) = stream.next().await {
-            let chunk = chunk.map_err(|_| CoreError::msg("updater.downloadFailed"))?;
-            file.write_all(&chunk)
-                .map_err(|_| CoreError::msg("updater.downloadFailed"))?;
-            received += chunk.len() as u64;
-            let percent = if total > 0.0 {
-                Some(((received as f64 / total) * 100.0).min(99.0))
-            } else {
-                None
-            };
-            on_progress(received as f64, total, percent);
-        }
-        file.flush()
-            .map_err(|_| CoreError::msg("updater.downloadFailed"))?;
-        drop(file);
-
-        if let Some(expected) = pending.expected_size {
-            let actual = fs::metadata(&target)
-                .map(|m| m.len())
-                .unwrap_or(0);
-            if actual != expected {
-                let _ = fs::remove_file(&target);
-                return Err(CoreError::msg("updater.downloadFailed"));
+        let mut last_err = CoreError::msg("updater.downloadFailed");
+        for attempt in 1..=DOWNLOAD_RETRIES {
+            match download_installer_once(&client, &pending, &target, &mut on_progress).await {
+                Ok(path) => return Ok(path),
+                Err(err) => {
+                    tracing::warn!(
+                        attempt,
+                        retries = DOWNLOAD_RETRIES,
+                        error = %err,
+                        "updater download attempt failed"
+                    );
+                    last_err = err;
+                    let _ = fs::remove_file(&target);
+                    if attempt < DOWNLOAD_RETRIES {
+                        tokio::time::sleep(Duration::from_millis(400 * u64::from(attempt))).await;
+                    }
+                }
             }
         }
-
-        let final_total = if total > 0.0 { total } else { received as f64 };
-        on_progress(received as f64, final_total, Some(100.0));
-        Ok(target)
+        Err(last_err)
     }
 
     async fn fetch_and_resolve(&self, channel: &str) -> CoreResult<Value> {
-        let release = self.fetch_release(channel).await?;
-        let next_version = normalize_release_version(&release.tag_name);
         let current_version = effective_app_version();
-        let release_notes = normalize_notes(release.body.as_deref());
-        let is_prerelease = release.prerelease;
+        let mut release = self.fetch_release(channel).await?;
 
-        if compare_versions(&current_version, &next_version) >= 0 {
-            let result = json!({
-              "status": "up-to-date",
-              "currentVersion": current_version,
-              "nextVersion": next_version,
-              "releaseUrl": release.html_url,
-              "releaseNotes": release_notes,
-              "prerelease": is_prerelease,
-              "channel": channel,
-            });
+        for attempt in 0..2u32 {
+            let next_version = normalize_release_version(&release.tag_name);
+            let release_notes = normalize_notes(release.body.as_deref());
+            let is_prerelease = release.prerelease;
+
+            if compare_versions(&current_version, &next_version) >= 0 {
+                return self.finish_resolve(channel, up_to_date_result(
+                    &current_version,
+                    &next_version,
+                    &release,
+                    release_notes,
+                    is_prerelease,
+                    channel,
+                ));
+            }
+
+            if let Some(asset) = find_windows_installer(&release.assets).cloned() {
+                return self.finish_resolve(
+                    channel,
+                    available_result(
+                        &current_version,
+                        &next_version,
+                        &release,
+                        &asset,
+                        release_notes,
+                        is_prerelease,
+                        channel,
+                    ),
+                );
+            }
+
+            if attempt == 0 {
+                tracing::warn!(
+                    tag = %release.tag_name,
+                    "installer asset missing; retrying release fetch once"
+                );
+                tokio::time::sleep(Duration::from_millis(ASSET_RETRY_DELAY_MS)).await;
+                release = self.fetch_release(channel).await?;
+                continue;
+            }
+
+            // noAsset はキャッシュしない（初回だけ空で 2 回目成功、を防ぐ）
+            let result = unavailable_result(
+                &current_version,
+                &next_version,
+                &release,
+                release_notes,
+                is_prerelease,
+                channel,
+            );
             self.sync_pending(channel, &result);
-            self.write_cache(channel, &result)?;
             return Ok(result);
         }
 
-        let Some(asset) = find_windows_installer(&release.assets) else {
-            let result = json!({
-              "status": "unavailable",
-              "messageKey": "updater.noAsset",
-              "currentVersion": current_version,
-              "nextVersion": next_version,
-              "releaseUrl": release.html_url,
-              "releaseNotes": release_notes,
-              "prerelease": is_prerelease,
-              "channel": channel,
-            });
-            self.sync_pending(channel, &result);
-            self.write_cache(channel, &result)?;
-            return Ok(result);
-        };
+        unreachable!("asset resolve loop exits via return");
+    }
 
-        let result = json!({
-          "status": "available",
-          "currentVersion": current_version,
-          "nextVersion": next_version,
-          "downloadUrl": asset.browser_download_url,
-          "downloadSize": asset.size,
-          "releaseUrl": release.html_url,
-          "releaseNotes": release_notes,
-          "prerelease": is_prerelease,
-          "channel": channel,
-        });
+    fn finish_resolve(&self, channel: &str, result: Value) -> CoreResult<Value> {
         self.sync_pending(channel, &result);
-        self.write_cache(channel, &result)?;
+        self.write_cache_if_stable(channel, &result)?;
         Ok(result)
     }
 
@@ -403,13 +386,18 @@ impl UpdaterService {
         } else if let Some(releases) = value.get("releases") {
             serde_json::from_value(releases.clone()).map_err(|e| CoreError::msg(e.to_string()))?
         } else {
-            return Err(CoreError::msg("Configured update feed is not a valid release payload"));
+            return Err(CoreError::msg(
+                "Configured update feed is not a valid release payload",
+            ));
         };
 
         let current = effective_app_version();
-        let gen1 = is_generation1_app(&current);
-        let gen2 = is_generation2_app(&current);
-        pick_newest_release(list, channel, gen1, gen2)
+        pick_newest_release(
+            list,
+            channel,
+            is_generation1_app(&current),
+            is_generation2_app(&current),
+        )
     }
 
     async fn fetch_latest_stable(&self) -> CoreResult<GithubRelease> {
@@ -429,9 +417,8 @@ impl UpdaterService {
         gen2: bool,
     ) -> CoreResult<GithubRelease> {
         let per_page = if gen1 || gen2 { GEN_LIST_PER_PAGE } else { 20 };
-        let url = format!(
-            "https://api.github.com/repos/{OWNER}/{REPO}/releases?per_page={per_page}"
-        );
+        let url =
+            format!("https://api.github.com/repos/{OWNER}/{REPO}/releases?per_page={per_page}");
         let value = self.fetch_json(&url, &ua_check()).await?;
         let list: Vec<GithubRelease> =
             serde_json::from_value(value).map_err(|e| CoreError::msg(e.to_string()))?;
@@ -440,45 +427,52 @@ impl UpdaterService {
 
     async fn fetch_json(&self, url: &str, ua: &str) -> CoreResult<Value> {
         let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(15))
             .timeout(Duration::from_millis(FETCH_TIMEOUT_MS))
             .user_agent(ua)
+            .redirect(reqwest::redirect::Policy::limited(10))
             .build()
             .map_err(|e| CoreError::msg(e.to_string()))?;
-        client
-            .get(url)
-            .header("Accept", "application/vnd.github+json")
-            .send()
-            .await
-            .map_err(|e| CoreError::msg(e.to_string()))?
-            .error_for_status()
-            .map_err(|e| CoreError::msg(e.to_string()))?
-            .json()
-            .await
-            .map_err(|e| CoreError::msg(e.to_string()))
+
+        let mut last_err = CoreError::msg("updater.fetchFailed");
+        for attempt in 1..=FETCH_RETRIES {
+            match client
+                .get(url)
+                .header("Accept", "application/vnd.github+json")
+                .header("X-GitHub-Api-Version", "2022-11-28")
+                .send()
+                .await
+            {
+                Ok(response) => match response.error_for_status() {
+                    Ok(ok) => match ok.json::<Value>().await {
+                        Ok(value) => return Ok(value),
+                        Err(err) => last_err = CoreError::msg(err.to_string()),
+                    },
+                    Err(err) => last_err = CoreError::msg(err.to_string()),
+                },
+                Err(err) => last_err = CoreError::msg(err.to_string()),
+            }
+            tracing::warn!(
+                attempt,
+                retries = FETCH_RETRIES,
+                error = %last_err,
+                %url,
+                "updater API fetch attempt failed"
+            );
+            if attempt < FETCH_RETRIES {
+                tokio::time::sleep(Duration::from_millis(350 * u64::from(attempt))).await;
+            }
+        }
+        Err(last_err)
     }
 
     fn sync_pending(&self, channel: &str, result: &Value) {
         let mut pending = self.pending.lock();
-        if result.get("status").and_then(|v| v.as_str()) == Some("available") {
-            if let Some(url) = result.get("downloadUrl").and_then(|v| v.as_str()) {
-                let file_name = url
-                    .rsplit('/')
-                    .next()
-                    .unwrap_or("Fledge-setup.exe")
-                    .to_string();
-                let expected_size = result.get("downloadSize").and_then(|v| v.as_u64());
-                pending.insert(
-                    channel.to_string(),
-                    PendingInstaller {
-                        download_url: url.to_string(),
-                        file_name,
-                        expected_size,
-                    },
-                );
-                return;
-            }
+        if let Some(next) = pending_from_result(result) {
+            pending.insert(channel.to_string(), next);
+        } else {
+            pending.remove(channel);
         }
-        pending.remove(channel);
     }
 
     fn cache_path(&self, channel: &str) -> PathBuf {
@@ -524,6 +518,14 @@ impl UpdaterService {
             format!("{}\n", serde_json::to_string_pretty(&payload)?),
         )?;
         Ok(())
+    }
+
+    /// unavailable（noAsset 等）はキャッシュしない。
+    fn write_cache_if_stable(&self, channel: &str, result: &Value) -> CoreResult<()> {
+        if result.get("status").and_then(|v| v.as_str()) == Some("unavailable") {
+            return Ok(());
+        }
+        self.write_cache(channel, result)
     }
 
     fn emit_updater_progress(
@@ -593,14 +595,172 @@ fn normalize_notes(body: Option<&str>) -> Option<String> {
     }
 }
 
+fn is_available_with_url(result: &Value) -> bool {
+    result.get("status").and_then(|v| v.as_str()) == Some("available")
+        && result.get("downloadUrl").and_then(|v| v.as_str()).is_some()
+}
+
+fn message_key_or<'a>(result: &'a Value, fallback: &'a str) -> &'a str {
+    result
+        .get("messageKey")
+        .and_then(|v| v.as_str())
+        .unwrap_or(fallback)
+}
+
+fn up_to_date_result(
+    current_version: &str,
+    next_version: &str,
+    release: &GithubRelease,
+    release_notes: Option<String>,
+    is_prerelease: bool,
+    channel: &str,
+) -> Value {
+    json!({
+      "status": "up-to-date",
+      "currentVersion": current_version,
+      "nextVersion": next_version,
+      "releaseUrl": release.html_url,
+      "releaseNotes": release_notes,
+      "prerelease": is_prerelease,
+      "channel": channel,
+    })
+}
+
+fn available_result(
+    current_version: &str,
+    next_version: &str,
+    release: &GithubRelease,
+    asset: &GithubReleaseAsset,
+    release_notes: Option<String>,
+    is_prerelease: bool,
+    channel: &str,
+) -> Value {
+    json!({
+      "status": "available",
+      "currentVersion": current_version,
+      "nextVersion": next_version,
+      "downloadUrl": asset.browser_download_url,
+      "downloadSize": asset.size,
+      "releaseUrl": release.html_url,
+      "releaseNotes": release_notes,
+      "prerelease": is_prerelease,
+      "channel": channel,
+    })
+}
+
+fn unavailable_result(
+    current_version: &str,
+    next_version: &str,
+    release: &GithubRelease,
+    release_notes: Option<String>,
+    is_prerelease: bool,
+    channel: &str,
+) -> Value {
+    json!({
+      "status": "unavailable",
+      "messageKey": "updater.noAsset",
+      "currentVersion": current_version,
+      "nextVersion": next_version,
+      "releaseUrl": release.html_url,
+      "releaseNotes": release_notes,
+      "prerelease": is_prerelease,
+      "channel": channel,
+    })
+}
+
+fn pending_from_result(result: &Value) -> Option<PendingInstaller> {
+    if result.get("status").and_then(|v| v.as_str()) != Some("available") {
+        return None;
+    }
+    let url = result.get("downloadUrl").and_then(|v| v.as_str())?;
+    let file_name = url
+        .rsplit('/')
+        .next()
+        .filter(|s| !s.is_empty())
+        .unwrap_or("Fledge-setup.exe")
+        .to_string();
+    let expected_size = result.get("downloadSize").and_then(|v| v.as_u64());
+    Some(PendingInstaller {
+        download_url: url.to_string(),
+        file_name,
+        expected_size,
+    })
+}
+
+async fn download_installer_once<F>(
+    client: &reqwest::Client,
+    pending: &PendingInstaller,
+    target: &Path,
+    on_progress: &mut F,
+) -> CoreResult<PathBuf>
+where
+    F: FnMut(f64, f64, Option<f64>),
+{
+    let response = client
+        .get(&pending.download_url)
+        .header("Accept", "application/octet-stream")
+        .send()
+        .await
+        .map_err(|_| CoreError::msg("updater.downloadFailed"))?
+        .error_for_status()
+        .map_err(|_| CoreError::msg("updater.downloadFailed"))?;
+
+    let total_header = response.content_length().unwrap_or(0);
+    let total = if total_header > 0 {
+        total_header as f64
+    } else if let Some(size) = pending.expected_size.filter(|s| *s > 0) {
+        size as f64
+    } else {
+        0.0
+    };
+
+    on_progress(0.0, total, if total > 0.0 { Some(0.0) } else { None });
+
+    let mut stream = response.bytes_stream();
+    let mut file =
+        fs::File::create(target).map_err(|_| CoreError::msg("updater.downloadFailed"))?;
+    let mut received: u64 = 0;
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|_| CoreError::msg("updater.downloadFailed"))?;
+        file.write_all(&chunk)
+            .map_err(|_| CoreError::msg("updater.downloadFailed"))?;
+        received += chunk.len() as u64;
+        let percent = if total > 0.0 {
+            Some(((received as f64 / total) * 100.0).min(99.0))
+        } else {
+            None
+        };
+        on_progress(received as f64, total, percent);
+    }
+    file.flush()
+        .map_err(|_| CoreError::msg("updater.downloadFailed"))?;
+    drop(file);
+
+    let actual = fs::metadata(target).map(|m| m.len()).unwrap_or(0);
+    if actual < MIN_INSTALLER_BYTES {
+        let _ = fs::remove_file(target);
+        return Err(CoreError::msg("updater.downloadFailed"));
+    }
+    if let Some(expected) = pending.expected_size.filter(|s| *s >= MIN_INSTALLER_BYTES) {
+        if actual != expected {
+            let _ = fs::remove_file(target);
+            return Err(CoreError::msg("updater.downloadFailed"));
+        }
+    }
+
+    let final_total = if total > 0.0 { total } else { received as f64 };
+    on_progress(received as f64, final_total, Some(100.0));
+    Ok(target.to_path_buf())
+}
+
 fn find_windows_installer(assets: &[GithubReleaseAsset]) -> Option<&GithubReleaseAsset> {
     assets
         .iter()
         .find(|a| is_preferred_installer_name(&a.name))
         .or_else(|| {
             assets.iter().find(|a| {
-                a.name.to_ascii_lowercase().ends_with(".exe")
-                    && a.name.to_ascii_lowercase().contains("setup")
+                let lower = a.name.to_ascii_lowercase();
+                lower.ends_with(".exe") && lower.contains("setup")
             })
         })
 }
@@ -627,7 +787,6 @@ fn pick_newest_release(
     } else if gen2 {
         releases.retain(|r| is_eligible_generation2_update(&normalize_release_version(&r.tag_name)));
     }
-    // Newest first
     releases.sort_by(|a, b| {
         compare_versions(
             &normalize_release_version(&a.tag_name),
@@ -780,7 +939,22 @@ mod tests {
           "channel": "stable",
         });
         let reused = cached_result_on_fetch_failure(false, &cached, "0.7.0").expect("available");
-        assert_eq!(reused.get("status").and_then(|v| v.as_str()), Some("available"));
+        assert_eq!(
+            reused.get("status").and_then(|v| v.as_str()),
+            Some("available")
+        );
         assert!(cached_result_on_fetch_failure(true, &cached, "0.7.0").is_none());
+    }
+
+    #[test]
+    fn available_requires_download_url() {
+        assert!(!is_available_with_url(&json!({
+          "status": "available",
+          "nextVersion": "0.7.3",
+        })));
+        assert!(is_available_with_url(&json!({
+          "status": "available",
+          "downloadUrl": "https://example.com/setup.exe",
+        })));
     }
 }

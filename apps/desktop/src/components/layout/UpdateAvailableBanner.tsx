@@ -57,14 +57,41 @@ export function UpdateAvailableBanner() {
   const [checking, setChecking] = useState(false)
   const refreshIconRef = useRef<SVGSVGElement | null>(null)
   const refreshSpinRef = useRef<Animation | null>(null)
+  const bootRetryDoneRef = useRef(false)
 
   const updateQuery = useQuery({
     queryKey: ['updater', 'check', channel],
     queryFn: () => fledgeApi.updater.check(channel),
-    staleTime: 60 * 1000,
+    staleTime: 12 * 1000,
     refetchOnWindowFocus: true,
     refetchOnMount: 'always',
   })
+
+  // 起動直後の一瞬失敗 / 古い up-to-date を拾ったとき、1 回だけ force で取り直す
+  useEffect(() => {
+    if (bootRetryDoneRef.current) return
+    if (updateQuery.isLoading || updateQuery.isFetching || !updateQuery.isFetched) return
+
+    const alreadyAvailable =
+      updateQuery.data?.status === 'available' && Boolean(updateQuery.data.nextVersion)
+    bootRetryDoneRef.current = true
+    if (alreadyAvailable) return
+
+    const timer = window.setTimeout(() => {
+      void fledgeApi.updater.check(channel, { force: true }).then(
+        (result) => queryClient.setQueryData(['updater', 'check', channel], result),
+        () => undefined,
+      )
+    }, 1800)
+    return () => window.clearTimeout(timer)
+  }, [
+    channel,
+    queryClient,
+    updateQuery.data,
+    updateQuery.isFetched,
+    updateQuery.isFetching,
+    updateQuery.isLoading,
+  ])
 
   useEffect(() => {
     const deliver = createProgressThrottler((e: ProgressEvent) => {

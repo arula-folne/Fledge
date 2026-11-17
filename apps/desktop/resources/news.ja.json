@@ -1,5 +1,12 @@
 [
   {
+    "id": "v0.7.3",
+    "title": "【バージョンアップ】Fledge Ver.0.7.3",
+    "body": "**Fledge Ver.0.7.3** を公開しました。\n\n## 主な変更\n\n- アプリ内アップデートの初回失敗を抑えやすく改善（リトライ・キャッシュ見直し）\n- 適用直前の再確認と起動直後のサイレント再チェック\n- updater 実装の整理\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
+    "publishedAt": "2026-11-17T14:50:00.000Z",
+    "url": "https://github.com/arula-folne/Fledge/releases/tag/v0.7.3"
+  },
+  {
     "id": "v0.7.2",
     "title": "【バージョンアップ】Fledge Ver.0.7.2",
     "body": "**Fledge Ver.0.7.2** を公開しました。\n\n## 主な変更\n\n- スキンプレビューの基礎待機モーション（ランダム）と瞬き対応\n- カスタム未使用時はスタンダード見た目／画像削除後もカスタムタブ維持\n- テーマ・ギャラリー・起動エラー表示などの UI 調整\n\n不具合や要望は [GitHub Issues](https://github.com/arula-folne/Fledge/issues) からお知らせください。",
